@@ -1,0 +1,57 @@
+{
+	"name": "ky",
+	"version": "0.0.0",
+	"description": "Tiny and elegant HTTP client based on the browser Fetch API",
+	"license": "MIT",
+	"repository": "sindresorhus/ky",
+	"author": {
+		"name": "Sindre Sorhus",
+		"email": "sindresorhus@gmail.com",
+		"url": "sindresorhus.com"
+	},
+	"engines": {
+		"node": ">=8"
+	},
+	"scripts": {
+		"test": "xo && nyc ava"
+	},
+	"files": [
+		"index.js"
+	],
+	"keywords": [
+		"fetch",
+		"request",
+		"requests",
+		"http",
+		"https",
+		"fetching",
+		"get",
+		"url",
+		"curl",
+		"wget",
+		"net",
+		"network",
+		"ajax",
+		"api",
+		"rest",
+		"xhr",
+		"browser",
+		"got",
+		"axios",
+		"node-fetch"
+	],
+	"devDependencies": {
+		"ava": "1.0.0-beta.8",
+		"body": "^5.1.0",
+		"create-test-server": "2.1.1",
+		"delay": "^4.0.0",
+		"node-fetch": "^2.2.0",
+		"nyc": "^13.0.1",
+		"xo": "^0.23.0"
+	},
+	"xo": {
+		"envs": [
+			"browser"
+		]
+	}
+}
