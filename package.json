@@ -43,6 +43,7 @@
 	"devDependencies": {
 		"ava": "1.0.0-beta.8",
 		"body": "^5.1.0",
+		"codecov": "^3.0.4",
 		"create-test-server": "2.1.1",
 		"delay": "^4.0.0",
 		"node-fetch": "^2.2.0",
