@@ -142,6 +142,36 @@ Exposed for `instanceof` checks. The error has a `response` property with the [`
 The error thrown when the request times out.
 
 
+## Tips
+
+### Cancelation
+
+Fetch (and hence Ky) has built-in support for request cancelation through the [`AbortController` API](https://developer.mozilla.org/en-US/docs/Web/API/AbortController). [Read more.](https://developers.google.com/web/updates/2017/09/abortable-fetch)
+
+Example:
+
+```js
+import ky from 'ky';
+
+const controller = new AbortController();
+const {signal} = controller;
+
+setTimeout(() => controller.abort(), 5000);
+
+(async () => {
+	try {
+		console.log(await ky(url, {signal}).text());
+	} catch (error) {
+		if (error.name === 'AbortError') {
+		  console.log('Fetch aborted');
+		} else {
+		  console.error('Fetch error:', error);
+		}
+	}
+})();
+```
+
+
 ## Browser support
 
 The latest version of Chrome, Firefox, and Safari.
