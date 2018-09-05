@@ -114,6 +114,10 @@ class Ky {
 
 		this._options.headers = headers;
 
+		if (this._options.baseUrl) {
+			this._input = new URL(this._input, new URL(this._options.baseUrl, document.baseURI));
+		}
+
 		this._response = this._fetch();
 
 		for (const type of responseTypes) {

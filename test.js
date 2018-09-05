@@ -1,3 +1,4 @@
+import {URL} from 'url';
 import util from 'util';
 import test from 'ava';
 import createTestServer from 'create-test-server';
@@ -11,6 +12,9 @@ const pBody = util.promisify(body);
 const fixture = 'fixture';
 const defaultRetryCount = 2;
 
+global.document = {};
+global.document.baseURI = 'https://example.com/';
+global.URL = URL;
 global.window = {};
 global.window.fetch = fetch;
 global.window.Headers = fetch.Headers;
@@ -111,6 +115,19 @@ test('POST JSON', async t => {
 	const responseJson = await ky.post(server.url, {json}).json();
 
 	t.deepEqual(json, responseJson);
+
+	await server.close();
+});
+
+test('baseUrl option', async t => {
+	const server = await createTestServer();
+	server.get('/api/unicorn', (request, response) => {
+		response.end('rainbow');
+	});
+
+	t.is(await ky('unicorn', {
+		baseUrl: server.url + '/api/'
+	}).text(), 'rainbow');
 
 	await server.close();
 });
