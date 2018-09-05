@@ -172,6 +172,13 @@ setTimeout(() => controller.abort(), 5000);
 ```
 
 
+## FAQ
+
+#### How is it different from [`r2`](https://github.com/mikeal/r2)?
+
+See my answer in [#10](https://github.com/sindresorhus/ky/issues/10).
+
+
 ## Browser support
 
 The latest version of Chrome, Firefox, and Safari.
