@@ -109,14 +109,13 @@ Shortcut for sending JSON. Use this instead of the `body` option. Accepts a plai
 Sets `options.method` to the method name and makes a request.
 
 #### baseUrl
-Type: `string` `Object`
 
-When specified, `url` will be prepended by `baseUrl`.
+Type: `string` [`URL`](https://developer.mozilla.org/en-US/docs/Web/API/URL)
+
+When specified, `url` will be prepended by `baseUrl`.<br>
 If you specify an absolute URL, it will skip the `baseUrl`.
 
-Very useful when used with `ky.extend()` to create niche-specific Ky instances.
-
-Can be a string or a [WHATWG `URL`](https://nodejs.org/api/url.html#url_class_url).
+Useful when used with `ky.extend()` to create niche-specific Ky-instances.
 
 #### retry
 
