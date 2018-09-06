@@ -79,14 +79,10 @@ class TimeoutError extends Error {
 
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 
-const timeout = (promise, ms) => new Promise((resolve, reject) => {
-	promise.then(resolve, reject); // eslint-disable-line promise/prefer-await-to-then
-
-	(async () => {
-		await delay(ms);
-		reject(new TimeoutError());
-	})();
-});
+const timeout = (promise, ms) => Promise.race([
+	promise,
+	delay(ms).then(() => Promise.reject(new TimeoutError())) // eslint-disable-line promise/prefer-await-to-then
+]);
 
 class Ky {
 	constructor(input, options) {
