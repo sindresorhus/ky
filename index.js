@@ -89,7 +89,7 @@ const timeout = (promise, ms) => new Promise((resolve, reject) => {
 });
 
 class Ky {
-	constructor(input, options) {
+	constructor(input, {timeout = 10000, json, ...otherOptions}) {
 		this._input = input;
 		this._retryCount = 0;
 
@@ -97,19 +97,16 @@ class Ky {
 			method: 'get',
 			credentials: 'same-origin', // TODO: This can be removed when the spec change is implemented in all browsers. Context: https://www.chromestatus.com/feature/4539473312350208
 			retry: 3,
-			timeout: 10000,
-			...options
+			...otherOptions
 		};
 
-		this._timeout = this._options.timeout;
-		delete this._options.timeout;
+		this._timeout = timeout;
 
 		const headers = new window.Headers(this._options.headers || {});
 
-		if (this._options.json) {
+		if (json) {
 			headers.set('content-type', 'application/json');
-			this._options.body = JSON.stringify(this._options.json);
-			delete this._options.json;
+			this._options.body = JSON.stringify(json);
 		}
 
 		this._options.headers = headers;
