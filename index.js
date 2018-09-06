@@ -98,11 +98,15 @@ class Ky {
 			credentials: 'same-origin', // TODO: This can be removed when the spec change is implemented in all browsers. Context: https://www.chromestatus.com/feature/4539473312350208
 			retry: 3,
 			timeout: 10000,
+			throwHttpErrors: true,
 			...options
 		};
 
 		this._timeout = this._options.timeout;
 		delete this._options.timeout;
+
+		this._throwHttpErrors = this._options.throwHttpErrors;
+		delete this._options.throwHttpErrors;
 
 		const headers = new window.Headers(this._options.headers || {});
 
@@ -153,7 +157,9 @@ class Ky {
 					return retry();
 				}
 
-				throw error;
+				if (this._throwHttpErrors) {
+					throw error;
+				}
 			}
 		};
 
