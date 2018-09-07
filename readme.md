@@ -203,6 +203,12 @@ The latest version of Chrome, Firefox, and Safari.
 - [got](https://github.com/sindresorhus/got) - Simplified HTTP requests for Node.js
 
 
+## Maintainers
+
+- [Sindre Sorhus](https://github.com/sindresorhus)
+- [Szymon Marczak](https://github.com/szmarczak)
+
+
 ## License
 
-MIT © [Sindre Sorhus](https://sindresorhus.com)
+MIT
