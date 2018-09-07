@@ -81,7 +81,10 @@ const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 
 const timeout = (promise, ms) => Promise.race([
 	promise,
-	delay(ms).then(() => Promise.reject(new TimeoutError())) // eslint-disable-line promise/prefer-await-to-then
+	(async () => {
+		await delay(ms);
+		throw new TimeoutError();
+	})()
 ]);
 
 class Ky {
