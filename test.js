@@ -227,7 +227,11 @@ test('throwHttpErrors option', async t => {
 	server.get('/', (request, response) => {
 		response.sendStatus(500);
 	});
-	await t.notThrowsAsync(ky.get(server.url, {throwHttpErrors: false}).text(), /Internal Server Error/);
+
+	await t.notThrowsAsync(
+		ky.get(server.url, {throwHttpErrors: false}).text(),
+		/Internal Server Error/
+	);
 
 	await server.close();
 });
