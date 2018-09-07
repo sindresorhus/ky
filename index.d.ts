@@ -4,43 +4,47 @@ type Method =
   | 'head'
   | 'post'
   | 'put'
-  | 'patch'
+  | 'patch';
 
 type ResponseType =
   | 'arraybuffer'
   | 'blob'
   | 'json'
   | 'text'
-  | 'formData'
+  | 'formData';
 
-interface IRequestConfig extends RequestInit{
-  url?: string;
-  retry: number;
-  timeout: number;
+interface Options extends RequestInit{
+  retry?: number;
+  timeout?: number;
 }
 
-interface HTTPError extends Error {
-  name: string;
+/**
+ * The error has a response property with the Response object.
+ */
+export interface HTTPError extends Error {
   response: Response;
 }
 
-interface TimeoutError extends Error {
-  name: string;
+/**
+ * The error thrown when the request times out.
+ */
+export interface TimeoutError extends Error {
 }
 
-interface IKy {
-  (input?: Request | string, init?: IRequestConfig): Promise<Response>
-  get (input?: Request | string, init?: IRequestConfig): Promise<Response>;
-  post (input?: Request | string, init?: IRequestConfig): Promise<Response>;
-  put (input?: Request | string, init?: IRequestConfig): Promise<Response>;
-  patch (input?: Request | string, init?: IRequestConfig): Promise<Response>;
-  head (input?: Request | string, init?: IRequestConfig): Promise<Response>;
-  delete (input?: Request | string, init?: IRequestConfig): Promise<Response>;
+interface Ky {
+	(input: Request | string, options?: Options): Promise<Response>;
+	
+  get (input: Request | string, options?: Options): Promise<Response>;
+  post (input: Request | string, options?: Options): Promise<Response>;
+  put (input: Request | string, options?: Options): Promise<Response>;
+  patch (input: Request | string, options?: Options): Promise<Response>;
+  head (input: Request | string, options?: Options): Promise<Response>;
+  delete (input: Request | string, options?: Options): Promise<Response>;
 
-  extend (defaultOptions: IRequestConfig): ky;
+  extend (defaultOptions: Options): Ky;
 
   HTTPError: HTTPError;
   TimeoutError: TimeoutError;
 }
 
-export default IKy;
+export default Ky;
