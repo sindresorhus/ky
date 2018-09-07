@@ -174,9 +174,23 @@ setTimeout(() => controller.abort(), 5000);
 
 ## FAQ
 
+#### How is it different from [`got`](https://github.com/sindresorhus/got)
+
+See my answer [here](https://twitter.com/sindresorhus/status/1037406558945042432). Got is maintained by the same people as Ky.
+
+#### How is it different from [`axios`](https://github.com/axios/axios)?
+
+See my answer [here](https://twitter.com/sindresorhus/status/1037763588826398720).
+
 #### How is it different from [`r2`](https://github.com/mikeal/r2)?
 
 See my answer in [#10](https://github.com/sindresorhus/ky/issues/10).
+
+#### What does `ky` mean?
+
+It's just a random short npm package name I managed to get. It does, however, have a meaning in Japanese:
+
+> A form of text-able slang, KY is an abbreviation for 空気読めない (kuuki yomenai), which literally translates into “cannot read the air.” It's a phrase applied to someone who misses the implied meaning.
 
 
 ## Browser support
