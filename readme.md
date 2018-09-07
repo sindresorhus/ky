@@ -130,7 +130,9 @@ Timeout in milliseconds for getting a response.
 Type: `boolean`<br>
 Default: `true`
 
-Whether or not an error will be thrown from a HTTP error status.
+Throw a `HTTPError` for error responses (non-2xx status codes).
+
+Setting this to `false` may be useful if you are checking for resource availability and are expecting error responses.
 
 ### ky.extend(defaultOptions)
 
