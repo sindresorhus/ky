@@ -101,7 +101,6 @@ class Ky {
 		};
 
 		this._timeout = timeout;
-
 		this._throwHttpErrors = throwHttpErrors;
 
 		const headers = new window.Headers(this._options.headers || {});
