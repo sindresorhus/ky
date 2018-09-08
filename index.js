@@ -88,7 +88,7 @@ const timeout = (promise, ms) => Promise.race([
 ]);
 
 class Ky {
-	constructor(input, {timeout = 10000, json, ...otherOptions}) {
+	constructor(input, {timeout = 10000, hooks = {beforeRequest: []}, json, ...otherOptions}) {
 		this._input = input;
 		this._retryCount = 0;
 
@@ -100,6 +100,7 @@ class Ky {
 		};
 
 		this._timeout = timeout;
+		this._hooks = hooks;
 
 		const headers = new window.Headers(this._options.headers || {});
 
@@ -157,6 +158,13 @@ class Ky {
 	}
 
 	_fetch() {
+		(async () => {
+			for (const hook of this._hooks.beforeRequest) {
+				// eslint-disable-next-line no-await-in-loop
+				await hook(this._options);
+			}
+		})();
+
 		return timeout(window.fetch(this._input, this._options), this._timeout);
 	}
 }
