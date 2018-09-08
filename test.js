@@ -253,6 +253,20 @@ test('beforeRequest allows modifications', async t => {
 	await server.close();
 });
 
+test('throwHttpErrors option', async t => {
+	const server = await createTestServer();
+	server.get('/', (request, response) => {
+		response.sendStatus(500);
+	});
+
+	await t.notThrowsAsync(
+		ky.get(server.url, {throwHttpErrors: false}).text(),
+		/Internal Server Error/
+	);
+
+	await server.close();
+});
+
 test('ky.extend()', async t => {
 	const server = await createTestServer();
 	server.get('/', (request, response) => {
