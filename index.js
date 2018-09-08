@@ -88,7 +88,7 @@ const timeout = (promise, ms) => Promise.race([
 ]);
 
 class Ky {
-	constructor(input, {timeout = 10000, json, ...otherOptions}) {
+	constructor(input, {timeout = 10000, throwHttpErrors = true, json, ...otherOptions}) {
 		this._input = input;
 		this._retryCount = 0;
 
@@ -100,6 +100,7 @@ class Ky {
 		};
 
 		this._timeout = timeout;
+		this._throwHttpErrors = throwHttpErrors;
 
 		const headers = new window.Headers(this._options.headers || {});
 
@@ -149,7 +150,9 @@ class Ky {
 					return retry();
 				}
 
-				throw error;
+				if (this._throwHttpErrors) {
+					throw error;
+				}
 			}
 		};
 

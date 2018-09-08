@@ -125,6 +125,15 @@ Default: `10000`
 
 Timeout in milliseconds for getting a response.
 
+### throwHttpErrors
+
+Type: `boolean`<br>
+Default: `true`
+
+Throw a `HTTPError` for error responses (non-2xx status codes).
+
+Setting this to `false` may be useful if you are checking for resource availability and are expecting error responses.
+
 ### ky.extend(defaultOptions)
 
 Create a new `ky` instance with some defaults overridden with your own.
