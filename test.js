@@ -222,6 +222,37 @@ test('timeout option', async t => {
 	await server.close();
 });
 
+test('beforeRequest allows modifications', async t => {
+	const server = await createTestServer();
+	server.post('/', async (request, response) => {
+		response.json(JSON.parse(await pBody(request)));
+	});
+
+	const json = {
+		foo: true
+	};
+
+	const responseJson = await ky.post(
+		server.url,
+		{
+			json,
+			hooks: {
+				beforeRequest: [
+					options => {
+						const bodyJson = JSON.parse(options.body);
+						bodyJson.foo = false;
+						options.body = JSON.stringify(bodyJson);
+					}
+				]
+			}
+		}
+	).json();
+
+	t.false(responseJson.foo);
+
+	await server.close();
+});
+
 test('throwHttpErrors option', async t => {
 	const server = await createTestServer();
 	server.get('/', (request, response) => {

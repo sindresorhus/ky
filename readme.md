@@ -125,6 +125,20 @@ Default: `10000`
 
 Timeout in milliseconds for getting a response.
 
+#### hooks
+
+Type: `Object<string, Function[]>`<br>
+Default: `{beforeRequest: []}`
+
+Hooks allow modifications during the request lifecycle. Hook functions may be async and are run serially.
+
+##### hooks.beforeRequest
+
+Type: `Function[]`<br>
+Default: `[]`
+
+Ky will make no further changes to the request before it is sent.
+
 ### throwHttpErrors
 
 Type: `boolean`<br>
