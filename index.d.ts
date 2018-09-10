@@ -1,15 +1,18 @@
 import { IPromise } from '.';
+
 /**
  * options are the same as fetch, with some exceptions.
  */
 interface Options extends RequestInit {
 	/**
 	 * Retry failed requests times.
+	 *
 	 * @default 2
 	 */
 	retry?: number;
 	/**
 	 * Timeout in milliseconds for getting a response.
+	 *
 	 * @default 10000
 	 */
 	timeout?: number;
