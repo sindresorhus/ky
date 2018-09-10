@@ -183,5 +183,10 @@ const createInstance = (defaults = {}) => {
 };
 
 export default createInstance();
-export let extend = defaults => createInstance(defaults);
-export { HTTPError, TimeoutError };
+
+export const extend = defaults => createInstance(defaults);
+
+export {
+	HTTPError,
+	TimeoutError
+};
