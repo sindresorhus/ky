@@ -55,9 +55,6 @@
 	"xo": {
 		"envs": [
 			"browser"
-		],
-		"ignores": [
-			"*.ts"
 		]
 	}
 }
