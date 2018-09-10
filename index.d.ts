@@ -48,6 +48,7 @@ export class TimeoutError extends Error {}
 export interface Ky {
 	/**
 	 * same as fetch.
+	 *
 	 * @param input - Request object or url string.
 	 * @returns Promise with Body method added.
 	 */
@@ -55,6 +56,7 @@ export interface Ky {
 
 	/**
 	 * same as fetch's get method.
+	 *
 	 * @param input - Request object or url string.
 	 * @returns Promise with Body method added.
 	 */
@@ -62,6 +64,7 @@ export interface Ky {
 
 	/**
 	 * same as fetch's post method.
+	 *
 	 * @param input - Request object or url string.
 	 * @returns Promise with Body method added.
 	 */
@@ -69,6 +72,7 @@ export interface Ky {
 
 	/**
 	 * same as fetch's put method.
+	 *
 	 * @param input - Request object or url string.
 	 * @returns Promise with Body method added.
 	 */
@@ -76,6 +80,7 @@ export interface Ky {
 
 	/**
 	 * same as fetch's patch method.
+	 *
 	 * @param input - Request object or url string.
 	 * @returns Promise with Body method added.
 	 */
@@ -83,6 +88,7 @@ export interface Ky {
 
 	/**
 	 * same as fetch's head method.
+	 *
 	 * @param input - Request object or url string.
 	 * @returns Promise with Body method added.
 	 */
@@ -90,13 +96,15 @@ export interface Ky {
 
 	/**
 	 * same as fetch's delete method.
+	 *
 	 * @param input - Request object or url string.
 	 * @returns Promise with Body method added.
 	 */
 	delete(input: Request | string, options?: Options): IPromise;
 
 	/**
-	 * Create a new ky instance with some defaults overridden with your own.
+	 * Create a new Ky instance with some defaults overridden with your own.
+	 *
 	 * @returns new Ky instance
 	 */
 	extend(defaultOptions: Options): Ky;
