@@ -1,6 +1,7 @@
 'use strict';
 
 const isObject = value => value !== null && typeof value === 'object';
+const supportsCancel = typeof AbortController === 'function';
 
 const deepMerge = (...sources) => {
 	let returnValue = {};
@@ -77,6 +78,11 @@ class TimeoutError extends Error {
 	}
 }
 
+let abortCtrl;
+if (supportsCancel) {
+	abortCtrl = new AbortController();
+}
+
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 
 const timeout = (promise, ms) => Promise.race([
@@ -98,6 +104,10 @@ class Ky {
 			retry: 3,
 			...otherOptions
 		};
+
+		if (supportsCancel) {
+			this._options.signal = abortCtrl.abort();
+		}
 
 		this._timeout = timeout;
 		this._hooks = hooks;
