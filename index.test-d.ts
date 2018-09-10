@@ -12,7 +12,7 @@ import ky, {Ky, HTTPError, TimeoutError, IPromise} from '.';
 		setTimeout(() => response.end(), 11000);
 	});
 
-	// test ky
+	// Test Ky
 	expectType<IPromise>(ky(server.url, {}));
 
 	const requestMethods = [
@@ -24,15 +24,12 @@ import ky, {Ky, HTTPError, TimeoutError, IPromise} from '.';
 		'delete'
 	];
 
-	// test ky http methods
+	// Test Ky HTTP methods
 	requestMethods.map(async(key) => {
 		expectType<IPromise>(await ky[key](server.url));
 	});
 
-	// test ky extend
 	expectType<Ky>(ky.extend({}));
-
-	// test ky error
 	expectType<HTTPError>(new HTTPError());
 	expectType<TimeoutError>(new TimeoutError);
 })();
