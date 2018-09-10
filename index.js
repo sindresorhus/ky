@@ -182,7 +182,11 @@ const createInstance = (defaults = {}) => {
 	return ky;
 };
 
-module.exports = createInstance();
-module.exports.extend = defaults => createInstance(defaults);
-module.exports.HTTPError = HTTPError;
-module.exports.TimeoutError = TimeoutError;
+export default createInstance();
+
+export const extend = defaults => createInstance(defaults);
+
+export {
+	HTTPError,
+	TimeoutError
+};
