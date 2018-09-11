@@ -1,7 +1,13 @@
-import { IPromise } from '.';
+interface Hooks {
+	/**
+	 * Before request sent.
+	 * @default []
+	 */
+	beforeRequest: Function[];
+}
 
 /**
- * options are the same as fetch, with some exceptions.
+ * Options are the same as fetch, with some exceptions.
  */
 interface Options extends RequestInit {
 	/**
@@ -10,26 +16,39 @@ interface Options extends RequestInit {
 	 * @default 2
 	 */
 	retry?: number;
+
 	/**
 	 * Timeout in milliseconds for getting a response.
 	 *
 	 * @default 10000
 	 */
 	timeout?: number;
+
 	/**
 	 * Shortcut for sending JSON. Use this instead of the body option.
 	 */
 	json?: object;
+
+	/**
+	 * Hooks allow modifications during the request lifecycle. Hook functions may be async and are run serially.
+	 */
+	hooks?: Hooks;
+
+	/**
+	 * Throw a HTTPError for error responses (non-2xx status codes).
+	 * @default true
+	 */
+	throwHttpErrors?: boolean;
 }
 
 /**
  * Returns a Response object with Body methods added for convenience.
  */
-export interface IPromise extends Promise<Response> {
+export interface KyResponsePromise extends Promise<Response> {
 	arrayBuffer(): Promise<ArrayBuffer>;
 	blob(): Promise<Blob>;
 	formData(): Promise<FormData>;
-	json(): Promise<any>;
+	json(): Promise<unknown>;
 	text(): Promise<string>;
 }
 
@@ -47,65 +66,65 @@ export class TimeoutError extends Error {}
 
 export interface Ky {
 	/**
-	 * same as fetch.
+	 * Same as fetch.
 	 *
 	 * @param input - Request object or url string.
 	 * @returns Promise with Body method added.
 	 */
-	(input: Request | string, options?: Options): IPromise;
+	(input: Request | string, options?: Options): KyResponsePromise;
 
 	/**
-	 * same as fetch's get method.
+	 * Same as fetch's get method.
 	 *
 	 * @param input - Request object or url string.
 	 * @returns Promise with Body method added.
 	 */
-	get(input: Request | string, options?: Options): IPromise;
+	get(input: Request | string, options?: Options): KyResponsePromise;
 
 	/**
-	 * same as fetch's post method.
+	 * Same as fetch's post method.
 	 *
 	 * @param input - Request object or url string.
 	 * @returns Promise with Body method added.
 	 */
-	post(input: Request | string, options?: Options): IPromise;
+	post(input: Request | string, options?: Options): KyResponsePromise;
 
 	/**
-	 * same as fetch's put method.
+	 * Same as fetch's put method.
 	 *
 	 * @param input - Request object or url string.
 	 * @returns Promise with Body method added.
 	 */
-	put(input: Request | string, options?: Options): IPromise;
+	put(input: Request | string, options?: Options): KyResponsePromise;
 
 	/**
-	 * same as fetch's patch method.
+	 * Same as fetch's patch method.
 	 *
 	 * @param input - Request object or url string.
 	 * @returns Promise with Body method added.
 	 */
-	patch(input: Request | string, options?: Options): IPromise;
+	patch(input: Request | string, options?: Options): KyResponsePromise;
 
 	/**
-	 * same as fetch's head method.
+	 * Same as fetch's head method.
 	 *
 	 * @param input - Request object or url string.
 	 * @returns Promise with Body method added.
 	 */
-	head(input: Request | string, options?: Options): IPromise;
+	head(input: Request | string, options?: Options): KyResponsePromise;
 
 	/**
-	 * same as fetch's delete method.
+	 * Same as fetch's delete method.
 	 *
 	 * @param input - Request object or url string.
 	 * @returns Promise with Body method added.
 	 */
-	delete(input: Request | string, options?: Options): IPromise;
+	delete(input: Request | string, options?: Options): KyResponsePromise;
 
 	/**
 	 * Create a new Ky instance with some defaults overridden with your own.
 	 *
-	 * @returns new Ky instance
+	 * @returns New Ky instance
 	 */
 	extend(defaultOptions: Options): Ky;
 

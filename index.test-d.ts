@@ -1,6 +1,6 @@
 import {expectType} from 'tsd-check';
 import createTestServer from 'create-test-server';
-import ky, {Ky, HTTPError, TimeoutError, IPromise} from '.';
+import ky, {Ky, HTTPError, TimeoutError, KyResponsePromise} from '.';
 
 (async () => {
 	const server = await createTestServer();
@@ -13,7 +13,7 @@ import ky, {Ky, HTTPError, TimeoutError, IPromise} from '.';
 	});
 
 	// Test Ky
-	expectType<IPromise>(ky(server.url, {}));
+	expectType<KyResponsePromise>(ky(server.url, {}));
 
 	const requestMethods = [
 		'get',
@@ -26,7 +26,7 @@ import ky, {Ky, HTTPError, TimeoutError, IPromise} from '.';
 
 	// Test Ky HTTP methods
 	requestMethods.map(async(key) => {
-		expectType<IPromise>(await ky[key](server.url));
+		expectType<KyResponsePromise>(await ky[key](server.url));
 	});
 
 	expectType<Ky>(ky.extend({}));
