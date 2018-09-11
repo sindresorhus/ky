@@ -1,10 +1,10 @@
 import util from 'util';
 import test from 'ava';
 import createTestServer from 'create-test-server';
-import fetch from 'node-fetch';
+import fetch, {Headers} from 'node-fetch';
 import body from 'body';
 import delay from 'delay';
-import ky from '.';
+import ky, {TimeoutError} from '.';
 
 const pBody = util.promisify(body);
 
@@ -13,7 +13,7 @@ const defaultRetryCount = 2;
 
 global.window = {};
 global.window.fetch = fetch;
-global.window.Headers = fetch.Headers;
+global.window.Headers = Headers;
 
 test('ky()', async t => {
 	const server = await createTestServer();
@@ -216,7 +216,7 @@ test('timeout option', async t => {
 		response.end(fixture);
 	});
 
-	await t.throwsAsync(ky(server.url, {timeout: 500}).text(), ky.TimeoutError);
+	await t.throwsAsync(ky(server.url, {timeout: 500}).text(), TimeoutError);
 	t.is(requestCount, 1);
 
 	await server.close();

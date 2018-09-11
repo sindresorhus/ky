@@ -1,5 +1,3 @@
-'use strict';
-
 const isObject = value => value !== null && typeof value === 'object';
 
 const deepMerge = (...sources) => {
@@ -179,10 +177,14 @@ const createInstance = (defaults = {}) => {
 		ky[method] = (input, options) => new Ky(input, deepMerge({}, defaults, options, {method}));
 	}
 
+	ky.extend = defaults => createInstance(defaults);
+
 	return ky;
 };
 
-module.exports = createInstance();
-module.exports.extend = defaults => createInstance(defaults);
-module.exports.HTTPError = HTTPError;
-module.exports.TimeoutError = TimeoutError;
+export default createInstance();
+
+export {
+	HTTPError,
+	TimeoutError
+};
