@@ -2,6 +2,7 @@
 
 const isObject = value => value !== null && typeof value === 'object';
 const supportsAbortController = typeof AbortController === 'function';
+let isAborted = false;
 
 const deepMerge = (...sources) => {
 	let returnValue = {};
@@ -89,6 +90,10 @@ const timeout = (promise, ms) => Promise.race([
 	promise,
 	(async () => {
 		await delay(ms);
+		if (!isAborted && supportsAbortController) {
+			abortController.abort();
+			isAborted = true;
+		}
 		throw new TimeoutError();
 	})()
 ]);
@@ -105,8 +110,12 @@ class Ky {
 			...otherOptions
 		};
 
-		if (supportsAbortController && !this._options.signal) {
-			this._options.signal = abortController.abort();
+		if (supportsAbortController) {
+			if (this._options.signal) {
+				this._options.signal.onabort = () => isAborted && abortController.abort();
+				isAborted = true;
+			}
+			this._options.signal = abortController.signal;
 		}
 
 		this._timeout = timeout;
