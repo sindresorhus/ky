@@ -67,7 +67,7 @@ With plain `fetch`, it would be:
 	});
 
 	if (!response.ok) {
-		throw new HTTPError(`Fetch error:`, response.statusText);
+		throw new HTTPError('Fetch error:', response.statusText);
 	}
 
 	const json = await response.json();
@@ -156,11 +156,11 @@ Create a new `ky` instance with some defaults overridden with your own.
 
 Type: `Object`
 
-### ky.HTTPError
+### HTTPError
 
 Exposed for `instanceof` checks. The error has a `response` property with the [`Response` object](https://developer.mozilla.org/en-US/docs/Web/API/Response).
 
-### ky.TimeoutError
+### TimeoutError
 
 The error thrown when the request times out.
 
@@ -186,9 +186,9 @@ setTimeout(() => controller.abort(), 5000);
 		console.log(await ky(url, {signal}).text());
 	} catch (error) {
 		if (error.name === 'AbortError') {
-		  console.log('Fetch aborted');
+			console.log('Fetch aborted');
 		} else {
-		  console.error('Fetch error:', error);
+			console.error('Fetch error:', error);
 		}
 	}
 })();
