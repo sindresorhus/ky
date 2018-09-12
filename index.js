@@ -112,7 +112,7 @@ class Ky {
 
 		if (supportsAbortController) {
 			if (this._options.signal) {
-				this._options.signal.onabort = () => isAborted && abortController.abort();
+				this._options.signal.addEventListener('abort', () => isAborted && abortController.abort());
 				isAborted = true;
 			}
 			this._options.signal = abortController.signal;
