@@ -1,4 +1,4 @@
-interface Hooks {
+export interface Hooks {
 	/**
 	 * Before request sent.
 	 * @default []
@@ -9,7 +9,7 @@ interface Hooks {
 /**
  * Options are the same as fetch, with some exceptions.
  */
-interface Options extends RequestInit {
+export interface Options extends RequestInit {
 	/**
 	 * Retry failed requests times.
 	 *
@@ -44,7 +44,7 @@ interface Options extends RequestInit {
 /**
  * Returns a Response object with Body methods added for convenience.
  */
-export interface KyResponsePromise extends Promise<Response> {
+export interface ResponsePromise extends Promise<Response> {
 	arrayBuffer(): Promise<ArrayBuffer>;
 	blob(): Promise<Blob>;
 	formData(): Promise<FormData>;
@@ -71,7 +71,7 @@ export interface Ky {
 	 * @param input - Request object or url string.
 	 * @returns Promise with Body method added.
 	 */
-	(input: Request | string, options?: Options): KyResponsePromise;
+	(input: Request | string, options?: Options): ResponsePromise;
 
 	/**
 	 * Same as fetch's get method.
@@ -79,7 +79,7 @@ export interface Ky {
 	 * @param input - Request object or url string.
 	 * @returns Promise with Body method added.
 	 */
-	get(input: Request | string, options?: Options): KyResponsePromise;
+	get(input: Request | string, options?: Options): ResponsePromise;
 
 	/**
 	 * Same as fetch's post method.
@@ -87,7 +87,7 @@ export interface Ky {
 	 * @param input - Request object or url string.
 	 * @returns Promise with Body method added.
 	 */
-	post(input: Request | string, options?: Options): KyResponsePromise;
+	post(input: Request | string, options?: Options): ResponsePromise;
 
 	/**
 	 * Same as fetch's put method.
@@ -95,7 +95,7 @@ export interface Ky {
 	 * @param input - Request object or url string.
 	 * @returns Promise with Body method added.
 	 */
-	put(input: Request | string, options?: Options): KyResponsePromise;
+	put(input: Request | string, options?: Options): ResponsePromise;
 
 	/**
 	 * Same as fetch's patch method.
@@ -103,7 +103,7 @@ export interface Ky {
 	 * @param input - Request object or url string.
 	 * @returns Promise with Body method added.
 	 */
-	patch(input: Request | string, options?: Options): KyResponsePromise;
+	patch(input: Request | string, options?: Options): ResponsePromise;
 
 	/**
 	 * Same as fetch's head method.
@@ -111,7 +111,7 @@ export interface Ky {
 	 * @param input - Request object or url string.
 	 * @returns Promise with Body method added.
 	 */
-	head(input: Request | string, options?: Options): KyResponsePromise;
+	head(input: Request | string, options?: Options): ResponsePromise;
 
 	/**
 	 * Same as fetch's delete method.
@@ -119,7 +119,7 @@ export interface Ky {
 	 * @param input - Request object or url string.
 	 * @returns Promise with Body method added.
 	 */
-	delete(input: Request | string, options?: Options): KyResponsePromise;
+	delete(input: Request | string, options?: Options): ResponsePromise;
 
 	/**
 	 * Create a new Ky instance with some defaults overridden with your own.
@@ -127,16 +127,6 @@ export interface Ky {
 	 * @returns New Ky instance
 	 */
 	extend(defaultOptions: Options): Ky;
-
-	/**
-	 * The error has a response property with the Response object.
-	 */
-	HTTPError: HTTPError;
-
-	/**
-	 * The error thrown when the request times out.
-	 */
-	TimeoutError: TimeoutError;
 }
 
 declare const ky: Ky;
