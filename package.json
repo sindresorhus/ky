@@ -62,7 +62,8 @@
 		"babel": false,
 		"compileEnhancements": false,
 		"require": [
-			"esm"
+			"esm",
+			"./test/_require"
 		]
 	}
 }
