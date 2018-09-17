@@ -137,7 +137,7 @@ Hooks allow modifications during the request lifecycle. Hook functions may be as
 Type: `Function[]`<br>
 Default: `[]`
 
-Ky will make no further changes to the request before it is sent.
+This hook enables you to modify the request right before it is sent. Ky will make no further changes to the request after this. The hook function receives the normalized options as the first argument. You could, for example, modify `options.headers` here.
 
 ### throwHttpErrors
 
