@@ -68,7 +68,7 @@ export interface Ky {
 	/**
 	 * Same as fetch.
 	 *
-	 * @param input - Request object or url string.
+	 * @param input - Request object or URL string.
 	 * @returns Promise with Body method added.
 	 */
 	(input: Request | string, options?: Options): ResponsePromise;
@@ -76,7 +76,7 @@ export interface Ky {
 	/**
 	 * Same as fetch's get method.
 	 *
-	 * @param input - Request object or url string.
+	 * @param input - Request object or URL string.
 	 * @returns Promise with Body method added.
 	 */
 	get(input: Request | string, options?: Options): ResponsePromise;
@@ -84,7 +84,7 @@ export interface Ky {
 	/**
 	 * Same as fetch's post method.
 	 *
-	 * @param input - Request object or url string.
+	 * @param input - Request object or URL string.
 	 * @returns Promise with Body method added.
 	 */
 	post(input: Request | string, options?: Options): ResponsePromise;
@@ -92,7 +92,7 @@ export interface Ky {
 	/**
 	 * Same as fetch's put method.
 	 *
-	 * @param input - Request object or url string.
+	 * @param input - Request object or URL string.
 	 * @returns Promise with Body method added.
 	 */
 	put(input: Request | string, options?: Options): ResponsePromise;
@@ -100,7 +100,7 @@ export interface Ky {
 	/**
 	 * Same as fetch's patch method.
 	 *
-	 * @param input - Request object or url string.
+	 * @param input - Request object or URL string.
 	 * @returns Promise with Body method added.
 	 */
 	patch(input: Request | string, options?: Options): ResponsePromise;
@@ -108,7 +108,7 @@ export interface Ky {
 	/**
 	 * Same as fetch's head method.
 	 *
-	 * @param input - Request object or url string.
+	 * @param input - Request object or URL string.
 	 * @returns Promise with Body method added.
 	 */
 	head(input: Request | string, options?: Options): ResponsePromise;
@@ -116,7 +116,7 @@ export interface Ky {
 	/**
 	 * Same as fetch's delete method.
 	 *
-	 * @param input - Request object or url string.
+	 * @param input - Request object or URL string.
 	 * @returns Promise with Body method added.
 	 */
 	delete(input: Request | string, options?: Options): ResponsePromise;
