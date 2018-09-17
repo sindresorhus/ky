@@ -31,3 +31,13 @@ requestMethods.map(async(key) => {
 expectType<Ky>(ky.extend({}));
 expectType<HTTPError>(new HTTPError());
 expectType<TimeoutError>(new TimeoutError);
+
+ky(server.url, {
+	hooks: {
+		beforeRequest: [
+			options => {
+				expectType<Object>(options);
+			}
+		]
+	}
+});
