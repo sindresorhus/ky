@@ -158,13 +158,11 @@ class Ky {
 		return retry;
 	}
 
-	_fetch() {
-		(async () => {
-			for (const hook of this._hooks.beforeRequest) {
-				// eslint-disable-next-line no-await-in-loop
-				await hook(this._options);
-			}
-		})();
+	async _fetch() {
+		for (const hook of this._hooks.beforeRequest) {
+			// eslint-disable-next-line no-await-in-loop
+			await hook(this._options);
+		}
 
 		return timeout(window.fetch(this._input, this._options), this._timeout);
 	}
