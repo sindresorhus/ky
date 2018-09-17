@@ -1,9 +1,12 @@
+export type BeforeRequestHook = (options: Object) => void;
+
 export interface Hooks {
 	/**
-	 * Before request sent.
+	 * Before the request is sent.
+	 *
 	 * @default []
 	 */
-	beforeRequest: Function[];
+	beforeRequest: BeforeRequestHook[];
 }
 
 /**
@@ -11,7 +14,7 @@ export interface Hooks {
  */
 export interface Options extends RequestInit {
 	/**
-	 * Retry failed requests times.
+	 * Numer of times to retry failed requests.
 	 *
 	 * @default 2
 	 */
@@ -25,7 +28,7 @@ export interface Options extends RequestInit {
 	timeout?: number;
 
 	/**
-	 * Shortcut for sending JSON. Use this instead of the body option.
+	 * Shortcut for sending JSON. Use this instead of the `body` option.
 	 */
 	json?: object;
 
@@ -35,14 +38,15 @@ export interface Options extends RequestInit {
 	hooks?: Hooks;
 
 	/**
-	 * Throw a HTTPError for error responses (non-2xx status codes).
+	 * Throw a `HTTPError` for error responses (non-2xx status codes).
+	 *
 	 * @default true
 	 */
 	throwHttpErrors?: boolean;
 }
 
 /**
- * Returns a Response object with Body methods added for convenience.
+ * Returns a `Response` object with `Body` methods added for convenience.
  */
 export interface ResponsePromise extends Promise<Response> {
 	arrayBuffer(): Promise<ArrayBuffer>;
@@ -53,7 +57,7 @@ export interface ResponsePromise extends Promise<Response> {
 }
 
 /**
- * The error has a response property with the Response object.
+ * The error has a response property with the `Response` object.
  */
 export class HTTPError extends Error {
 	response: Response;
@@ -69,55 +73,55 @@ export interface Ky {
 	 * Same as fetch.
 	 *
 	 * @param input - Request object or URL string.
-	 * @returns Promise with Body method added.
+	 * @returns Promise with `Body` method added.
 	 */
 	(input: Request | string, options?: Options): ResponsePromise;
 
 	/**
-	 * Same as fetch's get method.
+	 * Same as fetch's `get()` method.
 	 *
 	 * @param input - Request object or URL string.
-	 * @returns Promise with Body method added.
+	 * @returns Promise with `Body` method added.
 	 */
 	get(input: Request | string, options?: Options): ResponsePromise;
 
 	/**
-	 * Same as fetch's post method.
+	 * Same as fetch's `post()` method.
 	 *
 	 * @param input - Request object or URL string.
-	 * @returns Promise with Body method added.
+	 * @returns Promise with `Body` method added.
 	 */
 	post(input: Request | string, options?: Options): ResponsePromise;
 
 	/**
-	 * Same as fetch's put method.
+	 * Same as fetch's `put()` method.
 	 *
 	 * @param input - Request object or URL string.
-	 * @returns Promise with Body method added.
+	 * @returns Promise with `Body` method added.
 	 */
 	put(input: Request | string, options?: Options): ResponsePromise;
 
 	/**
-	 * Same as fetch's patch method.
+	 * Same as fetch's `patch()` method.
 	 *
 	 * @param input - Request object or URL string.
-	 * @returns Promise with Body method added.
+	 * @returns Promise with `Body` method added.
 	 */
 	patch(input: Request | string, options?: Options): ResponsePromise;
 
 	/**
-	 * Same as fetch's head method.
+	 * Same as fetch's `head()` method.
 	 *
 	 * @param input - Request object or URL string.
-	 * @returns Promise with Body method added.
+	 * @returns Promise with `Body` method added.
 	 */
 	head(input: Request | string, options?: Options): ResponsePromise;
 
 	/**
-	 * Same as fetch's delete method.
+	 * Same as fetch's `delete()` method.
 	 *
 	 * @param input - Request object or URL string.
-	 * @returns Promise with Body method added.
+	 * @returns Promise with `Body` method added.
 	 */
 	delete(input: Request | string, options?: Options): ResponsePromise;
 
