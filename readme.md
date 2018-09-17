@@ -26,6 +26,7 @@ Ky targets [modern browsers](#browser-support). For older browsers, you will nee
 - JSON option
 - Timeout support
 - Instances with custom defaults
+- Hooks
 
 
 ## Install
