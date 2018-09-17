@@ -93,7 +93,7 @@ class Ky {
 		this._options = {
 			method: 'get',
 			credentials: 'same-origin', // TODO: This can be removed when the spec change is implemented in all browsers. Context: https://www.chromestatus.com/feature/4539473312350208
-			retry: 3,
+			retry: 2,
 			...otherOptions
 		};
 
