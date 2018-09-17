@@ -13,10 +13,11 @@
 		"node": ">=8"
 	},
 	"scripts": {
-		"test": "xo && nyc ava"
+		"test": "xo && nyc ava && tsd-check"
 	},
 	"files": [
-		"index.js"
+		"index.js",
+		"index.d.ts"
 	],
 	"keywords": [
 		"fetch",
@@ -49,6 +50,7 @@
 		"esm": "^3.0.82",
 		"node-fetch": "^2.2.0",
 		"nyc": "^13.0.1",
+		"tsd-check": "^0.2.1",
 		"xo": "^0.23.0"
 	},
 	"xo": {
