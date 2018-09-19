@@ -30,7 +30,8 @@ const requestMethods = [
 	'put',
 	'patch',
 	'head',
-	'delete'
+	'delete',
+	'stream'
 ];
 
 const responseTypes = [
@@ -124,6 +125,10 @@ class Ky {
 					throw new HTTPError(response);
 				}
 
+				if (response.body && this._options['stream']) {
+					return this._stream(response.clone())[type]();;
+				}
+
 				return response.clone()[type]();
 			});
 		}
@@ -166,6 +171,35 @@ class Ky {
 
 		return timeout(window.fetch(this._input, this._options), this._timeout);
 	}
+
+	_stream(response) {
+		const contentLength = response.headers.get('content-length');
+		let loaded = 0;
+
+		return new Response(
+			new ReadableStream({
+				start(controller) {
+					const reader = response.body.getReader();
+
+					read();
+					function read() {
+						reader.read().then(({ done, value }) => {
+							if (done) {
+								controller.close();
+								return;
+							}
+							loaded += value.byteLength;
+							controller.enqueue(value);
+							read();
+						}).catch(error => {
+							console.log(error);
+							controller.error(error);
+						})
+					}
+				}
+			})
+		)
+	}
 }
 
 const createInstance = (defaults = {}) => {
@@ -176,7 +210,6 @@ const createInstance = (defaults = {}) => {
 	}
 
 	ky.extend = defaults => createInstance(defaults);
-
 	return ky;
 };
 
