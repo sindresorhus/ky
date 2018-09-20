@@ -31,7 +31,7 @@ const requestMethods = [
 	'patch',
 	'head',
 	'delete',
-	'stream'
+	'stream' // TODO: Implement simple stream API
 ];
 
 const responseTypes = [
@@ -125,8 +125,12 @@ class Ky {
 					throw new HTTPError(response);
 				}
 
-				if (response.body && this._options['stream']) {
-					return this._stream(response.clone())[type]();;
+				if (response.body && this._options.stream) {
+					let progressCallback = null;
+					if (this._options.streamProgressCallback) {
+						progressCallback = this._options.streamProgressCallback
+					}
+					return this._stream(response.clone(), progressCallback)[type]();;
 				}
 
 				return response.clone()[type]();
@@ -172,29 +176,37 @@ class Ky {
 		return timeout(window.fetch(this._input, this._options), this._timeout);
 	}
 
-	_stream(response) {
-		const contentLength = response.headers.get('content-length');
-		let loaded = 0;
+	_stream(response, progressCallback) {
+		const contentByteLength = response.headers.get('content-length') || 1;
+		let contentBytesLoaded = 0;
 
 		return new Response(
 			new ReadableStream({
-				start(controller) {
+				async start(controller) {
 					const reader = response.body.getReader();
-
-					read();
-					function read() {
-						reader.read().then(({ done, value }) => {
+					
+					while(true) {
+						try {
+							const { done, value } = await reader.read();
 							if (done) {
+								if (progressCallback) {
+									progressCallback(100, { length: contentByteLength });
+								}
 								controller.close();
 								return;
 							}
-							loaded += value.byteLength;
+							if (progressCallback) {
+								contentBytesLoaded += value.byteLength;
+								const percentCompleted = contentByteLength === 0 
+									? null 
+									: Math.floor(contentBytesLoaded / contentByteLength * 100);
+								progressCallback(percentCompleted, { length: contentBytesLoaded });
+							}
 							controller.enqueue(value);
-							read();
-						}).catch(error => {
+						} catch (error) {
 							console.log(error);
 							controller.error(error);
-						})
+						}
 					}
 				}
 			})
