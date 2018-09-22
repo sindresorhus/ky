@@ -127,9 +127,9 @@ class Ky {
 				if (response.body && this._options.stream) {
 					let progressCallback = null;
 					if (this._options.streamProgressCallback) {
-						progressCallback = this._options.streamProgressCallback
+						progressCallback = this._options.streamProgressCallback;
 					}
-					return this._stream(response.clone(), progressCallback)[type]();;
+					return this._stream(response.clone(), progressCallback)[type]();
 				}
 
 				return response.clone()[type]();
@@ -181,12 +181,13 @@ class Ky {
 
 		return new Response(
 			new ReadableStream({
-				async start(controller) {
+				start(controller) {
 					const reader = response.body.getReader();
-					
-					while(true) {
+
+					read();
+					async function read() {
+						const {done, value} = await reader.read();
 						try {
-							const { done, value } = await reader.read();
 							if (done) {
 								if (progressCallback) {
 									progressCallback(100, contentByteLength);
@@ -196,12 +197,11 @@ class Ky {
 							}
 							if (progressCallback) {
 								contentBytesLoaded += value.byteLength;
-								const percentCompleted = contentByteLength === 0 
-									? null 
-									: Math.floor(contentBytesLoaded / contentByteLength * 100);
+								const percentCompleted = contentByteLength === 0 ? null : Math.floor(contentBytesLoaded / contentByteLength * 100);
 								progressCallback(percentCompleted, contentBytesLoaded);
 							}
 							controller.enqueue(value);
+							read();
 						} catch (error) {
 							console.log(error);
 							controller.error(error);
@@ -209,7 +209,7 @@ class Ky {
 					}
 				}
 			})
-		)
+		);
 	}
 }
 
