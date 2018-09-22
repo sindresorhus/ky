@@ -124,6 +124,14 @@ class Ky {
 					throw new HTTPError(response);
 				}
 
+				if (response.body && this._options.stream) {
+					let progressCallback = null;
+					if (this._options.streamProgressCallback) {
+						progressCallback = this._options.streamProgressCallback
+					}
+					return this._stream(response.clone(), progressCallback)[type]();;
+				}
+
 				return response.clone()[type]();
 			});
 		}
@@ -165,6 +173,43 @@ class Ky {
 		}
 
 		return timeout(window.fetch(this._input, this._options), this._timeout);
+	}
+
+	_stream(response, progressCallback) {
+		const contentByteLength = response.headers.get('content-length') || 1;
+		let contentBytesLoaded = 0;
+
+		return new Response(
+			new ReadableStream({
+				async start(controller) {
+					const reader = response.body.getReader();
+					
+					while(true) {
+						try {
+							const { done, value } = await reader.read();
+							if (done) {
+								if (progressCallback) {
+									progressCallback(100, contentByteLength);
+								}
+								controller.close();
+								return;
+							}
+							if (progressCallback) {
+								contentBytesLoaded += value.byteLength;
+								const percentCompleted = contentByteLength === 0 
+									? null 
+									: Math.floor(contentBytesLoaded / contentByteLength * 100);
+								progressCallback(percentCompleted, contentBytesLoaded);
+							}
+							controller.enqueue(value);
+						} catch (error) {
+							console.log(error);
+							controller.error(error);
+						}
+					}
+				}
+			})
+		)
 	}
 }
 
