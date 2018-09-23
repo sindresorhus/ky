@@ -25,6 +25,7 @@ Ky targets [modern browsers](#browser-support). For older browsers, you will nee
 - Retries failed requests
 - JSON option
 - Timeout support
+- URL prefix option
 - Instances with custom defaults
 - Hooks
 
@@ -109,14 +110,23 @@ Shortcut for sending JSON. Use this instead of the `body` option. Accepts a plai
 
 Sets `options.method` to the method name and makes a request.
 
-#### baseUrl
+#### prefixUrl
 
 Type: `string` [`URL`](https://developer.mozilla.org/en-US/docs/Web/API/URL)
 
-When specified, `url` will be prepended by `baseUrl`.<br>
-If you specify an absolute URL, it will skip the `baseUrl`.
+When specified, `prefixUrl` will be prepended to `input`. The prefix can be any valid URL, either relative or absolute.
 
-Useful when used with `ky.extend()` to create niche-specific Ky-instances.
+Useful when used with [`ky.extend()`](#kyextenddefaultoptions) to create niche-specific Ky-instances.
+
+```js
+// On https://example.com
+await ky('/unicorn', {prefixUrl: '/api'});
+//=> https://example.com/api/unicorn
+await ky('unicorn', {prefixUrl: '/api/'});
+//=> https://example.com/api/unicorn
+await ky('/unicorn', {prefixUrl: 'https://cats.com'});
+//=> https://cats.com/unicorn
+```
 
 #### retry
 
@@ -161,6 +171,15 @@ Setting this to `false` may be useful if you are checking for resource availabil
 ### ky.extend(defaultOptions)
 
 Create a new `ky` instance with some defaults overridden with your own.
+
+```js
+// On https://example.com
+const api = ky.extend({prefixUrl: 'https://my-site.com/api'});
+api.get('/users/123');
+//=> https://my-site.com/api/users/123
+api.get('/status', {prefixUrl: ''});
+//=> https://example.com/status
+```
 
 #### defaultOptions
 

@@ -87,7 +87,6 @@ const timeout = (promise, ms) => Promise.race([
 
 class Ky {
 	constructor(input, {timeout = 10000, hooks = {beforeRequest: []}, throwHttpErrors = true, json, ...otherOptions}) {
-		this._input = input;
 		this._retryCount = 0;
 
 		this._options = {
@@ -97,6 +96,7 @@ class Ky {
 			...otherOptions
 		};
 
+		this._input = (this._options.prefixUrl || '') + input;
 		this._timeout = timeout;
 		this._hooks = hooks;
 		this._throwHttpErrors = throwHttpErrors;
@@ -109,10 +109,6 @@ class Ky {
 		}
 
 		this._options.headers = headers;
-
-		if (this._options.baseUrl) {
-			this._input = new URL(this._input, new URL(this._options.baseUrl, document.baseURI));
-		}
 
 		this._response = this._fetch();
 
