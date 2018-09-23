@@ -26,6 +26,7 @@ Ky targets [modern browsers](#browser-support). For older browsers, you will nee
 - JSON option
 - Timeout support
 - Instances with custom defaults
+- Hooks
 
 
 ## Install
@@ -67,7 +68,7 @@ With plain `fetch`, it would be:
 	});
 
 	if (!response.ok) {
-		throw new HTTPError(`Fetch error:`, response.statusText);
+		throw new HTTPError('Fetch error:', response.statusText);
 	}
 
 	const json = await response.json();
@@ -134,6 +135,29 @@ Default: `10000`
 
 Timeout in milliseconds for getting a response.
 
+#### hooks
+
+Type: `Object<string, Function[]>`<br>
+Default: `{beforeRequest: []}`
+
+Hooks allow modifications during the request lifecycle. Hook functions may be async and are run serially.
+
+##### hooks.beforeRequest
+
+Type: `Function[]`<br>
+Default: `[]`
+
+This hook enables you to modify the request right before it is sent. Ky will make no further changes to the request after this. The hook function receives the normalized options as the first argument. You could, for example, modify `options.headers` here.
+
+### throwHttpErrors
+
+Type: `boolean`<br>
+Default: `true`
+
+Throw a `HTTPError` for error responses (non-2xx status codes).
+
+Setting this to `false` may be useful if you are checking for resource availability and are expecting error responses.
+
 ### ky.extend(defaultOptions)
 
 Create a new `ky` instance with some defaults overridden with your own.
@@ -142,11 +166,11 @@ Create a new `ky` instance with some defaults overridden with your own.
 
 Type: `Object`
 
-### ky.HTTPError
+### HTTPError
 
 Exposed for `instanceof` checks. The error has a `response` property with the [`Response` object](https://developer.mozilla.org/en-US/docs/Web/API/Response).
 
-### ky.TimeoutError
+### TimeoutError
 
 The error thrown when the request times out.
 
@@ -172,13 +196,34 @@ setTimeout(() => controller.abort(), 5000);
 		console.log(await ky(url, {signal}).text());
 	} catch (error) {
 		if (error.name === 'AbortError') {
-		  console.log('Fetch aborted');
+			console.log('Fetch aborted');
 		} else {
-		  console.error('Fetch error:', error);
+			console.error('Fetch error:', error);
 		}
 	}
 })();
 ```
+
+
+## FAQ
+
+#### How is it different from [`got`](https://github.com/sindresorhus/got)
+
+See my answer [here](https://twitter.com/sindresorhus/status/1037406558945042432). Got is maintained by the same people as Ky.
+
+#### How is it different from [`axios`](https://github.com/axios/axios)?
+
+See my answer [here](https://twitter.com/sindresorhus/status/1037763588826398720).
+
+#### How is it different from [`r2`](https://github.com/mikeal/r2)?
+
+See my answer in [#10](https://github.com/sindresorhus/ky/issues/10).
+
+#### What does `ky` mean?
+
+It's just a random short npm package name I managed to get. It does, however, have a meaning in Japanese:
+
+> A form of text-able slang, KY is an abbreviation for 空気読めない (kuuki yomenai), which literally translates into “cannot read the air.” It's a phrase applied to someone who misses the implied meaning.
 
 
 ## Browser support
@@ -191,6 +236,12 @@ The latest version of Chrome, Firefox, and Safari.
 - [got](https://github.com/sindresorhus/got) - Simplified HTTP requests for Node.js
 
 
+## Maintainers
+
+- [Sindre Sorhus](https://github.com/sindresorhus)
+- [Szymon Marczak](https://github.com/szmarczak)
+
+
 ## License
 
-MIT © [Sindre Sorhus](https://sindresorhus.com)
+MIT

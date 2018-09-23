@@ -2,22 +2,12 @@ import {URL} from 'url';
 import util from 'util';
 import test from 'ava';
 import createTestServer from 'create-test-server';
-import fetch from 'node-fetch';
 import body from 'body';
 import delay from 'delay';
-import ky from '.';
+import ky, {TimeoutError} from '..';
 
 const pBody = util.promisify(body);
-
 const fixture = 'fixture';
-const defaultRetryCount = 2;
-
-global.document = {};
-global.document.baseURI = 'https://example.com/';
-global.URL = URL;
-global.window = {};
-global.window.fetch = fetch;
-global.window.Headers = fetch.Headers;
 
 test('ky()', async t => {
 	const server = await createTestServer();
@@ -147,82 +137,6 @@ test('custom headers', async t => {
 	await server.close();
 });
 
-test('retry - network error', async t => {
-	let requestCount = 0;
-
-	const server = await createTestServer();
-	server.get('/', (request, response) => {
-		requestCount++;
-
-		if (requestCount === defaultRetryCount) {
-			response.end(fixture);
-		} else {
-			response.status(99999).end();
-		}
-	});
-
-	t.is(await ky(server.url).text(), fixture);
-
-	await server.close();
-});
-
-test('retry - status code 500', async t => {
-	let requestCount = 0;
-
-	const server = await createTestServer();
-	server.get('/', (request, response) => {
-		requestCount++;
-
-		if (requestCount === defaultRetryCount) {
-			response.end(fixture);
-		} else {
-			response.sendStatus(500);
-		}
-	});
-
-	t.is(await ky(server.url).text(), fixture);
-
-	await server.close();
-});
-
-test('retry - only on defined status codes', async t => {
-	let requestCount = 0;
-
-	const server = await createTestServer();
-	server.get('/', (request, response) => {
-		requestCount++;
-
-		if (requestCount === defaultRetryCount) {
-			response.end(fixture);
-		} else {
-			response.sendStatus(400);
-		}
-	});
-
-	await t.throwsAsync(ky(server.url).text(), /Bad Request/);
-
-	await server.close();
-});
-
-test('retry - not on POST', async t => {
-	let requestCount = 0;
-
-	const server = await createTestServer();
-	server.post('/', (request, response) => {
-		requestCount++;
-
-		if (requestCount === defaultRetryCount) {
-			response.end(fixture);
-		} else {
-			response.sendStatus(500);
-		}
-	});
-
-	await t.throwsAsync(ky.post(server.url).text(), /Internal Server Error/);
-
-	await server.close();
-});
-
 test('timeout option', async t => {
 	let requestCount = 0;
 
@@ -233,8 +147,22 @@ test('timeout option', async t => {
 		response.end(fixture);
 	});
 
-	await t.throwsAsync(ky(server.url, {timeout: 500}).text(), ky.TimeoutError);
+	await t.throwsAsync(ky(server.url, {timeout: 500}).text(), TimeoutError);
 	t.is(requestCount, 1);
+
+	await server.close();
+});
+
+test('throwHttpErrors option', async t => {
+	const server = await createTestServer();
+	server.get('/', (request, response) => {
+		response.sendStatus(500);
+	});
+
+	await t.notThrowsAsync(
+		ky.get(server.url, {throwHttpErrors: false}).text(),
+		/Internal Server Error/
+	);
 
 	await server.close();
 });

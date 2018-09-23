@@ -1,5 +1,3 @@
-'use strict';
-
 const isObject = value => value !== null && typeof value === 'object';
 
 const deepMerge = (...sources) => {
@@ -79,37 +77,35 @@ class TimeoutError extends Error {
 
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 
-const timeout = (promise, ms) => new Promise((resolve, reject) => {
-	promise.then(resolve, reject); // eslint-disable-line promise/prefer-await-to-then
-
+const timeout = (promise, ms) => Promise.race([
+	promise,
 	(async () => {
 		await delay(ms);
-		reject(new TimeoutError());
-	})();
-});
+		throw new TimeoutError();
+	})()
+]);
 
 class Ky {
-	constructor(input, options) {
+	constructor(input, {timeout = 10000, hooks = {beforeRequest: []}, throwHttpErrors = true, json, ...otherOptions}) {
 		this._input = input;
 		this._retryCount = 0;
 
 		this._options = {
 			method: 'get',
 			credentials: 'same-origin', // TODO: This can be removed when the spec change is implemented in all browsers. Context: https://www.chromestatus.com/feature/4539473312350208
-			retry: 3,
-			timeout: 10000,
-			...options
+			retry: 2,
+			...otherOptions
 		};
 
-		this._timeout = this._options.timeout;
-		delete this._options.timeout;
+		this._timeout = timeout;
+		this._hooks = hooks;
+		this._throwHttpErrors = throwHttpErrors;
 
 		const headers = new window.Headers(this._options.headers || {});
 
-		if (this._options.json) {
+		if (json) {
 			headers.set('content-type', 'application/json');
-			this._options.body = JSON.stringify(this._options.json);
-			delete this._options.json;
+			this._options.body = JSON.stringify(json);
 		}
 
 		this._options.headers = headers;
@@ -157,14 +153,21 @@ class Ky {
 					return retry();
 				}
 
-				throw error;
+				if (this._throwHttpErrors) {
+					throw error;
+				}
 			}
 		};
 
 		return retry;
 	}
 
-	_fetch() {
+	async _fetch() {
+		for (const hook of this._hooks.beforeRequest) {
+			// eslint-disable-next-line no-await-in-loop
+			await hook(this._options);
+		}
+
 		return timeout(window.fetch(this._input, this._options), this._timeout);
 	}
 }
@@ -176,10 +179,14 @@ const createInstance = (defaults = {}) => {
 		ky[method] = (input, options) => new Ky(input, deepMerge({}, defaults, options, {method}));
 	}
 
+	ky.extend = defaults => createInstance(defaults);
+
 	return ky;
 };
 
-module.exports = createInstance();
-module.exports.extend = defaults => createInstance(defaults);
-module.exports.HTTPError = HTTPError;
-module.exports.TimeoutError = TimeoutError;
+export default createInstance();
+
+export {
+	HTTPError,
+	TimeoutError
+};
