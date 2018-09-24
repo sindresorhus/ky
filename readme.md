@@ -114,7 +114,7 @@ Sets `options.method` to the method name and makes a request.
 
 Type: `string` [`URL`](https://developer.mozilla.org/en-US/docs/Web/API/URL)
 
-When specified, `prefixUrl` will be prepended to `input`. The prefix can be any valid URL, either relative or absolute.
+When specified, `prefixUrl` will be prepended to `input`. The prefix can be any valid URL, either relative or absolute. A trailing slash `/` is optional, one will be added automatically, if needed, when joining `prefixUrl` and `input`.
 
 Useful when used with [`ky.extend()`](#kyextenddefaultoptions) to create niche-specific Ky-instances.
 

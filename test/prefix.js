@@ -5,7 +5,7 @@ import ky from '..';
 test('prefixUrl option', async t => {
 	const server = await createTestServer();
 	server.get('/', (request, response) => {
-		if (request.query.page === 'https://cat.com') {
+		if (request.query.page === '/https://cat.com/') {
 			response.end('meow');
 			return;
 		}
@@ -19,9 +19,11 @@ test('prefixUrl option', async t => {
 	t.is(await ky('/api/unicorn', {prefixUrl: server.url}).text(), 'rainbow');
 	t.is(await ky('unicorn', {prefixUrl: server.url + '/api/'}).text(), 'rainbow');
 	t.is(await ky('/unicorn', {prefixUrl: server.url + '/api'}).text(), 'rainbow');
-	t.is(await ky('corn', {prefixUrl: server.url + '/api/uni'}).text(), 'rainbow');
+	t.is(await ky('/unicorn', {prefixUrl: server.url + '/api/'}).text(), 'rainbow');
 	t.is(await ky('', {prefixUrl: server.url}).text(), 'zebra');
-	t.is(await ky('https://cat.com', {prefixUrl: new URL(server.url + '/?page=')}).text(), 'meow');
+	t.is(await ky('https://cat.com/', {prefixUrl: new URL(server.url + '/?page=')}).text(), 'meow');
+	t.is(await ky(new URL('https://cat.com'), {prefixUrl: server.url + '/?page='}).text(), 'meow');
+	t.is(await ky(new URL('https://cat.com'), {prefixUrl: new URL(server.url + '/?page=')}).text(), 'meow');
 
 	await server.close();
 });

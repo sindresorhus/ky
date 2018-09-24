@@ -95,8 +95,21 @@ class Ky {
 			retry: 2,
 			...otherOptions
 		};
+		this._options.prefixUrl = String(this._options.prefixUrl || '');
+		this._input = String(input || '');
 
-		this._input = (this._options.prefixUrl || '') + input;
+		if (this._options.prefixUrl.endsWith('/') && this._input.startsWith('/')) {
+			this._input = this._input.slice(1);
+		} else if (
+			this._options.prefixUrl &&
+			this._input &&
+			!this._options.prefixUrl.endsWith('/') &&
+			!this._input.startsWith('/')
+		) {
+			this._options.prefixUrl += '/';
+		}
+
+		this._input = this._options.prefixUrl + this._input;
 		this._timeout = timeout;
 		this._hooks = hooks;
 		this._throwHttpErrors = throwHttpErrors;
