@@ -98,14 +98,10 @@ class Ky {
 		this._options.prefixUrl = String(this._options.prefixUrl || '');
 		this._input = String(input || '');
 
-		if (this._options.prefixUrl.endsWith('/') && this._input.startsWith('/')) {
-			this._input = this._input.slice(1);
-		} else if (
-			this._options.prefixUrl &&
-			this._input &&
-			!this._options.prefixUrl.endsWith('/') &&
-			!this._input.startsWith('/')
-		) {
+		if (this._options.prefixUrl && this._input.startsWith('/')) {
+			throw new Error('`input` must not begin with a slash when using `prefixUrl`');
+		}
+		if (this._options.prefixUrl && !this._options.prefixUrl.endsWith('/')) {
 			this._options.prefixUrl += '/';
 		}
 
