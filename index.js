@@ -101,7 +101,7 @@ class Ky {
 		this._hooks = hooks;
 		this._throwHttpErrors = throwHttpErrors;
 
-		const headers = new window.Headers(this._options.headers || {});
+		const headers = new self.Headers(this._options.headers || {});
 
 		if (json) {
 			headers.set('content-type', 'application/json');
@@ -164,7 +164,7 @@ class Ky {
 			await hook(this._options);
 		}
 
-		return timeout(window.fetch(this._input, this._options), this._timeout);
+		return timeout(self.fetch(this._input, this._options), this._timeout);
 	}
 }
 

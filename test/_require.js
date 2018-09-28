@@ -1,6 +1,6 @@
 import fetch, {Headers} from 'node-fetch';
 
-global.window = {
+global.self = {
 	fetch,
 	Headers
 };
