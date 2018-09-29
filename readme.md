@@ -114,18 +114,20 @@ Sets `options.method` to the method name and makes a request.
 
 Type: `string` [`URL`](https://developer.mozilla.org/en-US/docs/Web/API/URL)
 
-When specified, `prefixUrl` will be prepended to `input`. The prefix can be any valid URL, either relative or absolute. A trailing slash `/` is optional, one will be added automatically, if needed, when joining `prefixUrl` and `input`.
+When specified, `prefixUrl` will be prepended to `input`. The prefix can be any valid URL, either relative or absolute. A trailing slash `/` is optional, one will be added automatically, if needed, when joining `prefixUrl` and `input`. The `input` argument cannot start with a `/` when using this option.
 
 Useful when used with [`ky.extend()`](#kyextenddefaultoptions) to create niche-specific Ky-instances.
 
 ```js
 // On https://example.com
-await ky('/unicorn', {prefixUrl: '/api'});
-//=> https://example.com/api/unicorn
-await ky('unicorn', {prefixUrl: '/api/'});
-//=> https://example.com/api/unicorn
-await ky('/unicorn', {prefixUrl: 'https://cats.com'});
-//=> https://cats.com/unicorn
+
+(async () => {
+	await ky('unicorn', {prefixUrl: '/api'});
+	//=> 'https://example.com/api/unicorn'
+
+	await ky('unicorn', {prefixUrl: 'https://cats.com'});
+	//=> 'https://cats.com/unicorn'
+})();
 ```
 
 #### retry
@@ -173,12 +175,17 @@ Setting this to `false` may be useful if you are checking for resource availabil
 Create a new `ky` instance with some defaults overridden with your own.
 
 ```js
-// On https://example.com
-const api = ky.extend({prefixUrl: 'https://my-site.com/api'});
-api.get('/users/123');
-//=> https://my-site.com/api/users/123
-api.get('/status', {prefixUrl: ''});
-//=> https://example.com/status
+// On https://my-site.com
+
+const api = ky.extend({prefixUrl: 'https://example.com/api'});
+
+(async () => {
+	await api.get('/users/123');
+	//=> 'https://example.com/api/users/123'
+
+	await api.get('/status', {prefixUrl: ''});
+	//=> 'https://my-site.com/status'
+})();
 ```
 
 #### defaultOptions
