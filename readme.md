@@ -59,7 +59,7 @@ With plain `fetch`, it would be:
 (async () => {
 	class HTTPError extends Error {}
 
-	const response = await fetch('https://sindresorhus.com', {
+	const response = await fetch('https://some-api.com', {
 		method: 'POST',
 		body: JSON.stringify({foo: true}),
 		headers: {
