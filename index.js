@@ -92,7 +92,13 @@ const timeout = (promise, ms) => Promise.race([
 ]);
 
 class Ky {
-	constructor(input, {timeout = 10000, hooks = {beforeRequest: []}, throwHttpErrors = true, json, ...otherOptions}) {
+	constructor(input, {
+		timeout = 10000,
+		hooks,
+		throwHttpErrors = true,
+		json,
+		...otherOptions
+	}) {
 		this._retryCount = 0;
 
 		this._options = {
@@ -113,7 +119,10 @@ class Ky {
 
 		this._input = this._options.prefixUrl + this._input;
 		this._timeout = timeout;
-		this._hooks = hooks;
+		this._hooks = deepMerge({
+			beforeRequest: [],
+			afterResponse: []
+		}, hooks);
 		this._throwHttpErrors = throwHttpErrors;
 
 		const headers = new self.Headers(this._options.headers || {});
@@ -134,6 +143,11 @@ class Ky {
 				}
 
 				const response = await this._response;
+
+				for (const hook of this._hooks.afterResponse) {
+					// eslint-disable-next-line no-await-in-loop
+					await hook(response.clone());
+				}
 
 				if (!response.ok) {
 					throw new HTTPError(response);
