@@ -1,6 +1,6 @@
 {
 	"name": "ky",
-	"version": "0.2.0",
+	"version": "0.4.0",
 	"description": "Tiny and elegant HTTP client based on the browser Fetch API",
 	"license": "MIT",
 	"repository": "sindresorhus/ky",
@@ -13,10 +13,11 @@
 		"node": ">=8"
 	},
 	"scripts": {
-		"test": "xo && nyc ava"
+		"test": "xo && nyc ava && tsd-check"
 	},
 	"files": [
-		"index.js"
+		"index.js",
+		"index.d.ts"
 	],
 	"keywords": [
 		"fetch",
@@ -46,13 +47,23 @@
 		"codecov": "^3.0.4",
 		"create-test-server": "2.1.1",
 		"delay": "^4.0.0",
+		"esm": "^3.0.82",
 		"node-fetch": "^2.2.0",
 		"nyc": "^13.0.1",
+		"tsd-check": "^0.2.1",
 		"xo": "^0.23.0"
 	},
 	"xo": {
 		"envs": [
 			"browser"
+		]
+	},
+	"ava": {
+		"babel": false,
+		"compileEnhancements": false,
+		"require": [
+			"esm",
+			"./test/_require"
 		]
 	}
 }

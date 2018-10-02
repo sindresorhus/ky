@@ -1,19 +1,12 @@
 import util from 'util';
 import test from 'ava';
 import createTestServer from 'create-test-server';
-import fetch from 'node-fetch';
 import body from 'body';
 import delay from 'delay';
-import ky from '.';
+import ky, {TimeoutError} from '..';
 
 const pBody = util.promisify(body);
-
 const fixture = 'fixture';
-const defaultRetryCount = 2;
-
-global.window = {};
-global.window.fetch = fetch;
-global.window.Headers = fetch.Headers;
 
 test('ky()', async t => {
 	const server = await createTestServer();
@@ -130,82 +123,6 @@ test('custom headers', async t => {
 	await server.close();
 });
 
-test('retry - network error', async t => {
-	let requestCount = 0;
-
-	const server = await createTestServer();
-	server.get('/', (request, response) => {
-		requestCount++;
-
-		if (requestCount === defaultRetryCount) {
-			response.end(fixture);
-		} else {
-			response.status(99999).end();
-		}
-	});
-
-	t.is(await ky(server.url).text(), fixture);
-
-	await server.close();
-});
-
-test('retry - status code 500', async t => {
-	let requestCount = 0;
-
-	const server = await createTestServer();
-	server.get('/', (request, response) => {
-		requestCount++;
-
-		if (requestCount === defaultRetryCount) {
-			response.end(fixture);
-		} else {
-			response.sendStatus(500);
-		}
-	});
-
-	t.is(await ky(server.url).text(), fixture);
-
-	await server.close();
-});
-
-test('retry - only on defined status codes', async t => {
-	let requestCount = 0;
-
-	const server = await createTestServer();
-	server.get('/', (request, response) => {
-		requestCount++;
-
-		if (requestCount === defaultRetryCount) {
-			response.end(fixture);
-		} else {
-			response.sendStatus(400);
-		}
-	});
-
-	await t.throwsAsync(ky(server.url).text(), /Bad Request/);
-
-	await server.close();
-});
-
-test('retry - not on POST', async t => {
-	let requestCount = 0;
-
-	const server = await createTestServer();
-	server.post('/', (request, response) => {
-		requestCount++;
-
-		if (requestCount === defaultRetryCount) {
-			response.end(fixture);
-		} else {
-			response.sendStatus(500);
-		}
-	});
-
-	await t.throwsAsync(ky.post(server.url).text(), /Internal Server Error/);
-
-	await server.close();
-});
-
 test('timeout option', async t => {
 	let requestCount = 0;
 
@@ -216,39 +133,8 @@ test('timeout option', async t => {
 		response.end(fixture);
 	});
 
-	await t.throwsAsync(ky(server.url, {timeout: 500}).text(), ky.TimeoutError);
+	await t.throwsAsync(ky(server.url, {timeout: 500}).text(), TimeoutError);
 	t.is(requestCount, 1);
-
-	await server.close();
-});
-
-test('beforeRequest allows modifications', async t => {
-	const server = await createTestServer();
-	server.post('/', async (request, response) => {
-		response.json(JSON.parse(await pBody(request)));
-	});
-
-	const json = {
-		foo: true
-	};
-
-	const responseJson = await ky.post(
-		server.url,
-		{
-			json,
-			hooks: {
-				beforeRequest: [
-					options => {
-						const bodyJson = JSON.parse(options.body);
-						bodyJson.foo = false;
-						options.body = JSON.stringify(bodyJson);
-					}
-				]
-			}
-		}
-	).json();
-
-	t.false(responseJson.foo);
 
 	await server.close();
 });

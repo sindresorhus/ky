@@ -1,5 +1,3 @@
-'use strict';
-
 const isObject = value => value !== null && typeof value === 'object';
 const supportsAbortController = typeof AbortController === 'function';
 
@@ -93,13 +91,12 @@ const timeout = (promise, ms, abortController) => Promise.race([
 
 class Ky {
 	constructor(input, {timeout = 10000, hooks = {beforeRequest: []}, throwHttpErrors = true, json, ...otherOptions}) {
-		this._input = input;
 		this._retryCount = 0;
 
 		this._options = {
 			method: 'get',
 			credentials: 'same-origin', // TODO: This can be removed when the spec change is implemented in all browsers. Context: https://www.chromestatus.com/feature/4539473312350208
-			retry: 3,
+			retry: 2,
 			...otherOptions
 		};
 		let abortController;
@@ -111,12 +108,22 @@ class Ky {
 			}
 			this._options.signal = abortController.signal;
 		}
+		this._options.prefixUrl = String(this._options.prefixUrl || '');
+		this._input = String(input || '');
 
+		if (this._options.prefixUrl && this._input.startsWith('/')) {
+			throw new Error('`input` must not begin with a slash when using `prefixUrl`');
+		}
+		if (this._options.prefixUrl && !this._options.prefixUrl.endsWith('/')) {
+			this._options.prefixUrl += '/';
+		}
+
+		this._input = this._options.prefixUrl + this._input;
 		this._timeout = timeout;
 		this._hooks = hooks;
 		this._throwHttpErrors = throwHttpErrors;
 
-		const headers = new window.Headers(this._options.headers || {});
+		const headers = new self.Headers(this._options.headers || {});
 
 		if (json) {
 			headers.set('content-type', 'application/json');
@@ -173,15 +180,13 @@ class Ky {
 		return retry;
 	}
 
-	_fetch() {
-		(async () => {
-			for (const hook of this._hooks.beforeRequest) {
-				// eslint-disable-next-line no-await-in-loop
-				await hook(this._options);
-			}
-		})();
+	async _fetch() {
+		for (const hook of this._hooks.beforeRequest) {
+			// eslint-disable-next-line no-await-in-loop
+			await hook(this._options);
+		}
 
-		return timeout(window.fetch(this._input, this._options), this._timeout);
+		return timeout(self.fetch(this._input, this._options), this._timeout);
 	}
 }
 
@@ -192,10 +197,14 @@ const createInstance = (defaults = {}) => {
 		ky[method] = (input, options) => new Ky(input, deepMerge({}, defaults, options, {method}));
 	}
 
+	ky.extend = defaults => createInstance(defaults);
+
 	return ky;
 };
 
-module.exports = createInstance();
-module.exports.extend = defaults => createInstance(defaults);
-module.exports.HTTPError = HTTPError;
-module.exports.TimeoutError = TimeoutError;
+export default createInstance();
+
+export {
+	HTTPError,
+	TimeoutError
+};

@@ -25,7 +25,9 @@ Ky targets [modern browsers](#browser-support). For older browsers, you will nee
 - Retries failed requests
 - JSON option
 - Timeout support
+- URL prefix option
 - Instances with custom defaults
+- Hooks
 
 
 ## Install
@@ -58,7 +60,7 @@ With plain `fetch`, it would be:
 (async () => {
 	class HTTPError extends Error {}
 
-	const response = await fetch('https://sindresorhus.com', {
+	const response = await fetch('https://some-api.com', {
 		method: 'POST',
 		body: JSON.stringify({foo: true}),
 		headers: {
@@ -67,7 +69,7 @@ With plain `fetch`, it would be:
 	});
 
 	if (!response.ok) {
-		throw new HTTPError(`Fetch error:`, response.statusText);
+		throw new HTTPError('Fetch error:', response.statusText);
 	}
 
 	const json = await response.json();
@@ -108,6 +110,26 @@ Shortcut for sending JSON. Use this instead of the `body` option. Accepts a plai
 
 Sets `options.method` to the method name and makes a request.
 
+#### prefixUrl
+
+Type: `string` [`URL`](https://developer.mozilla.org/en-US/docs/Web/API/URL)
+
+When specified, `prefixUrl` will be prepended to `input`. The prefix can be any valid URL, either relative or absolute. A trailing slash `/` is optional, one will be added automatically, if needed, when joining `prefixUrl` and `input`. The `input` argument cannot start with a `/` when using this option.
+
+Useful when used with [`ky.extend()`](#kyextenddefaultoptions) to create niche-specific Ky-instances.
+
+```js
+// On https://example.com
+
+(async () => {
+	await ky('unicorn', {prefixUrl: '/api'});
+	//=> 'https://example.com/api/unicorn'
+
+	await ky('unicorn', {prefixUrl: 'https://cats.com'});
+	//=> 'https://cats.com/unicorn'
+})();
+```
+
 #### retry
 
 Type: `number`<br>
@@ -137,7 +159,7 @@ Hooks allow modifications during the request lifecycle. Hook functions may be as
 Type: `Function[]`<br>
 Default: `[]`
 
-Ky will make no further changes to the request before it is sent.
+This hook enables you to modify the request right before it is sent. Ky will make no further changes to the request after this. The hook function receives the normalized options as the first argument. You could, for example, modify `options.headers` here.
 
 ### throwHttpErrors
 
@@ -152,15 +174,29 @@ Setting this to `false` may be useful if you are checking for resource availabil
 
 Create a new `ky` instance with some defaults overridden with your own.
 
+```js
+// On https://my-site.com
+
+const api = ky.extend({prefixUrl: 'https://example.com/api'});
+
+(async () => {
+	await api.get('/users/123');
+	//=> 'https://example.com/api/users/123'
+
+	await api.get('/status', {prefixUrl: ''});
+	//=> 'https://my-site.com/status'
+})();
+```
+
 #### defaultOptions
 
 Type: `Object`
 
-### ky.HTTPError
+### HTTPError
 
 Exposed for `instanceof` checks. The error has a `response` property with the [`Response` object](https://developer.mozilla.org/en-US/docs/Web/API/Response).
 
-### ky.TimeoutError
+### TimeoutError
 
 The error thrown when the request times out.
 
@@ -186,9 +222,9 @@ setTimeout(() => controller.abort(), 5000);
 		console.log(await ky(url, {signal}).text());
 	} catch (error) {
 		if (error.name === 'AbortError') {
-		  console.log('Fetch aborted');
+			console.log('Fetch aborted');
 		} else {
-		  console.error('Fetch error:', error);
+			console.error('Fetch error:', error);
 		}
 	}
 })();
