@@ -1,3 +1,7 @@
 node_modules
 yarn.lock
 .nyc_output
+# trash after es5 build
+/es5.js
+/es5.d.ts
+/ky.js

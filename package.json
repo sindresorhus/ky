@@ -13,11 +13,14 @@
 		"node": ">=8"
 	},
 	"scripts": {
-		"test": "xo && nyc ava && tsd-check"
+		"test": "xo && nyc ava && tsd-check",
+		"prepack": "cp index.js ky.js && babel ky.js --out-file es5.js && cp index.d.ts es5.d.ts"
 	},
 	"files": [
 		"index.js",
-		"index.d.ts"
+		"es5.js",
+		"index.d.ts",
+		"es5.d.ts"
 	],
 	"keywords": [
 		"fetch",
@@ -42,6 +45,9 @@
 		"node-fetch"
 	],
 	"devDependencies": {
+		"@babel/cli": "7.1.2",
+		"@babel/core": "7.1.2",
+		"@babel/preset-env": "7.1.0",
 		"ava": "1.0.0-beta.8",
 		"body": "^5.1.0",
 		"codecov": "^3.0.4",
@@ -52,6 +58,18 @@
 		"nyc": "^13.0.1",
 		"tsd-check": "^0.2.1",
 		"xo": "^0.23.0"
+	},
+	"babel": {
+		"presets": [
+			[
+				"@babel/preset-env",
+				{
+					"loose": true,
+					"modules": "umd",
+					"useBuiltIns": "usage"
+				}
+			]
+		]
 	},
 	"xo": {
 		"envs": [

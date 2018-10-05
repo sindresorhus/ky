@@ -54,6 +54,24 @@ import ky from 'ky';
 })();
 ```
 
+<details>
+
+<summary>Also you can use it in es5 environment. Click here to see how</summary>
+
+```js
+const ky = require('ky/es5').default;
+
+ky
+	.post('https://some-api.com', {json: {foo: true}})
+	.json()
+	.then((json) => {
+		console.log(json);
+	});
+```
+
+</details>
+
+
 With plain `fetch`, it would be:
 
 ```js
