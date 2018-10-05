@@ -178,3 +178,39 @@ test('ky.extend()', async t => {
 
 	await server.close();
 });
+
+test('ky.extend() with deep array', async t => {
+	const server = await createTestServer();
+	server.get('/', (request, response) => {
+		response.end();
+	});
+
+	let isOriginBeforeRequestTrigged = false;
+	let isExtendBeforeRequestTrigged = false;
+
+	const extended = ky.extend({
+		hooks: {
+			beforeRequest: [
+				() => {
+					isOriginBeforeRequestTrigged = true;
+				}
+			]
+		}
+	});
+
+	await extended(server.url, {
+		hooks: {
+			beforeRequest: [
+				() => {
+					isExtendBeforeRequestTrigged = true;
+				}
+			]
+		}
+	});
+
+	t.is(isOriginBeforeRequestTrigged, true);
+	t.is(isExtendBeforeRequestTrigged, true);
+	t.true((await extended.head(server.url)).ok);
+
+	await server.close();
+});
