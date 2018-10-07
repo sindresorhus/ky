@@ -133,6 +133,14 @@ class Ky {
 					throw new HTTPError(response);
 				}
 
+				if (response.body && this._options.stream) {
+					let progressCallback = null;
+					if (this._options.streamProgressCallback) {
+						progressCallback = this._options.streamProgressCallback;
+					}
+					return this._stream(response.clone(), progressCallback)[type]();
+				}
+
 				return response.clone()[type]();
 			});
 		}

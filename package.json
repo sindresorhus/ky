@@ -13,7 +13,7 @@
 		"node": ">=8"
 	},
 	"scripts": {
-		"test": "xo && nyc ava && tsd-check"
+		"test": "xo && nyc ava && tsd-check && cypress"
 	},
 	"files": [
 		"index.js",
@@ -46,6 +46,7 @@
 		"body": "^5.1.0",
 		"codecov": "^3.0.4",
 		"create-test-server": "2.1.1",
+		"cypress": "^3.1.0",
 		"delay": "^4.0.0",
 		"esm": "^3.0.82",
 		"node-fetch": "^2.2.0",
