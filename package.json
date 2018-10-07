@@ -13,8 +13,7 @@
 		"node": ">=8"
 	},
 	"scripts": {
-		"test": "xo && nyc ava && tsd-check && cypress",
-		"test:cypress": "cypress open"
+		"test": "xo && nyc ava && tsd-check && cypress"
 	},
 	"files": [
 		"index.js",
