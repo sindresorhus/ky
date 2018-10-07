@@ -25,6 +25,7 @@ Ky targets [modern browsers](#browser-support). For older browsers, you will nee
 - Retries failed requests
 - JSON option
 - Timeout support
+- URL prefix option
 - Instances with custom defaults
 - Hooks
 
@@ -59,7 +60,7 @@ With plain `fetch`, it would be:
 (async () => {
 	class HTTPError extends Error {}
 
-	const response = await fetch('https://sindresorhus.com', {
+	const response = await fetch('https://some-api.com', {
 		method: 'POST',
 		body: JSON.stringify({foo: true}),
 		headers: {
@@ -109,6 +110,26 @@ Shortcut for sending JSON. Use this instead of the `body` option. Accepts a plai
 
 Sets `options.method` to the method name and makes a request.
 
+#### prefixUrl
+
+Type: `string` [`URL`](https://developer.mozilla.org/en-US/docs/Web/API/URL)
+
+When specified, `prefixUrl` will be prepended to `input`. The prefix can be any valid URL, either relative or absolute. A trailing slash `/` is optional, one will be added automatically, if needed, when joining `prefixUrl` and `input`. The `input` argument cannot start with a `/` when using this option.
+
+Useful when used with [`ky.extend()`](#kyextenddefaultoptions) to create niche-specific Ky-instances.
+
+```js
+// On https://example.com
+
+(async () => {
+	await ky('unicorn', {prefixUrl: '/api'});
+	//=> 'https://example.com/api/unicorn'
+
+	await ky('unicorn', {prefixUrl: 'https://cats.com'});
+	//=> 'https://cats.com/unicorn'
+})();
+```
+
 #### retry
 
 Type: `number`<br>
@@ -152,6 +173,20 @@ Setting this to `false` may be useful if you are checking for resource availabil
 ### ky.extend(defaultOptions)
 
 Create a new `ky` instance with some defaults overridden with your own.
+
+```js
+// On https://my-site.com
+
+const api = ky.extend({prefixUrl: 'https://example.com/api'});
+
+(async () => {
+	await api.get('/users/123');
+	//=> 'https://example.com/api/users/123'
+
+	await api.get('/status', {prefixUrl: ''});
+	//=> 'https://my-site.com/status'
+})();
+```
 
 #### defaultOptions
 

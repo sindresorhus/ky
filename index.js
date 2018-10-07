@@ -87,7 +87,6 @@ const timeout = (promise, ms) => Promise.race([
 
 class Ky {
 	constructor(input, {timeout = 10000, hooks = {beforeRequest: []}, throwHttpErrors = true, json, ...otherOptions}) {
-		this._input = input;
 		this._retryCount = 0;
 
 		this._options = {
@@ -96,12 +95,22 @@ class Ky {
 			retry: 2,
 			...otherOptions
 		};
+		this._options.prefixUrl = String(this._options.prefixUrl || '');
+		this._input = String(input || '');
 
+		if (this._options.prefixUrl && this._input.startsWith('/')) {
+			throw new Error('`input` must not begin with a slash when using `prefixUrl`');
+		}
+		if (this._options.prefixUrl && !this._options.prefixUrl.endsWith('/')) {
+			this._options.prefixUrl += '/';
+		}
+
+		this._input = this._options.prefixUrl + this._input;
 		this._timeout = timeout;
 		this._hooks = hooks;
 		this._throwHttpErrors = throwHttpErrors;
 
-		const headers = new window.Headers(this._options.headers || {});
+		const headers = new self.Headers(this._options.headers || {});
 
 		if (json) {
 			headers.set('content-type', 'application/json');
@@ -172,7 +181,7 @@ class Ky {
 			await hook(this._options);
 		}
 
-		return timeout(window.fetch(this._input, this._options), this._timeout);
+		return timeout(self.fetch(this._input, this._options), this._timeout);
 	}
 
 	_stream(response, progressCallback) {
