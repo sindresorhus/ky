@@ -183,43 +183,6 @@ class Ky {
 
 		return timeout(self.fetch(this._input, this._options), this._timeout);
 	}
-
-	_stream(response, progressCallback) {
-		const contentByteLength = response.headers.get('content-length') || 1;
-		let contentBytesLoaded = 0;
-
-		return new Response(
-			new ReadableStream({
-				start(controller) {
-					const reader = response.body.getReader();
-
-					read();
-					async function read() {
-						const {done, value} = await reader.read();
-						try {
-							if (done) {
-								if (progressCallback) {
-									progressCallback(100, contentByteLength);
-								}
-								controller.close();
-								return;
-							}
-							if (progressCallback) {
-								contentBytesLoaded += value.byteLength;
-								const percentCompleted = contentByteLength === 0 ? null : Math.floor(contentBytesLoaded / contentByteLength * 100);
-								progressCallback(percentCompleted, contentBytesLoaded);
-							}
-							controller.enqueue(value);
-							read();
-						} catch (error) {
-							console.log(error);
-							controller.error(error);
-						}
-					}
-				}
-			})
-		);
-	}
 }
 
 const createInstance = (defaults = {}) => {
