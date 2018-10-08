@@ -1,7 +1,7 @@
 <div align="center">
 	<br>
 	<div>
-		<img width="600" height="600" src="media/logo.svg" alt="ky">
+		<img width="600" height="600" src="https://cdn.rawgit.com/sindresorhus/ky/master/media/logo.svg" alt="ky">
 	</div>
 	<br>
 	<br>
