@@ -178,6 +178,10 @@ class Ky {
 }
 
 const createInstance = (defaults = {}) => {
+	if (!isObject(defaults) || Array.isArray(defaults)) {
+		throw new TypeError('the first argument for extend must be an object to overwrite default options');
+	}
+
 	const ky = (input, options) => new Ky(input, deepMerge({}, defaults, options));
 
 	for (const method of requestMethods) {

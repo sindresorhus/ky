@@ -179,6 +179,22 @@ test('ky.extend()', async t => {
 	await server.close();
 });
 
+test('ky.extend() with non-object argument', t => {
+	[
+		true,
+		666,
+		'hello',
+		[],
+		null,
+		() => {},
+		Symbol('ky')
+	].forEach(value => {
+		t.throws(() => {
+			ky.extend(value);
+		});
+	});
+});
+
 test('ky.extend() with deep array', async t => {
 	const server = await createTestServer();
 	server.get('/', (request, response) => {
