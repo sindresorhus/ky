@@ -142,11 +142,15 @@ class Ky {
 					this._response = this._fetch();
 				}
 
-				const response = await this._response;
+				let response = await this._response;
 
 				for (const hook of this._hooks.afterResponse) {
 					// eslint-disable-next-line no-await-in-loop
-					await hook(response.clone());
+					const modifiedResponse = await hook(response.clone());
+
+					if (modifiedResponse instanceof self.Response) {
+						response = modifiedResponse;
+					}
 				}
 
 				if (!response.ok) {

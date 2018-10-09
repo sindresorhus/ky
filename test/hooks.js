@@ -93,7 +93,7 @@ test('afterResponse hook accept success response', async t => {
 		foo: true
 	};
 
-	await ky.post(
+	await t.notThrowsAsync(() => ky.post(
 		server.url,
 		{
 			json,
@@ -106,7 +106,7 @@ test('afterResponse hook accept success response', async t => {
 				]
 			}
 		}
-	).json();
+	).json());
 
 	await server.close();
 });
@@ -135,6 +135,45 @@ test('afterResponse hook accept fail response', async t => {
 			}
 		}
 	).json());
+
+	await server.close();
+});
+
+test('afterResponse hook can change response instance by sequence', async t => {
+	const server = await createTestServer();
+	server.post('/', (request, response) => {
+		response.status(500).send();
+	});
+
+	const modifiedBody1 = 'hello ky';
+	const modifiedStatus1 = 400;
+	const modifiedBody2 = 'hello ky again';
+	const modifiedStatus2 = 200;
+
+	await t.notThrowsAsync(async () => {
+		const responseBody = await ky.post(
+			server.url,
+			{
+				hooks: {
+					afterResponse: [
+						() => new self.Response(modifiedBody1, {
+							status: modifiedStatus1
+						}),
+						async rsp => {
+							t.is(rsp.status, modifiedStatus1);
+							t.is(await rsp.text(), modifiedBody1);
+
+							return new self.Response(modifiedBody2, {
+								status: modifiedStatus2
+							});
+						}
+					]
+				}
+			}
+		).text();
+
+		t.is(responseBody, 'hello ky again');
+	});
 
 	await server.close();
 });
