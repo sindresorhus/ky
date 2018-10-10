@@ -43,12 +43,12 @@ export interface Options extends RequestInit {
 	 * @default true
 	 */
 	throwHttpErrors?: boolean;
-	
+
 	/**
 	* Prepends the input with the specified prefix.
 	* The prefix can be any valid URL, either relative or absolute.
 	*/
-	prefixUrl?: string;
+	prefixUrl?: URL | string;
 }
 
 /**
@@ -78,58 +78,58 @@ export interface Ky {
 	/**
 	 * Same as fetch.
 	 *
-	 * @param input - Request object or URL string.
+	 * @param input - `Request` object, `URL` object, or URL string.
 	 * @returns Promise with `Body` method added.
 	 */
-	(input: Request | string, options?: Options): ResponsePromise;
+	(input: Request | URL | string, options?: Options): ResponsePromise;
 
 	/**
 	 * Same as fetch's `get()` method.
 	 *
-	 * @param input - Request object or URL string.
+	 * @param input - `Request` object, `URL` object, or URL string.
 	 * @returns Promise with `Body` method added.
 	 */
-	get(input: Request | string, options?: Options): ResponsePromise;
+	get(input: Request | URL | string, options?: Options): ResponsePromise;
 
 	/**
 	 * Same as fetch's `post()` method.
 	 *
-	 * @param input - Request object or URL string.
+	 * @param input - `Request` object, `URL` object, or URL string.
 	 * @returns Promise with `Body` method added.
 	 */
-	post(input: Request | string, options?: Options): ResponsePromise;
+	post(input: Request | URL | string, options?: Options): ResponsePromise;
 
 	/**
 	 * Same as fetch's `put()` method.
 	 *
-	 * @param input - Request object or URL string.
+	 * @param input - `Request` object, `URL` object, or URL string.
 	 * @returns Promise with `Body` method added.
 	 */
-	put(input: Request | string, options?: Options): ResponsePromise;
+	put(input: Request | URL | string, options?: Options): ResponsePromise;
 
 	/**
 	 * Same as fetch's `patch()` method.
 	 *
-	 * @param input - Request object or URL string.
+	 * @param input - `Request` object, `URL` object, or URL string.
 	 * @returns Promise with `Body` method added.
 	 */
-	patch(input: Request | string, options?: Options): ResponsePromise;
+	patch(input: Request | URL | string, options?: Options): ResponsePromise;
 
 	/**
 	 * Same as fetch's `head()` method.
 	 *
-	 * @param input - Request object or URL string.
+	 * @param input - `Request` object, `URL` object, or URL string.
 	 * @returns Promise with `Body` method added.
 	 */
-	head(input: Request | string, options?: Options): ResponsePromise;
+	head(input: Request | URL | string, options?: Options): ResponsePromise;
 
 	/**
 	 * Same as fetch's `delete()` method.
 	 *
-	 * @param input - Request object or URL string.
+	 * @param input - `Request` object, `URL` object, or URL string.
 	 * @returns Promise with `Body` method added.
 	 */
-	delete(input: Request | string, options?: Options): ResponsePromise;
+	delete(input: Request | URL | string, options?: Options): ResponsePromise;
 
 	/**
 	 * Create a new Ky instance with some defaults overridden with your own.

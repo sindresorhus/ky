@@ -41,3 +41,6 @@ ky(server.url, {
 		]
 	}
 });
+
+ky(new URL(server.url));
+ky(new Request(server.url));
