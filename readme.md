@@ -165,6 +165,13 @@ Default: `[]`
 
 This hook enables you to modify the request right before it is sent. Ky will make no further changes to the request after this. The hook function receives the normalized options as the first argument. You could, for example, modify `options.headers` here.
 
+###### hooks.afterResponse
+
+Type: `Function[]`<br>
+Default: `[]`
+
+This hook enables you to modify the response or just handle it to do what you want. The hook function receives an response clone as the first argument. The return value of hook function will be used by Ky as the response object if it's an instance of `Response`.
+
 ##### throwHttpErrors
 
 Type: `boolean`<br>
