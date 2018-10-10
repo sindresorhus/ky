@@ -193,7 +193,10 @@ test('ky.extend() throws when given non-object argument', t => {
 	for (const value of nonObjectValues) {
 		t.throws(() => {
 			ky.extend(value);
-		}, TypeError, 'The `defaultOptions` argument must be an object');
+		}, {
+			instanceOf: TypeError,
+			message: 'The `defaultOptions` argument must be an object'
+		});
 	}
 });
 
