@@ -46,7 +46,7 @@ export interface Options extends RequestInit {
 	
 	/**
 	* Prepends the input with the specified prefix.
-	* The prefix can be any valid URL, either relative or absolute
+	* The prefix can be any valid URL, either relative or absolute.
 	*/
 	prefixUrl?: string;
 }
