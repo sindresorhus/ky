@@ -179,7 +179,7 @@ test('ky.extend()', async t => {
 	await server.close();
 });
 
-test('ky.extend() with non-object argument', t => {
+test('ky.extend() throws when given non-object argument', t => {
 	[
 		true,
 		666,
