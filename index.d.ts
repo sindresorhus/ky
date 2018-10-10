@@ -14,6 +14,11 @@ export interface Hooks {
  */
 export interface Options extends RequestInit {
 	/**
+	 * String that will be prepended to input.
+	 */
+	prefixUrl?: string
+
+	/**
 	 * Numer of times to retry failed requests.
 	 *
 	 * @default 2
