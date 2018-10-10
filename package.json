@@ -13,7 +13,9 @@
 		"node": ">=8"
 	},
 	"scripts": {
-		"test": "xo && nyc ava && tsd-check"
+		"test": "xo && nyc ava && tsd-check && cypress:run",
+		"cypress:open": "cypress open",
+		"cypress:run": "cypress run"
 	},
 	"files": [
 		"index.js",
@@ -65,5 +67,8 @@
 			"esm",
 			"./test/_require"
 		]
+	},
+	"dependencies": {
+		"cypress": "^3.1.0"
 	}
 }
