@@ -43,6 +43,12 @@ export interface Options extends RequestInit {
 	 * @default true
 	 */
 	throwHttpErrors?: boolean;
+	
+	/**
+	* Prepends the input with the specified prefix.
+	* The prefix can be any valid URL, either relative or absolute.
+	*/
+	prefixUrl?: string;
 }
 
 /**
