@@ -178,6 +178,10 @@ class Ky {
 }
 
 const createInstance = (defaults = {}) => {
+	if (!isObject(defaults) || Array.isArray(defaults)) {
+		throw new TypeError('The `defaultOptions` argument must be an object');
+	}
+
 	const ky = (input, options) => new Ky(input, deepMerge({}, defaults, options));
 
 	for (const method of requestMethods) {

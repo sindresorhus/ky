@@ -179,6 +179,27 @@ test('ky.extend()', async t => {
 	await server.close();
 });
 
+test('ky.extend() throws when given non-object argument', t => {
+	const nonObjectValues = [
+		true,
+		666,
+		'hello',
+		[],
+		null,
+		() => {},
+		Symbol('ky')
+	];
+
+	for (const value of nonObjectValues) {
+		t.throws(() => {
+			ky.extend(value);
+		}, {
+			instanceOf: TypeError,
+			message: 'The `defaultOptions` argument must be an object'
+		});
+	}
+});
+
 test('ky.extend() with deep array', async t => {
 	const server = await createTestServer();
 	server.get('/', (request, response) => {
