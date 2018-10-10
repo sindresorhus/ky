@@ -40,14 +40,16 @@ test('hooks can be async', async t => {
 });
 
 test('hooks can be empty object', async t => {
+	const expectedResponse = 'empty hook';
 	const server = await createTestServer();
+
 	server.get('/', (request, response) => {
-		response.end('empty hook');
+		response.end(expectedResponse);
 	});
 
-	const rsp = await ky.get(server.url, {hooks: {}}).text();
+	const response = await ky.get(server.url, {hooks: {}}).text();
 
-	t.is(rsp, 'empty hook');
+	t.is(response, expectedResponse);
 
 	await server.close();
 });
@@ -99,9 +101,9 @@ test('afterResponse hook accept success response', async t => {
 			json,
 			hooks: {
 				afterResponse: [
-					async rsp => {
-						t.is(rsp.status, 200);
-						t.deepEqual(await rsp.json(), json);
+					async response => {
+						t.is(response.status, 200);
+						t.deepEqual(await response.json(), json);
 					}
 				]
 			}
@@ -127,9 +129,9 @@ test('afterResponse hook accept fail response', async t => {
 			json,
 			hooks: {
 				afterResponse: [
-					async rsp => {
-						t.is(rsp.status, 500);
-						t.deepEqual(await rsp.json(), json);
+					async response => {
+						t.is(response.status, 500);
+						t.deepEqual(await response.json(), json);
 					}
 				]
 			}
@@ -159,9 +161,9 @@ test('afterResponse hook can change response instance by sequence', async t => {
 						() => new self.Response(modifiedBody1, {
 							status: modifiedStatus1
 						}),
-						async rsp => {
-							t.is(rsp.status, modifiedStatus1);
-							t.is(await rsp.text(), modifiedBody1);
+						async response => {
+							t.is(response.status, modifiedStatus1);
+							t.is(await response.text(), modifiedBody1);
 
 							return new self.Response(modifiedBody2, {
 								status: modifiedStatus2
@@ -172,7 +174,7 @@ test('afterResponse hook can change response instance by sequence', async t => {
 			}
 		).text();
 
-		t.is(responseBody, 'hello ky again');
+		t.is(responseBody, modifiedBody2);
 	});
 
 	await server.close();
