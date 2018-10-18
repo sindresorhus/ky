@@ -150,11 +150,20 @@ class Ky {
 				return await fn();
 			} catch (error) {
 				const shouldRetryStatusCode = error instanceof HTTPError ? retryStatusCodes.has(error.response.status) : true;
+				const retryAfterHeader = error.response && error.response.headers.get('Retry-After');
 				if (!(error instanceof TimeoutError) && shouldRetryStatusCode && this._retryCount < this._options.retry) {
 					this._retryCount++;
 					const BACKOFF_FACTOR = 0.3;
-					const delaySeconds = BACKOFF_FACTOR * (2 ** (this._retryCount - 1));
-					await delay(delaySeconds * 1000);
+					let delaySeconds = BACKOFF_FACTOR * (2 ** (this._retryCount - 1)) * 1000;
+					if (retryAfterHeader) {
+						const after = Number(retryAfterHeader);
+						if (Number.isNaN(after)) {
+							delaySeconds = Date.parse(retryAfterHeader) - Date.now();
+						} else {
+							delaySeconds = after * 1000;
+						}
+					}
+					await delay(delaySeconds);
 					return retry();
 				}
 
