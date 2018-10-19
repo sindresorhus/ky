@@ -83,7 +83,7 @@ test('retry - not on POST', async t => {
 	await server.close();
 });
 
-test('retry - delay by Retry-After header', async t => {
+test('retry - respect 413 Retry-After', async t => {
 	let requestCount = 0;
 
 	const server = await createTestServer();
@@ -106,7 +106,7 @@ test('retry - delay by Retry-After header', async t => {
 	await server.close();
 });
 
-test('retry - delay by Retry-After header with timestamp', async t => {
+test('retry - respect 413 Retry-After with timestamp', async t => {
 	let requestCount = 0;
 
 	const server = await createTestServer();
@@ -125,6 +125,22 @@ test('retry - delay by Retry-After header with timestamp', async t => {
 
 	const result = await ky(server.url).text();
 	t.true(Number(result) >= retryAfterOn413 * 1000);
+	t.is(requestCount, 2)
+
+	await server.close();
+});
+
+test('retry - doesn\'t retry on 413 without Retry-After header', async t => {
+	let requestCount = 0;
+
+	const server = await createTestServer();
+	server.get('/', (request, response) => {
+		requestCount++;
+		response.sendStatus(413);
+	});
+
+	await ky(server.url, { throwHttpErrors: false }).text();
+	t.is(requestCount, 1);
 
 	await server.close();
 });

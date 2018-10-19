@@ -151,25 +151,34 @@ class Ky {
 			} catch (error) {
 				const shouldRetryStatusCode = error instanceof HTTPError ? retryStatusCodes.has(error.response.status) : true;
 				const retryAfterHeader = error.response && error.response.headers.get('Retry-After');
-				if (!(error instanceof TimeoutError) && shouldRetryStatusCode && this._retryCount < this._options.retry) {
-					this._retryCount++;
-					const BACKOFF_FACTOR = 0.3;
-					let delaySeconds = BACKOFF_FACTOR * (2 ** (this._retryCount - 1)) * 1000;
-					if (retryAfterHeader) {
-						const after = Number(retryAfterHeader);
-						if (Number.isNaN(after)) {
-							delaySeconds = Date.parse(retryAfterHeader) - Date.now();
-						} else {
-							delaySeconds = after * 1000;
-						}
+				if ((error instanceof TimeoutError) || this._retryCount >= this._options.retry || !shouldRetryStatusCode) {
+					if (this._throwHttpErrors) {
+						throw error;
+					}
+					return 0;
+				}
+				this._retryCount++;
+				let delaySeconds;
+				if (retryAfterHeader && shouldRetryStatusCode) {
+					const after = Number(retryAfterHeader);
+					if (Number.isNaN(after)) {
+						delaySeconds = Date.parse(retryAfterHeader) - Date.now();
+					} else {
+						delaySeconds = after * 1000;
 					}
 					await delay(delaySeconds);
 					return retry();
 				}
-
-				if (this._throwHttpErrors) {
-					throw error;
+				if (error.response.status === 413) {
+					if (this._throwHttpErrors) {
+						throw error;
+					}
+					return 0;
 				}
+				const BACKOFF_FACTOR = 0.3;
+				delaySeconds = BACKOFF_FACTOR * (2 ** (this._retryCount - 1)) * 1000;
+				await delay(delaySeconds);
+				return retry();
 			}
 		};
 
