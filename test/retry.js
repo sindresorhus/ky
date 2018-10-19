@@ -139,8 +139,10 @@ test('retry - doesn\'t retry on 413 without Retry-After header', async t => {
 		response.sendStatus(413);
 	});
 
-	await ky(server.url, {throwHttpErrors: false}).text();
+	await t.throwsAsync(ky(server.url).text(), /Payload Too Large/);
 	t.is(requestCount, 1);
+	await ky(server.url, {throwHttpErrors: false}).text();
+	t.is(requestCount, 2);
 
 	await server.close();
 });
