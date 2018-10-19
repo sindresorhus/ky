@@ -125,7 +125,7 @@ test('retry - respect 413 Retry-After with timestamp', async t => {
 
 	const result = await ky(server.url).text();
 	t.true(Number(result) >= retryAfterOn413 * 1000);
-	t.is(requestCount, 2)
+	t.is(requestCount, 2);
 
 	await server.close();
 });
@@ -139,7 +139,7 @@ test('retry - doesn\'t retry on 413 without Retry-After header', async t => {
 		response.sendStatus(413);
 	});
 
-	await ky(server.url, { throwHttpErrors: false }).text();
+	await ky(server.url, {throwHttpErrors: false}).text();
 	t.is(requestCount, 1);
 
 	await server.close();
