@@ -139,6 +139,24 @@ test('timeout option', async t => {
 	await server.close();
 });
 
+test('searchParams option', async t => {
+	const server = await createTestServer();
+
+	server.get('/', (request, response) => {
+		response.end(request.url.slice(1));
+	});
+
+	const stringParams = '?pass=true';
+	const objectParams = {pass: true};
+	const searchParams = new URLSearchParams(stringParams);
+
+	t.is(await ky.get(server.url, {searchParams: stringParams}).text(), stringParams);
+	t.is(await ky.get(server.url, {searchParams: objectParams}).text(), stringParams);
+	t.is(await ky.get(server.url, {searchParams}).text(), stringParams);
+
+	await server.close();
+});
+
 test('throwHttpErrors option', async t => {
 	const server = await createTestServer();
 	server.get('/', (request, response) => {

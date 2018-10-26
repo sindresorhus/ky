@@ -86,13 +86,14 @@ const timeout = (promise, ms) => Promise.race([
 ]);
 
 class Ky {
-	constructor(input, {timeout = 10000, hooks = {beforeRequest: []}, throwHttpErrors = true, json, ...otherOptions}) {
+	constructor(input, {timeout = 10000, hooks = {beforeRequest: []}, throwHttpErrors = true, searchParams = '', json, ...otherOptions}) {
 		this._retryCount = 0;
 
 		this._options = {
 			method: 'get',
 			credentials: 'same-origin', // TODO: This can be removed when the spec change is implemented in all browsers. Context: https://www.chromestatus.com/feature/4539473312350208
 			retry: 2,
+			searchParams: new URLSearchParams(searchParams),
 			...otherOptions
 		};
 		this._options.prefixUrl = String(this._options.prefixUrl || '');
@@ -105,7 +106,12 @@ class Ky {
 			this._options.prefixUrl += '/';
 		}
 
-		this._input = this._options.prefixUrl + this._input;
+		const url = new URL(this._options.prefixUrl + this._input);
+		if (searchParams) {
+			url.search = new URLSearchParams(searchParams).toString();
+		}
+		this._input = url.toString();
+
 		this._timeout = timeout;
 		this._hooks = hooks;
 		this._throwHttpErrors = throwHttpErrors;

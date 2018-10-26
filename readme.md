@@ -172,6 +172,13 @@ Throw a `HTTPError` for error responses (non-2xx status codes).
 
 Setting this to `false` may be useful if you are checking for resource availability and are expecting error responses.
 
+##### searchParams
+
+Type: `string|Object|URLSearchParams`<br>
+Default: `''`
+
+Search parameters to use in the HTTP request (setting this option will override any search params defined in the URL itself).
+
 ### ky.extend(defaultOptions)
 
 Create a new `ky` instance with some defaults overridden with your own.
