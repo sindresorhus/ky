@@ -106,8 +106,10 @@ class Ky {
 		}
 
 		const url = new URL(this._options.prefixUrl + this._input);
-		if (searchParams) {
-			url.search = searchParams instanceof URLSearchParams ? searchParams : new URLSearchParams(searchParams).toString();
+		if (typeof searchParams === 'string' || searchParams instanceof URLSearchParams) {
+			url.search = searchParams;
+		} else if (searchParams) {
+			url.search = new URLSearchParams(searchParams).toString();
 		}
 		this._input = url.toString();
 
