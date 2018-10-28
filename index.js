@@ -59,6 +59,7 @@ const retryStatusCodes = new Set([
 	503,
 	504
 ]);
+
 const retryAfterStatusCodes = new Set([
 	413,
 	429,
@@ -147,11 +148,13 @@ class Ky {
 
 	_calculateRetryDelay(error) {
 		this._retryCount++;
+
 		if (this._retryCount < this._options.retry && !(error instanceof TimeoutError)) {
 			if (error instanceof HTTPError) {
 				if (!retryStatusCodes.has(error.response.status)) {
 					return 0;
 				}
+
 				const retryAfter = error.response.headers.get('Retry-After');
 				if (retryAfter && retryAfterStatusCodes.has(error.response.status)) {
 					let after = Number(retryAfter);
@@ -160,15 +163,19 @@ class Ky {
 					} else {
 						after *= 1000;
 					}
+
 					return after;
 				}
+
 				if (error.response.status === 413) {
 					return 0;
 				}
 			}
+
 			const BACKOFF_FACTOR = 0.3;
 			return BACKOFF_FACTOR * (2 ** (this._retryCount - 1)) * 1000;
 		}
+
 		return 0;
 	}
 
