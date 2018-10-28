@@ -68,7 +68,6 @@ const retryAfterStatusCodes = new Set([
 class HTTPError extends Error {
 	constructor(response) {
 		super(response.statusText);
-		Object.setPrototypeOf(this, HTTPError.prototype);
 		this.name = 'HTTPError';
 		this.response = response;
 	}
