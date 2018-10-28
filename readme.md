@@ -174,7 +174,7 @@ Setting this to `false` may be useful if you are checking for resource availabil
 
 ##### searchParams
 
-Type: `string` `Object` `URLSearchParams`<br>
+Type: `string` `Object<string, string|number>` `URLSearchParams`<br>
 Default: `''`
 
 Search parameters to use in the HTTP request (setting this option will override any search params defined in the URL itself).
