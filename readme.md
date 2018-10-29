@@ -91,6 +91,15 @@ The `input` and `options` are the same as [`fetch`](https://developer.mozilla.or
 
 Returns a [`Response` object](https://developer.mozilla.org/en-US/docs/Web/API/Response) with [`Body` methods](https://developer.mozilla.org/en-US/docs/Web/API/Body#Methods) added for convenience. So you can, for example, call `ky.json()` directly on the `Response` without having to await it first. Unlike the `Body` methods of `window.Fetch`; these will throw an `HTTPError` if the response status is not in the range `200...299`.
 
+### ky.get(input, [options])
+### ky.post(input, [options])
+### ky.put(input, [options])
+### ky.patch(input, [options])
+### ky.head(input, [options])
+### ky.delete(input, [options])
+
+Sets `options.method` to the method name and makes a request.
+
 #### options
 
 Type: `Object`
@@ -101,16 +110,7 @@ Type: `Object`
 
 Shortcut for sending JSON. Use this instead of the `body` option. Accepts a plain object which will be `JSON.stringify()`'d and the correct header will be set for you.
 
-### ky.get(input, [options])
-### ky.post(input, [options])
-### ky.put(input, [options])
-### ky.patch(input, [options])
-### ky.head(input, [options])
-### ky.delete(input, [options])
-
-Sets `options.method` to the method name and makes a request.
-
-#### prefixUrl
+##### prefixUrl
 
 Type: `string` [`URL`](https://developer.mozilla.org/en-US/docs/Web/API/URL)
 
@@ -119,6 +119,8 @@ When specified, `prefixUrl` will be prepended to `input`. The prefix can be any 
 Useful when used with [`ky.extend()`](#kyextenddefaultoptions) to create niche-specific Ky-instances.
 
 ```js
+import ky from 'ky';
+
 // On https://example.com
 
 (async () => {
@@ -130,7 +132,7 @@ Useful when used with [`ky.extend()`](#kyextenddefaultoptions) to create niche-s
 })();
 ```
 
-#### retry
+##### retry
 
 Type: `number`<br>
 Default: `2`
@@ -142,28 +144,28 @@ Status codes: [`408`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/4
 
 Delays between retries will respect [`Retry-After`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Retry-After) response header 
 
-#### timeout
+##### timeout
 
 Type: `number`<br>
 Default: `10000`
 
 Timeout in milliseconds for getting a response.
 
-#### hooks
+##### hooks
 
 Type: `Object<string, Function[]>`<br>
 Default: `{beforeRequest: []}`
 
 Hooks allow modifications during the request lifecycle. Hook functions may be async and are run serially.
 
-##### hooks.beforeRequest
+###### hooks.beforeRequest
 
 Type: `Function[]`<br>
 Default: `[]`
 
 This hook enables you to modify the request right before it is sent. Ky will make no further changes to the request after this. The hook function receives the normalized options as the first argument. You could, for example, modify `options.headers` here.
 
-### throwHttpErrors
+##### throwHttpErrors
 
 Type: `boolean`<br>
 Default: `true`
@@ -177,6 +179,8 @@ Setting this to `false` may be useful if you are checking for resource availabil
 Create a new `ky` instance with some defaults overridden with your own.
 
 ```js
+import ky from 'ky';
+
 // On https://my-site.com
 
 const api = ky.extend({prefixUrl: 'https://example.com/api'});
@@ -194,11 +198,11 @@ const api = ky.extend({prefixUrl: 'https://example.com/api'});
 
 Type: `Object`
 
-### HTTPError
+### ky.HTTPError
 
 Exposed for `instanceof` checks. The error has a `response` property with the [`Response` object](https://developer.mozilla.org/en-US/docs/Web/API/Response).
 
-### TimeoutError
+### ky.TimeoutError
 
 The error thrown when the request times out.
 
