@@ -193,6 +193,7 @@ class Ky {
 					await delay(ms);
 					return retry();
 				}
+
 				if (this._throwHttpErrors) {
 					throw error;
 				}
