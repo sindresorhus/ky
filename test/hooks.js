@@ -186,7 +186,7 @@ test('afterResponse hook can throw error to reject the request promise', async t
 		response.status(200).send();
 	});
 
-	const expectError = new Error('error from after resposne hook');
+	const expectError = new Error('Error from `afterResponse` hook');
 
 	// Sync hook function
 	await t.throwsAsync(() => ky.get(
@@ -201,8 +201,7 @@ test('afterResponse hook can throw error to reject the request promise', async t
 			}
 		}
 	).text(), {
-		instanceOf: expectError.constructor,
-		message: expectError.message
+		is: expectError
 	});
 
 	// Async hook function
@@ -211,15 +210,15 @@ test('afterResponse hook can throw error to reject the request promise', async t
 		{
 			hooks: {
 				afterResponse: [
-					() => new Promise((resolve, reject) => {
-						reject(expectError);
-					})
+					// eslint-disable-next-line require-await
+					async () => {
+						throw expectError;
+					}
 				]
 			}
 		}
 	).text(), {
-		instanceOf: expectError.constructor,
-		message: expectError.message
+		is: expectError
 	});
 
 	await server.close();
