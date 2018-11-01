@@ -149,7 +149,7 @@ test('searchParams option', async t => {
 	const stringParams = '?pass=true';
 	const objectParams = {pass: 'true'};
 	const invalidObjectParams = {pass: ['true', 'false']};
-	const searchParams = new URLSearchParams(stringParams);
+	const searchParams = new global.URLSearchParams(stringParams);
 
 	t.is(await ky(server.url, {searchParams: stringParams}).text(), stringParams);
 	t.is(await ky(server.url, {searchParams: objectParams}).text(), stringParams);
