@@ -158,14 +158,14 @@ test('afterResponse hook can change response instance by sequence', async t => {
 			{
 				hooks: {
 					afterResponse: [
-						() => new self.Response(modifiedBody1, {
+						() => new global.Response(modifiedBody1, {
 							status: modifiedStatus1
 						}),
 						async response => {
 							t.is(response.status, modifiedStatus1);
 							t.is(await response.text(), modifiedBody1);
 
-							return new self.Response(modifiedBody2, {
+							return new global.Response(modifiedBody2, {
 								status: modifiedStatus2
 							});
 						}
