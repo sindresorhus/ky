@@ -47,7 +47,7 @@ $ npm install ky
 import ky from 'ky';
 
 (async () => {
-	const json = await ky.post('https://some-api.com', {json: {foo: true}}).json();
+	const json = await ky.post('https://example.com', {json: {foo: true}}).json();
 
 	console.log(json);
 	//=> `{data: '🦄'}`
@@ -60,7 +60,7 @@ With plain `fetch`, it would be:
 (async () => {
 	class HTTPError extends Error {}
 
-	const response = await fetch('https://some-api.com', {
+	const response = await fetch('https://example.com', {
 		method: 'POST',
 		body: JSON.stringify({foo: true}),
 		headers: {
@@ -142,6 +142,8 @@ Retry failed requests made with one of the below methods that result in a networ
 Methods: `GET` `PUT` `HEAD` `DELETE` `OPTIONS` `TRACE`<br>
 Status codes: [`408`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/408) [`413`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/413) [`429`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/429) [`500`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/500) [`502`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/502) [`503`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/503) [`504`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/504)
 
+It adheres to the [`Retry-After`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Retry-After) response header.
+
 ##### timeout
 
 Type: `number`<br>
@@ -162,6 +164,29 @@ Type: `Function[]`<br>
 Default: `[]`
 
 This hook enables you to modify the request right before it is sent. Ky will make no further changes to the request after this. The hook function receives the normalized options as the first argument. You could, for example, modify `options.headers` here.
+
+###### hooks.afterResponse
+
+Type: `Function[]`<br>
+Default: `[]`
+
+This hook enables you to read and optionally modify the response. The hook function receives a clone of the response as the first argument. The return value of the hook function will be used by Ky as the response object if it's an instance of [`Response`](https://developer.mozilla.org/en-US/docs/Web/API/Response).
+
+```js
+ky.get('https://example.com', {
+	hooks: {
+		afterResponse: [
+			response => {
+				// You could do something with the response, for example, logging.
+				log(response);
+
+				// Or return a `Response` instance to overwrite the response.
+				return new Response('A different response', {status: 200});
+			}
+		]
+	}
+});
+```
 
 ##### throwHttpErrors
 

@@ -1,12 +1,25 @@
 export type BeforeRequestHook = (options: Object) => void;
 
+export type AfterResponseHook = (response: Response) => Response | void;
+
 export interface Hooks {
 	/**
 	 * Before the request is sent.
 	 *
+	 * This hook enables you to modify the request right before it is sent. Ky will make no further changes to the request after this. The hook function receives the normalized options as the first argument. You could, for example, modify `options.headers` here.
+	 *
 	 * @default []
 	 */
 	beforeRequest: BeforeRequestHook[];
+
+	/**
+	 * After the response is received.
+	 *
+	 * This hook enables you to read and optionally modify the response. The return value of the hook function will be used by Ky as the response object if it's an instance of [`Response`](https://developer.mozilla.org/en-US/docs/Web/API/Response).
+	 *
+	 * @default []
+	 */
+	afterResponse: AfterResponseHook[];
 }
 
 /**

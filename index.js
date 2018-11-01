@@ -1,3 +1,20 @@
+// Polyfill for `globalThis`
+const _globalThis = (() => {
+	if (typeof self !== 'undefined') {
+		return self;
+	}
+
+	/* istanbul ignore next */
+	if (typeof window !== 'undefined') {
+		return window;
+	}
+
+	/* istanbul ignore next */
+	if (typeof global !== 'undefined') {
+		return global;
+	}
+})();
+
 const isObject = value => value !== null && typeof value === 'object';
 
 const deepMerge = (...sources) => {
@@ -60,6 +77,12 @@ const retryStatusCodes = new Set([
 	504
 ]);
 
+const retryAfterStatusCodes = new Set([
+	413,
+	429,
+	503
+]);
+
 class HTTPError extends Error {
 	constructor(response) {
 		super(response.statusText);
@@ -86,7 +109,14 @@ const timeout = (promise, ms) => Promise.race([
 ]);
 
 class Ky {
-	constructor(input, {timeout = 10000, hooks = {beforeRequest: []}, throwHttpErrors = true, searchParams, json, ...otherOptions}) {
+	constructor(input, {
+		timeout = 10000,
+		hooks,
+		throwHttpErrors = true,
+    searchParams,
+		json,
+		...otherOptions
+	}) {
 		this._retryCount = 0;
 
 		this._options = {
@@ -116,10 +146,13 @@ class Ky {
 		this._input = url.toString();
 
 		this._timeout = timeout;
-		this._hooks = hooks;
+		this._hooks = deepMerge({
+			beforeRequest: [],
+			afterResponse: []
+		}, hooks);
 		this._throwHttpErrors = throwHttpErrors;
 
-		const headers = new self.Headers(this._options.headers || {});
+		const headers = new _globalThis.Headers(this._options.headers || {});
 
 		if (json) {
 			headers.set('content-type', 'application/json');
@@ -136,7 +169,16 @@ class Ky {
 					this._response = this._fetch();
 				}
 
-				const response = await this._response;
+				let response = await this._response;
+
+				for (const hook of this._hooks.afterResponse) {
+					// eslint-disable-next-line no-await-in-loop
+					const modifiedResponse = await hook(response.clone());
+
+					if (modifiedResponse instanceof _globalThis.Response) {
+						response = modifiedResponse;
+					}
+				}
 
 				if (!response.ok) {
 					throw new HTTPError(response);
@@ -149,6 +191,39 @@ class Ky {
 		return this._response;
 	}
 
+	_calculateRetryDelay(error) {
+		this._retryCount++;
+
+		if (this._retryCount < this._options.retry && !(error instanceof TimeoutError)) {
+			if (error instanceof HTTPError) {
+				if (!retryStatusCodes.has(error.response.status)) {
+					return 0;
+				}
+
+				const retryAfter = error.response.headers.get('Retry-After');
+				if (retryAfter && retryAfterStatusCodes.has(error.response.status)) {
+					let after = Number(retryAfter);
+					if (Number.isNaN(after)) {
+						after = Date.parse(retryAfter) - Date.now();
+					} else {
+						after *= 1000;
+					}
+
+					return after;
+				}
+
+				if (error.response.status === 413) {
+					return 0;
+				}
+			}
+
+			const BACKOFF_FACTOR = 0.3;
+			return BACKOFF_FACTOR * (2 ** (this._retryCount - 1)) * 1000;
+		}
+
+		return 0;
+	}
+
 	_retry(fn) {
 		if (!retryMethods.has(this._options.method.toLowerCase())) {
 			return fn;
@@ -158,12 +233,9 @@ class Ky {
 			try {
 				return await fn();
 			} catch (error) {
-				const shouldRetryStatusCode = error instanceof HTTPError ? retryStatusCodes.has(error.response.status) : true;
-				if (!(error instanceof TimeoutError) && shouldRetryStatusCode && this._retryCount < this._options.retry) {
-					this._retryCount++;
-					const BACKOFF_FACTOR = 0.3;
-					const delaySeconds = BACKOFF_FACTOR * (2 ** (this._retryCount - 1));
-					await delay(delaySeconds * 1000);
+				const ms = this._calculateRetryDelay(error);
+				if (ms !== 0) {
+					await delay(ms);
 					return retry();
 				}
 
@@ -182,7 +254,7 @@ class Ky {
 			await hook(this._options);
 		}
 
-		return timeout(self.fetch(this._input, this._options), this._timeout);
+		return timeout(_globalThis.fetch(this._input, this._options), this._timeout);
 	}
 }
 
