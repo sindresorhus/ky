@@ -1,9 +1,8 @@
-import {URL} from 'url';
+import {URL, URLSearchParams} from 'url';
 import fetch, {Headers, Response} from 'node-fetch';
 
-global.self = {
-	fetch,
-	Headers,
-	Response
-};
+global.fetch = fetch;
+global.Headers = Headers;
+global.Response = Response;
 global.URL = URL;
+global.URLSearchParams = URLSearchParams;
