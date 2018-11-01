@@ -50,3 +50,9 @@ ky(server.url, {
 
 ky(new URL(server.url));
 ky(new Request(server.url));
+
+// `searchParams` option
+ky(server.url, {searchParams: 'foo=bar'});
+ky(server.url, {searchParams: {foo: 'bar'}});
+ky(server.url, {searchParams: {foo: 1}});
+ky(server.url, {searchParams: new URLSearchParams({foo: 'bar'})});

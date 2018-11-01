@@ -148,13 +148,20 @@ test('searchParams option', async t => {
 
 	const stringParams = '?pass=true';
 	const objectParams = {pass: 'true'};
-	const invalidObjectParams = {pass: ['true', 'false']};
 	const searchParams = new global.URLSearchParams(stringParams);
 
 	t.is(await ky(server.url, {searchParams: stringParams}).text(), stringParams);
 	t.is(await ky(server.url, {searchParams: objectParams}).text(), stringParams);
 	t.is(await ky(server.url, {searchParams}).text(), stringParams);
-	t.throws(() => ky(server.url, {searchParams: invalidObjectParams}), /`searchParams` option must be/);
+
+	t.throws(() => ky(server.url, {
+		searchParams: {
+			pass: [
+				'true',
+				'false'
+			]
+		}
+	}), /`searchParams` option must be/);
 
 	await server.close();
 });

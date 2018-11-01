@@ -141,7 +141,7 @@ class Ky {
 		} else if (searchParams && Object.values(searchParams).every(param => typeof param === 'number' || typeof param === 'string')) {
 			url.search = new _globalThis.URLSearchParams(searchParams).toString();
 		} else if (searchParams) {
-			throw new Error('`searchParams` option must be either a string, URLSearchParams instance or an object with string and number values');
+			throw new Error('The `searchParams` option must be either a string, `URLSearchParams` instance or an object with string and number values');
 		}
 		this._input = url.toString();
 
