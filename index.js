@@ -113,7 +113,7 @@ class Ky {
 		timeout = 10000,
 		hooks,
 		throwHttpErrors = true,
-    searchParams,
+		searchParams,
 		json,
 		...otherOptions
 	}) {
