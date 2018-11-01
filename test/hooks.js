@@ -179,3 +179,48 @@ test('afterResponse hook can change response instance by sequence', async t => {
 
 	await server.close();
 });
+
+test.only('afterResponse hook can throw error to reject the request promise', async t => {
+	const server = await createTestServer();
+	server.get('/', (request, response) => {
+		response.status(200).send();
+	});
+
+	const expectError = new Error('error from after resposne hook');
+
+	// sync hook function
+	await t.throwsAsync(() => ky.get(
+		server.url,
+		{
+			hooks: {
+				afterResponse: [
+					() => {
+						throw expectError;
+					}
+				]
+			}
+		}
+	).text(), {
+		instanceOf: expectError.constructor,
+		message: expectError.message
+	});
+
+	// async hook function
+	await t.throwsAsync(() => ky.get(
+		server.url,
+		{
+			hooks: {
+				afterResponse: [
+					async () => {
+						throw expectError;
+					}
+				]
+			}
+		}
+	).text(), {
+		instanceOf: expectError.constructor,
+		message: expectError.message
+	});
+
+	await server.close();
+});
