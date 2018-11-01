@@ -1,3 +1,20 @@
+// Polyfill for `globalThis`
+const _globalThis = (() => {
+	if (typeof self !== 'undefined') {
+		return self;
+	}
+
+	/* istanbul ignore next */
+	if (typeof window !== 'undefined') {
+		return window;
+	}
+
+	/* istanbul ignore next */
+	if (typeof global !== 'undefined') {
+		return global;
+	}
+})();
+
 const isObject = value => value !== null && typeof value === 'object';
 
 const deepMerge = (...sources) => {
@@ -125,7 +142,7 @@ class Ky {
 		}, hooks);
 		this._throwHttpErrors = throwHttpErrors;
 
-		const headers = new self.Headers(this._options.headers || {});
+		const headers = new _globalThis.Headers(this._options.headers || {});
 
 		if (json) {
 			headers.set('content-type', 'application/json');
@@ -148,7 +165,7 @@ class Ky {
 					// eslint-disable-next-line no-await-in-loop
 					const modifiedResponse = await hook(response.clone());
 
-					if (modifiedResponse instanceof self.Response) {
+					if (modifiedResponse instanceof _globalThis.Response) {
 						response = modifiedResponse;
 					}
 				}
@@ -227,7 +244,7 @@ class Ky {
 			await hook(this._options);
 		}
 
-		return timeout(self.fetch(this._input, this._options), this._timeout);
+		return timeout(_globalThis.fetch(this._input, this._options), this._timeout);
 	}
 }
 
