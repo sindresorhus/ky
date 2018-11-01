@@ -62,6 +62,11 @@ export interface Options extends RequestInit {
 	* The prefix can be any valid URL, either relative or absolute.
 	*/
 	prefixUrl?: URL | string;
+
+	/**
+	* Search parameters to include in the request URL.
+	*/
+	searchParams?: string | [string, string | number] | URLSearchParams;
 }
 
 /**
