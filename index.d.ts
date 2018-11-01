@@ -65,6 +65,7 @@ export interface Options extends RequestInit {
 
 	/**
 	* Search parameters to include in the request URL.
+	* Setting this will override all existing search parameters in the input URL.
 	*/
 	searchParams?: string | [string, string | number] | URLSearchParams;
 }
