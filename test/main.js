@@ -139,6 +139,26 @@ test('timeout option', async t => {
 	await server.close();
 });
 
+test('searchParams option', async t => {
+	const server = await createTestServer();
+
+	server.get('/', (request, response) => {
+		response.end(request.url.slice(1));
+	});
+
+	const stringParams = '?pass=true';
+	const objectParams = {pass: 'true'};
+	const invalidObjectParams = {pass: ['true', 'false']};
+	const searchParams = new global.URLSearchParams(stringParams);
+
+	t.is(await ky(server.url, {searchParams: stringParams}).text(), stringParams);
+	t.is(await ky(server.url, {searchParams: objectParams}).text(), stringParams);
+	t.is(await ky(server.url, {searchParams}).text(), stringParams);
+	t.throws(() => ky(server.url, {searchParams: invalidObjectParams}), /`searchParams` option must be/);
+
+	await server.close();
+});
+
 test('throwHttpErrors option', async t => {
 	const server = await createTestServer();
 	server.get('/', (request, response) => {

@@ -113,6 +113,7 @@ class Ky {
 		timeout = 10000,
 		hooks,
 		throwHttpErrors = true,
+		searchParams,
 		json,
 		...otherOptions
 	}) {
@@ -134,7 +135,16 @@ class Ky {
 			this._options.prefixUrl += '/';
 		}
 
-		this._input = this._options.prefixUrl + this._input;
+		const url = new _globalThis.URL(this._options.prefixUrl + this._input);
+		if (typeof searchParams === 'string' || searchParams instanceof _globalThis.URLSearchParams) {
+			url.search = searchParams;
+		} else if (searchParams && Object.values(searchParams).every(param => typeof param === 'number' || typeof param === 'string')) {
+			url.search = new _globalThis.URLSearchParams(searchParams).toString();
+		} else if (searchParams) {
+			throw new Error('`searchParams` option must be either a string, URLSearchParams instance or an object with string and number values');
+		}
+		this._input = url.toString();
+
 		this._timeout = timeout;
 		this._hooks = deepMerge({
 			beforeRequest: [],
