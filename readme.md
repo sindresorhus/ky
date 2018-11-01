@@ -177,7 +177,7 @@ Setting this to `false` may be useful if you are checking for resource availabil
 Type: `string` `Object<string, string|number>` `URLSearchParams`<br>
 Default: `''`
 
-Search parameters to include in the request URL. Setting this will override all search parameters in the URL.
+Search parameters to include in the request URL. Setting this will override all existing search parameters in the input URL.
 
 ### ky.extend(defaultOptions)
 
