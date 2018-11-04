@@ -139,6 +139,33 @@ test('timeout option', async t => {
 	await server.close();
 });
 
+test('searchParams option', async t => {
+	const server = await createTestServer();
+
+	server.get('/', (request, response) => {
+		response.end(request.url.slice(1));
+	});
+
+	const stringParams = '?pass=true';
+	const objectParams = {pass: 'true'};
+	const searchParams = new global.URLSearchParams(stringParams);
+
+	t.is(await ky(server.url, {searchParams: stringParams}).text(), stringParams);
+	t.is(await ky(server.url, {searchParams: objectParams}).text(), stringParams);
+	t.is(await ky(server.url, {searchParams}).text(), stringParams);
+
+	t.throws(() => ky(server.url, {
+		searchParams: {
+			pass: [
+				'true',
+				'false'
+			]
+		}
+	}), /`searchParams` option must be/);
+
+	await server.close();
+});
+
 test('throwHttpErrors option', async t => {
 	const server = await createTestServer();
 	server.get('/', (request, response) => {
@@ -174,6 +201,63 @@ test('ky.extend()', async t => {
 		'unicorn - rainbow'
 	);
 
+	t.true((await extended.head(server.url)).ok);
+
+	await server.close();
+});
+
+test('ky.extend() throws when given non-object argument', t => {
+	const nonObjectValues = [
+		true,
+		666,
+		'hello',
+		[],
+		null,
+		() => {},
+		Symbol('ky')
+	];
+
+	for (const value of nonObjectValues) {
+		t.throws(() => {
+			ky.extend(value);
+		}, {
+			instanceOf: TypeError,
+			message: 'The `defaultOptions` argument must be an object'
+		});
+	}
+});
+
+test('ky.extend() with deep array', async t => {
+	const server = await createTestServer();
+	server.get('/', (request, response) => {
+		response.end();
+	});
+
+	let isOriginBeforeRequestTrigged = false;
+	let isExtendBeforeRequestTrigged = false;
+
+	const extended = ky.extend({
+		hooks: {
+			beforeRequest: [
+				() => {
+					isOriginBeforeRequestTrigged = true;
+				}
+			]
+		}
+	});
+
+	await extended(server.url, {
+		hooks: {
+			beforeRequest: [
+				() => {
+					isExtendBeforeRequestTrigged = true;
+				}
+			]
+		}
+	});
+
+	t.is(isOriginBeforeRequestTrigged, true);
+	t.is(isExtendBeforeRequestTrigged, true);
 	t.true((await extended.head(server.url)).ok);
 
 	await server.close();

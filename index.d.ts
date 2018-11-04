@@ -1,12 +1,25 @@
 export type BeforeRequestHook = (options: Object) => void;
 
+export type AfterResponseHook = (response: Response) => Response | void;
+
 export interface Hooks {
 	/**
 	 * Before the request is sent.
 	 *
+	 * This hook enables you to modify the request right before it is sent. Ky will make no further changes to the request after this. The hook function receives the normalized options as the first argument. You could, for example, modify `options.headers` here.
+	 *
 	 * @default []
 	 */
 	beforeRequest: BeforeRequestHook[];
+
+	/**
+	 * After the response is received.
+	 *
+	 * This hook enables you to read and optionally modify the response. The return value of the hook function will be used by Ky as the response object if it's an instance of [`Response`](https://developer.mozilla.org/en-US/docs/Web/API/Response).
+	 *
+	 * @default []
+	 */
+	afterResponse: AfterResponseHook[];
 }
 
 /**
@@ -43,6 +56,18 @@ export interface Options extends RequestInit {
 	 * @default true
 	 */
 	throwHttpErrors?: boolean;
+
+	/**
+	* Prepends the input with the specified prefix.
+	* The prefix can be any valid URL, either relative or absolute.
+	*/
+	prefixUrl?: URL | string;
+
+	/**
+	* Search parameters to include in the request URL.
+	* Setting this will override all existing search parameters in the input URL.
+	*/
+	searchParams?: string | {[key: string]: string | number} | URLSearchParams;
 }
 
 /**
@@ -72,58 +97,58 @@ export interface Ky {
 	/**
 	 * Same as fetch.
 	 *
-	 * @param input - Request object or URL string.
+	 * @param input - `Request` object, `URL` object, or URL string.
 	 * @returns Promise with `Body` method added.
 	 */
-	(input: Request | string, options?: Options): ResponsePromise;
+	(input: Request | URL | string, options?: Options): ResponsePromise;
 
 	/**
 	 * Same as fetch's `get()` method.
 	 *
-	 * @param input - Request object or URL string.
+	 * @param input - `Request` object, `URL` object, or URL string.
 	 * @returns Promise with `Body` method added.
 	 */
-	get(input: Request | string, options?: Options): ResponsePromise;
+	get(input: Request | URL | string, options?: Options): ResponsePromise;
 
 	/**
 	 * Same as fetch's `post()` method.
 	 *
-	 * @param input - Request object or URL string.
+	 * @param input - `Request` object, `URL` object, or URL string.
 	 * @returns Promise with `Body` method added.
 	 */
-	post(input: Request | string, options?: Options): ResponsePromise;
+	post(input: Request | URL | string, options?: Options): ResponsePromise;
 
 	/**
 	 * Same as fetch's `put()` method.
 	 *
-	 * @param input - Request object or URL string.
+	 * @param input - `Request` object, `URL` object, or URL string.
 	 * @returns Promise with `Body` method added.
 	 */
-	put(input: Request | string, options?: Options): ResponsePromise;
+	put(input: Request | URL | string, options?: Options): ResponsePromise;
 
 	/**
 	 * Same as fetch's `patch()` method.
 	 *
-	 * @param input - Request object or URL string.
+	 * @param input - `Request` object, `URL` object, or URL string.
 	 * @returns Promise with `Body` method added.
 	 */
-	patch(input: Request | string, options?: Options): ResponsePromise;
+	patch(input: Request | URL | string, options?: Options): ResponsePromise;
 
 	/**
 	 * Same as fetch's `head()` method.
 	 *
-	 * @param input - Request object or URL string.
+	 * @param input - `Request` object, `URL` object, or URL string.
 	 * @returns Promise with `Body` method added.
 	 */
-	head(input: Request | string, options?: Options): ResponsePromise;
+	head(input: Request | URL | string, options?: Options): ResponsePromise;
 
 	/**
 	 * Same as fetch's `delete()` method.
 	 *
-	 * @param input - Request object or URL string.
+	 * @param input - `Request` object, `URL` object, or URL string.
 	 * @returns Promise with `Body` method added.
 	 */
-	delete(input: Request | string, options?: Options): ResponsePromise;
+	delete(input: Request | URL | string, options?: Options): ResponsePromise;
 
 	/**
 	 * Create a new Ky instance with some defaults overridden with your own.

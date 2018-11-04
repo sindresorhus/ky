@@ -24,7 +24,7 @@ const requestMethods = [
 ];
 
 // Test Ky HTTP methods
-requestMethods.map(async(key) => {
+requestMethods.map(async key => {
 	expectType<ResponsePromise>(await ky[key](server.url));
 });
 
@@ -38,6 +38,21 @@ ky(server.url, {
 			options => {
 				expectType<Object>(options);
 			}
+		],
+		afterResponse: [
+			response => {
+				expectType<Response>(response);
+				return new Response('Test');
+			}
 		]
 	}
 });
+
+ky(new URL(server.url));
+ky(new Request(server.url));
+
+// `searchParams` option
+ky(server.url, {searchParams: 'foo=bar'});
+ky(server.url, {searchParams: {foo: 'bar'}});
+ky(server.url, {searchParams: {foo: 1}});
+ky(server.url, {searchParams: new URLSearchParams({foo: 'bar'})});
