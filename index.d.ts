@@ -27,6 +27,23 @@ export interface Hooks {
  */
 export interface Options extends RequestInit {
 	/**
+	 * Shortcut for sending JSON. Use this instead of the `body` option.
+	 */
+	json?: object;
+
+	/**
+	* Search parameters to include in the request URL.
+	* Setting this will override all existing search parameters in the input URL.
+	*/
+	searchParams?: string | {[key: string]: string | number} | URLSearchParams;
+
+	/**
+	* Prepends the input with the specified prefix.
+	* The prefix can be any valid URL, either relative or absolute.
+	*/
+	prefixUrl?: URL | string;
+
+	/**
 	 * Numer of times to retry failed requests.
 	 *
 	 * @default 2
@@ -41,11 +58,6 @@ export interface Options extends RequestInit {
 	timeout?: number;
 
 	/**
-	 * Shortcut for sending JSON. Use this instead of the `body` option.
-	 */
-	json?: object;
-
-	/**
 	 * Hooks allow modifications during the request lifecycle. Hook functions may be async and are run serially.
 	 */
 	hooks?: Hooks;
@@ -56,18 +68,6 @@ export interface Options extends RequestInit {
 	 * @default true
 	 */
 	throwHttpErrors?: boolean;
-
-	/**
-	* Prepends the input with the specified prefix.
-	* The prefix can be any valid URL, either relative or absolute.
-	*/
-	prefixUrl?: URL | string;
-
-	/**
-	* Search parameters to include in the request URL.
-	* Setting this will override all existing search parameters in the input URL.
-	*/
-	searchParams?: string | {[key: string]: string | number} | URLSearchParams;
 }
 
 /**
@@ -95,7 +95,7 @@ export class TimeoutError extends Error {}
 
 export interface Ky {
 	/**
-	 * Same as fetch.
+	 * Fetches the `input` URL.
 	 *
 	 * @param input - `Request` object, `URL` object, or URL string.
 	 * @returns Promise with `Body` method added.
@@ -103,7 +103,7 @@ export interface Ky {
 	(input: Request | URL | string, options?: Options): ResponsePromise;
 
 	/**
-	 * Same as fetch's `get()` method.
+	 * Fetches the `input` URL with the option `{method: 'get'}`.
 	 *
 	 * @param input - `Request` object, `URL` object, or URL string.
 	 * @returns Promise with `Body` method added.
@@ -111,7 +111,7 @@ export interface Ky {
 	get(input: Request | URL | string, options?: Options): ResponsePromise;
 
 	/**
-	 * Same as fetch's `post()` method.
+	 * Fetches the `input` URL with the option `{method: 'post'}`.
 	 *
 	 * @param input - `Request` object, `URL` object, or URL string.
 	 * @returns Promise with `Body` method added.
@@ -119,7 +119,7 @@ export interface Ky {
 	post(input: Request | URL | string, options?: Options): ResponsePromise;
 
 	/**
-	 * Same as fetch's `put()` method.
+	 * Fetches the `input` URL with the option `{method: 'put'}`.
 	 *
 	 * @param input - `Request` object, `URL` object, or URL string.
 	 * @returns Promise with `Body` method added.
@@ -127,7 +127,7 @@ export interface Ky {
 	put(input: Request | URL | string, options?: Options): ResponsePromise;
 
 	/**
-	 * Same as fetch's `patch()` method.
+	 * Fetches the `input` URL with the option `{method: 'patch'}`.
 	 *
 	 * @param input - `Request` object, `URL` object, or URL string.
 	 * @returns Promise with `Body` method added.
@@ -135,7 +135,7 @@ export interface Ky {
 	patch(input: Request | URL | string, options?: Options): ResponsePromise;
 
 	/**
-	 * Same as fetch's `head()` method.
+	 * Fetches the `input` URL with the option `{method: 'head'}`.
 	 *
 	 * @param input - `Request` object, `URL` object, or URL string.
 	 * @returns Promise with `Body` method added.
@@ -143,7 +143,7 @@ export interface Ky {
 	head(input: Request | URL | string, options?: Options): ResponsePromise;
 
 	/**
-	 * Same as fetch's `delete()` method.
+	 * Fetches the `input` URL with the option `{method: 'delete'}`.
 	 *
 	 * @param input - `Request` object, `URL` object, or URL string.
 	 * @returns Promise with `Body` method added.
