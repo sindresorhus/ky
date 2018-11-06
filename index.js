@@ -135,7 +135,7 @@ class Ky {
 			this._options.prefixUrl += '/';
 		}
 
-		const url = new _globalThis.URL(this._options.prefixUrl + this._input);
+		const url = new _globalThis.URL(this._options.prefixUrl + this._input, document.baseURI);
 		if (typeof searchParams === 'string' || searchParams instanceof _globalThis.URLSearchParams) {
 			url.search = searchParams;
 		} else if (searchParams && Object.values(searchParams).every(param => typeof param === 'number' || typeof param === 'string')) {
