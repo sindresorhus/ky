@@ -41,14 +41,15 @@ const deepMerge = (...sources) => {
 	return returnValue;
 };
 
-const requestMethods = [
-	'get',
-	'post',
-	'put',
-	'patch',
-	'head',
-	'delete'
-];
+const requestMethods = {
+	get: 'get',
+	post: 'post',
+	put: 'put',
+	patch: 'patch',
+	head: 'head',
+	delete: 'delete',
+	del: 'delete'
+};
 
 const responseTypes = [
 	'json',
@@ -265,9 +266,9 @@ const createInstance = (defaults = {}) => {
 
 	const ky = (input, options) => new Ky(input, deepMerge({}, defaults, options));
 
-	for (const method of requestMethods) {
-		ky[method] = (input, options) => new Ky(input, deepMerge({}, defaults, options, {method}));
-	}
+	Object.entries(requestMethods).forEach(({ key, method }) => {
+		ky[key] = (input, options) => new Ky(input, deepMerge({}, defaults, options, {method}));
+	})
 
 	ky.extend = defaults => createInstance(defaults);
 
