@@ -120,7 +120,7 @@ class Ky {
 		this._retryCount = 0;
 
 		this._options = {
-			method: 'get',
+			method: 'GET',
 			credentials: 'same-origin', // TODO: This can be removed when the spec change is implemented in all browsers. Context: https://www.chromestatus.com/feature/4539473312350208
 			retry: 2,
 			...otherOptions
@@ -266,7 +266,9 @@ const createInstance = (defaults = {}) => {
 	const ky = (input, options) => new Ky(input, deepMerge({}, defaults, options));
 
 	for (const method of requestMethods) {
-		ky[method] = (input, options) => new Ky(input, deepMerge({}, defaults, options, {method}));
+		ky[method] = (input, options) => new Ky(input, deepMerge({}, defaults, options, {
+			method: method.toUpperCase()
+		}));
 	}
 
 	ky.extend = defaults => createInstance(defaults);
