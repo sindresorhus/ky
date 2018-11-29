@@ -280,7 +280,7 @@ test('ky.extend() with prefix url', async t => {
 
 	t.is(await extended('ping').text(), 'pong');
 
-	t.is(await extended('pong', { prefixUrl: server.url }).text(), 'ping');
+	t.is(await extended('pong', {prefixUrl: server.url}).text(), 'ping');
 
 	await server.close();
 });
