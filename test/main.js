@@ -262,3 +262,25 @@ test('ky.extend() with deep array', async t => {
 
 	await server.close();
 });
+
+test('ky.extend() with prefix url', async t => {
+	const server = await createTestServer();
+	
+	server.get('/ping', (request, response) => {
+		response.end('pong');
+	});
+
+	server.get('/pong', (request, response) => {
+		response.end('ping');
+	});
+
+	const extended = ky.extend({
+		prefixUrl: server.url
+	});
+	
+	t.is(await extended('ping').text(), 'pong');
+	
+	t.is(await extended('pong', { prefixUrl: server.url }).text(), 'ping');
+	
+	await server.close();
+});
