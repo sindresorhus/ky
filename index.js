@@ -115,6 +115,7 @@ class Ky {
 		throwHttpErrors = true,
 		searchParams,
 		json,
+		extend,
 		...otherOptions
 	}) {
 		this._retryCount = 0;
@@ -128,7 +129,7 @@ class Ky {
 		this._options.prefixUrl = String(this._options.prefixUrl || '');
 		this._input = String(input || '');
 
-		if (this._options.prefixUrl && this._input.startsWith('/')) {
+		if (this._options.prefixUrl && !extend && this._input.startsWith('/')) {
 			throw new Error('`input` must not begin with a slash when using `prefixUrl`');
 		}
 		if (this._options.prefixUrl && !this._options.prefixUrl.endsWith('/')) {
@@ -268,7 +269,7 @@ const createInstance = (defaults = {}) => {
 	for (const method of requestMethods) {
 		ky[method] = (input, options) => new Ky(input, deepMerge({}, defaults, options, {method}));
 	}
-
+	defaults.extend = true;
 	ky.extend = defaults => createInstance(defaults);
 
 	return ky;
