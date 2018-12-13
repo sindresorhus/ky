@@ -266,6 +266,10 @@ setTimeout(() => controller.abort(), 5000);
 })();
 ```
 
+### Method name normalization
+
+Ky normalizes the common used method names (`GET`, `POST`, `PATCH`, etc.) in order to avoid server errors due to case sensitivity.
+
 
 ## FAQ
 
