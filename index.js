@@ -108,6 +108,14 @@ const timeout = (promise, ms) => Promise.race([
 	})()
 ]);
 
+const normalizeRequestMethod = input => {
+	if (requestMethods.includes(input)) {
+		return input.toUpperCase();
+	}
+
+	return input;
+};
+
 class Ky {
 	constructor(input, {
 		timeout = 10000,
@@ -120,11 +128,12 @@ class Ky {
 		this._retryCount = 0;
 
 		this._options = {
-			method: 'GET',
+			method: 'get',
 			credentials: 'same-origin', // TODO: This can be removed when the spec change is implemented in all browsers. Context: https://www.chromestatus.com/feature/4539473312350208
 			retry: 2,
 			...otherOptions
 		};
+		this._options.method = normalizeRequestMethod(this._options.method);
 		this._options.prefixUrl = String(this._options.prefixUrl || '');
 		this._input = String(input || '');
 
@@ -266,9 +275,7 @@ const createInstance = (defaults = {}) => {
 	const ky = (input, options) => new Ky(input, deepMerge({}, defaults, options));
 
 	for (const method of requestMethods) {
-		ky[method] = (input, options) => new Ky(input, deepMerge({}, defaults, options, {
-			method: method.toUpperCase()
-		}));
+		ky[method] = (input, options) => new Ky(input, deepMerge({}, defaults, options, {method}));
 	}
 
 	ky.extend = defaults => createInstance(defaults);
