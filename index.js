@@ -108,13 +108,7 @@ const timeout = (promise, ms) => Promise.race([
 	})()
 ]);
 
-const normalizeRequestMethod = input => {
-	if (requestMethods.includes(input)) {
-		return input.toUpperCase();
-	}
-
-	return input;
-};
+const normalizeRequestMethod = input => requestMethods.includes(input) ? input.toUpperCase() : input;
 
 class Ky {
 	constructor(input, {
