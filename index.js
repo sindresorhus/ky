@@ -105,7 +105,7 @@ const timeout = (promise, ms, abortController) => Promise.race([
 	promise,
 	(async () => {
 		await delay(ms);
-		if (supportsAbortController) {
+		if (abortController) {
 			abortController.abort();
 		}
 		throw new TimeoutError();
@@ -129,14 +129,16 @@ class Ky {
 			retry: 2,
 			...otherOptions
 		};
-		let abortController;
 
 		if (supportsAbortController) {
-			abortController = new AbortController();
+			this.abortController = new AbortController();
 			if (this._options.signal) {
-				this._options.signal.addEventListener('abort', () => abortController.abort());
+				this._options.signal.addEventListener('abort', () => {
+					this.abortController.abort();
+					throw new Error('Aborted');
+				});
 			}
-			this._options.signal = abortController.signal;
+			this._options.signal = this.abortController.signal;
 		}
 		this._options.prefixUrl = String(this._options.prefixUrl || '');
 		this._input = String(input || '');
@@ -266,8 +268,7 @@ class Ky {
 			// eslint-disable-next-line no-await-in-loop
 			await hook(this._options);
 		}
-
-		return timeout(_globalThis.fetch(this._input, this._options), this._timeout);
+		return timeout(_globalThis.fetch(this._input, this._options), this._timeout, this.abortController);
 	}
 }
 
