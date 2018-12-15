@@ -110,6 +110,13 @@ Type: `Object`
 
 Shortcut for sending JSON. Use this instead of the `body` option. Accepts a plain object which will be `JSON.stringify()`'d and the correct header will be set for you.
 
+##### searchParams
+
+Type: `string` `Object<string, string|number>` `URLSearchParams`<br>
+Default: `''`
+
+Search parameters to include in the request URL. Setting this will override all existing search parameters in the input URL.
+
 ##### prefixUrl
 
 Type: `string` [`URL`](https://developer.mozilla.org/en-US/docs/Web/API/URL)
@@ -196,13 +203,6 @@ Default: `true`
 Throw a `HTTPError` for error responses (non-2xx status codes).
 
 Setting this to `false` may be useful if you are checking for resource availability and are expecting error responses.
-
-##### searchParams
-
-Type: `string` `Object<string, string|number>` `URLSearchParams`<br>
-Default: `''`
-
-Search parameters to include in the request URL. Setting this will override all existing search parameters in the input URL.
 
 ### ky.extend(defaultOptions)
 

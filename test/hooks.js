@@ -210,7 +210,6 @@ test('afterResponse hook can throw error to reject the request promise', async t
 		{
 			hooks: {
 				afterResponse: [
-					// eslint-disable-next-line require-await
 					async () => {
 						throw expectError;
 					}

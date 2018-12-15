@@ -6,3 +6,6 @@ global.Headers = Headers;
 global.Response = Response;
 global.URL = URL;
 global.URLSearchParams = URLSearchParams;
+global.document = {
+	baseURI: 'https://example.com'
+};
