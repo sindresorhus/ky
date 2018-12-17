@@ -110,6 +110,22 @@ const timeout = (promise, ms) => Promise.race([
 
 const normalizeRequestMethod = input => requestMethods.includes(input) ? input.toUpperCase() : input;
 
+const isAbsoluteUrl = str => /^[a-z]+:\/\//.test(str);
+
+const createRequestUrl = (prefixUrl, input) => {
+	if (!prefixUrl) {
+		return input;
+	}
+
+	if (prefixUrl && input.startsWith('/')) {
+		throw new Error('`input` must not begin with a slash when using `prefixUrl`');
+	}
+
+	const separator = /\/$/.test(prefixUrl) ? '' : '/';
+
+	return `${prefixUrl}${separator}${input}`;
+};
+
 class Ky {
 	constructor(input, {
 		timeout = 10000,
@@ -131,14 +147,17 @@ class Ky {
 		this._options.prefixUrl = String(this._options.prefixUrl || '');
 		this._input = String(input || '');
 
-		if (this._options.prefixUrl && this._input.startsWith('/')) {
-			throw new Error('`input` must not begin with a slash when using `prefixUrl`');
-		}
-		if (this._options.prefixUrl && !this._options.prefixUrl.endsWith('/')) {
-			this._options.prefixUrl += '/';
+		const isFullUrlInput = isAbsoluteUrl(this._input);
+		const isFullUrlPrefix = isAbsoluteUrl(this._options.prefixUrl);
+		const documentBaseUri = _globalThis.document && _globalThis.document.baseURI;
+
+		if (!isFullUrlInput && !isFullUrlPrefix && !documentBaseUri) {
+			throw new Error('The `prefixUrl` option must be set to a full URL, incl. protocol, when using a relative `input` URL inside a non-browser environment');
 		}
 
-		const url = new _globalThis.URL(this._options.prefixUrl + this._input, document.baseURI);
+		const urlString = createRequestUrl(this._options.prefixUrl, this._input);
+		const url = new _globalThis.URL(urlString, documentBaseUri);
+
 		if (typeof searchParams === 'string' || searchParams instanceof _globalThis.URLSearchParams) {
 			url.search = searchParams;
 		} else if (searchParams && Object.values(searchParams).every(param => typeof param === 'number' || typeof param === 'string')) {
