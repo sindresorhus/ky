@@ -29,11 +29,11 @@ test('custom method remains identical', async t => {
 	});
 
 	await t.notThrowsAsync(() => ky(server.url, {
-		method: 'foo',
+		method: 'report',
 		hooks: {
 			beforeRequest: [
 				options => {
-					t.is(options.method, 'foo');
+					t.is(options.method, 'report');
 				}
 			]
 		}
