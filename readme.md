@@ -104,6 +104,15 @@ Sets `options.method` to the method name and makes a request.
 
 Type: `Object`
 
+##### method
+
+Type: `String`
+Default: `'GET'`
+
+Sets the method name and makes the request.
+
+Ky normalizes the common used method names (`GET`, `POST`, `PUT`, `PATCH`, `HEAD` and `DELETE`) in order to avoid server errors due to case sensitivity.
+
 ##### json
 
 Type: `Object`
@@ -265,10 +274,6 @@ setTimeout(() => controller.abort(), 5000);
 	}
 })();
 ```
-
-### Method name normalization
-
-Ky normalizes the common used method names (`GET`, `POST`, `PATCH`, etc.) in order to avoid server errors due to case sensitivity.
 
 
 ## FAQ
