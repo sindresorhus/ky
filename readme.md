@@ -106,12 +106,12 @@ Type: `Object`
 
 ##### method
 
-Type: `String`
-Default: `'GET'`
+Type: `string`
+Default: `get`
 
-Sets the method name and makes the request.
+Set the HTTP request method.
 
-Ky normalizes the common used method names (`GET`, `POST`, `PUT`, `PATCH`, `HEAD` and `DELETE`) in order to avoid server errors due to case sensitivity.
+Ky normalizes the common used HTTP request methods (`GET`, `POST`, `PUT`, `PATCH`, `HEAD` and `DELETE`) in order to avoid server errors due to case sensitivity.
 
 ##### json
 
