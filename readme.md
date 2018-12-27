@@ -131,10 +131,10 @@ import ky from 'ky';
 // On https://example.com
 
 (async () => {
-	await ky('unicorn', {prefixUrl: '/api'});
+	await ky('/unicorn', {prefixUrl: '/api'});
 	//=> 'https://example.com/api/unicorn'
 
-	await ky('unicorn', {prefixUrl: 'https://cats.com'});
+	await ky('/unicorn', {prefixUrl: 'https://cats.com'});
 	//=> 'https://cats.com/unicorn'
 })();
 ```
