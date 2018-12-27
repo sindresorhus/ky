@@ -128,11 +128,11 @@ class Ky {
 		this._options.prefixUrl = String(this._options.prefixUrl || '');
 		this._input = String(input || '');
 
-		if (this._options.prefixUrl && this._input.startsWith('/')) {
-			throw new Error('`input` must not begin with a slash when using `prefixUrl`');
+		if (this._options.prefixUrl && this._input !== '' && !this._input.startsWith('/')) {
+			throw new Error('`input` must begin with a slash when using `prefixUrl`');
 		}
-		if (this._options.prefixUrl && !this._options.prefixUrl.endsWith('/')) {
-			this._options.prefixUrl += '/';
+		if (this._options.prefixUrl && this._options.prefixUrl.endsWith('/')) {
+			throw new Error('`prefixUrl` must not end with a slash');
 		}
 
 		const url = new _globalThis.URL(this._options.prefixUrl + this._input, document.baseURI);
