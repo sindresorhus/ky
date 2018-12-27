@@ -121,7 +121,7 @@ Search parameters to include in the request URL. Setting this will override all 
 
 Type: `string` [`URL`](https://developer.mozilla.org/en-US/docs/Web/API/URL)
 
-When specified, `prefixUrl` will be prepended to `input`. The prefix can be any valid URL, either relative or absolute. A trailing slash `/` is optional, one will be added automatically, if needed, when joining `prefixUrl` and `input`. The `input` argument cannot start with a `/` when using this option.
+When specified, `prefixUrl` will be prepended to `input`. The prefix can be any valid URL, either relative or absolute. No trailing slash `/`, query parameters (`?foo=bar`) or fragment (`#foo=bar`) shall be present. The `input` argument must be empty or start with a `/` when using this option.
 
 Useful when used with [`ky.extend()`](#kyextenddefaultoptions) to create niche-specific Ky-instances.
 
