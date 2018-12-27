@@ -17,18 +17,22 @@ test('prefixUrl option', async t => {
 
 	t.is(await ky(`${server.url}/api/unicorn`, {prefixUrl: false}).text(), 'rainbow');
 	t.is(await ky(`${server.url}/api/unicorn`, {prefixUrl: ''}).text(), 'rainbow');
-	t.is(await ky('api/unicorn', {prefixUrl: server.url}).text(), 'rainbow');
-	t.is(await ky('unicorn', {prefixUrl: `${server.url}/api`}).text(), 'rainbow');
-	t.is(await ky('unicorn', {prefixUrl: `${server.url}/api/`}).text(), 'rainbow');
+	t.is(await ky('/api/unicorn', {prefixUrl: server.url}).text(), 'rainbow');
+	t.is(await ky('/unicorn', {prefixUrl: `${server.url}/api`}).text(), 'rainbow');
+	t.is(await ky('/unicorn', {prefixUrl: `${server.url}/api/`}).text(), 'rainbow');
 	t.is(await ky('', {prefixUrl: server.url}).text(), 'zebra');
-	t.is(await ky('', {prefixUrl: `${server.url}/`}).text(), 'zebra');
+	t.is(await ky('/', {prefixUrl: `${server.url}`}).text(), 'zebra');
 	t.is(await ky('https://cat.com/', {prefixUrl: new URL(`${server.url}/?page=`)}).text(), 'meow');
 	t.is(await ky(new URL('https://cat.com'), {prefixUrl: `${server.url}/?page=`}).text(), 'meow');
 	t.is(await ky(new URL('https://cat.com'), {prefixUrl: new URL(`${server.url}/?page=`)}).text(), 'meow');
 
 	t.throws(() => {
-		ky('/unicorn', {prefixUrl: `${server.url}/api`});
-	}, '`input` must not begin with a slash when using `prefixUrl`');
+		ky('/unicorn', {prefixUrl: `${server.url}/api/`});
+	}, '`prefixUrl` must not end with a slash');
+
+	t.throws(() => {
+		ky('unicorn', {prefixUrl: `${server.url}/api`});
+	}, '`input` must begin with a slash when using `prefixUrl`');
 
 	await server.close();
 });
