@@ -108,6 +108,8 @@ const timeout = (promise, ms) => Promise.race([
 	})()
 ]);
 
+const normalizeRequestMethod = input => requestMethods.includes(input) ? input.toUpperCase() : input;
+
 class Ky {
 	constructor(input, {
 		timeout = 10000,
@@ -125,6 +127,7 @@ class Ky {
 			retry: 2,
 			...otherOptions
 		};
+		this._options.method = normalizeRequestMethod(this._options.method);
 		this._options.prefixUrl = String(this._options.prefixUrl || '');
 		this._input = String(input || '');
 

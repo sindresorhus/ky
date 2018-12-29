@@ -104,6 +104,15 @@ Sets `options.method` to the method name and makes a request.
 
 Type: `Object`
 
+##### method
+
+Type: `string`
+Default: `get`
+
+HTTP method used to make the request.
+
+Internally, the standard methods (`GET`, `POST`, `PUT`, `PATCH`, `HEAD` and `DELETE`) are uppercased in order to avoid server errors due to case sensitivity.
+
 ##### json
 
 Type: `Object`
