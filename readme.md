@@ -109,9 +109,9 @@ Type: `Object`
 Type: `string`
 Default: `get`
 
-Set the HTTP request method.
+HTTP method used to make the request.
 
-Ky normalizes the common used HTTP request methods (`GET`, `POST`, `PUT`, `PATCH`, `HEAD` and `DELETE`) in order to avoid server errors due to case sensitivity.
+Internally, the standard methods (`GET`, `POST`, `PUT`, `PATCH`, `HEAD` and `DELETE`) are uppercased in order to avoid server errors due to case sensitivity.
 
 ##### json
 
