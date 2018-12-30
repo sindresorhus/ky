@@ -124,7 +124,7 @@ const createRequestUrl = (prefixUrl, input) => {
 		throw new Error('`input` must not begin with a slash when using `prefixUrl`');
 	}
 
-	const separator = /\/$/.test(prefixUrl) ? '' : '/';
+	const separator = prefixUrl.endsWith('/') ? '' : '/';
 
 	return `${prefixUrl}${separator}${input}`;
 };

@@ -55,6 +55,18 @@ test('prefixUrl can be a URL object', async t => {
 	t.is(await ky('cat', {prefixUrl: new URL(`${t.context.server.url}/?page=`)}).text(), 'meow');
 });
 
+test('when `input` is an absolute URL, it takes precedence over prefixUrl', async t => {
+	t.is(await ky(`${t.context.server.url}/api/unicorn`, {prefixUrl: `${t.context.server.url}/api`}).text(), 'rainbow');
+});
+
+test('when prefixUrl is a string, input can be a URL object', async t => {
+	t.is(await ky(new URL(`${t.context.server.url}/api/unicorn`), {prefixUrl: `${t.context.server.url}/api`}).text(), 'rainbow');
+});
+
+test('prefixUrl and input can both be a URL object', async t => {
+	t.is(await ky(new URL(`${t.context.server.url}/api/unicorn`), {prefixUrl: new URL(`${t.context.server.url}`)}).text(), 'rainbow');
+});
+
 test('when prefixUrl is specified, `input` cannot have a leading`/`', t => {
 	global.document = {
 		baseURI: t.context.server.url
@@ -63,10 +75,6 @@ test('when prefixUrl is specified, `input` cannot have a leading`/`', t => {
 	t.throws(() => {
 		ky('/unicorn', {prefixUrl: '/api'}).text();
 	}, '`input` must not begin with a slash when using `prefixUrl`');
-});
-
-test('when `input` is an absolute URL, it takes precedence over prefixUrl', async t => {
-	t.is(await ky(`${t.context.server.url}/api/unicorn`, {prefixUrl: `${t.context.server.url}/api`}).text(), 'rainbow');
 });
 
 test('prefixUrl cannot be relative when `input` is relative and run in non-browser environments', t => {
