@@ -5,7 +5,7 @@ import ky from '..';
 const createServer = async () => {
 	const server = await createTestServer();
 	server.get('/', (request, response) => {
-		if (request.query.page === '/https://cat.com/') {
+		if (request.query.page === '/cat') {
 			response.end('meow');
 			return;
 		}
@@ -52,7 +52,7 @@ test('prefixUrl can be the full request URL', async t => {
 });
 
 test('prefixUrl can be a URL object', async t => {
-	t.is(await ky('https://cat.com/', {prefixUrl: new URL(`${t.context.server.url}/?page=`)}).text(), 'meow');
+	t.is(await ky('cat', {prefixUrl: new URL(`${t.context.server.url}/?page=`)}).text(), 'meow');
 });
 
 test('when prefixUrl is specified, `input` cannot have a leading`/`', t => {
@@ -65,7 +65,11 @@ test('when prefixUrl is specified, `input` cannot have a leading`/`', t => {
 	}, '`input` must not begin with a slash when using `prefixUrl`');
 });
 
-test('prefixUrl cannot be relative when `input` is relative and run on a server', t => {
+test('when `input` is an absolute URL, it takes precedence over prefixUrl', async t => {
+	t.is(await ky(`${t.context.server.url}/api/unicorn`, {prefixUrl: `${t.context.server.url}/api`}).text(), 'rainbow');
+});
+
+test('prefixUrl cannot be relative when `input` is relative and run in non-browser environments', t => {
 	delete global.document;
 
 	t.throws(() => {

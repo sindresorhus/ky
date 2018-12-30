@@ -110,10 +110,13 @@ const timeout = (promise, ms) => Promise.race([
 
 const normalizeRequestMethod = input => requestMethods.includes(input) ? input.toUpperCase() : input;
 
-const isAbsoluteUrl = str => /^[a-z]+:\/\//.test(str);
+const isAbsoluteUrl = input => {
+	const url = typeof input === 'string' ? input : input.toString();
+	return /^[a-z]+:\/\//.test(url);
+};
 
 const createRequestUrl = (prefixUrl, input) => {
-	if (!prefixUrl) {
+	if (!prefixUrl || isAbsoluteUrl(input)) {
 		return input;
 	}
 
