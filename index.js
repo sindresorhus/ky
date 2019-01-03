@@ -20,7 +20,6 @@ const document = getGlobal('document');
 const URL = getGlobal('URL');
 const URLSearchParams = getGlobal('URLSearchParams');
 const Response = getGlobal('Response');
-const Headers = getGlobal('Headers');
 const fetch = getGlobal('fetch');
 
 const isObject = value => value !== null && typeof value === 'object';
@@ -47,6 +46,13 @@ const deepMerge = (...sources) => {
 	}
 
 	return returnValue;
+};
+
+const objectFromEntries = entries => {
+	return entries.reduce((result, [key, value]) => {
+		result[key] = value;
+		return result;
+	}, {});
 };
 
 const requestMethods = [
@@ -146,15 +152,21 @@ class Ky {
 			this._options.prefixUrl += '/';
 		}
 
-		const url = new URL(this._options.prefixUrl + this._input, document && document.baseURI);
-		if (typeof searchParams === 'string' || searchParams instanceof URLSearchParams) {
-			url.search = searchParams;
-		} else if (searchParams && Object.values(searchParams).every(param => typeof param === 'number' || typeof param === 'string')) {
-			url.search = new URLSearchParams(searchParams).toString();
-		} else if (searchParams) {
-			throw new Error('The `searchParams` option must be either a string, `URLSearchParams` instance or an object with string and number values');
+		// Avoid using URL() if we can, as it does not support relative URLs
+		// and is yet another global to mock in a non-browser environment.
+		if (searchParams) {
+			const url = new URL(this._options.prefixUrl + this._input, document && document.baseURI);
+			if (typeof searchParams === 'string' || (URLSearchParams && searchParams instanceof URLSearchParams)) {
+				url.search = searchParams;
+			} else if (Object.values(searchParams).every(param => typeof param === 'number' || typeof param === 'string')) {
+				url.search = new URLSearchParams(searchParams).toString();
+			} else {
+				throw new Error('The `searchParams` option must be either a string, `URLSearchParams` instance or an object with string and number values');
+			}
+			this._input = url.toString();
+		} else {
+			this._input = this._options.prefixUrl + this._input;
 		}
-		this._input = url.toString();
 
 		this._timeout = timeout;
 		this._hooks = deepMerge({
@@ -163,14 +175,17 @@ class Ky {
 		}, hooks);
 		this._throwHttpErrors = throwHttpErrors;
 
-		const headers = new Headers(this._options.headers || {});
-
 		if (json) {
-			headers.set('content-type', 'application/json');
+			const headers = this._options.headers &&
+				typeof this._options.headers.entries === 'function' ?
+				objectFromEntries(this._options.headers.entries()) :
+				this._options.headers;
+			this._options.headers = {
+				...headers,
+				'content-type': 'application/json'
+			};
 			this._options.body = JSON.stringify(json);
 		}
-
-		this._options.headers = headers;
 
 		this._response = this._fetch();
 
