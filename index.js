@@ -45,7 +45,7 @@ const deepMerge = (...sources) => {
 };
 
 const objectFromEntries = entries => {
-	return entries.reduce((result, [key, value]) => {
+	return [...entries].reduce((result, [key, value]) => {
 		result[key] = value;
 		return result;
 	}, {});
