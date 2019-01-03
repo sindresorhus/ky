@@ -1,16 +1,12 @@
 const getGlobal = property => {
+	/* istanbul ignore next */
 	if (typeof self !== 'undefined' && self && property in self) {
 		return self[property];
 	}
 
 	/* istanbul ignore next */
-	if (typeof window !== 'undefined' && window) {
-		if (window.self && property in window.self) {
-			return window.self[property];
-		}
-		if (property in window) {
-			return window[property];
-		}
+	if (typeof window !== 'undefined' && window && property in window) {
+		return window[property];
 	}
 
 	return global[property];
