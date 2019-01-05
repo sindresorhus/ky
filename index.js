@@ -183,7 +183,7 @@ class Ky {
 					}
 				}
 
-				if (!response.ok) {
+				if (!response.ok && throwHttpErrors) {
 					throw new HTTPError(response);
 				}
 
