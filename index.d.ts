@@ -1,4 +1,4 @@
-export type BeforeRequestHook = (options: Object) => void;
+export type BeforeRequestHook = (options: Options) => void;
 
 export type AfterResponseHook = (response: Response) => Response | void;
 
@@ -10,7 +10,7 @@ export interface Hooks {
 	 *
 	 * @default []
 	 */
-	beforeRequest: BeforeRequestHook[];
+	beforeRequest?: BeforeRequestHook[];
 
 	/**
 	 * After the response is received.
@@ -19,7 +19,7 @@ export interface Hooks {
 	 *
 	 * @default []
 	 */
-	afterResponse: AfterResponseHook[];
+	afterResponse?: AfterResponseHook[];
 }
 
 /**
