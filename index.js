@@ -167,7 +167,8 @@ class Ky {
 		this._response = this._fetch();
 
 		for (const type of responseTypes) {
-			this._response[type] = this._retry(async () => {
+			const isRetry = retryMethods.has(this._options.method.toLowerCase());
+			const fn = async () => {
 				if (this._retryCount > 0) {
 					this._response = this._fetch();
 				}
@@ -183,12 +184,14 @@ class Ky {
 					}
 				}
 
-				if (!response.ok && throwHttpErrors) {
+				if (!response.ok && (isRetry || (!isRetry && throwHttpErrors))) {
 					throw new HTTPError(response);
 				}
 
 				return response.clone()[type]();
-			});
+			}
+
+			this._response[type] = isRetry ? this._retry(fn) : fn;
 		}
 
 		return this._response;
@@ -228,10 +231,6 @@ class Ky {
 	}
 
 	_retry(fn) {
-		if (!retryMethods.has(this._options.method.toLowerCase())) {
-			return fn;
-		}
-
 		const retry = async () => {
 			try {
 				return await fn();
