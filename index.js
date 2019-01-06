@@ -13,8 +13,6 @@ const getGlobal = property => {
 };
 
 const document = getGlobal('document');
-const URL = getGlobal('URL');
-const URLSearchParams = getGlobal('URLSearchParams');
 const Headers = getGlobal('Headers');
 const Response = getGlobal('Response');
 const fetch = getGlobal('fetch');
