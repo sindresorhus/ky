@@ -140,10 +140,10 @@ class Ky {
 			this._options.prefixUrl += '/';
 		}
 
-		// Avoid using URL() if we can, as it does not support relative URLs
-		// and is yet another global to mock in a non-browser environment.
+		this._input = this._options.prefixUrl + this._input;
+
 		if (searchParams) {
-			const url = new URL(this._options.prefixUrl + this._input, document && document.baseURI);
+			const url = new URL(this._input, document && document.baseURI);
 			if (typeof searchParams === 'string' || (URLSearchParams && searchParams instanceof URLSearchParams)) {
 				url.search = searchParams;
 			} else if (Object.values(searchParams).every(param => typeof param === 'number' || typeof param === 'string')) {
@@ -152,8 +152,6 @@ class Ky {
 				throw new Error('The `searchParams` option must be either a string, `URLSearchParams` instance or an object with string and number values');
 			}
 			this._input = url.toString();
-		} else {
-			this._input = this._options.prefixUrl + this._input;
 		}
 
 		this._timeout = timeout;
