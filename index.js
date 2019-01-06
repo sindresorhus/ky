@@ -189,7 +189,7 @@ class Ky {
 				}
 
 				return response.clone()[type]();
-			}
+			};
 
 			this._response[type] = isRetry ? this._retry(fn) : fn;
 		}
