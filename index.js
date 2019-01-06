@@ -15,6 +15,7 @@ const getGlobal = property => {
 const document = getGlobal('document');
 const URL = getGlobal('URL');
 const URLSearchParams = getGlobal('URLSearchParams');
+const Headers = getGlobal('Headers');
 const Response = getGlobal('Response');
 const fetch = getGlobal('fetch');
 
@@ -42,13 +43,6 @@ const deepMerge = (...sources) => {
 	}
 
 	return returnValue;
-};
-
-const objectFromEntries = entries => {
-	return [...entries].reduce((result, [key, value]) => {
-		result[key] = value;
-		return result;
-	}, {});
 };
 
 const requestMethods = [
@@ -171,17 +165,14 @@ class Ky {
 		}, hooks);
 		this._throwHttpErrors = throwHttpErrors;
 
+		const headers = new Headers(this._options.headers || {});
+
 		if (json) {
-			const headers = this._options.headers &&
-				typeof this._options.headers.entries === 'function' ?
-				objectFromEntries(this._options.headers.entries()) :
-				this._options.headers;
-			this._options.headers = {
-				...headers,
-				'content-type': 'application/json'
-			};
+			headers.set('content-type', 'application/json');
 			this._options.body = JSON.stringify(json);
 		}
+
+		this._options.headers = headers;
 
 		this._response = this._fetch();
 
