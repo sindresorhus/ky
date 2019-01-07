@@ -290,7 +290,7 @@ See my answer [here](https://twitter.com/sindresorhus/status/1037763588826398720
 
 See my answer in [#10](https://github.com/sindresorhus/ky/issues/10).
 
-#### Using ky in non-browser environments
+#### Using `ky` in non-browser environments
 
 If you plan to use ky in non-browser environments, for example when rendering React on the server, you need to polyfill certain things on the global object, specifically, `fetch` and the `Headers` constructor. Below, you find an example of an `http` module used throughout an app. It relies on the `node-fetch` module for polyfills.
 
