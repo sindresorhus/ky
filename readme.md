@@ -329,6 +329,7 @@ The latest version of Chrome, Firefox, and Safari.
 
 - [Sindre Sorhus](https://github.com/sindresorhus)
 - [Szymon Marczak](https://github.com/szmarczak)
+- [Seth Holladay](https://github.com/sholladay)
 
 
 ## License
