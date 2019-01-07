@@ -67,7 +67,7 @@ test('prefixUrl and input can both be a URL object', async t => {
 	t.is(await ky(new URL(`${t.context.server.url}/api/unicorn`), {prefixUrl: new URL(`${t.context.server.url}`)}).text(), 'rainbow');
 });
 
-test('when prefixUrl is specified, `input` cannot have a leading`/`', t => {
+test('when prefixUrl is specified, `input` cannot have a leading `/`', t => {
 	global.document = {
 		baseURI: t.context.server.url
 	};
