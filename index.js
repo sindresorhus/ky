@@ -167,7 +167,7 @@ class Ky {
 		this._response = this._fetch();
 
 		for (const type of responseTypes) {
-			const isRetry = retryMethods.has(this._options.method.toLowerCase());
+			const isRetriableMethod = retryMethods.has(this._options.method.toLowerCase());
 			const fn = async () => {
 				if (this._retryCount > 0) {
 					this._response = this._fetch();
@@ -184,14 +184,14 @@ class Ky {
 					}
 				}
 
-				if (!response.ok && (isRetry || (!isRetry && throwHttpErrors))) {
+				if (!response.ok && (isRetriableMethod || this._throwHttpErrors)) {
 					throw new HTTPError(response);
 				}
 
 				return response.clone()[type]();
 			};
 
-			this._response[type] = isRetry ? this._retry(fn) : fn;
+			this._response[type] = isRetriableMethod ? this._retry(fn) : fn;
 		}
 
 		return this._response;
