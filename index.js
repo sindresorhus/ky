@@ -1,19 +1,21 @@
-// Polyfill for `globalThis`
-const _globalThis = (() => {
-	if (typeof self !== 'undefined') {
-		return self;
+const getGlobal = property => {
+	/* istanbul ignore next */
+	if (typeof self !== 'undefined' && self && property in self) {
+		return self[property];
 	}
 
 	/* istanbul ignore next */
-	if (typeof window !== 'undefined') {
-		return window;
+	if (typeof window !== 'undefined' && window && property in window) {
+		return window[property];
 	}
 
-	/* istanbul ignore next */
-	if (typeof global !== 'undefined') {
-		return global;
-	}
-})();
+	return global[property];
+};
+
+const document = getGlobal('document');
+const Headers = getGlobal('Headers');
+const Response = getGlobal('Response');
+const fetch = getGlobal('fetch');
 
 const isObject = value => value !== null && typeof value === 'object';
 
@@ -138,15 +140,19 @@ class Ky {
 			this._options.prefixUrl += '/';
 		}
 
-		const url = new _globalThis.URL(this._options.prefixUrl + this._input, document.baseURI);
-		if (typeof searchParams === 'string' || searchParams instanceof _globalThis.URLSearchParams) {
-			url.search = searchParams;
-		} else if (searchParams && Object.values(searchParams).every(param => typeof param === 'number' || typeof param === 'string')) {
-			url.search = new _globalThis.URLSearchParams(searchParams).toString();
-		} else if (searchParams) {
-			throw new Error('The `searchParams` option must be either a string, `URLSearchParams` instance or an object with string and number values');
+		this._input = this._options.prefixUrl + this._input;
+
+		if (searchParams) {
+			const url = new URL(this._input, document && document.baseURI);
+			if (typeof searchParams === 'string' || (URLSearchParams && searchParams instanceof URLSearchParams)) {
+				url.search = searchParams;
+			} else if (Object.values(searchParams).every(param => typeof param === 'number' || typeof param === 'string')) {
+				url.search = new URLSearchParams(searchParams).toString();
+			} else {
+				throw new Error('The `searchParams` option must be either a string, `URLSearchParams` instance or an object with string and number values');
+			}
+			this._input = url.toString();
 		}
-		this._input = url.toString();
 
 		this._timeout = timeout;
 		this._hooks = deepMerge({
@@ -155,7 +161,7 @@ class Ky {
 		}, hooks);
 		this._throwHttpErrors = throwHttpErrors;
 
-		const headers = new _globalThis.Headers(this._options.headers || {});
+		const headers = new Headers(this._options.headers || {});
 
 		if (json) {
 			headers.set('content-type', 'application/json');
@@ -178,7 +184,7 @@ class Ky {
 					// eslint-disable-next-line no-await-in-loop
 					const modifiedResponse = await hook(response.clone());
 
-					if (modifiedResponse instanceof _globalThis.Response) {
+					if (modifiedResponse instanceof Response) {
 						response = modifiedResponse;
 					}
 				}
@@ -257,7 +263,7 @@ class Ky {
 			await hook(this._options);
 		}
 
-		return timeout(_globalThis.fetch(this._input, this._options), this._timeout);
+		return timeout(fetch(this._input, this._options), this._timeout);
 	}
 }
 
