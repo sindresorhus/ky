@@ -1,3 +1,5 @@
+/*! MIT License © Sindre Sorhus */
+
 const getGlobal = property => {
 	/* istanbul ignore next */
 	if (typeof self !== 'undefined' && self && property in self) {
