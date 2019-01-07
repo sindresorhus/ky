@@ -294,19 +294,19 @@ See my answer in [#10](https://github.com/sindresorhus/ky/issues/10).
 
 If you plan to use ky in non-browser environments, for example when rendering React on the server, you need to polyfill certain things on the global object, specifically, `fetch` and the `Headers` constructor. Below, you find an example of an `http` module used throughout an app. It relies on the `node-fetch` module for polyfills.
 
-```javascript
-import ky from 'ky'
-import fetch, { Headers } from 'node-fetch'
+```js
+import ky from 'ky';
+import fetch, {Headers} from 'node-fetch';
 
 if (typeof window === 'undefined') {
-  global.fetch = fetch
-  global.Headers = Headers
+	global.fetch = fetch;
+	global.Headers = Headers;
 }
 
-// Here you could also extend ky with a default prefixUrl for your app
-const http = ky
+// Here you could also extend Ky with a default `prefixUrl` for your app
+const http = ky;
 
-export default ky
+export default ky;
 ```
 
 #### What does `ky` mean?
