@@ -204,6 +204,20 @@ test('throwHttpErrors option', async t => {
 	await server.close();
 });
 
+test('throwHttpErrors option with POST', async t => {
+	const server = await createTestServer();
+	server.post('/', (request, response) => {
+		response.sendStatus(500);
+	});
+
+	await t.notThrowsAsync(
+		ky.post(server.url, {throwHttpErrors: false}).text(),
+		/Internal Server Error/
+	);
+
+	await server.close();
+});
+
 test('ky.extend()', async t => {
 	const server = await createTestServer();
 	server.get('/', (request, response) => {
