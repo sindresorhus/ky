@@ -296,6 +296,24 @@ It's just a random short npm package name I managed to get. It does, however, ha
 
 > A form of text-able slang, KY is an abbreviation for 空気読めない (kuuki yomenai), which literally translates into “cannot read the air.” It's a phrase applied to someone who misses the implied meaning.
 
+#### How do I use this without a bundler like Webpack?
+
+Upload the [`index.js`](index.js) file in this repo somewhere, for example, to your website server, or use a CDN version. Then import the file.
+
+```html
+<script type="module">
+// Replace the version number with the latest version
+import ky from 'https://cdn.jsdelivr.net/npm/ky@0.5.2/index.js';
+
+(async () => {
+	const json = await ky('https://jsonplaceholder.typicode.com/todos/1').json();
+
+	console.log(json.title);
+	//=> 'delectus aut autem
+})();
+</script>
+```
+
 
 ## Browser support
 
