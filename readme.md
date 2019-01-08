@@ -36,6 +36,18 @@ Ky targets [modern browsers](#browser-support). For older browsers, you will nee
 $ npm install ky
 ```
 
+###### Download
+
+- [Normal](https://cdn.jsdelivr.net/npm/ky/index.js)
+- ~~[Minified](https://cdn.jsdelivr.net/npm/ky/index.min.js)~~<br><sup>(Blocked by [jsdelivr/jsdelivr#18043](https://github.com/jsdelivr/jsdelivr/issues/18043))</sup>
+
+###### CDN
+
+- [jsdelivr](https://www.jsdelivr.com/package/npm/ky)
+- [unpkg](https://unpkg.com/ky)
+
+---
+
 <a href="https://www.patreon.com/sindresorhus">
 	<img src="https://c5.patreon.com/external/logo/become_a_patron_button@2x.png" width="160">
 </a>
