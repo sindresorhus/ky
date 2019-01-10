@@ -3,6 +3,8 @@
 	<div>
 		<img width="600" height="600" src="media/logo.svg" alt="ky">
 	</div>
+	<p align="center">Huge thanks to <a href="https://lunanode.com"><img src="https://sindresorhus.com/assets/thanks/lunanode-logo.svg" width="170"></a> for sponsoring me!</p>
+	<br>
 	<br>
 	<br>
 	<br>
