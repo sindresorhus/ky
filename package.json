@@ -45,7 +45,7 @@
 	],
 	"devDependencies": {
 		"@types/jquery": "^3.3.29",
-		"ava": "^1.0.1",
+		"ava": "^1.1.0",
 		"body": "^5.1.0",
 		"codecov": "^3.1.0",
 		"create-test-server": "2.1.1",
@@ -55,7 +55,7 @@
 		"node-fetch": "^2.3.0",
 		"nyc": "^13.1.0",
 		"tsd-check": "^0.3.0",
-		"xo": "^0.23.0"
+		"xo": "^0.24.0"
 	},
 	"xo": {
 		"envs": [

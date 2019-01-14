@@ -138,6 +138,7 @@ class Ky {
 		if (this._options.prefixUrl && this._input.startsWith('/')) {
 			throw new Error('`input` must not begin with a slash when using `prefixUrl`');
 		}
+
 		if (this._options.prefixUrl && !this._options.prefixUrl.endsWith('/')) {
 			this._options.prefixUrl += '/';
 		}
@@ -153,6 +154,7 @@ class Ky {
 			} else {
 				throw new Error('The `searchParams` option must be either a string, `URLSearchParams` instance or an object with string and number values');
 			}
+
 			this._input = url.toString();
 		}
 
