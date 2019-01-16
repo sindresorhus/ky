@@ -99,7 +99,7 @@ In environments that do not support `import`, you can load `ky` in [UMD format](
 const ky = require('ky/umd').default;
 ```
 
-If no module system is detected, then `ky` will be available as a global.
+With the UMD version, it's also easy to use `ky` [without a bundler](#how-do-i-use-this-without-a-bundler-like-webpack) or module system.
 
 ## API
 
