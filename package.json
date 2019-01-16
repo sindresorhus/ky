@@ -13,7 +13,7 @@
 		"node": ">=10"
 	},
 	"scripts": {
-		"build": "rollup index.js --format umd --name ky --file umd.js",
+		"build": "rollup index.js --format=umd --name=ky --file=umd.js",
 		"prepublishOnly": "npm run build",
 		"test": "xo && nyc ava && tsd-check && npm run cypress:run",
 		"cypress:open": "cypress open",
