@@ -93,6 +93,13 @@ With plain `fetch`, it would be:
 })();
 ```
 
+In environments that do not support `import`, you can load `ky` in UMD format. For example, using `require()`:
+
+```js
+const ky = require('ky/umd').default;
+```
+
+This also means `ky` can be used as an AMD module, and if no module system is detected, then `ky` will be available as a global.
 
 ## API
 
