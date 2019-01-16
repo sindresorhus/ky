@@ -335,6 +335,21 @@ import ky from 'https://cdn.jsdelivr.net/npm/ky@0.5.2/index.js';
 </script>
 ```
 
+Alternatively, you can use the [`umd.js`](umd.js) file with a traditional `<script>` tag (without `type="module"`), in which case `ky` will be a global.
+
+```html
+<!-- Replace the version number with the latest version -->
+<script src="https://cdn.jsdelivr.net/npm/ky@0.5.2/umd.js">
+<script>
+(async () => {
+	const ky = ky.default;
+	const json = await ky('https://jsonplaceholder.typicode.com/todos/1').json();
+
+	console.log(json.title);
+	//=> 'delectus aut autem
+})();
+</script>
+```
 
 ## Browser support
 
