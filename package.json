@@ -13,13 +13,16 @@
 		"node": ">=10"
 	},
 	"scripts": {
+		"build": "rollup index.js --format=umd --name=ky --file=umd.js",
+		"prepublishOnly": "npm run build",
 		"test": "xo && nyc ava && tsd-check && npm run cypress:run",
 		"cypress:open": "cypress open",
 		"cypress:run": "cypress run"
 	},
 	"files": [
 		"index.js",
-		"index.d.ts"
+		"index.d.ts",
+		"umd.js"
 	],
 	"keywords": [
 		"fetch",
@@ -54,6 +57,7 @@
 		"esm": "^3.0.84",
 		"node-fetch": "^2.3.0",
 		"nyc": "^13.1.0",
+		"rollup": "^1.1.0",
 		"tsd-check": "^0.3.0",
 		"xo": "^0.24.0"
 	},

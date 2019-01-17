@@ -93,6 +93,13 @@ With plain `fetch`, it would be:
 })();
 ```
 
+In environments that do not support `import`, you can load `ky` in [UMD format](https://medium.freecodecamp.org/anatomy-of-js-module-systems-and-building-libraries-fadcd8dbd0e). For example, using `require()`:
+
+```js
+const ky = require('ky/umd').default;
+```
+
+With the UMD version, it's also easy to use `ky` [without a bundler](#how-do-i-use-this-without-a-bundler-like-webpack) or module system.
 
 ## API
 
@@ -328,6 +335,21 @@ import ky from 'https://cdn.jsdelivr.net/npm/ky@0.5.2/index.js';
 </script>
 ```
 
+Alternatively, you can use the [`umd.js`](umd.js) file with a traditional `<script>` tag (without `type="module"`), in which case `ky` will be a global.
+
+```html
+<!-- Replace the version number with the latest version -->
+<script src="https://cdn.jsdelivr.net/npm/ky@0.5.2/umd.js">
+<script>
+(async () => {
+	const ky = ky.default;
+	const json = await ky('https://jsonplaceholder.typicode.com/todos/1').json();
+
+	console.log(json.title);
+	//=> 'delectus aut autem
+})();
+</script>
+```
 
 ## Browser support
 
