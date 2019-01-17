@@ -2,7 +2,7 @@ type JSONObject = {[key: string]: JSONValue};
 interface JSONArray extends Array<JSONValue> {}
 export type JSONValue = string | number | boolean | null | JSONObject | JSONArray;
 
-export type JSONStringifyable = object | number | string | boolean;
+export type JSONStringifyable = string | number | boolean | null | object;
 
 export type BeforeRequestHook = (options: Options) => void;
 
