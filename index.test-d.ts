@@ -58,12 +58,12 @@ ky(server.url, {searchParams: {foo: 1}});
 ky(server.url, {searchParams: new URLSearchParams({foo: 'bar'})});
 
 // `json` option
-ky(server.url, {
+ky.post(server.url, {
 	json: {
 		foo: true
 	}
 });
-ky(server.url, {
+ky.post(server.url, {
 	json: 'x'
 });
 
