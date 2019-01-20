@@ -1,3 +1,9 @@
+type JSONObject = {[key: string]: JSONValue};
+interface JSONArray extends Array<JSONValue> {}
+export type JSONValue = string | number | boolean | null | JSONObject | JSONArray;
+
+export type JSONStringifyable = string | number | boolean | null | object;
+
 export type BeforeRequestHook = (options: Options) => void;
 
 export type AfterResponseHook = (response: Response) => Response | void;
@@ -29,7 +35,7 @@ export interface Options extends RequestInit {
 	/**
 	 * Shortcut for sending JSON. Use this instead of the `body` option.
 	 */
-	json?: object;
+	json?: JSONStringifyable;
 
 	/**
 	* Search parameters to include in the request URL.
@@ -77,7 +83,7 @@ export interface ResponsePromise extends Promise<Response> {
 	arrayBuffer(): Promise<ArrayBuffer>;
 	blob(): Promise<Blob>;
 	formData(): Promise<FormData>;
-	json(): Promise<unknown>;
+	json(): Promise<JSONValue>;
 	text(): Promise<string>;
 }
 
