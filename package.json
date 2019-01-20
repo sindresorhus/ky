@@ -12,12 +12,10 @@
 	"engines": {
 		"node": ">=10"
 	},
-	"iife": "dist/ky.iife.js",
 	"scripts": {
-		"build": "rollup index.js --format=umd --name=ky --file=umd.js",
-		"prepublishOnly": "npm run build",
-		"pretest": "dist",
-		"test": "xo && nyc ava && tsd-check"
+		"pretest": "rollup index.js --format=umd --name=ky --file=umd.js",
+		"test": "xo && nyc ava && tsd-check",
+		"prepublishOnly": "npm run pretest"
 	},
 	"files": [
 		"index.js",
@@ -47,7 +45,6 @@
 		"node-fetch"
 	],
 	"devDependencies": {
-		"@ianwalter/dist": "^1.4.0",
 		"@ianwalter/puppeteer-helper": "^1.0.0",
 		"@types/jquery": "^3.3.29",
 		"ava": "^1.1.0",

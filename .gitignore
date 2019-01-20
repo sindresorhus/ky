@@ -1,5 +1,4 @@
 node_modules
-dist
 yarn.lock
 .nyc_output
 umd.js

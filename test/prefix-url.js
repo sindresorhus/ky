@@ -45,19 +45,22 @@ test('prefixUrl option', async t => {
 test('prefixUrl option in browser', withPage, async (t, page) => {
 	const server = await createServer();
 	await page.goto(server.url);
-	await page.addScriptTag({path: './dist/ky.iife.js'});
+	await page.addScriptTag({path: './umd.js'});
 
 	await t.throwsAsync(async () => {
-		return page.evaluate(() => window.ky.default('/foo', {prefixUrl: '/'}));
+		return page.evaluate(() => {
+			window.ky = window.ky.default;
+			return window.ky('/foo', {prefixUrl: '/'});
+		});
 	}, /`input` must not begin with a slash when using `prefixUrl`/);
 
 	let text = await page.evaluate(url => {
-		return window.ky.default(`${url}/api/unicorn`).text();
+		return window.ky(`${url}/api/unicorn`).text();
 	}, server.url);
 	t.is(text, 'rainbow');
 
 	text = await page.evaluate(prefixUrl => {
-		return window.ky.default('api/unicorn', {prefixUrl}).text();
+		return window.ky('api/unicorn', {prefixUrl}).text();
 	}, server.url);
 	t.is(text, 'rainbow');
 
