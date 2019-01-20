@@ -12,10 +12,10 @@
 	"engines": {
 		"node": ">=8"
 	},
+	"iife": "dist/ky.iife.js",
 	"scripts": {
-		"test": "xo && nyc ava && tsd-check && npm run cypress:run",
-		"cypress:open": "cypress open",
-		"cypress:run": "cypress run"
+		"pretest": "dist --inline",
+		"test": "xo && nyc ava && tsd-check"
 	},
 	"files": [
 		"index.js",
@@ -44,12 +44,13 @@
 		"node-fetch"
 	],
 	"devDependencies": {
+		"@ianwalter/dist": "^1.4.0",
+		"@ianwalter/puppeteer-helper": "^1.0.0",
 		"@types/jquery": "^3.3.29",
 		"ava": "^1.0.1",
 		"body": "^5.1.0",
 		"codecov": "^3.1.0",
 		"create-test-server": "2.1.1",
-		"cypress": "^3.1.0",
 		"delay": "^4.1.0",
 		"esm": "^3.0.84",
 		"node-fetch": "^2.3.0",
