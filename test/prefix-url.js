@@ -12,6 +12,7 @@ async function createServer() {
 			response.end('meow');
 			return;
 		}
+
 		response.end('zebra');
 	});
 	server.get('/api/unicorn', (request, response) => {
