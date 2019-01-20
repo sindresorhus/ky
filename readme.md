@@ -101,6 +101,7 @@ const ky = require('ky/umd').default;
 
 With the UMD version, it's also easy to use `ky` [without a bundler](#how-do-i-use-this-without-a-bundler-like-webpack) or module system.
 
+
 ## API
 
 ### ky(input, [options])
@@ -127,7 +128,7 @@ Type: `Object`
 
 ##### method
 
-Type: `string`
+Type: `string`<br>
 Default: `get`
 
 HTTP method used to make the request.
