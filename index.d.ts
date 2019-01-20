@@ -1,3 +1,4 @@
+type Omit<T, K extends keyof T> = Pick<T, Exclude<keyof T, K>>;
 type JSONObject = {[key: string]: JSONValue};
 interface JSONArray extends Array<JSONValue> {}
 export type JSONValue = string | number | boolean | null | JSONObject | JSONArray;
@@ -76,6 +77,14 @@ export interface Options extends RequestInit {
 	throwHttpErrors?: boolean;
 }
 
+interface KyOptionsGetHead extends Omit<Options, 'body'> {
+	method?: 'get' | 'head'
+}
+
+interface KyOptionsPostPutDelete extends Options {
+	method?: 'post' | 'put' | 'delete'
+}
+
 /**
  * Returns a `Response` object with `Body` methods added for convenience.
  */
@@ -106,7 +115,7 @@ export interface Ky {
 	 * @param input - `Request` object, `URL` object, or URL string.
 	 * @returns Promise with `Body` method added.
 	 */
-	(input: Request | URL | string, options?: Options): ResponsePromise;
+	(input: Request | URL | string, options?: KyOptionsGetHead | KyOptionsPostPutDelete): ResponsePromise;
 
 	/**
 	 * Fetches the `input` URL with the option `{method: 'get'}`.
@@ -114,7 +123,7 @@ export interface Ky {
 	 * @param input - `Request` object, `URL` object, or URL string.
 	 * @returns Promise with `Body` method added.
 	 */
-	get(input: Request | URL | string, options?: Options): ResponsePromise;
+	get(input: Request | URL | string, options?: Omit<Options, 'body'>): ResponsePromise;
 
 	/**
 	 * Fetches the `input` URL with the option `{method: 'post'}`.
@@ -146,7 +155,7 @@ export interface Ky {
 	 * @param input - `Request` object, `URL` object, or URL string.
 	 * @returns Promise with `Body` method added.
 	 */
-	head(input: Request | URL | string, options?: Options): ResponsePromise;
+	head(input: Request | URL | string, options?: Omit<Options, 'body'>): ResponsePromise;
 
 	/**
 	 * Fetches the `input` URL with the option `{method: 'delete'}`.
