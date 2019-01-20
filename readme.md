@@ -14,7 +14,7 @@
 
 [![Build Status](https://travis-ci.com/sindresorhus/ky.svg?branch=master)](https://travis-ci.com/sindresorhus/ky) [![codecov](https://codecov.io/gh/sindresorhus/ky/branch/master/graph/badge.svg)](https://codecov.io/gh/sindresorhus/ky)
 
-Ky targets [modern browsers](#browser-support). For older browsers, you will need to transpile and use a [`fetch` polyfill](https://github.com/github/fetch). For Node.js, check out [Got](https://github.com/sindresorhus/got).
+Ky targets [modern browsers](#browser-support) and [Deno](https://github.com/denoland/deno). For older browsers, you will need to transpile and use a [`fetch` polyfill](https://github.com/github/fetch). For Node.js, check out [Got](https://github.com/sindresorhus/got).
 
 1 KB *(minified & gzipped)*, one file, and no dependencies.
 
@@ -91,6 +91,12 @@ With plain `fetch`, it would be:
 	console.log(json);
 	//=> `{data: '🦄'}`
 })();
+```
+
+If you are using [Deno](https://github.com/denoland/deno), import Ky from a URL. For example, using a CDN:
+
+```js
+import ky from 'https://unpkg.com/ky/index.js';
 ```
 
 In environments that do not support `import`, you can load `ky` in [UMD format](https://medium.freecodecamp.org/anatomy-of-js-module-systems-and-building-libraries-fadcd8dbd0e). For example, using `require()`:
