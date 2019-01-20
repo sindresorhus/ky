@@ -11,11 +11,12 @@ const getGlobal = property => {
 		return window[property];
 	}
 
-	if (typeof global !== 'undefined' && global && property in global) {
-		return global[property];
+	/* istanbul ignore next */
+	if (typeof globalThis !== 'undefined' && globalThis && property in globalThis) {
+		return globalThis[property];
 	}
 
-	return globalThis[property];
+	return global[property];
 };
 
 const document = getGlobal('document');
