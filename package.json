@@ -16,7 +16,7 @@
 	"scripts": {
 		"build": "rollup index.js --format=umd --name=ky --file=umd.js",
 		"prepublishOnly": "npm run build",
-		"pretest": "dist --inline",
+		"pretest": "dist",
 		"test": "xo && nyc ava && tsd-check"
 	},
 	"files": [
