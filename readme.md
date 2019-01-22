@@ -276,9 +276,9 @@ The error thrown when the request times out.
 
 ## Tips
 
-### Cancelation
+### Cancellation
 
-Fetch (and hence Ky) has built-in support for request cancelation through the [`AbortController` API](https://developer.mozilla.org/en-US/docs/Web/API/AbortController). [Read more.](https://developers.google.com/web/updates/2017/09/abortable-fetch)
+Fetch (and hence Ky) has built-in support for request cancellation through the [`AbortController` API](https://developer.mozilla.org/en-US/docs/Web/API/AbortController). [Read more.](https://developers.google.com/web/updates/2017/09/abortable-fetch)
 
 Example:
 
