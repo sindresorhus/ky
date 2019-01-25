@@ -22,7 +22,8 @@
 	"files": [
 		"index.js",
 		"index.d.ts",
-		"umd.js"
+		"umd.js",
+	  	"umd.d.ts"
 	],
 	"keywords": [
 		"fetch",
