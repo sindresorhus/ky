@@ -83,7 +83,7 @@ export interface ResponsePromise extends Promise<Response> {
 	arrayBuffer(): Promise<ArrayBuffer>;
 	blob(): Promise<Blob>;
 	formData(): Promise<FormData>;
-	json<T = JSONValue>(): Promise<T>;
+	json<T = JSONValue>(): Promise<T | undefined>;
 	text(): Promise<string>;
 }
 
