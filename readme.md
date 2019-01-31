@@ -358,6 +358,10 @@ Alternatively, you can use the [`umd.js`](umd.js) file with a traditional `<scri
 </script>
 ```
 
+#### Why does `afterResponse` hooks not get called?
+
+`afterResponse` hooks are only executed if you use body methods provided by the `Response` object. For example, call `ky.json()` directly on the `Response` without awaiting it first.
+
 ## Browser support
 
 The latest version of Chrome, Firefox, and Safari.
