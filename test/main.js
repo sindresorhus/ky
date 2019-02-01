@@ -14,7 +14,7 @@ test('ky()', async t => {
 		response.end();
 	});
 
-	t.true((await ky(server.url)).ok);
+	t.true((await ky(server.url).raw()).ok);
 
 	await server.close();
 });
@@ -239,7 +239,7 @@ test('ky.extend()', async t => {
 		'unicorn - rainbow'
 	);
 
-	t.true((await extended.head(server.url)).ok);
+	t.true((await extended.head(server.url).raw()).ok);
 
 	await server.close();
 });
@@ -296,7 +296,7 @@ test('ky.extend() with deep array', async t => {
 
 	t.is(isOriginBeforeRequestTrigged, true);
 	t.is(isExtendBeforeRequestTrigged, true);
-	t.true((await extended.head(server.url)).ok);
+	t.true((await extended.head(server.url).raw()).ok);
 
 	await server.close();
 });

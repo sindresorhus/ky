@@ -212,20 +212,20 @@ class Ky {
 		};
 
 		const isRetriableMethod = retryMethods.has(this._options.method.toLowerCase());
-		const getBodyMethod = async type => {
+		const getBodyMethod = type => {
 			const fn = () => getResponse(type);
 			return isRetriableMethod ? this._retry(fn) : fn;
 		};
 
-		const promise = {
+		const body = {
 			raw: getBodyMethod('')
 		};
 
 		for (const type of responseTypes) {
-			promise[type] = getBodyMethod(type);
+			body[type] = getBodyMethod(type);
 		}
 
-		return promise;
+		return body;
 	}
 
 	_calculateRetryDelay(error) {

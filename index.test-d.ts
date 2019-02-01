@@ -1,6 +1,6 @@
 import {expectType} from 'tsd-check';
 import createTestServer from 'create-test-server';
-import ky, {Ky, HTTPError, TimeoutError, ResponsePromise, JSONValue} from '.';
+import ky, {Ky, HTTPError, TimeoutError, KyResponse, JSONValue} from '.';
 
 const server = await createTestServer();
 server.get('/', (request, response) => {
@@ -12,7 +12,7 @@ server.get('/timeout', (request, response) => {
 });
 
 // Test Ky
-expectType<ResponsePromise>(ky(server.url));
+expectType<KyResponse>(ky(server.url));
 
 const requestMethods = [
 	'get',
@@ -25,7 +25,7 @@ const requestMethods = [
 
 // Test Ky HTTP methods
 requestMethods.map(async key => {
-	expectType<ResponsePromise>(await ky[key](server.url));
+	expectType<KyResponse>(await ky[key](server.url));
 });
 
 expectType<Ky>(ky.extend({}));
