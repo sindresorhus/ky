@@ -183,7 +183,7 @@ class Ky {
 
 		this._response = this._fetch();
 
-		const getResponse = async (type) => {
+		const getResponse = async type => {
 			if (this._retryCount > 0) {
 				this._response = this._fetch();
 			}
@@ -212,13 +212,13 @@ class Ky {
 		};
 
 		const isRetriableMethod = retryMethods.has(this._options.method.toLowerCase());
-		const getBodyMethod = async (type) => {
-			const fn = async () => await getResponse(type);
+		const getBodyMethod = async type => {
+			const fn = () => getResponse(type);
 			return isRetriableMethod ? this._retry(fn) : fn;
 		};
 
 		const promise = {
-			raw: getBodyMethod(""),
+			raw: getBodyMethod('')
 		};
 
 		for (const type of responseTypes) {
