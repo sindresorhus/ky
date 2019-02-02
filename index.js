@@ -183,49 +183,35 @@ class Ky {
 
 		this._response = this._fetch();
 
-		const getResponse = async (type) => {
-			if (this._retryCount > 0) {
-				this._response = this._fetch();
-			}
-
-			let response = await this._response;
-
-			for (const hook of this._hooks.afterResponse) {
-				// eslint-disable-next-line no-await-in-loop
-				const modifiedResponse = await hook(response.clone());
-
-				if (modifiedResponse instanceof Response) {
-					response = modifiedResponse;
-				}
-			}
-
-			if (!response.ok && (isRetriableMethod || this._throwHttpErrors)) {
-				throw new HTTPError(response);
-			}
-
-			if (type) {
-				return response.clone()[type]();
-			}
-
-			// Return the raw response
-			return response.clone();
-		};
-
-		const isRetriableMethod = retryMethods.has(this._options.method.toLowerCase());
-		const getBodyMethod = async (type) => {
-			const fn = async () => await getResponse(type);
-			return isRetriableMethod ? this._retry(fn) : fn;
-		};
-
-		const promise = {
-			raw: getBodyMethod(""),
-		};
-
 		for (const type of responseTypes) {
-			promise[type] = getBodyMethod(type);
+			const isRetriableMethod = retryMethods.has(this._options.method.toLowerCase());
+			const fn = async () => {
+				if (this._retryCount > 0) {
+					this._response = this._fetch();
+				}
+
+				let response = await this._response;
+
+				for (const hook of this._hooks.afterResponse) {
+					// eslint-disable-next-line no-await-in-loop
+					const modifiedResponse = await hook(response.clone());
+
+					if (modifiedResponse instanceof Response) {
+						response = modifiedResponse;
+					}
+				}
+
+				if (!response.ok && (isRetriableMethod || this._throwHttpErrors)) {
+					throw new HTTPError(response);
+				}
+
+				return response.clone()[type]();
+			};
+
+			this._response[type] = isRetriableMethod ? this._retry(fn) : fn;
 		}
 
-		return promise;
+		return this._response;
 	}
 
 	_calculateRetryDelay(error) {

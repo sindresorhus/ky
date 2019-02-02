@@ -79,13 +79,12 @@ export interface Options extends RequestInit {
 /**
  * Returns a `Response` object with `Body` methods added for convenience.
  */
-export interface KyResponse {
+export interface ResponsePromise extends Promise<Response> {
 	arrayBuffer(): Promise<ArrayBuffer>;
 	blob(): Promise<Blob>;
 	formData(): Promise<FormData>;
 	json(): Promise<JSONValue>;
 	text(): Promise<string>;
-	raw(): Promise<Response>;
 }
 
 /**
@@ -107,7 +106,7 @@ export interface Ky {
 	 * @param input - `Request` object, `URL` object, or URL string.
 	 * @returns Promise with `Body` method added.
 	 */
-	(input: Request | URL | string, options?: Options): KyResponse;
+	(input: Request | URL | string, options?: Options): ResponsePromise;
 
 	/**
 	 * Fetches the `input` URL with the option `{method: 'get'}`.
@@ -115,7 +114,7 @@ export interface Ky {
 	 * @param input - `Request` object, `URL` object, or URL string.
 	 * @returns Promise with `Body` method added.
 	 */
-	get(input: Request | URL | string, options?: Options): KyResponse;
+	get(input: Request | URL | string, options?: Options): ResponsePromise;
 
 	/**
 	 * Fetches the `input` URL with the option `{method: 'post'}`.
@@ -123,7 +122,7 @@ export interface Ky {
 	 * @param input - `Request` object, `URL` object, or URL string.
 	 * @returns Promise with `Body` method added.
 	 */
-	post(input: Request | URL | string, options?: Options): KyResponse;
+	post(input: Request | URL | string, options?: Options): ResponsePromise;
 
 	/**
 	 * Fetches the `input` URL with the option `{method: 'put'}`.
@@ -131,7 +130,7 @@ export interface Ky {
 	 * @param input - `Request` object, `URL` object, or URL string.
 	 * @returns Promise with `Body` method added.
 	 */
-	put(input: Request | URL | string, options?: Options): KyResponse;
+	put(input: Request | URL | string, options?: Options): ResponsePromise;
 
 	/**
 	 * Fetches the `input` URL with the option `{method: 'patch'}`.
@@ -139,7 +138,7 @@ export interface Ky {
 	 * @param input - `Request` object, `URL` object, or URL string.
 	 * @returns Promise with `Body` method added.
 	 */
-	patch(input: Request | URL | string, options?: Options): KyResponse;
+	patch(input: Request | URL | string, options?: Options): ResponsePromise;
 
 	/**
 	 * Fetches the `input` URL with the option `{method: 'head'}`.
@@ -147,7 +146,7 @@ export interface Ky {
 	 * @param input - `Request` object, `URL` object, or URL string.
 	 * @returns Promise with `Body` method added.
 	 */
-	head(input: Request | URL | string, options?: Options): KyResponse;
+	head(input: Request | URL | string, options?: Options): ResponsePromise;
 
 	/**
 	 * Fetches the `input` URL with the option `{method: 'delete'}`.
@@ -155,7 +154,7 @@ export interface Ky {
 	 * @param input - `Request` object, `URL` object, or URL string.
 	 * @returns Promise with `Body` method added.
 	 */
-	delete(input: Request | URL | string, options?: Options): KyResponse;
+	delete(input: Request | URL | string, options?: Options): ResponsePromise;
 
 	/**
 	 * Create a new Ky instance with some defaults overridden with your own.
