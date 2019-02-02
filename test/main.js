@@ -3,6 +3,7 @@ import test from 'ava';
 import createTestServer from 'create-test-server';
 import body from 'body';
 import delay from 'delay';
+import AbortController from 'abort-controller';
 import ky, {TimeoutError} from '..';
 
 const pBody = util.promisify(body);
@@ -299,4 +300,16 @@ test('ky.extend() with deep array', async t => {
 	t.true((await extended.head(server.url)).ok);
 
 	await server.close();
+});
+
+test('throws AbortError when aborted by user', async t => {
+	const server = await createTestServer();
+	server.get('/', () => {});
+
+	const abortController = new AbortController();
+	const {signal} = abortController;
+	const response = ky(server.url, {signal});
+	abortController.abort();
+
+	await t.throwsAsync(response, {name: 'AbortError'});
 });

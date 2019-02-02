@@ -49,6 +49,7 @@
 	],
 	"devDependencies": {
 		"@types/jquery": "^3.3.29",
+		"abort-controller": "^2.0.2",
 		"ava": "^1.1.0",
 		"body": "^5.1.0",
 		"codecov": "^3.1.0",

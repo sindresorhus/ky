@@ -149,7 +149,6 @@ class Ky {
 			if (this._options.signal) {
 				this._options.signal.addEventListener('abort', () => {
 					this.abortController.abort();
-					throw new Error('Aborted');
 				});
 			}
 
