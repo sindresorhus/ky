@@ -119,6 +119,7 @@ const timeout = (promise, ms, abortController) => Promise.race([
 		if (abortController) {
 			abortController.abort();
 		}
+
 		throw new TimeoutError();
 	})()
 ]);
@@ -151,6 +152,7 @@ class Ky {
 					throw new Error('Aborted');
 				});
 			}
+
 			this._options.signal = this.abortController.signal;
 		}
 
@@ -288,6 +290,7 @@ class Ky {
 			// eslint-disable-next-line no-await-in-loop
 			await hook(this._options);
 		}
+
 		return timeout(fetch(this._input, this._options), this._timeout, this.abortController);
 	}
 }
