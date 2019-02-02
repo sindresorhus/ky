@@ -181,34 +181,32 @@ class Ky {
 
 		this._options.headers = headers;
 
-		this._response = this._fetch();
+		const fn = async () => {
+			let response = await this._fetch();
+
+			for (const hook of this._hooks.afterResponse) {
+				// eslint-disable-next-line no-await-in-loop
+				const modifiedResponse = await hook(response.clone());
+
+				if (modifiedResponse instanceof Response) {
+					response = modifiedResponse;
+				}
+			}
+
+			if (!response.ok && this._throwHttpErrors) {
+				throw new HTTPError(response);
+			}
+
+			return response;
+		};
+
+		const isRetriableMethod = retryMethods.has(this._options.method.toLowerCase());
+		this._response = isRetriableMethod ? this._retry(fn) : fn();
 
 		for (const type of responseTypes) {
-			const isRetriableMethod = retryMethods.has(this._options.method.toLowerCase());
-			const fn = async () => {
-				if (this._retryCount > 0) {
-					this._response = this._fetch();
-				}
-
-				let response = await this._response;
-
-				for (const hook of this._hooks.afterResponse) {
-					// eslint-disable-next-line no-await-in-loop
-					const modifiedResponse = await hook(response.clone());
-
-					if (modifiedResponse instanceof Response) {
-						response = modifiedResponse;
-					}
-				}
-
-				if (!response.ok && (isRetriableMethod || this._throwHttpErrors)) {
-					throw new HTTPError(response);
-				}
-
-				return response.clone()[type]();
+			this._response[type] = async () => {
+				return (await this._response).clone()[type]();
 			};
-
-			this._response[type] = isRetriableMethod ? this._retry(fn) : fn;
 		}
 
 		return this._response;
@@ -247,24 +245,20 @@ class Ky {
 		return 0;
 	}
 
-	_retry(fn) {
-		const retry = async () => {
-			try {
-				return await fn();
-			} catch (error) {
-				const ms = this._calculateRetryDelay(error);
-				if (ms !== 0) {
-					await delay(ms);
-					return retry();
-				}
-
-				if (this._throwHttpErrors) {
-					throw error;
-				}
+	async _retry(fn) {
+		try {
+			return await fn();
+		} catch (error) {
+			const ms = this._calculateRetryDelay(error);
+			if (ms !== 0 && this._retryCount > 0) {
+				await delay(ms);
+				return this._retry(fn);
 			}
-		};
 
-		return retry;
+			if (this._throwHttpErrors) {
+				throw error;
+			}
+		}
 	}
 
 	async _fetch() {
