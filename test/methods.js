@@ -17,7 +17,7 @@ test('common method is normalized', async t => {
 				}
 			]
 		}
-	}).raw());
+	}));
 
 	await server.close();
 });
@@ -37,7 +37,7 @@ test('custom method remains identical', async t => {
 				}
 			]
 		}
-	}).raw());
+	}));
 
 	await server.close();
 });
