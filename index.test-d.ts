@@ -1,6 +1,6 @@
 import {expectType} from 'tsd-check';
 import createTestServer from 'create-test-server';
-import ky, {Ky, HTTPError, TimeoutError, ResponsePromise} from '.';
+import ky, {Ky, HTTPError, TimeoutError, ResponsePromise, JSONValue} from '.';
 
 const server = await createTestServer();
 server.get('/', (request, response) => {
@@ -56,3 +56,15 @@ ky(server.url, {searchParams: 'foo=bar'});
 ky(server.url, {searchParams: {foo: 'bar'}});
 ky(server.url, {searchParams: {foo: 1}});
 ky(server.url, {searchParams: new URLSearchParams({foo: 'bar'})});
+
+// `json` option
+ky.post(server.url, {
+	json: {
+		foo: true
+	}
+});
+ky.post(server.url, {
+	json: 'x'
+});
+
+expectType<JSONValue>(await ky(server.url).json());

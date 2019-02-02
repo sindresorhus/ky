@@ -123,6 +123,30 @@ test('custom headers', async t => {
 	await server.close();
 });
 
+test('JSON with custom Headers instance', async t => {
+	t.plan(3);
+
+	const server = await createTestServer();
+	server.post('/', async (request, response) => {
+		t.is(request.headers.unicorn, 'rainbow');
+		t.is(request.headers['content-type'], 'application/json');
+		response.json(JSON.parse(await pBody(request)));
+	});
+
+	const json = {
+		foo: true
+	};
+
+	const responseJson = await ky.post(server.url, {
+		headers: new Headers({unicorn: 'rainbow'}),
+		json
+	}).json();
+
+	t.deepEqual(json, responseJson);
+
+	await server.close();
+});
+
 test('timeout option', async t => {
 	let requestCount = 0;
 
@@ -148,7 +172,7 @@ test('searchParams option', async t => {
 
 	const stringParams = '?pass=true';
 	const objectParams = {pass: 'true'};
-	const searchParams = new global.URLSearchParams(stringParams);
+	const searchParams = new URLSearchParams(stringParams);
 
 	t.is(await ky(server.url, {searchParams: stringParams}).text(), stringParams);
 	t.is(await ky(server.url, {searchParams: objectParams}).text(), stringParams);
@@ -174,6 +198,20 @@ test('throwHttpErrors option', async t => {
 
 	await t.notThrowsAsync(
 		ky.get(server.url, {throwHttpErrors: false}).text(),
+		/Internal Server Error/
+	);
+
+	await server.close();
+});
+
+test('throwHttpErrors option with POST', async t => {
+	const server = await createTestServer();
+	server.post('/', (request, response) => {
+		response.sendStatus(500);
+	});
+
+	await t.notThrowsAsync(
+		ky.post(server.url, {throwHttpErrors: false}).text(),
 		/Internal Server Error/
 	);
 

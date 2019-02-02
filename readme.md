@@ -3,6 +3,8 @@
 	<div>
 		<img width="600" height="600" src="media/logo.svg" alt="ky">
 	</div>
+	<p align="center">Huge thanks to <a href="https://lunanode.com"><img src="https://sindresorhus.com/assets/thanks/lunanode-logo.svg" width="170"></a> for sponsoring me!</p>
+	<br>
 	<br>
 	<br>
 	<br>
@@ -12,7 +14,7 @@
 
 [![Build Status](https://travis-ci.com/sindresorhus/ky.svg?branch=master)](https://travis-ci.com/sindresorhus/ky) [![codecov](https://codecov.io/gh/sindresorhus/ky/branch/master/graph/badge.svg)](https://codecov.io/gh/sindresorhus/ky)
 
-Ky targets [modern browsers](#browser-support). For older browsers, you will need to transpile and use a [`fetch` polyfill](https://github.com/github/fetch). For Node.js, check out [Got](https://github.com/sindresorhus/got).
+Ky targets [modern browsers](#browser-support) and [Deno](https://github.com/denoland/deno). For older browsers, you will need to transpile and use a [`fetch` polyfill](https://github.com/github/fetch). For Node.js, check out [Got](https://github.com/sindresorhus/got).
 
 1 KB *(minified & gzipped)*, one file, and no dependencies.
 
@@ -35,6 +37,18 @@ Ky targets [modern browsers](#browser-support). For older browsers, you will nee
 ```
 $ npm install ky
 ```
+
+###### Download
+
+- [Normal](https://cdn.jsdelivr.net/npm/ky/index.js)
+- ~~[Minified](https://cdn.jsdelivr.net/npm/ky/index.min.js)~~<br><sup>(Blocked by [jsdelivr/jsdelivr#18043](https://github.com/jsdelivr/jsdelivr/issues/18043))</sup>
+
+###### CDN
+
+- [jsdelivr](https://www.jsdelivr.com/package/npm/ky)
+- [unpkg](https://unpkg.com/ky)
+
+---
 
 <a href="https://www.patreon.com/sindresorhus">
 	<img src="https://c5.patreon.com/external/logo/become_a_patron_button@2x.png" width="160">
@@ -79,6 +93,20 @@ With plain `fetch`, it would be:
 })();
 ```
 
+If you are using [Deno](https://github.com/denoland/deno), import Ky from a URL. For example, using a CDN:
+
+```js
+import ky from 'https://unpkg.com/ky/index.js';
+```
+
+In environments that do not support `import`, you can load `ky` in [UMD format](https://medium.freecodecamp.org/anatomy-of-js-module-systems-and-building-libraries-fadcd8dbd0e). For example, using `require()`:
+
+```js
+const ky = require('ky/umd').default;
+```
+
+With the UMD version, it's also easy to use `ky` [without a bundler](#how-do-i-use-this-without-a-bundler-like-webpack) or module system.
+
 
 ## API
 
@@ -103,6 +131,15 @@ Sets `options.method` to the method name and makes a request.
 #### options
 
 Type: `Object`
+
+##### method
+
+Type: `string`<br>
+Default: `get`
+
+HTTP method used to make the request.
+
+Internally, the standard methods (`GET`, `POST`, `PUT`, `PATCH`, `HEAD` and `DELETE`) are uppercased in order to avoid server errors due to case sensitivity.
 
 ##### json
 
@@ -239,9 +276,9 @@ The error thrown when the request times out.
 
 ## Tips
 
-### Cancelation
+### Cancellation
 
-Fetch (and hence Ky) has built-in support for request cancelation through the [`AbortController` API](https://developer.mozilla.org/en-US/docs/Web/API/AbortController). [Read more.](https://developers.google.com/web/updates/2017/09/abortable-fetch)
+Fetch (and hence Ky) has built-in support for request cancellation through the [`AbortController` API](https://developer.mozilla.org/en-US/docs/Web/API/AbortController). [Read more.](https://developers.google.com/web/updates/2017/09/abortable-fetch)
 
 Example:
 
@@ -287,6 +324,39 @@ It's just a random short npm package name I managed to get. It does, however, ha
 
 > A form of text-able slang, KY is an abbreviation for 空気読めない (kuuki yomenai), which literally translates into “cannot read the air.” It's a phrase applied to someone who misses the implied meaning.
 
+#### How do I use this without a bundler like Webpack?
+
+Upload the [`index.js`](index.js) file in this repo somewhere, for example, to your website server, or use a CDN version. Then import the file.
+
+```html
+<script type="module">
+// Replace the version number with the latest version
+import ky from 'https://cdn.jsdelivr.net/npm/ky@0.5.2/index.js';
+
+(async () => {
+	const json = await ky('https://jsonplaceholder.typicode.com/todos/1').json();
+
+	console.log(json.title);
+	//=> 'delectus aut autem
+})();
+</script>
+```
+
+Alternatively, you can use the [`umd.js`](umd.js) file with a traditional `<script>` tag (without `type="module"`), in which case `ky` will be a global.
+
+```html
+<!-- Replace the version number with the latest version -->
+<script src="https://cdn.jsdelivr.net/npm/ky@0.5.2/umd.js">
+<script>
+(async () => {
+	const ky = ky.default;
+	const json = await ky('https://jsonplaceholder.typicode.com/todos/1').json();
+
+	console.log(json.title);
+	//=> 'delectus aut autem
+})();
+</script>
+```
 
 ## Browser support
 
@@ -302,6 +372,7 @@ The latest version of Chrome, Firefox, and Safari.
 
 - [Sindre Sorhus](https://github.com/sindresorhus)
 - [Szymon Marczak](https://github.com/szmarczak)
+- [Seth Holladay](https://github.com/sholladay)
 
 
 ## License

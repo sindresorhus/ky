@@ -1,6 +1,6 @@
 {
 	"name": "ky",
-	"version": "0.5.1",
+	"version": "0.7.1",
 	"description": "Tiny and elegant HTTP client based on the browser Fetch API",
 	"license": "MIT",
 	"repository": "sindresorhus/ky",
@@ -10,16 +10,20 @@
 		"url": "sindresorhus.com"
 	},
 	"engines": {
-		"node": ">=8"
+		"node": ">=10"
 	},
 	"scripts": {
+		"build": "rollup index.js --format=umd --name=ky --file=umd.js",
+		"prepublishOnly": "npm run build",
 		"test": "xo && nyc ava && tsd-check && npm run cypress:run",
 		"cypress:open": "cypress open",
 		"cypress:run": "cypress run"
 	},
 	"files": [
 		"index.js",
-		"index.d.ts"
+		"index.d.ts",
+		"umd.js",
+		"umd.d.ts"
 	],
 	"keywords": [
 		"fetch",
@@ -44,18 +48,19 @@
 		"node-fetch"
 	],
 	"devDependencies": {
-		"@types/jquery": "^3.3.22",
-		"ava": "1.0.0-beta.8",
+		"@types/jquery": "^3.3.29",
+		"ava": "^1.1.0",
 		"body": "^5.1.0",
-		"codecov": "^3.0.4",
+		"codecov": "^3.1.0",
 		"create-test-server": "2.1.1",
 		"cypress": "^3.1.0",
-		"delay": "^4.0.0",
-		"esm": "^3.0.82",
-		"node-fetch": "^2.2.0",
-		"nyc": "^13.0.1",
-		"tsd-check": "^0.2.1",
-		"xo": "^0.23.0"
+		"delay": "^4.1.0",
+		"esm": "^3.0.84",
+		"node-fetch": "^2.3.0",
+		"nyc": "^13.1.0",
+		"rollup": "^1.1.0",
+		"tsd-check": "^0.3.0",
+		"xo": "^0.24.0"
 	},
 	"xo": {
 		"envs": [
@@ -63,7 +68,8 @@
 			"mocha"
 		],
 		"globals": [
-			"expect"
+			"expect",
+			"globalThis"
 		]
 	},
 	"ava": {
