@@ -77,11 +77,11 @@ export interface Options extends RequestInit {
 	throwHttpErrors?: boolean;
 }
 
-interface KyOptionsGetHead extends Omit<Options, 'body'> {
+interface OptionsWithoutBody extends Omit<Options, 'body'> {
 	method?: 'get' | 'head'
 }
 
-interface KyOptionsPostPutDelete extends Options {
+interface OptionsWithBody extends Options {
 	method?: 'post' | 'put' | 'delete'
 }
 
@@ -115,7 +115,7 @@ export interface Ky {
 	 * @param input - `Request` object, `URL` object, or URL string.
 	 * @returns Promise with `Body` method added.
 	 */
-	(input: Request | URL | string, options?: KyOptionsGetHead | KyOptionsPostPutDelete): ResponsePromise;
+	(input: Request | URL | string, options?: OptionsWithoutBody | OptionsWithBody): ResponsePromise;
 
 	/**
 	 * Fetches the `input` URL with the option `{method: 'get'}`.
