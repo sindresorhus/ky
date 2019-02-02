@@ -3,7 +3,6 @@ import test from 'ava';
 import createTestServer from 'create-test-server';
 import body from 'body';
 import delay from 'delay';
-import AbortController from 'abort-controller';
 import ky, {TimeoutError} from '..';
 
 const pBody = util.promisify(body);

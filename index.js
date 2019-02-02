@@ -25,9 +25,10 @@ const document = getGlobal('document');
 const Headers = getGlobal('Headers');
 const Response = getGlobal('Response');
 const fetch = getGlobal('fetch');
+const AbortController = getGlobal('AbortController');
 
 const isObject = value => value !== null && typeof value === 'object';
-const supportsAbortController = typeof AbortController === 'function';
+const supportsAbortController = typeof getGlobal('AbortController') === 'function';
 
 const deepMerge = (...sources) => {
 	let returnValue = {};
@@ -117,7 +118,8 @@ const timeout = (promise, ms, abortController) => Promise.race([
 	(async () => {
 		await delay(ms);
 		if (abortController) {
-			abortController.abort();
+			// Throw TimeoutError first
+			setTimeout(() => abortController.abort(), 1);
 		}
 
 		throw new TimeoutError();
