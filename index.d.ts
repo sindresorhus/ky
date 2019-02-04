@@ -1,4 +1,5 @@
 type Omit<T, K extends keyof T> = Pick<T, Exclude<keyof T, K>>;
+
 type JSONObject = {[key: string]: JSONValue};
 interface JSONArray extends Array<JSONValue> {}
 export type JSONValue = string | number | boolean | null | JSONObject | JSONArray;
