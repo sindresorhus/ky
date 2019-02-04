@@ -81,9 +81,30 @@ export interface Options extends RequestInit {
  */
 export interface ResponsePromise extends Promise<Response> {
 	arrayBuffer(): Promise<ArrayBuffer>;
+
 	blob(): Promise<Blob>;
+
 	formData(): Promise<FormData>;
-	json(): Promise<JSONValue>;
+
+	// TODO: Use `json<T extends JSONValue>(): Promise<T>;` when it's fixed in TS.
+	// See https://github.com/sindresorhus/ky/pull/80
+	/**
+	 * Get the response body as JSON.
+	 *
+	 * @example
+	 *
+	 * const json = await ky(…).json();
+	 *
+	 * @example
+	 *
+	 * interface Result {
+	 * 	value: number;
+	 * }
+
+	 * const result = await ky(…).json<Result>();
+	 */
+	json<T = JSONValue>(): Promise<T>;
+
 	text(): Promise<string>;
 }
 

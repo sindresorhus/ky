@@ -68,3 +68,8 @@ ky.post(server.url, {
 });
 
 expectType<JSONValue>(await ky(server.url).json());
+
+interface Result {
+	value: number;
+}
+expectType<Result>(await ky(server.url).json<Result>());
