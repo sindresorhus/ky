@@ -1,9 +1,7 @@
 import test from 'ava';
 import createTestServer from 'create-test-server';
-import puppeteerHelper from '@ianwalter/puppeteer-helper';
 import ky from '..';
-
-const withPage = puppeteerHelper();
+import withPage from './helpers/with-page';
 
 async function createServer() {
 	const server = await createTestServer();
