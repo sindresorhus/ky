@@ -300,3 +300,15 @@ test('ky.extend() with deep array', async t => {
 
 	await server.close();
 });
+
+test('throws AbortError when aborted by user', async t => {
+	const server = await createTestServer();
+	server.get('/', () => {});
+
+	const abortController = new AbortController();
+	const {signal} = abortController;
+	const response = ky(server.url, {signal});
+	abortController.abort();
+
+	await t.throwsAsync(response, {name: 'AbortError'});
+});

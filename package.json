@@ -1,6 +1,6 @@
 {
 	"name": "ky",
-	"version": "0.6.0",
+	"version": "0.7.1",
 	"description": "Tiny and elegant HTTP client based on the browser Fetch API",
 	"license": "MIT",
 	"repository": "sindresorhus/ky",
@@ -20,7 +20,8 @@
 	"files": [
 		"index.js",
 		"index.d.ts",
-		"umd.js"
+		"umd.js",
+		"umd.d.ts"
 	],
 	"keywords": [
 		"fetch",
@@ -47,6 +48,7 @@
 	"devDependencies": {
 		"@ianwalter/puppeteer-helper": "^1.0.0",
 		"@types/jquery": "^3.3.29",
+		"abort-controller": "^2.0.2",
 		"ava": "^1.1.0",
 		"body": "^5.1.0",
 		"codecov": "^3.1.0",
@@ -65,7 +67,8 @@
 			"mocha"
 		],
 		"globals": [
-			"expect"
+			"expect",
+			"globalThis"
 		]
 	},
 	"ava": {

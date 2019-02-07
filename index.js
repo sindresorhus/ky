@@ -11,15 +11,24 @@ const getGlobal = property => {
 		return window[property];
 	}
 
-	return global[property];
+	if (typeof global !== 'undefined' && global && property in global) {
+		return global[property];
+	}
+
+	/* istanbul ignore next */
+	if (typeof globalThis !== 'undefined' && globalThis) {
+		return globalThis[property];
+	}
 };
 
 const document = getGlobal('document');
 const Headers = getGlobal('Headers');
 const Response = getGlobal('Response');
 const fetch = getGlobal('fetch');
+const AbortController = getGlobal('AbortController');
 
 const isObject = value => value !== null && typeof value === 'object';
+const supportsAbortController = typeof getGlobal('AbortController') === 'function';
 
 const deepMerge = (...sources) => {
 	let returnValue = {};
@@ -104,10 +113,15 @@ class TimeoutError extends Error {
 
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 
-const timeout = (promise, ms) => Promise.race([
+const timeout = (promise, ms, abortController) => Promise.race([
 	promise,
 	(async () => {
 		await delay(ms);
+		if (abortController) {
+			// Throw TimeoutError first
+			setTimeout(() => abortController.abort(), 1);
+		}
+
 		throw new TimeoutError();
 	})()
 ]);
@@ -131,6 +145,18 @@ class Ky {
 			retry: 2,
 			...otherOptions
 		};
+
+		if (supportsAbortController) {
+			this.abortController = new AbortController();
+			if (this._options.signal) {
+				this._options.signal.addEventListener('abort', () => {
+					this.abortController.abort();
+				});
+			}
+
+			this._options.signal = this.abortController.signal;
+		}
+
 		this._options.method = normalizeRequestMethod(this._options.method);
 		this._options.prefixUrl = String(this._options.prefixUrl || '');
 		this._input = String(input || '');
@@ -266,7 +292,7 @@ class Ky {
 			await hook(this._options);
 		}
 
-		return timeout(fetch(this._input, this._options), this._timeout);
+		return timeout(fetch(this._input, this._options), this._timeout, this.abortController);
 	}
 }
 
