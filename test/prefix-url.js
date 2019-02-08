@@ -1,9 +1,8 @@
 import test from 'ava';
 import createTestServer from 'create-test-server';
 import ky from '..';
-import withPage from './helpers/with-page';
 
-async function createServer() {
+test('prefixUrl option', async t => {
 	const server = await createTestServer();
 	server.get('/', (request, response) => {
 		if (request.query.page === '/https://cat.com/') {
@@ -16,11 +15,6 @@ async function createServer() {
 	server.get('/api/unicorn', (request, response) => {
 		response.end('rainbow');
 	});
-	return server;
-}
-
-test('prefixUrl option', async t => {
-	const server = await createServer();
 
 	t.is(await ky(`${server.url}/api/unicorn`, {prefixUrl: false}).text(), 'rainbow');
 	t.is(await ky(`${server.url}/api/unicorn`, {prefixUrl: ''}).text(), 'rainbow');
@@ -36,31 +30,6 @@ test('prefixUrl option', async t => {
 	t.throws(() => {
 		ky('/unicorn', {prefixUrl: `${server.url}/api`});
 	}, '`input` must not begin with a slash when using `prefixUrl`');
-
-	await server.close();
-});
-
-test('prefixUrl option in browser', withPage, async (t, page) => {
-	const server = await createServer();
-	await page.goto(server.url);
-	await page.addScriptTag({path: './umd.js'});
-
-	await t.throwsAsync(async () => {
-		return page.evaluate(() => {
-			window.ky = window.ky.default;
-			return window.ky('/foo', {prefixUrl: '/'});
-		});
-	}, /`input` must not begin with a slash when using `prefixUrl`/);
-
-	let text = await page.evaluate(url => {
-		return window.ky(`${url}/api/unicorn`).text();
-	}, server.url);
-	t.is(text, 'rainbow');
-
-	text = await page.evaluate(prefixUrl => {
-		return window.ky('api/unicorn', {prefixUrl}).text();
-	}, server.url);
-	t.is(text, 'rainbow');
 
 	await server.close();
 });
