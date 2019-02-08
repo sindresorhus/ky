@@ -38,3 +38,26 @@ test('prefixUrl option', withPage, async (t, page) => {
 
 	await server.close();
 });
+
+test('aborting a request', withPage, async (t, page) => {
+	const server = await createTestServer();
+	server.get('/', (req, res) => res.end('meow'));
+	server.get('/test', (req, res) => setTimeout(() => res.end('ok'), 500));
+
+	await page.goto(server.url);
+	await page.addScriptTag({path: './umd.js'});
+
+	const err = await page.evaluate(url => {
+		return new Promise(resolve => {
+			window.ky = window.ky.default;
+			const controller = new AbortController();
+			const req = window.ky(`${url}/test`, {signal: controller.signal}).text();
+			controller.abort();
+			req.then(resolve).catch(error => resolve(error.toString()));
+		});
+	}, server.url);
+	t.is(err, 'AbortError: The user aborted a request.');
+
+	await server.close();
+});
+
