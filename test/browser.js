@@ -5,11 +5,6 @@ import withPage from './helpers/with-page';
 test('prefixUrl option', withPage, async (t, page) => {
 	const server = await createTestServer();
 	server.get('/', (request, response) => {
-		if (request.query.page === '/https://cat.com/') {
-			response.end('meow');
-			return;
-		}
-
 		response.end('zebra');
 	});
 	server.get('/api/unicorn', (request, response) => {
@@ -26,15 +21,15 @@ test('prefixUrl option', withPage, async (t, page) => {
 		});
 	}, /`input` must not begin with a slash when using `prefixUrl`/);
 
-	let text = await page.evaluate(url => {
+	const unprefixed = await page.evaluate(url => {
 		return window.ky(`${url}/api/unicorn`).text();
 	}, server.url);
-	t.is(text, 'rainbow');
+	t.is(unprefixed, 'rainbow');
 
-	text = await page.evaluate(prefixUrl => {
+	const prefixed = await page.evaluate(prefixUrl => {
 		return window.ky('api/unicorn', {prefixUrl}).text();
 	}, server.url);
-	t.is(text, 'rainbow');
+	t.is(prefixed, 'rainbow');
 
 	await server.close();
 });
