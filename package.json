@@ -13,9 +13,9 @@
 		"node": ">=10"
 	},
 	"scripts": {
-		"pretest": "rollup index.js --format=umd --name=ky --file=umd.js",
-		"test": "xo && nyc ava && tsd-check",
-		"prepublishOnly": "npm run pretest"
+		"build": "rollup index.js --format=umd --name=ky --file=umd.js",
+		"prepublishOnly": "npm run build",
+		"test": "xo && npm run build && nyc ava && tsd-check"
 	},
 	"files": [
 		"index.js",
