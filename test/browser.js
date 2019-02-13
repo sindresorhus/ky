@@ -51,16 +51,13 @@ test('aborting a request', withPage, async (t, page) => {
 	await page.addScriptTag({path: './umd.js'});
 
 	const error = await page.evaluate(url => {
-		return new Promise(resolve => {
-			window.ky = window.ky.default;
-			const controller = new AbortController();
-			const request = window.ky(`${url}/test`, {signal: controller.signal}).text();
-			controller.abort();
-			request.then(resolve).catch(error => resolve(error.toString()));
-		});
+		window.ky = window.ky.default;
+		const controller = new AbortController();
+		const request = window.ky(`${url}/test`, {signal: controller.signal}).text();
+		controller.abort();
+		return request.catch(error => error.toString());
 	}, server.url);
 	t.is(error, 'AbortError: The user aborted a request.');
 
 	await server.close();
 });
-
