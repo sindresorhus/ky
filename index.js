@@ -200,37 +200,30 @@ class Ky {
 
 		this._options.headers = headers;
 
-		this._response = this._fetch();
+		const isRetriableMethod = retryMethods.has(this._options.method.toLowerCase());
 
-		for (const type of responseTypes) {
-			const isRetriableMethod = retryMethods.has(this._options.method.toLowerCase());
-			const fn = async () => {
-				if (this._retryCount > 0) {
+		// distinguish returned value from this._response
+		const result = new Promise((resolve, reject) => {
+			const fn = () => {
+				if (this._retryCount > 0 || !this._response) {
 					this._response = this._fetch();
 				}
 
-				let response = await this._response;
-
-				for (const hook of this._hooks.afterResponse) {
-					// eslint-disable-next-line no-await-in-loop
-					const modifiedResponse = await hook(response.clone());
-
-					if (modifiedResponse instanceof Response) {
-						response = modifiedResponse;
-					}
-				}
-
-				if (!response.ok && (isRetriableMethod || this._throwHttpErrors)) {
-					throw new HTTPError(response);
-				}
-
-				return response.clone()[type]();
+				return this._response;
 			};
 
-			this._response[type] = isRetriableMethod ? this._retry(fn) : fn;
+			// retrial should be triggered at the begingning, not by calling explict BODY method following.
+			/* eslint-disable-next-line promise/prefer-await-to-then */
+			(isRetriableMethod ? this._retry(fn) : fn)().then(resolve, reject);
+		});
+		for (const type of responseTypes) {
+			result[type] = async () => {
+				const response = await result;
+				return response.clone()[type]();
+			};
 		}
 
-		return this._response;
+		return result;
 	}
 
 	_calculateRetryDelay(error) {
@@ -292,7 +285,22 @@ class Ky {
 			await hook(this._options);
 		}
 
-		return timeout(fetch(this._input, this._options), this._timeout, this.abortController);
+		let response = await timeout(fetch(this._input, this._options), this._timeout, this.abortController);
+
+		for (const hook of this._hooks.afterResponse) {
+			// eslint-disable-next-line no-await-in-loop
+			const modifiedResponse = await hook(response.clone());
+
+			if (modifiedResponse instanceof Response) {
+				response = modifiedResponse;
+			}
+		}
+
+		if (!response.ok && (this._throwHttpErrors)) {
+			throw new HTTPError(response);
+		}
+
+		return response;
 	}
 }
 

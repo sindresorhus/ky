@@ -108,6 +108,17 @@ test('POST JSON', async t => {
 	await server.close();
 });
 
+test('throw network error without calling explict BODY method', async t => {
+	const server = await createTestServer();
+	server.get('/', (request, response) => {
+		response.sendStatus(500);
+	});
+
+	await t.throwsAsync(async () => ky(server.url));
+
+	await server.close();
+});
+
 test('custom headers', async t => {
 	const server = await createTestServer();
 	server.get('/', (request, response) => {
