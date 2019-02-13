@@ -169,7 +169,7 @@ class Ky {
 
 		if (json) {
 			if (this._options.body) {
-				throw new TypeError('The `json` option cannot be used with the `body` option');
+				throw new Error('The `json` option cannot be used with the `body` option');
 			}
 
 			headers.set('content-type', 'application/json');
