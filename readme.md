@@ -61,9 +61,9 @@ $ npm install ky
 import ky from 'ky';
 
 (async () => {
-	const json = await ky.post('https://example.com', {json: {foo: true}}).json();
+	const parsed = await ky.post('https://example.com', {json: {foo: true}}).json();
 
-	console.log(json);
+	console.log(parsed);
 	//=> `{data: '🦄'}`
 })();
 ```
@@ -86,9 +86,9 @@ With plain `fetch`, it would be:
 		throw new HTTPError('Fetch error:', response.statusText);
 	}
 
-	const json = await response.json();
+	const parsed = await response.json();
 
-	console.log(json);
+	console.log(parsed);
 	//=> `{data: '🦄'}`
 })();
 ```
@@ -334,9 +334,9 @@ Upload the [`index.js`](index.js) file in this repo somewhere, for example, to y
 import ky from 'https://cdn.jsdelivr.net/npm/ky@0.5.2/index.js';
 
 (async () => {
-	const json = await ky('https://jsonplaceholder.typicode.com/todos/1').json();
+	const parsed = await ky('https://jsonplaceholder.typicode.com/todos/1').json();
 
-	console.log(json.title);
+	console.log(parsed.title);
 	//=> 'delectus aut autem
 })();
 </script>
@@ -350,9 +350,9 @@ Alternatively, you can use the [`umd.js`](umd.js) file with a traditional `<scri
 <script>
 (async () => {
 	const ky = ky.default;
-	const json = await ky('https://jsonplaceholder.typicode.com/todos/1').json();
+	const parsed = await ky('https://jsonplaceholder.typicode.com/todos/1').json();
 
-	console.log(json.title);
+	console.log(parsed.title);
 	//=> 'delectus aut autem
 })();
 </script>

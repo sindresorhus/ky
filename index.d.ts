@@ -93,7 +93,7 @@ export interface ResponsePromise extends Promise<Response> {
 	 *
 	 * @example
 	 *
-	 * const json = await ky(…).json();
+	 * const parsed = await ky(…).json();
 	 *
 	 * @example
 	 *
