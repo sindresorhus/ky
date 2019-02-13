@@ -54,9 +54,9 @@ test('aborting a request', withPage, async (t, page) => {
 		return new Promise(resolve => {
 			window.ky = window.ky.default;
 			const controller = new AbortController();
-			const req = window.ky(`${url}/test`, {signal: controller.signal}).text();
+			const request = window.ky(`${url}/test`, {signal: controller.signal}).text();
 			controller.abort();
-			req.then(resolve).catch(error => resolve(error.toString()));
+			request.then(resolve).catch(error => resolve(error.toString()));
 		});
 	}, server.url);
 	t.is(error, 'AbortError: The user aborted a request.');
