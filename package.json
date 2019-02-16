@@ -15,9 +15,7 @@
 	"scripts": {
 		"build": "rollup index.js --format=umd --name=ky --file=umd.js",
 		"prepublishOnly": "npm run build",
-		"test": "xo && nyc ava && tsd-check && npm run cypress:run",
-		"cypress:open": "cypress open",
-		"cypress:run": "cypress run"
+		"test": "xo && npm run build && nyc ava && tsd-check"
 	},
 	"files": [
 		"index.js",
@@ -54,11 +52,11 @@
 		"body": "^5.1.0",
 		"codecov": "^3.1.0",
 		"create-test-server": "2.1.1",
-		"cypress": "^3.1.0",
 		"delay": "^4.1.0",
 		"esm": "^3.0.84",
 		"node-fetch": "^2.3.0",
 		"nyc": "^13.1.0",
+		"puppeteer": "^1.12.2",
 		"rollup": "^1.1.0",
 		"tsd-check": "^0.3.0",
 		"xo": "^0.24.0"
