@@ -183,7 +183,7 @@ test('afterResponse hook can change response instance by sequence', async t => {
 test('afterResponse hook can throw error to reject the request promise', async t => {
 	const server = await createTestServer();
 	server.get('/', (request, response) => {
-		response.json({});
+		response.status(200).send();
 	});
 
 	const expectError = new Error('Error from `afterResponse` hook');
@@ -226,7 +226,7 @@ test('afterResponse hook can throw error to reject the request promise', async t
 test('`afterResponse` hook gets called even if using body shortcuts', async t => {
 	const server = await createTestServer();
 	server.get('/', (request, response) => {
-		response.status(200).send();
+		response.json({});
 	});
 
 	let called = false;
