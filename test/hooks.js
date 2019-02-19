@@ -183,7 +183,7 @@ test('afterResponse hook can change response instance by sequence', async t => {
 test('afterResponse hook can throw error to reject the request promise', async t => {
 	const server = await createTestServer();
 	server.get('/', (request, response) => {
-		response.status(200).send();
+		response.json({});
 	});
 
 	const expectError = new Error('Error from `afterResponse` hook');
