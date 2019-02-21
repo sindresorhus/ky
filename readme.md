@@ -41,7 +41,7 @@ $ npm install ky
 ###### Download
 
 - [Normal](https://cdn.jsdelivr.net/npm/ky/index.js)
-- ~~[Minified](https://cdn.jsdelivr.net/npm/ky/index.min.js)~~<br><sup>(Blocked by [jsdelivr/jsdelivr#18043](https://github.com/jsdelivr/jsdelivr/issues/18043))</sup>
+- [Minified](https://cdn.jsdelivr.net/npm/ky/index.min.js)
 
 ###### CDN
 
