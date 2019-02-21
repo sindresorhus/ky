@@ -222,3 +222,26 @@ test('afterResponse hook can throw error to reject the request promise', async t
 
 	await server.close();
 });
+
+test('`afterResponse` hook gets called even if using body shortcuts', async t => {
+	const server = await createTestServer();
+	server.get('/', (request, response) => {
+		response.json({});
+	});
+
+	let called = false;
+	await ky.get(server.url, {
+		hooks: {
+			afterResponse: [
+				response => {
+					called = true;
+					return response;
+				}
+			]
+		}
+	}).json();
+
+	t.true(called);
+
+	await server.close();
+});
