@@ -201,15 +201,15 @@ class Ky {
 		};
 
 		const isRetriableMethod = retryMethods.has(this._options.method.toLowerCase());
-		this._response = isRetriableMethod ? this._retry(fn) : fn();
+		const result = isRetriableMethod ? this._retry(fn) : fn();
 
 		for (const type of responseTypes) {
-			this._response[type] = async () => {
-				return (await this._response).clone()[type]();
+			result[type] = async () => {
+				return (await result).clone()[type]();
 			};
 		}
 
-		return this._response;
+		return result;
 	}
 
 	_calculateRetryDelay(error) {
