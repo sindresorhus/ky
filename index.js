@@ -303,7 +303,7 @@ class Ky {
 	}
 
 	_stream(response, onProgress) {
-		const total = response.headers.get('content-length') || 0;
+		const total = Number(response.headers.get('content-length')) || 0;
 		let transferred = 0;
 
 		return new Response(
