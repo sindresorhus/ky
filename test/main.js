@@ -108,6 +108,10 @@ test('POST JSON', async t => {
 	await server.close();
 });
 
+test('cannot use `json` option along with the `body` option', t => {
+	t.throws(() => ky('https://example.com', {json: {foo: 'bar'}, body: 'foobar'}), 'The `json` option cannot be used with the `body` option');
+});
+
 test('custom headers', async t => {
 	const server = await createTestServer();
 	server.get('/', (request, response) => {

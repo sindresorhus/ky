@@ -194,6 +194,10 @@ class Ky {
 		const headers = new Headers(this._options.headers || {});
 
 		if (json) {
+			if (this._options.body) {
+				throw new Error('The `json` option cannot be used with the `body` option');
+			}
+
 			headers.set('content-type', 'application/json');
 			this._options.body = JSON.stringify(json);
 		}

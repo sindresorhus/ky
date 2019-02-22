@@ -23,9 +23,20 @@ const requestMethods = [
 	'delete'
 ];
 
+const requestBodyMethods = [
+	'post',
+	'put',
+	'delete'
+];
+
 // Test Ky HTTP methods
 requestMethods.map(async key => {
 	expectType<ResponsePromise>(await ky[key](server.url));
+});
+
+// Test Ky HTTP methods with bodies
+requestBodyMethods.map(async key => {
+	expectType<ResponsePromise>(await ky[key](server.url, {body: 'x'}));
 });
 
 expectType<Ky>(ky.extend({}));
