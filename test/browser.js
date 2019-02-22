@@ -77,15 +77,18 @@ test('onProgress works', withPage, async (t, page) => {
 		window.ky = window.ky.default;
 
 		const text = await window.ky(url, {
-			onProgress: (percent, _transferred, _total) => {
-				data.push(percent);
+			onProgress: (percent, transferred, total) => {
+				data.push([percent, transferred, total]);
 			}
 		}).text();
 
 		return {data, text};
 	}, server.url);
 
-	t.deepEqual(result.data, [0, 1]);
+	t.deepEqual(result.data, [
+		[0, 0, 4],
+		[1, 4, 4]
+	]);
 	t.is(result.text, 'meow');
 
 	await server.close();
