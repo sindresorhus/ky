@@ -93,3 +93,23 @@ test('onProgress works', withPage, async (t, page) => {
 
 	await server.close();
 });
+
+test('throws if onProgress is not a function', withPage, async (t, page) => {
+	const server = await createTestServer();
+
+	server.get('/', (request, response) => {
+		response.end();
+	});
+
+	await page.goto(server.url);
+	await page.addScriptTag({path: './umd.js'});
+
+	const error = await page.evaluate(url => {
+		window.ky = window.ky.default;
+		const request = window.ky(url, {onProgress: 1}).text();
+		return request.catch(error => error.toString());
+	}, server.url);
+	t.is(error, 'TypeError: The `onProgress` option must be a function');
+
+	await server.close();
+});
