@@ -30,14 +30,14 @@ const requestBodyMethods = [
 ];
 
 // Test Ky HTTP methods
-requestMethods.map(async key => {
-	expectType<ResponsePromise>(await ky[key](server.url));
-});
+for (const method of requestMethods) {
+	expectType<ResponsePromise>(await ky[method](server.url));
+}
 
-// Test Ky HTTP methods with bodies
-requestBodyMethods.map(async key => {
-	expectType<ResponsePromise>(await ky[key](server.url, {body: 'x'}));
-});
+// Test Ky HTTP methods with `body`
+for (const method of requestBodyMethods) {
+	expectType<ResponsePromise>(await ky[method](server.url, {body: 'x'}));
+}
 
 expectType<Ky>(ky.extend({}));
 expectType<HTTPError>(new HTTPError());

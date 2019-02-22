@@ -109,7 +109,9 @@ test('POST JSON', async t => {
 });
 
 test('cannot use `json` option along with the `body` option', t => {
-	t.throws(() => ky('https://example.com', {json: {foo: 'bar'}, body: 'foobar'}), 'The `json` option cannot be used with the `body` option');
+	t.throws(() => {
+		ky('https://example.com', {json: {foo: 'bar'}, body: 'foobar'});
+	}, 'The `json` option cannot be used with the `body` option');
 });
 
 test('custom headers', async t => {
@@ -182,14 +184,16 @@ test('searchParams option', async t => {
 	t.is(await ky(server.url, {searchParams: objectParams}).text(), stringParams);
 	t.is(await ky(server.url, {searchParams}).text(), stringParams);
 
-	t.throws(() => ky(server.url, {
-		searchParams: {
-			pass: [
-				'true',
-				'false'
-			]
-		}
-	}), /`searchParams` option must be/);
+	t.throws(() => {
+		ky(server.url, {
+			searchParams: {
+				pass: [
+					'true',
+					'false'
+				]
+			}
+		});
+	}, /`searchParams` option must be/);
 
 	await server.close();
 });
