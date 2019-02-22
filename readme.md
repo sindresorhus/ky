@@ -195,6 +195,13 @@ Default: `10000`
 
 Timeout in milliseconds for getting a response.
 
+##### onProgress
+
+Type: `Function`<br>
+Default: `10000`
+
+Progress event handler. The function takes `percent`, `transferred` and `total` arguments. If it's not possible to retrieve the body size, total will be `0`.
+
 ##### hooks
 
 Type: `Object<string, Function[]>`<br>

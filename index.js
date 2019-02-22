@@ -303,32 +303,35 @@ class Ky {
 	}
 
 	_stream(response, onProgress) {
-		const bytesTotal = response.headers.get('content-length') || 1;
-		let bytesLoaded = 0;
+		const total = response.headers.get('content-length') || 0;
+		let transferred = 0;
 
 		return new Response(
 			new ReadableStream({
 				start(controller) {
 					const reader = response.body.getReader();
 
+					if (onProgress) {
+						onProgress(0, 0, total);
+					}
+
 					read();
 					async function read() {
 						const {done, value} = await reader.read();
 						try {
 							if (done) {
-								if (onProgress) {
-									onProgress(100, bytesTotal, bytesTotal);
-								}
-
+								onProgress(1, transferred, total);
 								controller.close();
 								return;
 							}
 
 							if (onProgress) {
-								bytesLoaded += value.byteLength;
-								const percent = bytesTotal === 0 ? 0 : Math.floor(bytesLoaded / bytesTotal * 100);
+								transferred += value.byteLength;
+								const percent = total === 0 ? 0 : Math.floor(transferred / total);
 
-								onProgress(percent, bytesLoaded, bytesTotal);
+								if (percent !== 1) {
+									onProgress(percent, transferred, total);
+								}
 							}
 
 							controller.enqueue(value);

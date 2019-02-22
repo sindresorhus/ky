@@ -61,3 +61,32 @@ test('aborting a request', withPage, async (t, page) => {
 
 	await server.close();
 });
+
+test('onProgress works', withPage, async (t, page) => {
+	const server = await createTestServer();
+
+	server.get('/', (request, response) => {
+		response.end('meow');
+	});
+
+	await page.goto(server.url);
+	await page.addScriptTag({path: './umd.js'});
+
+	const result = await page.evaluate(async url => {
+		const data = [];
+		window.ky = window.ky.default;
+
+		const text = await window.ky(url, {
+			onProgress: (percent, transferred, total) => {
+				data.push(percent);
+			}
+		}).text();
+
+		return {data, text};
+	}, server.url);
+
+	t.deepEqual(result.data, [0, 1]);
+	t.is(result.text, 'meow');
+
+	await server.close();
+});
