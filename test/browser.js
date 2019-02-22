@@ -77,7 +77,7 @@ test('onProgress works', withPage, async (t, page) => {
 		window.ky = window.ky.default;
 
 		const text = await window.ky(url, {
-			onProgress: (percent, transferred, total) => {
+			onProgress: (percent, _transferred, _total) => {
 				data.push(percent);
 			}
 		}).text();
