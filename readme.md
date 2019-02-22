@@ -14,7 +14,7 @@
 
 [![Build Status](https://travis-ci.com/sindresorhus/ky.svg?branch=master)](https://travis-ci.com/sindresorhus/ky) [![codecov](https://codecov.io/gh/sindresorhus/ky/branch/master/graph/badge.svg)](https://codecov.io/gh/sindresorhus/ky)
 
-Ky targets [modern browsers](#browser-support) and [Deno](https://github.com/denoland/deno). For older browsers, you will need to transpile and use a [`fetch` polyfill](https://github.com/github/fetch). For Node.js, check out [Got](https://github.com/sindresorhus/got).
+Ky targets [modern browsers](#browser-support) and [Deno](https://github.com/denoland/deno). For older browsers, you will need to transpile and use a [`fetch` polyfill](https://github.com/github/fetch). For Node.js, check out [Got](https://github.com/sindresorhus/got). For isomorphic needs (like SSR), check out [`ky-universal`](https://github.com/sindresorhus/ky-universal).
 
 1 KB *(minified & gzipped)*, one file, and no dependencies.
 
@@ -324,23 +324,17 @@ setTimeout(() => controller.abort(), 5000);
 
 ## FAQ
 
-#### How is it different from [`got`](https://github.com/sindresorhus/got)
+#### How do I use this in Node.js?
 
-See my answer [here](https://twitter.com/sindresorhus/status/1037406558945042432). Got is maintained by the same people as Ky.
+Check out [`ky-universal`](https://github.com/sindresorhus/ky-universal#faq).
 
-#### How is it different from [`axios`](https://github.com/axios/axios)?
+#### How do I use this with a web app (React, Vue.js, etc.) that uses server-side rendering (SSR)?
 
-See my answer [here](https://twitter.com/sindresorhus/status/1037763588826398720).
+Check out [`ky-universal`](https://github.com/sindresorhus/ky-universal#faq).
 
-#### How is it different from [`r2`](https://github.com/mikeal/r2)?
+#### How do I test a browser library that uses this?
 
-See my answer in [#10](https://github.com/sindresorhus/ky/issues/10).
-
-#### What does `ky` mean?
-
-It's just a random short npm package name I managed to get. It does, however, have a meaning in Japanese:
-
-> A form of text-able slang, KY is an abbreviation for 空気読めない (kuuki yomenai), which literally translates into “cannot read the air.” It's a phrase applied to someone who misses the implied meaning.
+Either use a test runner that can run in the browser, like Mocha, or use [AVA](http://ava.li) with `ky-universal`. [Read more.](https://github.com/sindresorhus/ky-universal#faq)
 
 #### How do I use this without a bundler like Webpack?
 
@@ -376,6 +370,25 @@ Alternatively, you can use the [`umd.js`](umd.js) file with a traditional `<scri
 </script>
 ```
 
+#### How is it different from [`got`](https://github.com/sindresorhus/got)
+
+See my answer [here](https://twitter.com/sindresorhus/status/1037406558945042432). Got is maintained by the same people as Ky.
+
+#### How is it different from [`axios`](https://github.com/axios/axios)?
+
+See my answer [here](https://twitter.com/sindresorhus/status/1037763588826398720).
+
+#### How is it different from [`r2`](https://github.com/mikeal/r2)?
+
+See my answer in [#10](https://github.com/sindresorhus/ky/issues/10).
+
+#### What does `ky` mean?
+
+It's just a random short npm package name I managed to get. It does, however, have a meaning in Japanese:
+
+> A form of text-able slang, KY is an abbreviation for 空気読めない (kuuki yomenai), which literally translates into “cannot read the air.” It's a phrase applied to someone who misses the implied meaning.
+
+
 ## Browser support
 
 The latest version of Chrome, Firefox, and Safari.
@@ -383,6 +396,7 @@ The latest version of Chrome, Firefox, and Safari.
 
 ## Related
 
+- [ky-universal](https://github.com/sindresorhus/ky-universal) - Use Ky in both Node.js and browsers
 - [got](https://github.com/sindresorhus/got) - Simplified HTTP requests for Node.js
 
 

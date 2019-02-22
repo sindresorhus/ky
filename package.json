@@ -63,11 +63,9 @@
 	},
 	"xo": {
 		"envs": [
-			"browser",
-			"mocha"
+			"browser"
 		],
 		"globals": [
-			"expect",
 			"globalThis"
 		]
 	},
