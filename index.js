@@ -220,6 +220,15 @@ class Ky {
 				throw new HTTPError(response);
 			}
 
+			// If an onProgress is passed, use stream API internally
+			if (this._options.onProgress) {
+				if (typeof this._options.onProgress !== 'function') {
+					throw new TypeError('The `onProgress` option must be a function');
+				}
+
+				return this._stream(response.clone(), this._options.onProgress);
+			}
+
 			return response;
 		};
 
@@ -291,6 +300,47 @@ class Ky {
 		}
 
 		return timeout(fetch(this._input, this._options), this._timeout, this.abortController);
+	}
+
+	_stream(response, onProgress) {
+		const bytesTotal = response.headers.get('content-length') || 1;
+		let bytesLoaded = 0;
+
+		return new Response(
+			new ReadableStream({
+				start(controller) {
+					const reader = response.body.getReader();
+
+					read();
+					async function read() {
+						const {done, value} = await reader.read();
+						try {
+							if (done) {
+								if (onProgress) {
+									onProgress(100, bytesTotal, bytesTotal);
+								}
+
+								controller.close();
+								return;
+							}
+
+							if (onProgress) {
+								bytesLoaded += value.byteLength;
+								const percent = bytesTotal === 0 ? 0 : Math.floor(bytesLoaded / bytesTotal * 100);
+
+								onProgress(percent, bytesLoaded, bytesTotal);
+							}
+
+							controller.enqueue(value);
+							read();
+						} catch (error) {
+							console.log(error);
+							controller.error(error);
+						}
+					}
+				}
+			})
+		);
 	}
 }
 
