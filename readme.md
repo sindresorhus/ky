@@ -23,7 +23,7 @@ Ky targets [modern browsers](#browser-support) and [Deno](https://github.com/den
 
 - Simpler API
 - Method shortcuts (`ky.post()`)
-- Treats non-200 status codes as errors
+- Treats non-2xx status codes as errors
 - Retries failed requests
 - JSON option
 - Timeout support
