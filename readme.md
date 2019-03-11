@@ -271,7 +271,7 @@ import ky from 'ky';
 const api = ky.extend({prefixUrl: 'https://example.com/api'});
 
 (async () => {
-	await api.get('/users/123');
+	await api.get('users/123');
 	//=> 'https://example.com/api/users/123'
 
 	await api.get('/status', {prefixUrl: ''});
