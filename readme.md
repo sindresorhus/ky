@@ -178,15 +178,17 @@ import ky from 'ky';
 
 ##### retry
 
-Type: `number`<br>
-Default: `2`
+Type: `object`
 
-Retry failed requests made with one of the below methods that result in a network error or one of the below status codes.
+Default:
+- retries: `2`
+- methods: `GET` `PUT` `HEAD` `DELETE` `OPTIONS` `TRACE`
+- statusCodes: [`408`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/408) [`413`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/413) [`429`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/429) [`500`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/500) [`502`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/502) [`503`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/503) [`504`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/504)
+- maxRetryAfter: `undefined`
 
-Methods: `GET` `PUT` `HEAD` `DELETE` `OPTIONS` `TRACE`<br>
-Status codes: [`408`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/408) [`413`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/413) [`429`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/429) [`500`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/500) [`502`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/502) [`503`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/503) [`504`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/504)
+An object representing `retries`, `methods`, `statusCodes` and `maxRetryAfter` fields for the time until retry, allowed methods, allowed status codes and maximum [`Retry-After`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Retry-After) time.
 
-It adheres to the [`Retry-After`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Retry-After) response header.
+
 
 ##### timeout
 
