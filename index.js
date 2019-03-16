@@ -71,16 +71,16 @@ const responseTypes = [
 	'blob'
 ];
 
-const retryMethods = new Set([
+const retryMethods = [
 	'get',
 	'put',
 	'head',
 	'delete',
 	'options',
 	'trace'
-]);
+];
 
-const retryStatusCodes = new Set([
+const retryStatusCodes = [
 	408,
 	413,
 	429,
@@ -88,13 +88,13 @@ const retryStatusCodes = new Set([
 	502,
 	503,
 	504
-]);
+];
 
-const retryAfterStatusCodes = new Set([
+const retryAfterStatusCodes = [
 	413,
 	429,
 	503
-]);
+];
 
 class HTTPError extends Error {
 	constructor(response) {
@@ -142,7 +142,12 @@ class Ky {
 		this._options = {
 			method: 'get',
 			credentials: 'same-origin', // TODO: This can be removed when the spec change is implemented in all browsers. Context: https://www.chromestatus.com/feature/4539473312350208
-			retry: 2,
+			retry: {
+				retries: 2,
+				methods: retryMethods,
+				statusCodes: retryStatusCodes,
+				afterStatusCodes: retryAfterStatusCodes
+			},
 			...otherOptions
 		};
 
@@ -223,7 +228,7 @@ class Ky {
 			return response;
 		};
 
-		const isRetriableMethod = retryMethods.has(this._options.method.toLowerCase());
+		const isRetriableMethod = this._options.retry.methods.includes(this._options.method.toLowerCase());
 		const result = isRetriableMethod ? this._retry(fn) : fn();
 
 		for (const type of responseTypes) {
@@ -238,19 +243,23 @@ class Ky {
 	_calculateRetryDelay(error) {
 		this._retryCount++;
 
-		if (this._retryCount < this._options.retry && !(error instanceof TimeoutError)) {
+		if (this._retryCount < this._options.retry.retries && !(error instanceof TimeoutError)) {
 			if (error instanceof HTTPError) {
-				if (!retryStatusCodes.has(error.response.status)) {
+				if (!this._options.retry.statusCodes.includes(error.response.status)) {
 					return 0;
 				}
 
 				const retryAfter = error.response.headers.get('Retry-After');
-				if (retryAfter && retryAfterStatusCodes.has(error.response.status)) {
+				if (retryAfter && this._options.retry.afterStatusCodes.includes(error.response.status)) {
 					let after = Number(retryAfter);
 					if (Number.isNaN(after)) {
 						after = Date.parse(retryAfter) - Date.now();
 					} else {
 						after *= 1000;
+					}
+
+					if (typeof this._options.retry.maxRetryAfter !== 'undefined' && after > this._options.retry.maxRetryAfter) {
+						return 0;
 					}
 
 					return after;
