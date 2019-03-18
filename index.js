@@ -71,16 +71,16 @@ const responseTypes = [
 	'blob'
 ];
 
-const retryMethods = [
+const retryMethods = new Set([
 	'get',
 	'put',
 	'head',
 	'delete',
 	'options',
 	'trace'
-];
+]);
 
-const retryStatusCodes = [
+const retryStatusCodes = new Set([
 	408,
 	413,
 	429,
@@ -88,13 +88,13 @@ const retryStatusCodes = [
 	502,
 	503,
 	504
-];
+]);
 
-const retryAfterStatusCodes = [
+const retryAfterStatusCodes = new Set([
 	413,
 	429,
 	503
-];
+]);
 
 class HTTPError extends Error {
 	constructor(response) {
@@ -135,6 +135,7 @@ class Ky {
 		throwHttpErrors = true,
 		searchParams,
 		json,
+		retry = {},
 		...otherOptions
 	}) {
 		this._retryCount = 0;
@@ -146,7 +147,8 @@ class Ky {
 				retries: 2,
 				methods: retryMethods,
 				statusCodes: retryStatusCodes,
-				afterStatusCodes: retryAfterStatusCodes
+				afterStatusCodes: retryAfterStatusCodes,
+				...retry
 			},
 			...otherOptions
 		};
@@ -228,7 +230,7 @@ class Ky {
 			return response;
 		};
 
-		const isRetriableMethod = this._options.retry.methods.includes(this._options.method.toLowerCase());
+		const isRetriableMethod = this._options.retry.methods.has(this._options.method.toLowerCase());
 		const result = isRetriableMethod ? this._retry(fn) : fn();
 
 		for (const type of responseTypes) {
@@ -245,12 +247,12 @@ class Ky {
 
 		if (this._retryCount < this._options.retry.retries && !(error instanceof TimeoutError)) {
 			if (error instanceof HTTPError) {
-				if (!this._options.retry.statusCodes.includes(error.response.status)) {
+				if (!this._options.retry.statusCodes.has(error.response.status)) {
 					return 0;
 				}
 
 				const retryAfter = error.response.headers.get('Retry-After');
-				if (retryAfter && this._options.retry.afterStatusCodes.includes(error.response.status)) {
+				if (retryAfter && this._options.retry.afterStatusCodes.has(error.response.status)) {
 					let after = Number(retryAfter);
 					if (Number.isNaN(after)) {
 						after = Date.parse(retryAfter) - Date.now();
