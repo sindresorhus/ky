@@ -117,7 +117,7 @@ The `input` and `options` are the same as [`fetch`](https://developer.mozilla.or
 - The `credentials` option is `same-origin` by default, which is the default in the spec too, but not all browsers have caught up yet.
 - Adds some more options. See below.
 
-Returns a [`Response` object](https://developer.mozilla.org/en-US/docs/Web/API/Response) with [`Body` methods](https://developer.mozilla.org/en-US/docs/Web/API/Body#Methods) added for convenience. So you can, for example, call `ky.json()` directly on the `Response` without having to await it first. Unlike the `Body` methods of `window.Fetch`; these will throw an `HTTPError` if the response status is not in the range `200...299`.
+Returns a [`Response` object](https://developer.mozilla.org/en-US/docs/Web/API/Response) with [`Body` methods](https://developer.mozilla.org/en-US/docs/Web/API/Body#Methods) added for convenience. So you can, for example, call `ky.get(input).json()` directly without having to await the `Response` first. Unlike the `Body` methods of `window.Fetch`; these will throw an `HTTPError` if the response status is not in the range `200...299`.
 
 ### ky.get(input, [options])
 ### ky.post(input, [options])
