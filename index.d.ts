@@ -122,6 +122,7 @@ export interface ResponsePromise extends Promise<Response> {
  * The error has a response property with the `Response` object.
  */
 export class HTTPError extends Error {
+	constructor(response: Response);
 	response: Response;
 }
 
