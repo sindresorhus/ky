@@ -129,7 +129,9 @@ export class HTTPError extends Error {
 /**
  * The error thrown when the request times out.
  */
-export class TimeoutError extends Error {}
+export class TimeoutError extends Error {
+	constructor();
+}
 
 export interface Ky {
 	/**
