@@ -214,7 +214,7 @@ This hook enables you to modify the request right before it is sent. Ky will mak
 Type: `Function[]`<br>
 Default: `[]`
 
-This hook enables you to read and optionally modify the response. The hook function receives a clone of the response as the first argument. The return value of the hook function will be used by Ky as the response object if it's an instance of [`Response`](https://developer.mozilla.org/en-US/docs/Web/API/Response).
+This hook enables you to read and optionally modify the response. The hook function receives a clone of the response as the first argument, and an options object as the second argument. The return value of the hook function will be used by Ky as the response object if it's an instance of [`Response`](https://developer.mozilla.org/en-US/docs/Web/API/Response).
 
 ```js
 ky.get('https://example.com', {
@@ -230,6 +230,27 @@ ky.get('https://example.com', {
 		]
 	}
 });
+```
+It should be noted that the second argument is not a copy of options you passed to ky, but includes almost
+of options. There is a case that you could use it to implement some logic in afterResponse hook.
+
+```js
+ky.get('https://example.com', {
+	myOption: {
+		silent: true
+	},
+	hooks: {
+		afterResponse: [
+			(response, options) => {
+				if (!response.ok && !options.myOption.silent) {
+					// display global messages
+				}
+
+				return response
+			}
+		]
+	}
+})
 ```
 
 ##### throwHttpErrors
