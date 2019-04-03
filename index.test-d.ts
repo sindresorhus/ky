@@ -40,7 +40,7 @@ for (const method of requestBodyMethods) {
 }
 
 expectType<Ky>(ky.extend({}));
-expectType<HTTPError>(new HTTPError());
+expectType<HTTPError>(new HTTPError(new Response));
 expectType<TimeoutError>(new TimeoutError);
 
 ky(server.url, {
