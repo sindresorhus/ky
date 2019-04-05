@@ -209,7 +209,7 @@ class Ky {
 
 			for (const hook of this._hooks.afterResponse) {
 				// eslint-disable-next-line no-await-in-loop
-				const modifiedResponse = await hook(response.clone(), this._options);
+				const modifiedResponse = await hook(this._input, this._options, response.clone());
 
 				if (modifiedResponse instanceof Response) {
 					response = modifiedResponse;
@@ -287,7 +287,7 @@ class Ky {
 	async _fetch() {
 		for (const hook of this._hooks.beforeRequest) {
 			// eslint-disable-next-line no-await-in-loop
-			await hook(this._options);
+			await hook(this._input, this._options);
 		}
 
 		return timeout(fetch(this._input, this._options), this._timeout, this.abortController);
