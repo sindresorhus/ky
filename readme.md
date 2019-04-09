@@ -197,10 +197,21 @@ Timeout in milliseconds for getting a response.
 
 ##### onProgress
 
-Type: `Function`<br>
-Default: `10000`
+Type: `Function`
 
 Progress event handler. The function takes `percent`, `transferred` and `total` arguments. If it's not possible to retrieve the body size, total will be `0`.
+
+
+```js
+await ky('https://example.com', {
+	onProgress: (percent, transferred, total) => {
+		// Example output:
+		// "0% - 0 of 1271 bytes"
+		// "100% - 1271 of 1271 bytes"
+		console.log(`${percent * 100}% - ${transferred} of ${total} bytes`);
+	}
+})
+```
 
 ##### hooks
 
