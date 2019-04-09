@@ -222,6 +222,7 @@ class Ky {
 			}
 
 			// If `onProgress` is passed, use stream API internally
+			/* istanbul ignore next */
 			if (this._options.onProgress) {
 				if (typeof this._options.onProgress !== 'function') {
 					throw new TypeError('The `onProgress` option must be a function');
@@ -303,6 +304,7 @@ class Ky {
 		return timeout(fetch(this._input, this._options), this._timeout, this.abortController);
 	}
 
+	/* istanbul ignore next */
 	_stream(response, onProgress) {
 		const total = Number(response.headers.get('content-length')) || 0;
 		let transferred = 0;
