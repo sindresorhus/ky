@@ -113,18 +113,16 @@ class TimeoutError extends Error {
 
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 
-const timeout = (promise, ms, abortController) => Promise.race([
-	promise,
-	(async () => {
-		await delay(ms);
-		if (abortController) {
-			// Throw TimeoutError first
-			setTimeout(() => abortController.abort(), 1);
-		}
-
-		throw new TimeoutError();
-	})()
-]);
+// `Promise.race()` workaround (#91)
+const timeout = (promise, ms, abortController) => new Promise((resolve, reject) => {
+	/* eslint-disable promise/prefer-await-to-then */
+	promise.then(resolve).catch(reject);
+	delay(ms).then(() => {
+		reject(new TimeoutError());
+		abortController.abort();
+	});
+	/* eslint-enable promise/prefer-await-to-then */
+});
 
 const normalizeRequestMethod = input => requestMethods.includes(input) ? input.toUpperCase() : input;
 
