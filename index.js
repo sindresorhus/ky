@@ -327,7 +327,7 @@ class Ky {
 
 						if (onProgress) {
 							transferred += value.byteLength;
-							const percent = total === 0 ? 0 : Math.floor(transferred / total);
+							const percent = total === 0 ? 0 : transferred / total;
 
 							if (percent !== 1) {
 								onProgress(percent, transferred, total);
