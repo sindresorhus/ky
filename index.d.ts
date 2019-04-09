@@ -1,6 +1,6 @@
 type Omit<T, K extends keyof T> = Pick<T, Exclude<keyof T, K>>;
 
-type JSONObject = { [key: string]: JSONValue };
+type JSONObject = {[key: string]: JSONValue};
 interface JSONArray extends Array<JSONValue> {}
 export type JSONValue = string | number | boolean | null | JSONObject | JSONArray;
 
@@ -40,15 +40,15 @@ export interface Options extends RequestInit {
 	json?: JSONStringifyable;
 
 	/**
-	 * Search parameters to include in the request URL.
-	 * Setting this will override all existing search parameters in the input URL.
-	 */
-	searchParams?: string | { [key: string]: string | number } | URLSearchParams;
+	* Search parameters to include in the request URL.
+	* Setting this will override all existing search parameters in the input URL.
+	*/
+	searchParams?: string | {[key: string]: string | number} | URLSearchParams;
 
 	/**
-	 * Prepends the input with the specified prefix.
-	 * The prefix can be any valid URL, either relative or absolute.
-	 */
+	* Prepends the input with the specified prefix.
+	* The prefix can be any valid URL, either relative or absolute.
+	*/
 	prefixUrl?: URL | string;
 
 	/**
@@ -79,11 +79,11 @@ export interface Options extends RequestInit {
 }
 
 interface OptionsWithoutBody extends Omit<Options, 'body'> {
-	method?: 'get' | 'head';
+	method?: 'get' | 'head'
 }
 
 interface OptionsWithBody extends Options {
-	method?: 'post' | 'put' | 'delete';
+	method?: 'post' | 'put' | 'delete'
 }
 
 /**
