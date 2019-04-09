@@ -24,6 +24,7 @@ const getGlobal = property => {
 const document = getGlobal('document');
 const Headers = getGlobal('Headers');
 const Response = getGlobal('Response');
+const ReadableStream = getGlobal('ReadableStream');
 const fetch = getGlobal('fetch');
 const AbortController = getGlobal('AbortController');
 
@@ -220,7 +221,7 @@ class Ky {
 				throw new HTTPError(response);
 			}
 
-			// If an onProgress is passed, use stream API internally
+			// If `onProgress` is passed, use stream API internally
 			if (this._options.onProgress) {
 				if (typeof this._options.onProgress !== 'function') {
 					throw new TypeError('The `onProgress` option must be a function');
