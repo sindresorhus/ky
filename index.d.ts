@@ -33,7 +33,7 @@ export interface Hooks {
 }
 
 /**
-Options are the same as fetch, with some exceptions.
+Options are the same as `window.fetch`, with some exceptions.
 */
 export interface Options extends RequestInit {
 	/**
@@ -141,7 +141,7 @@ export class TimeoutError extends Error {
 	constructor();
 }
 
-export interface Ky {
+declare const ky: {
 	/**
 	Fetch the given `url`.
 
@@ -215,9 +215,7 @@ export interface Ky {
 
 	@returns A new Ky instance.
 	*/
-	extend(defaultOptions: Options): Ky;
+	extend(defaultOptions: Options): typeof ky;
 }
-
-declare const ky: Ky;
 
 export default ky;
