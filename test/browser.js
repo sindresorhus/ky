@@ -66,7 +66,14 @@ test('onProgress works', withPage, async (t, page) => {
 	const server = await createTestServer();
 
 	server.get('/', (request, response) => {
-		response.end('meow');
+		response.writeHead(200, {
+			'content-length': 4
+		});
+		
+		response.write('me');
+		setTimeout(() => {
+			response.end('ow');
+		}, 1000);
 	});
 
 	await page.goto(server.url);
@@ -87,6 +94,7 @@ test('onProgress works', withPage, async (t, page) => {
 
 	t.deepEqual(result.data, [
 		[0, 0, 4],
+		[0.5, 2, 4],
 		[1, 4, 4]
 	]);
 	t.is(result.text, 'meow');
