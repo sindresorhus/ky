@@ -318,28 +318,23 @@ class Ky {
 					read();
 					async function read() {
 						const {done, value} = await reader.read();
-						try {
-							if (done) {
-								onProgress(1, transferred, total);
-								controller.close();
-								return;
-							}
-
-							if (onProgress) {
-								transferred += value.byteLength;
-								const percent = total === 0 ? 0 : Math.floor(transferred / total);
-
-								if (percent !== 1) {
-									onProgress(percent, transferred, total);
-								}
-							}
-
-							controller.enqueue(value);
-							read();
-						} catch (error) {
-							console.log(error);
-							controller.error(error);
+						if (done) {
+							onProgress(1, transferred, total);
+							controller.close();
+							return;
 						}
+
+						if (onProgress) {
+							transferred += value.byteLength;
+							const percent = total === 0 ? 0 : Math.floor(transferred / total);
+
+							if (percent !== 1) {
+								onProgress(percent, transferred, total);
+							}
+						}
+
+						controller.enqueue(value);
+						read();
 					}
 				}
 			})
