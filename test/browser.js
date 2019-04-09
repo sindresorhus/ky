@@ -69,7 +69,7 @@ test('onProgress works', withPage, async (t, page) => {
 		response.writeHead(200, {
 			'content-length': 4
 		});
-		
+
 		response.write('me');
 		setTimeout(() => {
 			response.end('ow');
