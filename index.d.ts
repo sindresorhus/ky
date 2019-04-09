@@ -6,9 +6,9 @@ export type JSONValue = string | number | boolean | null | JSONObject | JSONArra
 
 export type JSONStringifyable = string | number | boolean | null | object;
 
-export type BeforeRequestHook = (options: Options) => void;
+export type BeforeRequestHook = (options: Options) => void | Promise<void>;
 
-export type AfterResponseHook = (response: Response) => Response | void;
+export type AfterResponseHook = (response: Response) => Response | void | Promise<Response | void>;
 
 export interface Hooks {
 	/**
