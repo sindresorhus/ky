@@ -1,5 +1,5 @@
 import {expectType} from 'tsd';
-import ky, {Ky, HTTPError, TimeoutError, ResponsePromise, JSONValue} from '.';
+import ky, {HTTPError, TimeoutError, ResponsePromise, JSONValue} from '.';
 
 const url = 'https://sindresorhus';
 
@@ -35,7 +35,7 @@ for (const method of requestBodyMethods) {
 	expectType<ResponsePromise>(ky[method as RequestBodyMethod](url, {body: 'x'}));
 }
 
-expectType<Ky>(ky.extend({}));
+expectType<typeof ky>(ky.extend({}));
 expectType<HTTPError>(new HTTPError(new Response));
 expectType<TimeoutError>(new TimeoutError);
 
