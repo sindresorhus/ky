@@ -10,7 +10,7 @@
 		"url": "sindresorhus.com"
 	},
 	"engines": {
-		"node": ">=10"
+		"node": ">=8"
 	},
 	"scripts": {
 		"build": "rollup index.js --format=umd --name=ky --file=umd.js",
