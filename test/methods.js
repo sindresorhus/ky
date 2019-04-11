@@ -41,3 +41,15 @@ test('custom method remains identical', async t => {
 
 	await server.close();
 });
+
+test('shortcut headers have correct accept headers set', async t => {
+	const server = await createTestServer();
+	server.all('/', (request, response) => {
+		t.is(request.headers.accept, 'text/*');
+		response.end('whatever');
+	});
+
+	await ky.get(server.url).text();
+
+	await server.close();
+});
