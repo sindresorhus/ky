@@ -118,8 +118,10 @@ const timeout = (promise, ms, abortController) => new Promise((resolve, reject) 
 	/* eslint-disable promise/prefer-await-to-then */
 	promise.then(resolve).catch(reject);
 	delay(ms).then(() => {
+		if (abortController) {
+			abortController.abort();
+		}
 		reject(new TimeoutError());
-		if (abortController) abortController.abort();
 	});
 	/* eslint-enable promise/prefer-await-to-then */
 });
