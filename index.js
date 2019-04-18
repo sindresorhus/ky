@@ -121,6 +121,7 @@ const timeout = (promise, ms, abortController) => new Promise((resolve, reject) 
 		if (supportsAbortController) {
 			abortController.abort();
 		}
+
 		reject(new TimeoutError());
 	});
 	/* eslint-enable promise/prefer-await-to-then */
