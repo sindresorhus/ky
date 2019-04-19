@@ -376,6 +376,11 @@ It's just a random short npm package name I managed to get. It does, however, ha
 The latest version of Chrome, Firefox, and Safari.
 
 
+## Node.js support
+
+Ky requires Node.js 10 or later, but it indicates Node.js 8 in package.json so you can use it with Node.js 8 by polyfilling the globals without having Yarn fail on install. However, you should just use [`ky-universal`](https://github.com/sindresorhus/ky-universal).
+
+
 ## Related
 
 - [ky-universal](https://github.com/sindresorhus/ky-universal) - Use Ky in both Node.js and browsers
