@@ -64,13 +64,13 @@ const requestMethods = [
 	'delete'
 ];
 
-const responseTypes = [
-	'json',
-	'text',
-	'formData',
-	'arrayBuffer',
-	'blob'
-];
+const responseTypes = {
+	json: 'application/json',
+	text: 'text/*',
+	formData: 'multipart/form-data',
+	arrayBuffer: '*/*',
+	blob: '*/*'
+};
 
 const retryMethods = new Set([
 	'get',
@@ -207,6 +207,7 @@ class Ky {
 		this._options.headers = headers;
 
 		const fn = async () => {
+			await delay(1);
 			let response = await this._fetch();
 
 			for (const hook of this._hooks.afterResponse) {
@@ -238,8 +239,9 @@ class Ky {
 		const isRetriableMethod = retryMethods.has(this._options.method.toLowerCase());
 		const result = isRetriableMethod ? this._retry(fn) : fn();
 
-		for (const type of responseTypes) {
+		for (const [type, mimeType] of Object.entries(responseTypes)) {
 			result[type] = async () => {
+				headers.set('accept', mimeType);
 				return (await result).clone()[type]();
 			};
 		}
