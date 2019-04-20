@@ -169,6 +169,38 @@ test('timeout option', async t => {
 	await server.close();
 });
 
+test('timeout:false option', async t => {
+	let requestCount = 0;
+
+	const server = await createTestServer();
+	server.get('/', async (request, response) => {
+		requestCount++;
+		await delay(1000);
+		response.end(fixture);
+	});
+
+	await t.notThrowsAsync(ky(server.url, {timeout: false}).text(), TimeoutError);
+	t.is(requestCount, 1);
+
+	await server.close();
+});
+
+test('invalid timeout option', async t => { // #117
+	let requestCount = 0;
+
+	const server = await createTestServer();
+	server.get('/', async (request, response) => {
+		requestCount++;
+		await delay(1000);
+		response.end(fixture);
+	});
+
+	await t.throwsAsync(ky(server.url, {timeout: 21474836470}).text(), TypeError); // Timeout greater than 2147483647
+	t.is(requestCount, 1);
+
+	await server.close();
+});
+
 test('searchParams option', async t => {
 	const server = await createTestServer();
 
