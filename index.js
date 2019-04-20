@@ -111,13 +111,13 @@ class TimeoutError extends Error {
 	}
 }
 
-const delay = ms => {
+const delay = ms => new Promise((resolve, reject) => {
 	if (ms > 2147483647) { // See #117, https://stackoverflow.com/questions/3468607/why-does-settimeout-break-for-large-millisecond-delay-values
-		return Promise.reject(new TypeError('`timeout` can not be greater than 2147483647'));
+		reject(new TypeError('`timeout` can not be greater than 2147483647'));
+	} else {
+		setTimeout(resolve, ms);
 	}
-
-	return new Promise(resolve => setTimeout(resolve, ms));
-};
+});
 
 // `Promise.race()` workaround (#91)
 const timeout = (promise, ms, abortController) => new Promise((resolve, reject) => {
@@ -129,7 +129,7 @@ const timeout = (promise, ms, abortController) => new Promise((resolve, reject) 
 		}
 
 		reject(new TimeoutError());
-	});
+	}).catch(reject);
 	/* eslint-enable promise/prefer-await-to-then */
 });
 
