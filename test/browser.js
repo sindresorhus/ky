@@ -62,7 +62,7 @@ test('aborting a request', withPage, async (t, page) => {
 	await server.close();
 });
 
-test('onProgress works', withPage, async (t, page) => {
+test('onDownloadProgress works', withPage, async (t, page) => {
 	const server = await createTestServer();
 
 	server.get('/', (request, response) => {
@@ -80,12 +80,15 @@ test('onProgress works', withPage, async (t, page) => {
 	await page.addScriptTag({path: './umd.js'});
 
 	const result = await page.evaluate(async url => {
+		// `new TextDecoder('utf-8').decode` hangs up?
+		const decodeUTF8 = array => String.fromCharCode.apply(null, array);
+
 		const data = [];
 		window.ky = window.ky.default;
 
 		const text = await window.ky(url, {
-			onProgress: (percent, transferred, total) => {
-				data.push([percent, transferred, total]);
+			onDownloadProgress: (percent, transferredBytes, totalBytes, chunk) => {
+				data.push([percent, transferredBytes, totalBytes, chunk instanceof Uint8Array ? decodeUTF8(chunk) : chunk]);
 			}
 		}).text();
 
@@ -93,16 +96,16 @@ test('onProgress works', withPage, async (t, page) => {
 	}, server.url);
 
 	t.deepEqual(result.data, [
-		[0, 0, 4],
-		[0.5, 2, 4],
-		[1, 4, 4]
+		[0, 0, 4, undefined],
+		[0.5, 2, 4, 'me'],
+		[1, 4, 4, 'ow']
 	]);
 	t.is(result.text, 'meow');
 
 	await server.close();
 });
 
-test('throws if onProgress is not a function', withPage, async (t, page) => {
+test('throws if onDownloadProgress is not a function', withPage, async (t, page) => {
 	const server = await createTestServer();
 
 	server.get('/', (request, response) => {
@@ -114,10 +117,10 @@ test('throws if onProgress is not a function', withPage, async (t, page) => {
 
 	const error = await page.evaluate(url => {
 		window.ky = window.ky.default;
-		const request = window.ky(url, {onProgress: 1}).text();
+		const request = window.ky(url, {onDownloadProgress: 1}).text();
 		return request.catch(error => error.toString());
 	}, server.url);
-	t.is(error, 'TypeError: The `onProgress` option must be a function');
+	t.is(error, 'TypeError: The `onDownloadProgress` option must be a function');
 
 	await server.close();
 });

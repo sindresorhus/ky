@@ -68,6 +68,13 @@ export interface Options extends RequestInit {
 	timeout?: number;
 
 	/**
+	Download progress event handler.
+	The function takes `percent`, `transferredBytes`, `totalBytes` and `chunk` arguments.
+	If it's not possible to retrieve the body size, total will be `0`.
+	*/
+	onDownloadProgress?: (percent: number, transferredBytes: number, totalBytes: number, chunk?: Uint8Array) => void;
+
+	/**
 	Hooks allow modifications during the request lifecycle. Hook functions may be async and are run serially.
 	*/
 	hooks?: Hooks;

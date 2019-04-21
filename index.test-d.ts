@@ -80,3 +80,13 @@ interface Result {
 	value: number;
 }
 expectType<Promise<Result>>(ky(url).json<Result>());
+
+// `onDownloadProgress` option
+ky(url, {
+	onDownloadProgress: (percent, transferredBytes, totalBytes, chunk) => {
+		expectType<number>(percent);
+		expectType<number>(transferredBytes);
+		expectType<number>(totalBytes);
+		expectType<Uint8Array | undefined>(chunk);
+	}
+});

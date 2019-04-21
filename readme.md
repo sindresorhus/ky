@@ -195,16 +195,16 @@ Default: `10000`
 
 Timeout in milliseconds for getting a response.
 
-##### onProgress
+##### onDownloadProgress
 
 Type: `Function`
 
-Progress event handler. The function takes `percent`, `transferred` and `total` arguments. If it's not possible to retrieve the body size, total will be `0`.
+Download progress event handler. The function takes `percent`, `transferredBytes`, `totalBytes` and `chunk` arguments. If it's not possible to retrieve the body size, total will be `0`.
 
 
 ```js
 await ky('https://example.com', {
-	onProgress: (percent, transferred, total) => {
+	onProgress: (percent, transferred, total, chunk) => {
 		// Example output:
 		// `0% - 0 of 1271 bytes`
 		// `100% - 1271 of 1271 bytes`

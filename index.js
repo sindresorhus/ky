@@ -29,7 +29,8 @@ const fetch = getGlobal('fetch');
 const AbortController = getGlobal('AbortController');
 
 const isObject = value => value !== null && typeof value === 'object';
-const supportsAbortController = typeof getGlobal('AbortController') === 'function';
+const supportsAbortController = typeof AbortController === 'function';
+const supportsStreams = typeof ReadableStream === 'function';
 
 const deepMerge = (...sources) => {
 	let returnValue = {};
@@ -223,14 +224,18 @@ class Ky {
 				throw new HTTPError(response);
 			}
 
-			// If `onProgress` is passed, use stream API internally
+			// If `onDownloadProgress` is passed, use stream API internally
 			/* istanbul ignore next */
-			if (this._options.onProgress) {
-				if (typeof this._options.onProgress !== 'function') {
-					throw new TypeError('The `onProgress` option must be a function');
+			if (this._options.onDownloadProgress) {
+				if (typeof this._options.onDownloadProgress !== 'function') {
+					throw new TypeError('The `onDownloadProgress` option must be a function');
 				}
 
-				return this._stream(response.clone(), this._options.onProgress);
+				if (!supportsStreams) {
+					throw new Error('Streams are not supported in your environment. Missing `ReadableStream`');
+				}
+
+				return this._stream(response.clone(), this._options.onDownloadProgress);
 			}
 
 			return response;
@@ -308,40 +313,37 @@ class Ky {
 	}
 
 	/* istanbul ignore next */
-	_stream(response, onProgress) {
-		const total = Number(response.headers.get('content-length')) || 0;
-		let transferred = 0;
+	_stream(response, onDownloadProgress) {
+		const totalBytes = Number(response.headers.get('content-length')) || 0;
+		let transferredBytes = 0;
 
 		return new Response(
 			new ReadableStream({
 				start(controller) {
 					const reader = response.body.getReader();
 
-					if (onProgress) {
-						onProgress(0, 0, total);
+					if (onDownloadProgress) {
+						onDownloadProgress(0, 0, totalBytes);
 					}
 
-					read();
 					async function read() {
 						const {done, value} = await reader.read();
 						if (done) {
-							onProgress(1, transferred, total);
 							controller.close();
 							return;
 						}
 
-						if (onProgress) {
-							transferred += value.byteLength;
-							const percent = total === 0 ? 0 : transferred / total;
-
-							if (percent !== 1) {
-								onProgress(percent, transferred, total);
-							}
+						if (onDownloadProgress) {
+							transferredBytes += value.byteLength;
+							const percent = totalBytes === 0 ? 0 : transferredBytes / totalBytes;
+							onDownloadProgress(percent, transferredBytes, totalBytes, value);
 						}
 
 						controller.enqueue(value);
 						read();
 					}
+
+					read();
 				}
 			})
 		);
