@@ -113,7 +113,7 @@ class TimeoutError extends Error {
 
 const delay = ms => new Promise((resolve, reject) => {
 	if (ms > 2147483647) { // See #117, https://stackoverflow.com/questions/3468607/why-does-settimeout-break-for-large-millisecond-delay-values
-		reject(new TypeError('`timeout` can not be greater than 2147483647'));
+		reject(new RangeError('`timeout` can not be greater than 2147483647'));
 	} else {
 		setTimeout(resolve, ms);
 	}
