@@ -232,7 +232,7 @@ class Ky {
 				}
 
 				if (!supportsStreams) {
-					throw new Error('Streams are not supported in your environment. Missing `ReadableStream`');
+					throw new Error('Streams are not supported in your environment. `ReadableStream` is missing.');
 				}
 
 				return this._stream(response.clone(), this._options.onDownloadProgress);
