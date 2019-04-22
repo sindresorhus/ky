@@ -88,7 +88,7 @@ test('onDownloadProgress works', withPage, async (t, page) => {
 
 		const text = await window.ky(url, {
 			onDownloadProgress: (percent, transferredBytes, totalBytes, chunk) => {
-				const stringifiedChunk = chunk instanceof Uint8Array ? decodeUTF8(chunk) : String(chunk);
+				const stringifiedChunk = chunk instanceof Uint8Array ? decodeUTF8(chunk) : typeof chunk;
 				data.push([percent, transferredBytes, totalBytes, stringifiedChunk]);
 			}
 		}).text();
