@@ -88,7 +88,8 @@ test('onDownloadProgress works', withPage, async (t, page) => {
 
 		const text = await window.ky(url, {
 			onDownloadProgress: (percent, transferredBytes, totalBytes, chunk) => {
-				data.push([percent, transferredBytes, totalBytes, chunk instanceof Uint8Array ? decodeUTF8(chunk) : chunk]);
+				const stringifiedChunk = chunk instanceof Uint8Array ? decodeUTF8(chunk) : String(chunk);
+				data.push([percent, transferredBytes, totalBytes, stringifiedChunk]);
 			}
 		}).text();
 
@@ -96,7 +97,7 @@ test('onDownloadProgress works', withPage, async (t, page) => {
 	}, server.url);
 
 	t.deepEqual(result.data, [
-		[0, 0, 4, undefined],
+		[0, 0, 4, 'undefined'],
 		[0.5, 2, 4, 'me'],
 		[1, 4, 4, 'ow']
 	]);
