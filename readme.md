@@ -190,10 +190,11 @@ It adheres to the [`Retry-After`](https://developer.mozilla.org/en-US/docs/Web/H
 
 ##### timeout
 
-Type: `number`<br>
+Type: `number` `false`<br>
 Default: `10000`
 
-Timeout in milliseconds for getting a response.
+Timeout in milliseconds for getting a response. Can not be greater than 2147483647.
+If set to `false`, there will be no timeout.
 
 ##### hooks
 
