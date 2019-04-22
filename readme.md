@@ -341,7 +341,7 @@ Alternatively, you can use the [`umd.js`](umd.js) file with a traditional `<scri
 
 ```html
 <!-- Replace the version number with the latest version -->
-<script src="https://cdn.jsdelivr.net/npm/ky@0.5.2/umd.js">
+<script src="https://cdn.jsdelivr.net/npm/ky@0.5.2/umd.js"></script>
 <script>
 (async () => {
 	const ky = ky.default;
