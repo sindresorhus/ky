@@ -195,7 +195,7 @@ test('invalid timeout option', async t => { // #117
 		response.end(fixture);
 	});
 
-	await t.throwsAsync(ky(server.url, {timeout: 21474836470}).text(), RangeError, '`timeout` can not be greater than 2147483647');
+	await t.throwsAsync(ky(server.url, {timeout: 21474836470}).text(), RangeError, 'The `timeout` option cannot be greater than 2147483647');
 	t.is(requestCount, 1);
 
 	await server.close();
