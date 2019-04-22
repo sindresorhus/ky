@@ -17,6 +17,7 @@ test('prefixUrl option', withPage, async (t, page) => {
 	await t.throwsAsync(async () => {
 		return page.evaluate(() => {
 			window.ky = window.ky.default;
+
 			return window.ky('/foo', {prefixUrl: '/'});
 		});
 	}, /`input` must not begin with a slash when using `prefixUrl`/);
@@ -52,6 +53,7 @@ test('aborting a request', withPage, async (t, page) => {
 
 	const error = await page.evaluate(url => {
 		window.ky = window.ky.default;
+
 		const controller = new AbortController();
 		const request = window.ky(`${url}/test`, {signal: controller.signal}).text();
 		controller.abort();
@@ -80,12 +82,12 @@ test('onDownloadProgress works', withPage, async (t, page) => {
 	await page.addScriptTag({path: './umd.js'});
 
 	const result = await page.evaluate(async url => {
+		window.ky = window.ky.default;
+
 		// `new TextDecoder('utf-8').decode` hangs up?
 		const decodeUTF8 = array => String.fromCharCode.apply(null, array);
 
 		const data = [];
-		window.ky = window.ky.default;
-
 		const text = await window.ky(url, {
 			onDownloadProgress: (percent, transferredBytes, totalBytes, chunk) => {
 				const stringifiedChunk = chunk instanceof Uint8Array ? decodeUTF8(chunk) : typeof chunk;
@@ -118,10 +120,33 @@ test('throws if onDownloadProgress is not a function', withPage, async (t, page)
 
 	const error = await page.evaluate(url => {
 		window.ky = window.ky.default;
+
 		const request = window.ky(url, {onDownloadProgress: 1}).text();
 		return request.catch(error => error.toString());
 	}, server.url);
 	t.is(error, 'TypeError: The `onDownloadProgress` option must be a function');
+
+	await server.close();
+});
+
+test('throws if does not support ReadableStream', withPage, async (t, page) => {
+	const server = await createTestServer();
+
+	server.get('/', (request, response) => {
+		response.end();
+	});
+
+	await page.goto(server.url);
+	await page.addScriptTag({path: './test/helpers/disable-stream-support.js'});
+	await page.addScriptTag({path: './umd.js'});
+
+	const error = await page.evaluate(url => {
+		window.ky = window.ky.default;
+
+		const request = window.ky(url, {onDownloadProgress: () => {}}).text();
+		return request.catch(error => error.toString());
+	}, server.url);
+	t.is(error, 'Error: Streams are not supported in your environment. `ReadableStream` is missing.');
 
 	await server.close();
 });
