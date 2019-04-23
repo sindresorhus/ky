@@ -61,3 +61,28 @@ test('aborting a request', withPage, async (t, page) => {
 
 	await server.close();
 });
+
+test('throws TimeoutError even though it does not support AbortController', withPage, async (t, page) => {
+	const server = await createTestServer();
+
+	server.get('/', (request, response) => {
+		response.end();
+	});
+
+	server.get('/endless', () => {});
+
+	await page.goto(server.url);
+	await page.addScriptTag({path: './test/helpers/disable-abort-controller.js'});
+	await page.addScriptTag({path: './umd.js'});
+
+	// TODO: make set a timeout for this evaluation so we don't have to wait 30s
+	const error = await page.evaluate(url => {
+		window.ky = window.ky.default;
+
+		const request = window.ky(`${url}/endless`, {timeout: 500}).text();
+		return request.catch(error => error.toString());
+	}, server.url);
+	t.is(error, 'TimeoutError: Request timed out');
+
+	await server.close();
+});
