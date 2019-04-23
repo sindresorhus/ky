@@ -317,7 +317,7 @@ const validateAndMerge = (...sources) => {
 	return deepMerge({}, ...sources);
 };
 
-const createInstance = (defaults = {}) => {
+const createInstance = (defaults) => {
 	const ky = (input, options) => new Ky(input, validateAndMerge(defaults, options));
 
 	for (const method of requestMethods) {
