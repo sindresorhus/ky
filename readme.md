@@ -242,16 +242,16 @@ Throw a `HTTPError` for error responses (non-2xx status codes).
 
 Setting this to `false` may be useful if you are checking for resource availability and are expecting error responses.
 
-### ky.extend(defaultOptions)
+### ky.create(defaultOptions)
 
-Create a new `ky` instance with some defaults overridden with your own.
+Create a new Ky instance with complete new defaults.
 
 ```js
 import ky from 'ky';
 
 // On https://my-site.com
 
-const api = ky.extend({prefixUrl: 'https://example.com/api'});
+const api = ky.create({prefixUrl: 'https://example.com/api'});
 
 (async () => {
 	await api.get('users/123');
@@ -261,6 +261,11 @@ const api = ky.extend({prefixUrl: 'https://example.com/api'});
 	//=> 'https://my-site.com/status'
 })();
 ```
+
+### ky.extend(defaultOptions)
+
+Create a new `ky` instance with some defaults overridden with your own.<br>
+In contrast to `ky.create()`, `ky.extend()` inherits defaults from its parent.
 
 #### defaultOptions
 

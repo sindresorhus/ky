@@ -307,18 +307,25 @@ class Ky {
 	}
 }
 
-const createInstance = (defaults = {}) => {
-	if (!isObject(defaults) || Array.isArray(defaults)) {
-		throw new TypeError('The `defaultOptions` argument must be an object');
+const validateAndMerge = (...sources) => {
+	for (const source of sources) {
+		if ((!isObject(source) || Array.isArray(source)) && typeof source !== 'undefined') {
+			throw new TypeError('The `options` argument must be an object');
+		}
 	}
 
-	const ky = (input, options) => new Ky(input, deepMerge({}, defaults, options));
+	return deepMerge({}, ...sources);
+};
+
+const createInstance = (defaults = {}) => {
+	const ky = (input, options) => new Ky(input, validateAndMerge(defaults, options));
 
 	for (const method of requestMethods) {
-		ky[method] = (input, options) => new Ky(input, deepMerge({}, defaults, options, {method}));
+		ky[method] = (input, options) => new Ky(input, validateAndMerge(defaults, options, {method}));
 	}
 
-	ky.extend = defaults => createInstance(defaults);
+	ky.create = newDefaults => createInstance(validateAndMerge(newDefaults));
+	ky.extend = newDefaults => createInstance(validateAndMerge(defaults, newDefaults));
 
 	return ky;
 };
