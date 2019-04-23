@@ -61,11 +61,12 @@ export interface Options extends RequestInit {
 	retry?: number;
 
 	/**
-	Timeout in milliseconds for getting a response.
+	Timeout in milliseconds for getting a response. Can not be greater than 2147483647.
+	If set to `false`, there will be no timeout.
 
 	@default 10000
 	*/
-	timeout?: number;
+	timeout?: number | false;
 
 	/**
 	Download progress event handler.

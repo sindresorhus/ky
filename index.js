@@ -113,7 +113,13 @@ class TimeoutError extends Error {
 	}
 }
 
-const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
+const delay = ms => new Promise((resolve, reject) => {
+	if (ms > 2147483647) { // The maximum value of a 32bit int (see #117)
+		reject(new RangeError('The `timeout` option cannot be greater than 2147483647'));
+	} else {
+		setTimeout(resolve, ms);
+	}
+});
 
 // `Promise.race()` workaround (#91)
 const timeout = (promise, ms, abortController) => new Promise((resolve, reject) => {
@@ -125,7 +131,7 @@ const timeout = (promise, ms, abortController) => new Promise((resolve, reject) 
 		}
 
 		reject(new TimeoutError());
-	});
+	}).catch(reject);
 	/* eslint-enable promise/prefer-await-to-then */
 });
 
@@ -307,6 +313,10 @@ class Ky {
 		for (const hook of this._hooks.beforeRequest) {
 			// eslint-disable-next-line no-await-in-loop
 			await hook(this._options);
+		}
+
+		if (this._timeout === false) {
+			return fetch(this._input, this._options);
 		}
 
 		return timeout(fetch(this._input, this._options), this._timeout, this.abortController);
