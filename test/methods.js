@@ -8,7 +8,7 @@ test('common method is normalized', async t => {
 		response.end();
 	});
 
-	await t.notThrowsAsync(() => ky(server.url, {
+	await t.notThrowsAsync(ky(server.url, {
 		method: 'get',
 		hooks: {
 			beforeRequest: [
@@ -28,7 +28,7 @@ test('custom method remains identical', async t => {
 		response.end();
 	});
 
-	await t.notThrowsAsync(() => ky(server.url, {
+	await t.notThrowsAsync(ky(server.url, {
 		method: 'report',
 		hooks: {
 			beforeRequest: [

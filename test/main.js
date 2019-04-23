@@ -352,3 +352,12 @@ test('throws AbortError when aborted by user', async t => {
 
 	await t.throwsAsync(response, {name: 'AbortError'});
 });
+
+test('throws when using FormData with `content-type` header', t => {
+	t.throws(() => ky.post('https://example.com', {
+		body: new URLSearchParams(),
+		headers: {
+			'content-type': ''
+		}
+	}), 'The `content-type` header cannot be used with a FormData body. It will be set automatically.');
+});
