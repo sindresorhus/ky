@@ -359,5 +359,5 @@ test('throws when using FormData with `content-type` header', t => {
 		headers: {
 			'content-type': ''
 		}
-	}), 'The `content-type` header cannot be used with a FormData body. It will be set automatically.');
+	}), 'The `content-type` header cannot be used with a URLSearchParams body. It will be set automatically.');
 });

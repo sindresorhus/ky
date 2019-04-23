@@ -203,7 +203,7 @@ class Ky {
 		const headers = new Headers(this._options.headers || {});
 
 		if (((supportsFormData && this._options.body instanceof FormData) || this._options.body instanceof URLSearchParams) && headers.has('content-type')) {
-			throw new Error('The `content-type` header cannot be used with a FormData body. It will be set automatically.');
+			throw new Error(`The \`content-type\` header cannot be used with a ${this._options.body.constructor.name} body. It will be set automatically.`);
 		}
 
 		if (json) {
