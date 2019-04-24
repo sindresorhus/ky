@@ -70,8 +70,8 @@ export interface Options extends RequestInit {
 
 	/**
 	Download progress event handler.
-	The function takes `percent`, `transferredBytes`, `totalBytes` and `chunk` arguments.
-	If it's not possible to retrieve the body size, total will be `0`.
+
+	If it's not possible to retrieve the body size, `totalBytes` will be `0`.
 	*/
 	onDownloadProgress?: (percent: number, transferredBytes: number, totalBytes: number, chunk?: Uint8Array) => void;
 
