@@ -220,6 +220,7 @@ declare const ky: {
 
 	/**
 	Create a new Ky instance with some defaults overridden with your own.
+
 	In contrast to `ky.create()`, `ky.extend()` inherits defaults from its parent.
 
 	@returns A new Ky instance.
