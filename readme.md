@@ -264,7 +264,8 @@ const api = ky.create({prefixUrl: 'https://example.com/api'});
 
 ### ky.extend(defaultOptions)
 
-Create a new `ky` instance with some defaults overridden with your own.<br>
+Create a new `ky` instance with some defaults overridden with your own.
+
 In contrast to `ky.create()`, `ky.extend()` inherits defaults from its parent.
 
 #### defaultOptions
