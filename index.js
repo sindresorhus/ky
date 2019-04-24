@@ -26,9 +26,11 @@ const Headers = getGlobal('Headers');
 const Response = getGlobal('Response');
 const fetch = getGlobal('fetch');
 const AbortController = getGlobal('AbortController');
+const FormData = getGlobal('FormData');
 
 const isObject = value => value !== null && typeof value === 'object';
 const supportsAbortController = typeof getGlobal('AbortController') === 'function';
+const supportsFormData = typeof FormData === 'function';
 
 const deepMerge = (...sources) => {
 	let returnValue = {};
@@ -199,6 +201,10 @@ class Ky {
 		this._throwHttpErrors = throwHttpErrors;
 
 		const headers = new Headers(this._options.headers || {});
+
+		if (((supportsFormData && this._options.body instanceof FormData) || this._options.body instanceof URLSearchParams) && headers.has('content-type')) {
+			throw new Error(`The \`content-type\` header cannot be used with a ${this._options.body.constructor.name} body. It will be set automatically.`);
+		}
 
 		if (json) {
 			if (this._options.body) {

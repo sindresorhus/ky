@@ -277,6 +277,34 @@ The error thrown when the request times out.
 
 ## Tips
 
+### Sending Form Data
+
+Sending form data in Ky is identical to `fetch`. Just pass a [`FormData`](https://developer.mozilla.org/en-US/docs/Web/API/FormData) instance to the `body` option. The `Content-Type` header will be automatically set to `multipart/form-data`. Setting it manually will result in an error.
+
+```js
+// `multipart/form-data`
+const formData = new FormData();
+formData.append('food', 'fries');
+formData.append('drink', 'icetea');
+
+ky.post(url, {
+	body: formData
+});
+```
+
+If you want to send the data in `application/x-www-form-urlencoded` format, you will need to encode the data with [`URLSearchParams`](https://developer.mozilla.org/en-US/docs/Web/API/URLSearchParams).
+
+```js
+// `application/x-www-form-urlencoded`
+const searchParams = new URLSearchParams();
+searchParams.set('food', 'fries');
+searchParams.set('drink', 'icetea');
+
+ky.post(url, {
+	body: searchParams
+});
+```
+
 ### Cancellation
 
 Fetch (and hence Ky) has built-in support for request cancellation through the [`AbortController` API](https://developer.mozilla.org/en-US/docs/Web/API/AbortController). [Read more.](https://developers.google.com/web/updates/2017/09/abortable-fetch)
