@@ -246,12 +246,18 @@ Setting this to `false` may be useful if you are checking for resource availabil
 
 Create a new `ky` instance with some defaults overridden with your own.
 
+In contrast to `ky.create()`, `ky.extend()` inherits defaults from its parent.
+
+### ky.create(defaultOptions)
+
+Create a new Ky instance with complete new defaults.
+
 ```js
 import ky from 'ky';
 
 // On https://my-site.com
 
-const api = ky.extend({prefixUrl: 'https://example.com/api'});
+const api = ky.create({prefixUrl: 'https://example.com/api'});
 
 (async () => {
 	await api.get('users/123');

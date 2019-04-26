@@ -35,6 +35,7 @@ for (const method of requestBodyMethods) {
 	expectType<ResponsePromise>(ky[method as RequestBodyMethod](url, {body: 'x'}));
 }
 
+expectType<typeof ky>(ky.create({}));
 expectType<typeof ky>(ky.extend({}));
 expectType<HTTPError>(new HTTPError(new Response));
 expectType<TimeoutError>(new TimeoutError);

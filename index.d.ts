@@ -212,7 +212,16 @@ declare const ky: {
 	delete(url: Request | URL | string, options?: Options): ResponsePromise;
 
 	/**
+	Create a new Ky instance with complete new defaults.
+
+	@returns A new Ky instance.
+	*/
+	create(defaultOptions: Options): typeof ky;
+
+	/**
 	Create a new Ky instance with some defaults overridden with your own.
+
+	In contrast to `ky.create()`, `ky.extend()` inherits defaults from its parent.
 
 	@returns A new Ky instance.
 	*/
