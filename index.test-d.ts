@@ -86,6 +86,6 @@ expectType<Promise<Result>>(ky(url).json<Result>());
 ky(url, {
 	onDownloadProgress: (progress, chunk) => {
 		expectType<DownloadProgress>(progress);
-		expectType<Uint8Array | undefined>(chunk);
+		expectType<Uint8Array>(chunk);
 	}
 });

@@ -69,13 +69,6 @@ export interface Options extends RequestInit {
 	timeout?: number | false;
 
 	/**
-	Download progress event handler.
-
-	If it's not possible to retrieve the body size, `totalBytes` will be `0`.
-	*/
-	onDownloadProgress?: (progress: DownloadProgress, chunk?: Uint8Array) => void;
-
-	/**
 	Hooks allow modifications during the request lifecycle. Hook functions may be async and are run serially.
 	*/
 	hooks?: Hooks;
@@ -86,6 +79,13 @@ export interface Options extends RequestInit {
 	@default true
 	*/
 	throwHttpErrors?: boolean;
+
+	/**
+	Download progress event handler.
+
+	If it's not possible to retrieve the body size, `progress.totalBytes` will be `0`.
+	*/
+	onDownloadProgress?: (progress: DownloadProgress, chunk: Uint8Array) => void;
 }
 
 interface OptionsWithoutBody extends Omit<Options, 'body'> {

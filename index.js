@@ -236,7 +236,7 @@ class Ky {
 				throw new HTTPError(response);
 			}
 
-			// If `onDownloadProgress` is passed, use stream API internally
+			// If `onDownloadProgress` is passed it uses the stream API internally
 			/* istanbul ignore next */
 			if (this._options.onDownloadProgress) {
 				if (typeof this._options.onDownloadProgress !== 'function') {
@@ -339,7 +339,7 @@ class Ky {
 					const reader = response.body.getReader();
 
 					if (onDownloadProgress) {
-						onDownloadProgress({percent: 0, transferredBytes: 0, totalBytes});
+						onDownloadProgress({percent: 0, transferredBytes: 0, totalBytes}, new Uint8Array());
 					}
 
 					async function read() {

@@ -200,13 +200,14 @@ If set to `false`, there will be no timeout.
 
 Type: `Function`
 
-Download progress event handler. The function takes `progress` and `chunk` arguments.<br>
-The `progress` object contains following elements: `percent`, `transferredBytes` and `totalBytes`. If it's not possible to retrieve the body size, total will be `0`.
-
-For the first call, `chunk` will be always `undefined`.
+Download progress event handler. The function receives a `progress` and `chunk` argument.<br>
+The `progress` object contains the following elements: `percent`, `transferredBytes` and `totalBytes`. If it's not possible to retrieve the body size, `progress.totalBytes` will be `0`.<br>
+The `chunk` argument is an instance of `Uint8Array`. It's empty for the first call.
 
 
 ```js
+import ky from 'ky';
+
 await ky('https://example.com', {
 	onProgress: (progress, chunk) => {
 		// Example output:
