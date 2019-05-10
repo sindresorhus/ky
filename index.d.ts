@@ -2,12 +2,6 @@
 
 type Omit<T, K extends keyof T> = Pick<T, Exclude<keyof T, K>>;
 
-type JSONObject = {[key: string]: JSONValue};
-interface JSONArray extends Array<JSONValue> {}
-export type JSONValue = string | number | boolean | null | JSONObject | JSONArray;
-
-export type JSONStringifyable = string | number | boolean | null | object;
-
 export type BeforeRequestHook = (options: Options) => void | Promise<void>;
 
 export type AfterResponseHook = (response: Response) => Response | void | Promise<Response | void>;
@@ -39,7 +33,7 @@ export interface Options extends RequestInit {
 	/**
 	Shortcut for sending JSON. Use this instead of the `body` option.
 	*/
-	json?: JSONStringifyable;
+	json?: unknown;
 
 	/**
 	Search parameters to include in the request URL.
@@ -107,7 +101,7 @@ export interface ResponsePromise extends Promise<Response> {
 	formData(): Promise<FormData>;
 
 	// TODO: Use `json<T extends JSONValue>(): Promise<T>;` when it's fixed in TS.
-	// See https://github.com/sindresorhus/ky/pull/80
+	// See https://github.com/microsoft/TypeScript/issues/15300 and https://github.com/sindresorhus/ky/pull/80
 	/**
 	Get the response body as JSON.
 
@@ -129,7 +123,7 @@ export interface ResponsePromise extends Promise<Response> {
 	const result = await ky(…).json<Result>();
 	```
 	*/
-	json<T = JSONValue>(): Promise<T>;
+	json<T = unknown>(): Promise<T>;
 
 	text(): Promise<string>;
 }
@@ -219,7 +213,16 @@ declare const ky: {
 	delete(url: Request | URL | string, options?: Options): ResponsePromise;
 
 	/**
+	Create a new Ky instance with complete new defaults.
+
+	@returns A new Ky instance.
+	*/
+	create(defaultOptions: Options): typeof ky;
+
+	/**
 	Create a new Ky instance with some defaults overridden with your own.
+
+	In contrast to `ky.create()`, `ky.extend()` inherits defaults from its parent.
 
 	@returns A new Ky instance.
 	*/

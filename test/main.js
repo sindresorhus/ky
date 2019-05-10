@@ -258,13 +258,13 @@ test('throwHttpErrors option with POST', async t => {
 	await server.close();
 });
 
-test('ky.extend()', async t => {
+test('ky.create()', async t => {
 	const server = await createTestServer();
 	server.get('/', (request, response) => {
 		response.end(`${request.headers.unicorn} - ${request.headers.rainbow}`);
 	});
 
-	const extended = ky.extend({
+	const extended = ky.create({
 		headers: {
 			rainbow: 'rainbow'
 		}
@@ -284,7 +284,7 @@ test('ky.extend()', async t => {
 	await server.close();
 });
 
-test('ky.extend() throws when given non-object argument', t => {
+test('ky.create() throws when given non-object argument', t => {
 	const nonObjectValues = [
 		true,
 		666,
@@ -297,15 +297,15 @@ test('ky.extend() throws when given non-object argument', t => {
 
 	for (const value of nonObjectValues) {
 		t.throws(() => {
-			ky.extend(value);
+			ky.create(value);
 		}, {
 			instanceOf: TypeError,
-			message: 'The `defaultOptions` argument must be an object'
+			message: 'The `options` argument must be an object'
 		});
 	}
 });
 
-test('ky.extend() with deep array', async t => {
+test('ky.create() with deep array', async t => {
 	const server = await createTestServer();
 	server.get('/', (request, response) => {
 		response.end();
@@ -314,7 +314,7 @@ test('ky.extend() with deep array', async t => {
 	let isOriginBeforeRequestTrigged = false;
 	let isExtendBeforeRequestTrigged = false;
 
-	const extended = ky.extend({
+	const extended = ky.create({
 		hooks: {
 			beforeRequest: [
 				() => {
@@ -341,6 +341,42 @@ test('ky.extend() with deep array', async t => {
 	await server.close();
 });
 
+test('ky.extend()', async t => {
+	const server = await createTestServer();
+	server.get('/', (request, response) => {
+		response.end();
+	});
+
+	let isOriginBeforeRequestTrigged = false;
+	let isExtendBeforeRequestTrigged = false;
+
+	const extended = ky.extend({
+		hooks: {
+			beforeRequest: [
+				() => {
+					isOriginBeforeRequestTrigged = true;
+				}
+			]
+		}
+	}).extend({
+		hooks: {
+			beforeRequest: [
+				() => {
+					isExtendBeforeRequestTrigged = true;
+				}
+			]
+		}
+	});
+
+	await extended(server.url);
+
+	t.is(isOriginBeforeRequestTrigged, true);
+	t.is(isExtendBeforeRequestTrigged, true);
+	t.true((await extended.head(server.url)).ok);
+
+	await server.close();
+});
+
 test('throws AbortError when aborted by user', async t => {
 	const server = await createTestServer();
 	server.get('/', () => {});
@@ -351,4 +387,13 @@ test('throws AbortError when aborted by user', async t => {
 	abortController.abort();
 
 	await t.throwsAsync(response, {name: 'AbortError'});
+});
+
+test('throws when using FormData with `content-type` header', t => {
+	t.throws(() => ky.post('https://example.com', {
+		body: new URLSearchParams(),
+		headers: {
+			'content-type': ''
+		}
+	}), 'The `content-type` header cannot be used with a URLSearchParams body. It will be set automatically.');
 });
