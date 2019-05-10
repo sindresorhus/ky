@@ -196,28 +196,6 @@ Default: `10000`
 Timeout in milliseconds for getting a response. Can not be greater than 2147483647.
 If set to `false`, there will be no timeout.
 
-##### onDownloadProgress
-
-Type: `Function`
-
-Download progress event handler. The function receives a `progress` and `chunk` argument.<br>
-The `progress` object contains the following elements: `percent`, `transferredBytes` and `totalBytes`. If it's not possible to retrieve the body size, `progress.totalBytes` will be `0`.<br>
-The `chunk` argument is an instance of `Uint8Array`. It's empty for the first call.
-
-
-```js
-import ky from 'ky';
-
-await ky('https://example.com', {
-	onProgress: (progress, chunk) => {
-		// Example output:
-		// `0% - 0 of 1271 bytes`
-		// `100% - 1271 of 1271 bytes`
-		console.log(`${progress.percent * 100}% - ${progress.transferredBytes} of ${progress.totalBytes} bytes`);
-	}
-})
-```
-
 ##### hooks
 
 Type: `Object<string, Function[]>`<br>
@@ -263,6 +241,29 @@ Default: `true`
 Throw a `HTTPError` for error responses (non-2xx status codes).
 
 Setting this to `false` may be useful if you are checking for resource availability and are expecting error responses.
+
+##### onDownloadProgress
+
+Type: `Function`
+
+Download progress event handler.
+
+The function receives a `progress` and `chunk` argument:
+- The `progress` object contains the following elements: `percent`, `transferredBytes` and `totalBytes`. If it's not possible to retrieve the body size, `totalBytes` will be `0`.
+- The `chunk` argument is an instance of `Uint8Array`. It's empty for the first call.
+
+```js
+import ky from 'ky';
+
+await ky('https://example.com', {
+	onProgress: (progress, chunk) => {
+		// Example output:
+		// `0% - 0 of 1271 bytes`
+		// `100% - 1271 of 1271 bytes`
+		console.log(`${progress.percent * 100}% - ${progress.transferredBytes} of ${progress.totalBytes} bytes`);
+	}
+})
+```
 
 ### ky.extend(defaultOptions)
 
