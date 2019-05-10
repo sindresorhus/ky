@@ -17,6 +17,7 @@ test('prefixUrl option', withPage, async (t, page) => {
 	await t.throwsAsync(async () => {
 		return page.evaluate(() => {
 			window.ky = window.ky.default;
+
 			return window.ky('/foo', {prefixUrl: '/'});
 		});
 	}, /`input` must not begin with a slash when using `prefixUrl`/);
@@ -52,6 +53,7 @@ test('aborting a request', withPage, async (t, page) => {
 
 	const error = await page.evaluate(url => {
 		window.ky = window.ky.default;
+
 		const controller = new AbortController();
 		const request = window.ky(`${url}/test`, {signal: controller.signal}).text();
 		controller.abort();
@@ -83,6 +85,93 @@ test('throws TimeoutError even though it does not support AbortController', with
 		return request.catch(error => error.toString());
 	}, server.url);
 	t.is(error, 'TimeoutError: Request timed out');
+
+	await server.close();
+});
+
+test('onDownloadProgress works', withPage, async (t, page) => {
+	const server = await createTestServer();
+
+	server.get('/', (request, response) => {
+		response.writeHead(200, {
+			'content-length': 4
+		});
+
+		response.write('me');
+		setTimeout(() => {
+			response.end('ow');
+		}, 1000);
+	});
+
+	await page.goto(server.url);
+	await page.addScriptTag({path: './umd.js'});
+
+	const result = await page.evaluate(async url => {
+		window.ky = window.ky.default;
+
+		// `new TextDecoder('utf-8').decode` hangs up?
+		const decodeUTF8 = array => String.fromCharCode(...array);
+
+		const data = [];
+		const text = await window.ky(url, {
+			onDownloadProgress: (progress, chunk) => {
+				const stringifiedChunk = decodeUTF8(chunk);
+				data.push([progress, stringifiedChunk]);
+			}
+		}).text();
+
+		return {data, text};
+	}, server.url);
+
+	t.deepEqual(result.data, [
+		[{percent: 0, transferredBytes: 0, totalBytes: 4}, ''],
+		[{percent: 0.5, transferredBytes: 2, totalBytes: 4}, 'me'],
+		[{percent: 1, transferredBytes: 4, totalBytes: 4}, 'ow']
+	]);
+	t.is(result.text, 'meow');
+
+	await server.close();
+});
+
+test('throws if onDownloadProgress is not a function', withPage, async (t, page) => {
+	const server = await createTestServer();
+
+	server.get('/', (request, response) => {
+		response.end();
+	});
+
+	await page.goto(server.url);
+	await page.addScriptTag({path: './umd.js'});
+
+	const error = await page.evaluate(url => {
+		window.ky = window.ky.default;
+
+		const request = window.ky(url, {onDownloadProgress: 1}).text();
+		return request.catch(error => error.toString());
+	}, server.url);
+	t.is(error, 'TypeError: The `onDownloadProgress` option must be a function');
+
+	await server.close();
+});
+
+test('throws if does not support ReadableStream', withPage, async (t, page) => {
+	const server = await createTestServer();
+
+	server.get('/', (request, response) => {
+		response.end();
+	});
+
+	await page.goto(server.url);
+	await page.addScriptTag({path: './test/helpers/disable-stream-support.js'});
+	await page.addScriptTag({path: './umd.js'});
+
+	const error = await page.evaluate(url => {
+		window.ky = window.ky.default;
+
+		const request = window.ky(url, {onDownloadProgress: () => {}}).text();
+		return request.catch(error => error.toString());
+	}, server.url);
+	t.is(error, 'Error: Streams are not supported in your environment. `ReadableStream` is missing.');
 
 	await server.close();
 });

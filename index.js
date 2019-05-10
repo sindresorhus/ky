@@ -24,12 +24,14 @@ const getGlobal = property => {
 const document = getGlobal('document');
 const Headers = getGlobal('Headers');
 const Response = getGlobal('Response');
+const ReadableStream = getGlobal('ReadableStream');
 const fetch = getGlobal('fetch');
 const AbortController = getGlobal('AbortController');
 const FormData = getGlobal('FormData');
 
 const isObject = value => value !== null && typeof value === 'object';
-const supportsAbortController = typeof getGlobal('AbortController') === 'function';
+const supportsAbortController = typeof AbortController === 'function';
+const supportsStreams = typeof ReadableStream === 'function';
 const supportsFormData = typeof FormData === 'function';
 
 const deepMerge = (...sources) => {
@@ -234,6 +236,20 @@ class Ky {
 				throw new HTTPError(response);
 			}
 
+			// If `onDownloadProgress` is passed it uses the stream API internally
+			/* istanbul ignore next */
+			if (this._options.onDownloadProgress) {
+				if (typeof this._options.onDownloadProgress !== 'function') {
+					throw new TypeError('The `onDownloadProgress` option must be a function');
+				}
+
+				if (!supportsStreams) {
+					throw new Error('Streams are not supported in your environment. `ReadableStream` is missing.');
+				}
+
+				return this._stream(response.clone(), this._options.onDownloadProgress);
+			}
+
 			return response;
 		};
 
@@ -310,6 +326,43 @@ class Ky {
 		}
 
 		return timeout(fetch(this._input, this._options), this._timeout, this.abortController);
+	}
+
+	/* istanbul ignore next */
+	_stream(response, onDownloadProgress) {
+		const totalBytes = Number(response.headers.get('content-length')) || 0;
+		let transferredBytes = 0;
+
+		return new Response(
+			new ReadableStream({
+				start(controller) {
+					const reader = response.body.getReader();
+
+					if (onDownloadProgress) {
+						onDownloadProgress({percent: 0, transferredBytes: 0, totalBytes}, new Uint8Array());
+					}
+
+					async function read() {
+						const {done, value} = await reader.read();
+						if (done) {
+							controller.close();
+							return;
+						}
+
+						if (onDownloadProgress) {
+							transferredBytes += value.byteLength;
+							const percent = totalBytes === 0 ? 0 : transferredBytes / totalBytes;
+							onDownloadProgress({percent, transferredBytes, totalBytes}, value);
+						}
+
+						controller.enqueue(value);
+						read();
+					}
+
+					read();
+				}
+			})
+		);
 	}
 }
 

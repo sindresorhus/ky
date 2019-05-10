@@ -6,6 +6,16 @@ export type BeforeRequestHook = (options: Options) => void | Promise<void>;
 
 export type AfterResponseHook = (response: Response) => Response | void | Promise<Response | void>;
 
+export interface DownloadProgress {
+	percent: number;
+	transferredBytes: number;
+	
+	/**
+	If it's not possible to retrieve the body size, it will be `0`.
+	*/
+	totalBytes: number;
+}
+
 export interface Hooks {
 	/**
 	Before the request is sent.
@@ -73,6 +83,13 @@ export interface Options extends RequestInit {
 	@default true
 	*/
 	throwHttpErrors?: boolean;
+
+	/**
+	Download progress event handler.
+	
+	@param chunk - Note: It's empty for the first call.
+	*/
+	onDownloadProgress?: (progress: DownloadProgress, chunk: Uint8Array) => void;
 }
 
 interface OptionsWithoutBody extends Omit<Options, 'body'> {
