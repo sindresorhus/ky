@@ -9,9 +9,9 @@ export type AfterResponseHook = (response: Response) => Response | void | Promis
 export interface DownloadProgress {
 	percent: number;
 	transferredBytes: number;
-	
+
 	/**
-	If it's not possible to retrieve the body size, it will be `0`.
+	Note: If it's not possible to retrieve the body size, it will be `0`.
 	*/
 	totalBytes: number;
 }
@@ -86,7 +86,7 @@ export interface Options extends RequestInit {
 
 	/**
 	Download progress event handler.
-	
+
 	@param chunk - Note: It's empty for the first call.
 	*/
 	onDownloadProgress?: (progress: DownloadProgress, chunk: Uint8Array) => void;

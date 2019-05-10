@@ -130,7 +130,7 @@ Sets `options.method` to the method name and makes a request.
 
 #### options
 
-Type: `Object`
+Type: `object`
 
 ##### method
 
@@ -143,20 +143,20 @@ Internally, the standard methods (`GET`, `POST`, `PUT`, `PATCH`, `HEAD` and `DEL
 
 ##### json
 
-Type: `Object`
+Type: `object`
 
 Shortcut for sending JSON. Use this instead of the `body` option. Accepts a plain object which will be `JSON.stringify()`'d and the correct header will be set for you.
 
 ##### searchParams
 
-Type: `string` `Object<string, string|number>` `URLSearchParams`<br>
+Type: `string | object<string, string | number> | URLSearchParams`<br>
 Default: `''`
 
 Search parameters to include in the request URL. Setting this will override all existing search parameters in the input URL.
 
 ##### prefixUrl
 
-Type: `string` [`URL`](https://developer.mozilla.org/en-US/docs/Web/API/URL)
+Type: `string | URL`
 
 When specified, `prefixUrl` will be prepended to `input`. The prefix can be any valid URL, either relative or absolute. A trailing slash `/` is optional, one will be added automatically, if needed, when joining `prefixUrl` and `input`. The `input` argument cannot start with a `/` when using this option.
 
@@ -190,7 +190,7 @@ It adheres to the [`Retry-After`](https://developer.mozilla.org/en-US/docs/Web/H
 
 ##### timeout
 
-Type: `number` `false`<br>
+Type: `number | false`<br>
 Default: `10000`
 
 Timeout in milliseconds for getting a response. Can not be greater than 2147483647.
@@ -198,7 +198,7 @@ If set to `false`, there will be no timeout.
 
 ##### hooks
 
-Type: `Object<string, Function[]>`<br>
+Type: `object<string, Function[]>`<br>
 Default: `{beforeRequest: []}`
 
 Hooks allow modifications during the request lifecycle. Hook functions may be async and are run serially.
@@ -218,19 +218,23 @@ Default: `[]`
 This hook enables you to read and optionally modify the response. The hook function receives a clone of the response as the first argument. The return value of the hook function will be used by Ky as the response object if it's an instance of [`Response`](https://developer.mozilla.org/en-US/docs/Web/API/Response).
 
 ```js
-ky.get('https://example.com', {
-	hooks: {
-		afterResponse: [
-			response => {
-				// You could do something with the response, for example, logging.
-				log(response);
+import ky from 'ky';
 
-				// Or return a `Response` instance to overwrite the response.
-				return new Response('A different response', {status: 200});
-			}
-		]
-	}
-});
+(async () => {
+	await ky.get('https://example.com', {
+		hooks: {
+			afterResponse: [
+				response => {
+					// You could do something with the response, for example, logging.
+					log(response);
+
+					// Or return a `Response` instance to overwrite the response.
+					return new Response('A different response', {status: 200});
+				}
+			]
+		}
+	});
+})();
 ```
 
 ##### throwHttpErrors
@@ -255,14 +259,16 @@ The function receives a `progress` and `chunk` argument:
 ```js
 import ky from 'ky';
 
-await ky('https://example.com', {
-	onProgress: (progress, chunk) => {
-		// Example output:
-		// `0% - 0 of 1271 bytes`
-		// `100% - 1271 of 1271 bytes`
-		console.log(`${progress.percent * 100}% - ${progress.transferredBytes} of ${progress.totalBytes} bytes`);
-	}
-})
+(async () => {
+	await ky('https://example.com', {
+		onProgress: (progress, chunk) => {
+			// Example output:
+			// `0% - 0 of 1271 bytes`
+			// `100% - 1271 of 1271 bytes`
+			console.log(`${progress.percent * 100}% - ${progress.transferredBytes} of ${progress.totalBytes} bytes`);
+		}
+	});
+})();
 ```
 
 ### ky.extend(defaultOptions)
@@ -293,7 +299,7 @@ const api = ky.create({prefixUrl: 'https://example.com/api'});
 
 #### defaultOptions
 
-Type: `Object`
+Type: `object`
 
 ### ky.HTTPError
 
@@ -311,27 +317,35 @@ The error thrown when the request times out.
 Sending form data in Ky is identical to `fetch`. Just pass a [`FormData`](https://developer.mozilla.org/en-US/docs/Web/API/FormData) instance to the `body` option. The `Content-Type` header will be automatically set to `multipart/form-data`. Setting it manually will result in an error.
 
 ```js
-// `multipart/form-data`
-const formData = new FormData();
-formData.append('food', 'fries');
-formData.append('drink', 'icetea');
+import ky from 'ky';
 
-ky.post(url, {
-	body: formData
-});
+(async () => {
+	// `multipart/form-data`
+	const formData = new FormData();
+	formData.append('food', 'fries');
+	formData.append('drink', 'icetea');
+
+	await ky.post(url, {
+		body: formData
+	});
+})();
 ```
 
 If you want to send the data in `application/x-www-form-urlencoded` format, you will need to encode the data with [`URLSearchParams`](https://developer.mozilla.org/en-US/docs/Web/API/URLSearchParams).
 
 ```js
-// `application/x-www-form-urlencoded`
-const searchParams = new URLSearchParams();
-searchParams.set('food', 'fries');
-searchParams.set('drink', 'icetea');
+import ky from 'ky';
 
-ky.post(url, {
-	body: searchParams
-});
+(async () => {
+	// `application/x-www-form-urlencoded`
+	const searchParams = new URLSearchParams();
+	searchParams.set('food', 'fries');
+	searchParams.set('drink', 'icetea');
+
+	await ky.post(url, {
+		body: searchParams
+	});
+})();
 ```
 
 ### Cancellation
@@ -346,7 +360,9 @@ import ky from 'ky';
 const controller = new AbortController();
 const {signal} = controller;
 
-setTimeout(() => controller.abort(), 5000);
+setTimeout(() => {
+	controller.abort();
+}, 5000);
 
 (async () => {
 	try {
@@ -383,7 +399,7 @@ Upload the [`index.js`](index.js) file in this repo somewhere, for example, to y
 ```html
 <script type="module">
 // Replace the version number with the latest version
-import ky from 'https://cdn.jsdelivr.net/npm/ky@0.5.2/index.js';
+import ky from 'https://cdn.jsdelivr.net/npm/ky@0.11.0/index.js';
 
 (async () => {
 	const parsed = await ky('https://jsonplaceholder.typicode.com/todos/1').json();
@@ -398,10 +414,11 @@ Alternatively, you can use the [`umd.js`](umd.js) file with a traditional `<scri
 
 ```html
 <!-- Replace the version number with the latest version -->
-<script src="https://cdn.jsdelivr.net/npm/ky@0.5.2/umd.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/ky@0.11.0/umd.js"></script>
 <script>
 (async () => {
 	const ky = ky.default;
+
 	const parsed = await ky('https://jsonplaceholder.typicode.com/todos/1').json();
 
 	console.log(parsed.title);

@@ -236,7 +236,7 @@ class Ky {
 				throw new HTTPError(response);
 			}
 
-			// If `onDownloadProgress` is passed it uses the stream API internally
+			// If `onDownloadProgress` is passed, it uses the stream API internally
 			/* istanbul ignore next */
 			if (this._options.onDownloadProgress) {
 				if (typeof this._options.onDownloadProgress !== 'function') {
