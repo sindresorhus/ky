@@ -1,5 +1,5 @@
 import {expectType} from 'tsd';
-import ky, {HTTPError, TimeoutError, ResponsePromise, JSONValue} from '.';
+import ky, {HTTPError, TimeoutError, ResponsePromise} from '.';
 
 const url = 'https://sindresorhus';
 
@@ -75,7 +75,7 @@ ky.post(url, {
 	json: 'x'
 });
 
-expectType<Promise<JSONValue>>(ky(url).json());
+expectType<Promise<unknown>>(ky(url).json());
 
 interface Result {
 	value: number;
