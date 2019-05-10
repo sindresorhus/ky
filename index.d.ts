@@ -6,6 +6,12 @@ export type BeforeRequestHook = (options: Options) => void | Promise<void>;
 
 export type AfterResponseHook = (response: Response) => Response | void | Promise<Response | void>;
 
+export interface DownloadProgress {
+	percent: number;
+	transferredBytes: number;
+	totalBytes: number;
+}
+
 export interface Hooks {
 	/**
 	Before the request is sent.
@@ -67,7 +73,7 @@ export interface Options extends RequestInit {
 
 	If it's not possible to retrieve the body size, `totalBytes` will be `0`.
 	*/
-	onDownloadProgress?: (percent: number, transferredBytes: number, totalBytes: number, chunk?: Uint8Array) => void;
+	onDownloadProgress?: (progress: DownloadProgress, chunk?: Uint8Array) => void;
 
 	/**
 	Hooks allow modifications during the request lifecycle. Hook functions may be async and are run serially.

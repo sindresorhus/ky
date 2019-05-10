@@ -1,5 +1,5 @@
 import {expectType} from 'tsd';
-import ky, {HTTPError, TimeoutError, ResponsePromise} from '.';
+import ky, {HTTPError, TimeoutError, ResponsePromise, DownloadProgress} from '.';
 
 const url = 'https://sindresorhus';
 
@@ -84,10 +84,8 @@ expectType<Promise<Result>>(ky(url).json<Result>());
 
 // `onDownloadProgress` option
 ky(url, {
-	onDownloadProgress: (percent, transferredBytes, totalBytes, chunk) => {
-		expectType<number>(percent);
-		expectType<number>(transferredBytes);
-		expectType<number>(totalBytes);
+	onDownloadProgress: (progress, chunk) => {
+		expectType<DownloadProgress>(progress);
 		expectType<Uint8Array | undefined>(chunk);
 	}
 });

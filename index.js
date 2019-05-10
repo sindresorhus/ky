@@ -339,7 +339,7 @@ class Ky {
 					const reader = response.body.getReader();
 
 					if (onDownloadProgress) {
-						onDownloadProgress(0, 0, totalBytes);
+						onDownloadProgress({percent: 0, transferredBytes: 0, totalBytes});
 					}
 
 					async function read() {
@@ -352,7 +352,7 @@ class Ky {
 						if (onDownloadProgress) {
 							transferredBytes += value.byteLength;
 							const percent = totalBytes === 0 ? 0 : transferredBytes / totalBytes;
-							onDownloadProgress(percent, transferredBytes, totalBytes, value);
+							onDownloadProgress({percent, transferredBytes, totalBytes}, value);
 						}
 
 						controller.enqueue(value);
