@@ -86,6 +86,8 @@ export interface Options extends RequestInit {
 
 	/**
 	Download progress event handler.
+	
+	@param chunk - Note: It's empty for the first call.
 	*/
 	onDownloadProgress?: (progress: DownloadProgress, chunk: Uint8Array) => void;
 }
