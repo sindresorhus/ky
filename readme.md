@@ -48,12 +48,6 @@ $ npm install ky
 - [jsdelivr](https://www.jsdelivr.com/package/npm/ky)
 - [unpkg](https://unpkg.com/ky)
 
----
-
-<a href="https://www.patreon.com/sindresorhus">
-	<img src="https://c5.patreon.com/external/logo/become_a_patron_button@2x.png" width="160">
-</a>
-
 
 ## Usage
 
@@ -467,8 +461,3 @@ Ky requires Node.js 10 or later, but it indicates Node.js 8 in package.json so y
 - [Sindre Sorhus](https://github.com/sindresorhus)
 - [Szymon Marczak](https://github.com/szmarczak)
 - [Seth Holladay](https://github.com/sholladay)
-
-
-## License
-
-MIT
