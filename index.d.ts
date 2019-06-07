@@ -1,6 +1,6 @@
 /// <reference lib="dom"/>
 
-type Omit<T, K extends keyof T> = Pick<T, Exclude<keyof T, K>>;
+type _Omit<T, K extends keyof T> = Pick<T, Exclude<keyof T, K>>;
 
 export type BeforeRequestHook = (options: Options) => void | Promise<void>;
 
@@ -92,7 +92,7 @@ export interface Options extends RequestInit {
 	onDownloadProgress?: (progress: DownloadProgress, chunk: Uint8Array) => void;
 }
 
-interface OptionsWithoutBody extends Omit<Options, 'body'> {
+interface OptionsWithoutBody extends _Omit<Options, 'body'> {
 	method?: 'get' | 'head'
 }
 
@@ -133,7 +133,7 @@ export interface ResponsePromise extends Promise<Response> {
 	const result = await ky(…).json<Result>();
 	```
 	*/
-	json<T = unknown>(): Promise<T>;
+	json<T>(): Promise<T>;
 
 	text(): Promise<string>;
 }
@@ -180,7 +180,7 @@ declare const ky: {
 	@param url - `Request` object, `URL` object, or URL string.
 	@returns A promise with `Body` methods added.
 	*/
-	get(url: Request | URL | string, options?: Omit<Options, 'body'>): ResponsePromise;
+	get(url: Request | URL | string, options?: _Omit<Options, 'body'>): ResponsePromise;
 
 	/**
 	Fetch the given `url` using the option `{method: 'post'}`.
@@ -212,7 +212,7 @@ declare const ky: {
 	@param url - `Request` object, `URL` object, or URL string.
 	@returns A promise with `Body` methods added.
 	*/
-	head(url: Request | URL | string, options?: Omit<Options, 'body'>): ResponsePromise;
+	head(url: Request | URL | string, options?: _Omit<Options, 'body'>): ResponsePromise;
 
 	/**
 	Fetch the given `url` using the option `{method: 'delete'}`.
