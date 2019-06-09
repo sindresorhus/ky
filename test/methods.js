@@ -12,7 +12,7 @@ test('common method is normalized', async t => {
 		method: 'get',
 		hooks: {
 			beforeRequest: [
-				options => {
+				(_, options) => {
 					t.is(options.method, 'GET');
 				}
 			]
@@ -32,7 +32,7 @@ test('custom method remains identical', async t => {
 		method: 'report',
 		hooks: {
 			beforeRequest: [
-				options => {
+				(_, options) => {
 					t.is(options.method, 'report');
 				}
 			]

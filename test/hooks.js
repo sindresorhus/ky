@@ -23,7 +23,7 @@ test('hooks can be async', async t => {
 			json,
 			hooks: {
 				beforeRequest: [
-					async options => {
+					async (_, options) => {
 						await delay(100);
 						const bodyJson = JSON.parse(options.body);
 						bodyJson.foo = false;
@@ -70,7 +70,7 @@ test('beforeRequest hook allows modifications', async t => {
 			json,
 			hooks: {
 				beforeRequest: [
-					options => {
+					(_, options) => {
 						const bodyJson = JSON.parse(options.body);
 						bodyJson.foo = false;
 						options.body = JSON.stringify(bodyJson);
@@ -101,7 +101,7 @@ test('afterResponse hook accept success response', async t => {
 			json,
 			hooks: {
 				afterResponse: [
-					async response => {
+					async (_, __, response) => {
 						t.is(response.status, 200);
 						t.deepEqual(await response.json(), json);
 					}
@@ -129,7 +129,7 @@ test('afterResponse hook accept fail response', async t => {
 			json,
 			hooks: {
 				afterResponse: [
-					async response => {
+					async (_, __, response) => {
 						t.is(response.status, 500);
 						t.deepEqual(await response.json(), json);
 					}
@@ -161,7 +161,7 @@ test('afterResponse hook can change response instance by sequence', async t => {
 						() => new Response(modifiedBody1, {
 							status: modifiedStatus1
 						}),
-						async response => {
+						async (_, __, response) => {
 							t.is(response.status, modifiedStatus1);
 							t.is(await response.text(), modifiedBody1);
 
