@@ -1,6 +1,6 @@
-import {expectType} from 'tsd-check';
+import { expectType } from 'tsd-check';
 import createTestServer from 'create-test-server';
-import ky, {Ky, HTTPError, TimeoutError, ResponsePromise, JSONValue} from '.';
+import ky, { Ky, HTTPError, TimeoutError, ResponsePromise, JSONValue } from '.';
 
 const server = await createTestServer();
 server.get('/', (request, response) => {
@@ -36,7 +36,7 @@ for (const method of requestMethods) {
 
 // Test Ky HTTP methods with `body`
 for (const method of requestBodyMethods) {
-	expectType<ResponsePromise>(await ky[method](server.url, {body: 'x'}));
+	expectType<ResponsePromise>(await ky[method](server.url, { body: 'x' }));
 }
 
 expectType<Ky>(ky.extend({}));
@@ -46,12 +46,13 @@ expectType<TimeoutError>(new TimeoutError);
 ky(server.url, {
 	hooks: {
 		beforeRequest: [
-			options => {
+			(_, options) => {
 				expectType<Object>(options);
 			}
 		],
 		afterResponse: [
-			response => {
+			(_, options, response) => {
+				expectType<Object>(options);
 				expectType<Response>(response);
 				return new Response('Test');
 			}
@@ -63,10 +64,10 @@ ky(new URL(server.url));
 ky(new Request(server.url));
 
 // `searchParams` option
-ky(server.url, {searchParams: 'foo=bar'});
-ky(server.url, {searchParams: {foo: 'bar'}});
-ky(server.url, {searchParams: {foo: 1}});
-ky(server.url, {searchParams: new URLSearchParams({foo: 'bar'})});
+ky(server.url, { searchParams: 'foo=bar' });
+ky(server.url, { searchParams: { foo: 'bar' } });
+ky(server.url, { searchParams: { foo: 1 } });
+ky(server.url, { searchParams: new URLSearchParams({ foo: 'bar' }) });
 
 // `json` option
 ky.post(server.url, {

@@ -1,14 +1,14 @@
 type Omit<T, K extends keyof T> = Pick<T, Exclude<keyof T, K>>;
 
-type JSONObject = {[key: string]: JSONValue};
-interface JSONArray extends Array<JSONValue> {}
+type JSONObject = { [key: string]: JSONValue };
+interface JSONArray extends Array<JSONValue> { }
 export type JSONValue = string | number | boolean | null | JSONObject | JSONArray;
 
 export type JSONStringifyable = string | number | boolean | null | object;
 
-export type BeforeRequestHook = (options: Options) => void;
+export type BeforeRequestHook = (input: Request | URL | string, options: Options) => void;
 
-export type AfterResponseHook = (response: Response) => Response | void;
+export type AfterResponseHook = (input: Request | URL | string, options: Options, response: Response) => Response | void;
 
 export interface Hooks {
 	/**
@@ -43,7 +43,7 @@ export interface Options extends RequestInit {
 	* Search parameters to include in the request URL.
 	* Setting this will override all existing search parameters in the input URL.
 	*/
-	searchParams?: string | {[key: string]: string | number} | URLSearchParams;
+	searchParams?: string | { [key: string]: string | number } | URLSearchParams;
 
 	/**
 	* Prepends the input with the specified prefix.
@@ -128,7 +128,7 @@ export class HTTPError extends Error {
 /**
  * The error thrown when the request times out.
  */
-export class TimeoutError extends Error {}
+export class TimeoutError extends Error { }
 
 export interface Ky {
 	/**
