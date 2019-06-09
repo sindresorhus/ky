@@ -1,6 +1,6 @@
 {
 	"name": "ky",
-	"version": "0.9.0",
+	"version": "0.11.1",
 	"description": "Tiny and elegant HTTP client based on the browser Fetch API",
 	"license": "MIT",
 	"repository": "sindresorhus/ky",
@@ -10,12 +10,12 @@
 		"url": "sindresorhus.com"
 	},
 	"engines": {
-		"node": ">=10"
+		"node": ">=8"
 	},
 	"scripts": {
 		"build": "rollup index.js --format=umd --name=ky --file=umd.js",
 		"prepublishOnly": "npm run build",
-		"test": "xo && npm run build && nyc ava && tsd-check"
+		"test": "xo && npm run build && nyc ava && tsd"
 	},
 	"files": [
 		"index.js",
@@ -46,19 +46,18 @@
 		"node-fetch"
 	],
 	"devDependencies": {
-		"@types/jquery": "^3.3.29",
-		"abort-controller": "^2.0.2",
-		"ava": "^1.1.0",
+		"abort-controller": "^3.0.0",
+		"ava": "^1.4.1",
 		"body": "^5.1.0",
-		"codecov": "^3.1.0",
+		"codecov": "^3.4.0",
 		"create-test-server": "2.1.1",
 		"delay": "^4.1.0",
-		"esm": "^3.0.84",
-		"node-fetch": "^2.3.0",
-		"nyc": "^13.1.0",
-		"puppeteer": "^1.12.2",
-		"rollup": "^1.1.0",
-		"tsd-check": "^0.3.0",
+		"esm": "^3.2.22",
+		"node-fetch": "^2.5.0",
+		"nyc": "^14.1.1",
+		"puppeteer": "^1.15.0",
+		"rollup": "^1.11.3",
+		"tsd": "^0.7.2",
 		"xo": "^0.24.0"
 	},
 	"xo": {
