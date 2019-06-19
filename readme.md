@@ -178,7 +178,7 @@ import ky from 'ky';
 
 ##### retry
 
-Type: `object`
+Type: `Object`
 
 Default:
 - retries: `2`
@@ -188,6 +188,10 @@ Default:
 
 An object representing `retries`, `methods`, `statusCodes` and `maxRetryAfter` fields for the time until retry, allowed methods, allowed status codes and maximum [`Retry-After`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Retry-After) time.
 
+If `maxRetryAfter` is set to `undefined`, it will use `options.timeout`.<br>
+If [`Retry-After`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Retry-After) header is greater than `maxRetryAfter`, it will cancel the request.
+
+Delays between retries counts with function `0.3 * (2 ** (retry - 1)) * 1000`, where `retry` is attempt number (starts from 1).
 
 
 ##### timeout
