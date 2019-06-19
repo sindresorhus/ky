@@ -178,13 +178,15 @@ import ky from 'ky';
 
 ##### retry
 
-Type: `Object`
+Type: `Object` or `number`
 
 Default:
 - retries: `2`
 - methods: `GET` `PUT` `HEAD` `DELETE` `OPTIONS` `TRACE`
 - statusCodes: [`408`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/408) [`413`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/413) [`429`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/429) [`500`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/500) [`502`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/502) [`503`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/503) [`504`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/504)
 - maxRetryAfter: `undefined`
+
+If `retry` is a number, it will be used as retries and other defaults will remain in place.
 
 An object representing `retries`, `methods`, `statusCodes` and `maxRetryAfter` fields for the time until retry, allowed methods, allowed status codes and maximum [`Retry-After`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Retry-After) time.
 

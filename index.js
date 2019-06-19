@@ -128,6 +128,14 @@ const timeout = (promise, ms, abortController) => Promise.race([
 
 const normalizeRequestMethod = input => requestMethods.includes(input) ? input.toUpperCase() : input;
 
+const defaultRetryOptions = {
+	retries: 2,
+	methods: retryMethods,
+	statusCodes: retryStatusCodes,
+	afterStatusCodes: retryAfterStatusCodes
+};
+const normalizeRetryOptions = retry => ({...defaultRetryOptions, ...(typeof retry === 'number' ? {retries: retry} : retry)});
+
 class Ky {
 	constructor(input, {
 		timeout = 10000,
@@ -143,13 +151,7 @@ class Ky {
 		this._options = {
 			method: 'get',
 			credentials: 'same-origin', // TODO: This can be removed when the spec change is implemented in all browsers. Context: https://www.chromestatus.com/feature/4539473312350208
-			retry: {
-				retries: 2,
-				methods: retryMethods,
-				statusCodes: retryStatusCodes,
-				afterStatusCodes: retryAfterStatusCodes,
-				...retry
-			},
+			retry: normalizeRetryOptions(retry),
 			...otherOptions
 		};
 

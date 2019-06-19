@@ -211,3 +211,19 @@ test('retry - respect maxRetryAfter', async t => {
 
 	await server.close();
 });
+
+test('retry - can provide retry as number', async t => {
+	let requestCount = 0;
+
+	const server = await createTestServer();
+	server.get('/', async (request, response) => {
+		requestCount++;
+
+		response.sendStatus(408);
+	});
+
+	await t.throwsAsync(ky(server.url, {retry: 5}).text());
+	t.is(requestCount, 5);
+
+	await server.close();
+});
