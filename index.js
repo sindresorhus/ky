@@ -24,11 +24,15 @@ const getGlobal = property => {
 const document = getGlobal('document');
 const Headers = getGlobal('Headers');
 const Response = getGlobal('Response');
+const ReadableStream = getGlobal('ReadableStream');
 const fetch = getGlobal('fetch');
 const AbortController = getGlobal('AbortController');
+const FormData = getGlobal('FormData');
 
 const isObject = value => value !== null && typeof value === 'object';
-const supportsAbortController = typeof getGlobal('AbortController') === 'function';
+const supportsAbortController = typeof AbortController === 'function';
+const supportsStreams = typeof ReadableStream === 'function';
+const supportsFormData = typeof FormData === 'function';
 
 const deepMerge = (...sources) => {
 	let returnValue = {};
@@ -63,13 +67,13 @@ const requestMethods = [
 	'delete'
 ];
 
-const responseTypes = [
-	'json',
-	'text',
-	'formData',
-	'arrayBuffer',
-	'blob'
-];
+const responseTypes = {
+	json: 'application/json',
+	text: 'text/*',
+	formData: 'multipart/form-data',
+	arrayBuffer: '*/*',
+	blob: '*/*'
+};
 
 const retryMethods = new Set([
 	'get',
@@ -111,20 +115,27 @@ class TimeoutError extends Error {
 	}
 }
 
-const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
+const delay = ms => new Promise((resolve, reject) => {
+	if (ms > 2147483647) { // The maximum value of a 32bit int (see #117)
+		reject(new RangeError('The `timeout` option cannot be greater than 2147483647'));
+	} else {
+		setTimeout(resolve, ms);
+	}
+});
 
-const timeout = (promise, ms, abortController) => Promise.race([
-	promise,
-	(async () => {
-		await delay(ms);
-		if (abortController) {
-			// Throw TimeoutError first
-			setTimeout(() => abortController.abort(), 1);
+// `Promise.race()` workaround (#91)
+const timeout = (promise, ms, abortController) => new Promise((resolve, reject) => {
+	/* eslint-disable promise/prefer-await-to-then */
+	promise.then(resolve).catch(reject);
+	delay(ms).then(() => {
+		if (supportsAbortController) {
+			abortController.abort();
 		}
 
-		throw new TimeoutError();
-	})()
-]);
+		reject(new TimeoutError());
+	}).catch(reject);
+	/* eslint-enable promise/prefer-await-to-then */
+});
 
 const normalizeRequestMethod = input => requestMethods.includes(input) ? input.toUpperCase() : input;
 
@@ -202,6 +213,10 @@ class Ky {
 
 		const headers = new Headers(this._options.headers || {});
 
+		if (((supportsFormData && this._options.body instanceof FormData) || this._options.body instanceof URLSearchParams) && headers.has('content-type')) {
+			throw new Error(`The \`content-type\` header cannot be used with a ${this._options.body.constructor.name} body. It will be set automatically.`);
+		}
+
 		if (json) {
 			if (this._options.body) {
 				throw new Error('The `json` option cannot be used with the `body` option');
@@ -214,6 +229,7 @@ class Ky {
 		this._options.headers = headers;
 
 		const fn = async () => {
+			await delay(1);
 			let response = await this._fetch();
 
 			for (const hook of this._hooks.afterResponse) {
@@ -229,14 +245,29 @@ class Ky {
 				throw new HTTPError(response);
 			}
 
+			// If `onDownloadProgress` is passed, it uses the stream API internally
+			/* istanbul ignore next */
+			if (this._options.onDownloadProgress) {
+				if (typeof this._options.onDownloadProgress !== 'function') {
+					throw new TypeError('The `onDownloadProgress` option must be a function');
+				}
+
+				if (!supportsStreams) {
+					throw new Error('Streams are not supported in your environment. `ReadableStream` is missing.');
+				}
+
+				return this._stream(response.clone(), this._options.onDownloadProgress);
+			}
+
 			return response;
 		};
 
 		const isRetriableMethod = this._options.retry.methods.has(this._options.method.toLowerCase());
 		const result = isRetriableMethod ? this._retry(fn) : fn();
 
-		for (const type of responseTypes) {
+		for (const [type, mimeType] of Object.entries(responseTypes)) {
 			result[type] = async () => {
+				headers.set('accept', mimeType);
 				return (await result).clone()[type]();
 			};
 		}
@@ -303,22 +334,70 @@ class Ky {
 			await hook(this._options);
 		}
 
+		if (this._timeout === false) {
+			return fetch(this._input, this._options);
+		}
+
 		return timeout(fetch(this._input, this._options), this._timeout, this.abortController);
+	}
+
+	/* istanbul ignore next */
+	_stream(response, onDownloadProgress) {
+		const totalBytes = Number(response.headers.get('content-length')) || 0;
+		let transferredBytes = 0;
+
+		return new Response(
+			new ReadableStream({
+				start(controller) {
+					const reader = response.body.getReader();
+
+					if (onDownloadProgress) {
+						onDownloadProgress({percent: 0, transferredBytes: 0, totalBytes}, new Uint8Array());
+					}
+
+					async function read() {
+						const {done, value} = await reader.read();
+						if (done) {
+							controller.close();
+							return;
+						}
+
+						if (onDownloadProgress) {
+							transferredBytes += value.byteLength;
+							const percent = totalBytes === 0 ? 0 : transferredBytes / totalBytes;
+							onDownloadProgress({percent, transferredBytes, totalBytes}, value);
+						}
+
+						controller.enqueue(value);
+						read();
+					}
+
+					read();
+				}
+			})
+		);
 	}
 }
 
-const createInstance = (defaults = {}) => {
-	if (!isObject(defaults) || Array.isArray(defaults)) {
-		throw new TypeError('The `defaultOptions` argument must be an object');
+const validateAndMerge = (...sources) => {
+	for (const source of sources) {
+		if ((!isObject(source) || Array.isArray(source)) && typeof source !== 'undefined') {
+			throw new TypeError('The `options` argument must be an object');
+		}
 	}
 
-	const ky = (input, options) => new Ky(input, deepMerge({}, defaults, options));
+	return deepMerge({}, ...sources);
+};
+
+const createInstance = defaults => {
+	const ky = (input, options) => new Ky(input, validateAndMerge(defaults, options));
 
 	for (const method of requestMethods) {
-		ky[method] = (input, options) => new Ky(input, deepMerge({}, defaults, options, {method}));
+		ky[method] = (input, options) => new Ky(input, validateAndMerge(defaults, options, {method}));
 	}
 
-	ky.extend = defaults => createInstance(defaults);
+	ky.create = newDefaults => createInstance(validateAndMerge(newDefaults));
+	ky.extend = newDefaults => createInstance(validateAndMerge(defaults, newDefaults));
 
 	return ky;
 };

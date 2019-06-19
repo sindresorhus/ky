@@ -12,11 +12,11 @@
 
 > Ky is a tiny and elegant HTTP client based on the browser [Fetch API](https://developer.mozilla.org/en-US/docs/Web/API/WindowOrWorkerGlobalScope/fetch)
 
-[![Build Status](https://travis-ci.com/sindresorhus/ky.svg?branch=master)](https://travis-ci.com/sindresorhus/ky) [![codecov](https://codecov.io/gh/sindresorhus/ky/branch/master/graph/badge.svg)](https://codecov.io/gh/sindresorhus/ky)
+[![Build Status](https://travis-ci.com/sindresorhus/ky.svg?branch=master)](https://travis-ci.com/sindresorhus/ky) [![codecov](https://codecov.io/gh/sindresorhus/ky/branch/master/graph/badge.svg)](https://codecov.io/gh/sindresorhus/ky) [![](https://badgen.net/bundlephobia/minzip/ky)](https://bundlephobia.com/result?p=ky)
 
 Ky targets [modern browsers](#browser-support) and [Deno](https://github.com/denoland/deno). For older browsers, you will need to transpile and use a [`fetch` polyfill](https://github.com/github/fetch). For Node.js, check out [Got](https://github.com/sindresorhus/got). For isomorphic needs (like SSR), check out [`ky-universal`](https://github.com/sindresorhus/ky-universal).
 
-1 KB *(minified & gzipped)*, one file, and no dependencies.
+It's just a tiny file with no dependencies.
 
 
 ## Benefits over plain `fetch`
@@ -47,12 +47,6 @@ $ npm install ky
 
 - [jsdelivr](https://www.jsdelivr.com/package/npm/ky)
 - [unpkg](https://unpkg.com/ky)
-
----
-
-<a href="https://www.patreon.com/sindresorhus">
-	<img src="https://c5.patreon.com/external/logo/become_a_patron_button@2x.png" width="160">
-</a>
 
 
 ## Usage
@@ -117,7 +111,7 @@ The `input` and `options` are the same as [`fetch`](https://developer.mozilla.or
 - The `credentials` option is `same-origin` by default, which is the default in the spec too, but not all browsers have caught up yet.
 - Adds some more options. See below.
 
-Returns a [`Response` object](https://developer.mozilla.org/en-US/docs/Web/API/Response) with [`Body` methods](https://developer.mozilla.org/en-US/docs/Web/API/Body#Methods) added for convenience. So you can, for example, call `ky.json()` directly on the `Response` without having to await it first. Unlike the `Body` methods of `window.Fetch`; these will throw an `HTTPError` if the response status is not in the range `200...299`.
+Returns a [`Response` object](https://developer.mozilla.org/en-US/docs/Web/API/Response) with [`Body` methods](https://developer.mozilla.org/en-US/docs/Web/API/Body#Methods) added for convenience. So you can, for example, call `ky.get(input).json()` directly without having to await the `Response` first. When called like that, proper `Accept` header will be set depending on body method used. Unlike the `Body` methods of `window.Fetch`; these will throw an `HTTPError` if the response status is not in the range `200...299`.
 
 ### ky.get(input, [options])
 ### ky.post(input, [options])
@@ -130,7 +124,7 @@ Sets `options.method` to the method name and makes a request.
 
 #### options
 
-Type: `Object`
+Type: `object`
 
 ##### method
 
@@ -143,20 +137,20 @@ Internally, the standard methods (`GET`, `POST`, `PUT`, `PATCH`, `HEAD` and `DEL
 
 ##### json
 
-Type: `Object`
+Type: `object`
 
 Shortcut for sending JSON. Use this instead of the `body` option. Accepts a plain object which will be `JSON.stringify()`'d and the correct header will be set for you.
 
 ##### searchParams
 
-Type: `string` `Object<string, string|number>` `URLSearchParams`<br>
+Type: `string | object<string, string | number> | URLSearchParams`<br>
 Default: `''`
 
 Search parameters to include in the request URL. Setting this will override all existing search parameters in the input URL.
 
 ##### prefixUrl
 
-Type: `string` [`URL`](https://developer.mozilla.org/en-US/docs/Web/API/URL)
+Type: `string | URL`
 
 When specified, `prefixUrl` will be prepended to `input`. The prefix can be any valid URL, either relative or absolute. A trailing slash `/` is optional, one will be added automatically, if needed, when joining `prefixUrl` and `input`. The `input` argument cannot start with a `/` when using this option.
 
@@ -198,14 +192,15 @@ Delays between retries counts with function `0.3 * (2 ** (retry - 1)) * 1000`, w
 
 ##### timeout
 
-Type: `number`<br>
+Type: `number | false`<br>
 Default: `10000`
 
-Timeout in milliseconds for getting a response.
+Timeout in milliseconds for getting a response. Can not be greater than 2147483647.
+If set to `false`, there will be no timeout.
 
 ##### hooks
 
-Type: `Object<string, Function[]>`<br>
+Type: `object<string, Function[]>`<br>
 Default: `{beforeRequest: []}`
 
 Hooks allow modifications during the request lifecycle. Hook functions may be async and are run serially.
@@ -225,19 +220,23 @@ Default: `[]`
 This hook enables you to read and optionally modify the response. The hook function receives a clone of the response as the first argument. The return value of the hook function will be used by Ky as the response object if it's an instance of [`Response`](https://developer.mozilla.org/en-US/docs/Web/API/Response).
 
 ```js
-ky.get('https://example.com', {
-	hooks: {
-		afterResponse: [
-			response => {
-				// You could do something with the response, for example, logging.
-				log(response);
+import ky from 'ky';
 
-				// Or return a `Response` instance to overwrite the response.
-				return new Response('A different response', {status: 200});
-			}
-		]
-	}
-});
+(async () => {
+	await ky.get('https://example.com', {
+		hooks: {
+			afterResponse: [
+				response => {
+					// You could do something with the response, for example, logging.
+					log(response);
+
+					// Or return a `Response` instance to overwrite the response.
+					return new Response('A different response', {status: 200});
+				}
+			]
+		}
+	});
+})();
 ```
 
 ##### throwHttpErrors
@@ -249,16 +248,47 @@ Throw a `HTTPError` for error responses (non-2xx status codes).
 
 Setting this to `false` may be useful if you are checking for resource availability and are expecting error responses.
 
+##### onDownloadProgress
+
+Type: `Function`
+
+Download progress event handler.
+
+The function receives a `progress` and `chunk` argument:
+- The `progress` object contains the following elements: `percent`, `transferredBytes` and `totalBytes`. If it's not possible to retrieve the body size, `totalBytes` will be `0`.
+- The `chunk` argument is an instance of `Uint8Array`. It's empty for the first call.
+
+```js
+import ky from 'ky';
+
+(async () => {
+	await ky('https://example.com', {
+		onProgress: (progress, chunk) => {
+			// Example output:
+			// `0% - 0 of 1271 bytes`
+			// `100% - 1271 of 1271 bytes`
+			console.log(`${progress.percent * 100}% - ${progress.transferredBytes} of ${progress.totalBytes} bytes`);
+		}
+	});
+})();
+```
+
 ### ky.extend(defaultOptions)
 
 Create a new `ky` instance with some defaults overridden with your own.
+
+In contrast to `ky.create()`, `ky.extend()` inherits defaults from its parent.
+
+### ky.create(defaultOptions)
+
+Create a new Ky instance with complete new defaults.
 
 ```js
 import ky from 'ky';
 
 // On https://my-site.com
 
-const api = ky.extend({prefixUrl: 'https://example.com/api'});
+const api = ky.create({prefixUrl: 'https://example.com/api'});
 
 (async () => {
 	await api.get('users/123');
@@ -271,7 +301,7 @@ const api = ky.extend({prefixUrl: 'https://example.com/api'});
 
 #### defaultOptions
 
-Type: `Object`
+Type: `object`
 
 ### ky.HTTPError
 
@@ -283,6 +313,42 @@ The error thrown when the request times out.
 
 
 ## Tips
+
+### Sending Form Data
+
+Sending form data in Ky is identical to `fetch`. Just pass a [`FormData`](https://developer.mozilla.org/en-US/docs/Web/API/FormData) instance to the `body` option. The `Content-Type` header will be automatically set to `multipart/form-data`. Setting it manually will result in an error.
+
+```js
+import ky from 'ky';
+
+(async () => {
+	// `multipart/form-data`
+	const formData = new FormData();
+	formData.append('food', 'fries');
+	formData.append('drink', 'icetea');
+
+	await ky.post(url, {
+		body: formData
+	});
+})();
+```
+
+If you want to send the data in `application/x-www-form-urlencoded` format, you will need to encode the data with [`URLSearchParams`](https://developer.mozilla.org/en-US/docs/Web/API/URLSearchParams).
+
+```js
+import ky from 'ky';
+
+(async () => {
+	// `application/x-www-form-urlencoded`
+	const searchParams = new URLSearchParams();
+	searchParams.set('food', 'fries');
+	searchParams.set('drink', 'icetea');
+
+	await ky.post(url, {
+		body: searchParams
+	});
+})();
+```
 
 ### Cancellation
 
@@ -296,7 +362,9 @@ import ky from 'ky';
 const controller = new AbortController();
 const {signal} = controller;
 
-setTimeout(() => controller.abort(), 5000);
+setTimeout(() => {
+	controller.abort();
+}, 5000);
 
 (async () => {
 	try {
@@ -333,7 +401,7 @@ Upload the [`index.js`](index.js) file in this repo somewhere, for example, to y
 ```html
 <script type="module">
 // Replace the version number with the latest version
-import ky from 'https://cdn.jsdelivr.net/npm/ky@0.5.2/index.js';
+import ky from 'https://cdn.jsdelivr.net/npm/ky@0.11.0/index.js';
 
 (async () => {
 	const parsed = await ky('https://jsonplaceholder.typicode.com/todos/1').json();
@@ -348,10 +416,11 @@ Alternatively, you can use the [`umd.js`](umd.js) file with a traditional `<scri
 
 ```html
 <!-- Replace the version number with the latest version -->
-<script src="https://cdn.jsdelivr.net/npm/ky@0.5.2/umd.js">
+<script src="https://cdn.jsdelivr.net/npm/ky@0.11.0/umd.js"></script>
 <script>
 (async () => {
 	const ky = ky.default;
+
 	const parsed = await ky('https://jsonplaceholder.typicode.com/todos/1').json();
 
 	console.log(parsed.title);
@@ -384,6 +453,11 @@ It's just a random short npm package name I managed to get. It does, however, ha
 The latest version of Chrome, Firefox, and Safari.
 
 
+## Node.js support
+
+Ky requires Node.js 10 or later, but it indicates Node.js 8 in package.json so you can use it with Node.js 8 by polyfilling the globals without having Yarn fail on install. However, you should just use [`ky-universal`](https://github.com/sindresorhus/ky-universal).
+
+
 ## Related
 
 - [ky-universal](https://github.com/sindresorhus/ky-universal) - Use Ky in both Node.js and browsers
@@ -395,8 +469,3 @@ The latest version of Chrome, Firefox, and Safari.
 - [Sindre Sorhus](https://github.com/sindresorhus)
 - [Szymon Marczak](https://github.com/szmarczak)
 - [Seth Holladay](https://github.com/sholladay)
-
-
-## License
-
-MIT

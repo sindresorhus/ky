@@ -95,7 +95,7 @@ test('afterResponse hook accept success response', async t => {
 		foo: true
 	};
 
-	await t.notThrowsAsync(() => ky.post(
+	await t.notThrowsAsync(ky.post(
 		server.url,
 		{
 			json,
@@ -123,7 +123,7 @@ test('afterResponse hook accept fail response', async t => {
 		foo: true
 	};
 
-	await t.throwsAsync(() => ky.post(
+	await t.throwsAsync(ky.post(
 		server.url,
 		{
 			json,
@@ -189,7 +189,7 @@ test('afterResponse hook can throw error to reject the request promise', async t
 	const expectError = new Error('Error from `afterResponse` hook');
 
 	// Sync hook function
-	await t.throwsAsync(() => ky.get(
+	await t.throwsAsync(ky.get(
 		server.url,
 		{
 			hooks: {
@@ -205,7 +205,7 @@ test('afterResponse hook can throw error to reject the request promise', async t
 	});
 
 	// Async hook function
-	await t.throwsAsync(() => ky.get(
+	await t.throwsAsync(ky.get(
 		server.url,
 		{
 			hooks: {

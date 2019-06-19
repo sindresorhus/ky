@@ -8,7 +8,7 @@ test('common method is normalized', async t => {
 		response.end();
 	});
 
-	await t.notThrowsAsync(() => ky(server.url, {
+	await t.notThrowsAsync(ky(server.url, {
 		method: 'get',
 		hooks: {
 			beforeRequest: [
@@ -28,7 +28,7 @@ test('custom method remains identical', async t => {
 		response.end();
 	});
 
-	await t.notThrowsAsync(() => ky(server.url, {
+	await t.notThrowsAsync(ky(server.url, {
 		method: 'report',
 		hooks: {
 			beforeRequest: [
@@ -38,6 +38,18 @@ test('custom method remains identical', async t => {
 			]
 		}
 	}));
+
+	await server.close();
+});
+
+test('shortcut headers have correct accept headers set', async t => {
+	const server = await createTestServer();
+	server.all('/', (request, response) => {
+		t.is(request.headers.accept, 'text/*');
+		response.end('whatever');
+	});
+
+	await ky.get(server.url).text();
 
 	await server.close();
 });

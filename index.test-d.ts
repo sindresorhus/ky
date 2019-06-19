@@ -1,18 +1,10 @@
-import {expectType} from 'tsd-check';
-import createTestServer from 'create-test-server';
-import ky, {Ky, HTTPError, TimeoutError, ResponsePromise, JSONValue} from '.';
+import {expectType} from 'tsd';
+import ky, {HTTPError, TimeoutError, ResponsePromise, DownloadProgress} from '.';
 
-const server = await createTestServer();
-server.get('/', (request, response) => {
-	response.end();
-});
-
-server.get('/timeout', (request, response) => {
-	setTimeout(() => response.end(), 11000);
-});
+const url = 'https://sindresorhus';
 
 // Test Ky
-expectType<ResponsePromise>(ky(server.url));
+expectType<ResponsePromise>(ky(url));
 
 const requestMethods = [
 	'get',
@@ -21,29 +13,34 @@ const requestMethods = [
 	'patch',
 	'head',
 	'delete'
-];
+] as const;
+
+type Method = typeof requestMethods[number];
+
+// Test Ky HTTP methods
+for (const method of requestMethods) {
+	expectType<ResponsePromise>(ky[method as Method](url));
+}
 
 const requestBodyMethods = [
 	'post',
 	'put',
 	'delete'
-];
+] as const;
 
-// Test Ky HTTP methods
-for (const method of requestMethods) {
-	expectType<ResponsePromise>(await ky[method](server.url));
-}
+type RequestBodyMethod = typeof requestBodyMethods[number];
 
 // Test Ky HTTP methods with `body`
 for (const method of requestBodyMethods) {
-	expectType<ResponsePromise>(await ky[method](server.url, {body: 'x'}));
+	expectType<ResponsePromise>(ky[method as RequestBodyMethod](url, {body: 'x'}));
 }
 
-expectType<Ky>(ky.extend({}));
-expectType<HTTPError>(new HTTPError());
+expectType<typeof ky>(ky.create({}));
+expectType<typeof ky>(ky.extend({}));
+expectType<HTTPError>(new HTTPError(new Response));
 expectType<TimeoutError>(new TimeoutError);
 
-ky(server.url, {
+ky(url, {
 	hooks: {
 		beforeRequest: [
 			options => {
@@ -59,28 +56,36 @@ ky(server.url, {
 	}
 });
 
-ky(new URL(server.url));
-ky(new Request(server.url));
+ky(new URL(url));
+ky(new Request(url));
 
 // `searchParams` option
-ky(server.url, {searchParams: 'foo=bar'});
-ky(server.url, {searchParams: {foo: 'bar'}});
-ky(server.url, {searchParams: {foo: 1}});
-ky(server.url, {searchParams: new URLSearchParams({foo: 'bar'})});
+ky(url, {searchParams: 'foo=bar'});
+ky(url, {searchParams: {foo: 'bar'}});
+ky(url, {searchParams: {foo: 1}});
+ky(url, {searchParams: new URLSearchParams({foo: 'bar'})});
 
 // `json` option
-ky.post(server.url, {
+ky.post(url, {
 	json: {
 		foo: true
 	}
 });
-ky.post(server.url, {
+ky.post(url, {
 	json: 'x'
 });
 
-expectType<JSONValue>(await ky(server.url).json());
+expectType<Promise<unknown>>(ky(url).json());
 
 interface Result {
 	value: number;
 }
-expectType<Result>(await ky(server.url).json<Result>());
+expectType<Promise<Result>>(ky(url).json<Result>());
+
+// `onDownloadProgress` option
+ky(url, {
+	onDownloadProgress: (progress, chunk) => {
+		expectType<DownloadProgress>(progress);
+		expectType<Uint8Array>(chunk);
+	}
+});
