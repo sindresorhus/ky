@@ -30,6 +30,39 @@ export interface Hooks {
 	afterResponse?: AfterResponseHook[];
 }
 
+export interface RetryOptions {
+	/**
+	 * Number of retries to retry failed requests
+	 *
+	 * @default 2
+	 */
+	retries?: number,
+	/**
+	 * The set of methods allowed to retry
+	 *
+	 * @default new Set(['get', 'put', 'head', 'delete', 'options', 'trace'])
+	 */
+	methods?: Set<string>,
+	/**
+	 * The set of statusCodes allowed to retry
+	 *
+	 * @default new Set([408, 413, 429, 500, 502, 503, 504])
+	 */
+	statusCodes?: Set<number>,
+	/**
+	 * The set of statusCodes allowed to retry with Retry-After header
+	 *
+	 * @default new Set([413, 429, 503])
+	 */
+	afterStatusCodes?: Set<number>,
+	/**
+	 * If Retry-After header is greater than `maxRetryAfter`, the request will be canceled.
+	 *
+	 * @default undefined
+	 */
+	maxRetryAfter?: undefined | number
+}
+
 /**
  * Options are the same as fetch, with some exceptions.
  */
@@ -52,11 +85,9 @@ export interface Options extends RequestInit {
 	prefixUrl?: URL | string;
 
 	/**
-	 * Numer of times to retry failed requests.
-	 *
-	 * @default 2
+	 * RetryOptions or Number of times to retry failed requests
 	 */
-	retry?: number;
+	retry?: RetryOptions | number;
 
 	/**
 	 * Timeout in milliseconds for getting a response.
