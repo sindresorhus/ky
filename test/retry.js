@@ -146,3 +146,68 @@ test('retry - doesn\'t retry on 413 without Retry-After header', async t => {
 
 	await server.close();
 });
+
+test('retry - respect number of retries', async t => {
+	let requestCount = 0;
+
+	const server = await createTestServer();
+	server.get('/', (request, response) => {
+		requestCount++;
+
+		response.sendStatus(408);
+	});
+
+	await t.throwsAsync(ky(server.url, {retry: {retries: 3}}).text());
+	t.is(requestCount, 3);
+
+	await server.close();
+});
+
+test('retry - respect retry methods', async t => {
+	let requestCount = 0;
+
+	const server = await createTestServer();
+	server.post('/', (request, response) => {
+		requestCount++;
+
+		response.sendStatus(408);
+	});
+
+	server.get('/', (request, response) => {
+		requestCount++;
+
+		response.sendStatus(408);
+	});
+
+	await t.throwsAsync(ky(server.url, {method: 'post', retry: {retries: 3, methods: new Set(['get'])}}).text());
+	t.is(requestCount, 1);
+
+	requestCount = 0;
+	await t.throwsAsync(ky(server.url, {retry: {retries: 3, methods: new Set(['get'])}}).text());
+	t.is(requestCount, 3);
+
+	await server.close();
+});
+
+test('retry - respect maxRetryAfter', async t => {
+	let requestCount = 0;
+
+	const server = await createTestServer();
+	server.get('/', async (request, response) => {
+		requestCount++;
+
+		response.writeHead(413, {
+			'Retry-After': 1
+		});
+		response.end('');
+	});
+
+	await t.throwsAsync(ky(server.url, {retry: {retries: 5, maxRetryAfter: 100}}).text());
+	t.is(requestCount, 1);
+
+	requestCount = 0;
+	await t.throwsAsync(ky(server.url, {retry: {retries: 5, maxRetryAfter: 2000}}).text());
+	t.is(requestCount, 5);
+
+	await server.close();
+});
