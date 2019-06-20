@@ -255,7 +255,7 @@ import ky from 'ky';
 
 (async () => {
 	await ky('https://example.com', {
-		onProgress: (progress, chunk) => {
+		onDownloadProgress: (progress, chunk) => {
 			// Example output:
 			// `0% - 0 of 1271 bytes`
 			// `100% - 1271 of 1271 bytes`
