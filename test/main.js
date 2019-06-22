@@ -186,17 +186,31 @@ test('timeout:false option', async t => {
 });
 
 test('invalid timeout option', async t => { // #117
-	let requestCount = 0;
-
 	const server = await createTestServer();
 	server.get('/', async (request, response) => {
-		requestCount++;
 		await delay(1000);
 		response.end(fixture);
 	});
 
 	await t.throwsAsync(ky(server.url, {timeout: 21474836470}).text(), RangeError, 'The `timeout` option cannot be greater than 2147483647');
-	t.is(requestCount, 1);
+
+	await server.close();
+});
+
+test('timeout option is cancelled when the promise is resolved', async t => {
+	const server = await createTestServer();
+
+	server.get('/', (request, response) => {
+		response.end(request.method);
+	});
+
+	const start = new Date().getTime();
+
+	await ky(server.url, {timeout: 2000});
+
+	const duration = start - new Date().getTime();
+
+	t.true(duration < 10);
 
 	await server.close();
 });
