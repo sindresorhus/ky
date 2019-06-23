@@ -186,13 +186,17 @@ test('timeout:false option', async t => {
 });
 
 test('invalid timeout option', async t => { // #117
+	let requestCount = 0;
+
 	const server = await createTestServer();
 	server.get('/', async (request, response) => {
+		requestCount++;
 		await delay(1000);
 		response.end(fixture);
 	});
 
 	await t.throwsAsync(ky(server.url, {timeout: 21474836470}).text(), RangeError, 'The `timeout` option cannot be greater than 2147483647');
+	t.is(requestCount, 0);
 
 	await server.close();
 });
@@ -305,7 +309,7 @@ test('ky.create() throws when given non-object argument', t => {
 		'hello',
 		[],
 		null,
-		() => {},
+		() => { },
 		Symbol('ky')
 	];
 

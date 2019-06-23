@@ -115,15 +115,15 @@ class TimeoutError extends Error {
 	}
 }
 
-function safeTimeout(resolve, ms, reject) {
+const safeTimeout = (resolve, reject, ms) => {
 	if (ms > 2147483647) { // The maximum value of a 32bit int (see #117)
 		reject(new RangeError('The `timeout` option cannot be greater than 2147483647'));
 	}
 
 	return setTimeout(resolve, ms);
-}
+};
 
-const delay = ms => new Promise((resolve, reject) => safeTimeout(resolve, ms, reject));
+const delay = ms => new Promise((resolve, reject) => safeTimeout(resolve, reject, ms));
 
 // `Promise.race()` workaround (#91)
 const timeout = (promise, ms, abortController) =>
@@ -134,7 +134,7 @@ const timeout = (promise, ms, abortController) =>
 			}
 
 			reject(new TimeoutError());
-		}, ms, reject);
+		}, reject, ms);
 
 		/* eslint-disable promise/prefer-await-to-then */
 		promise
