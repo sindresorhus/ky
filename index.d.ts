@@ -38,35 +38,42 @@ export interface Hooks {
 
 export interface RetryOptions {
 	/**
-	 * Number of retries to retry failed requests
-	 *
-	 * @default 2
-	 */
-	retries?: number,
+ 	Number of retries to retry failed requests
+
+ 	@default 2
+
+ 	@example
+ 	```
+ 	import ky from 'ky';
+
+ 	const parsed = await ky('https://example.com', {retry: {retries: 10, methods: ['get'], statusCodes: [413]}}).json();
+ 	```
+ 	*/
+	retries?: number;
 	/**
-	 * The set of methods allowed to retry
-	 *
-	 * @default new Set(['get', 'put', 'head', 'delete', 'options', 'trace'])
-	 */
-	methods?: Set<string>,
+ 	The set of methods allowed to retry
+
+ 	@default new Set(['get', 'put', 'head', 'delete', 'options', 'trace'])
+ 	*/
+	methods?: Set<string> | Array<string>;
 	/**
-	 * The set of statusCodes allowed to retry
-	 *
-	 * @default new Set([408, 413, 429, 500, 502, 503, 504])
-	 */
-	statusCodes?: Set<number>,
+ 	The set of statusCodes allowed to retry
+
+ 	@default new Set([408, 413, 429, 500, 502, 503, 504])
+ 	*/
+	statusCodes?: Set<number> | Array<number>;
 	/**
-	 * The set of statusCodes allowed to retry with Retry-After header
-	 *
-	 * @default new Set([413, 429, 503])
-	 */
-	afterStatusCodes?: Set<number>,
+ 	The set of statusCodes allowed to retry with Retry-After header
+
+ 	@default new Set([413, 429, 503])
+ 	*/
+	afterStatusCodes?: Set<number> | Array<number>;
 	/**
-	 * If Retry-After header is greater than `maxRetryAfter`, the request will be canceled.
-	 *
-	 * @default undefined
-	 */
-	maxRetryAfter?: undefined | number
+ 	If Retry-After header is greater than `maxRetryAfter`, the request will be canceled.
+
+ 	@default undefined
+ 	*/
+	maxRetryAfter?: number;
 }
 
 /**

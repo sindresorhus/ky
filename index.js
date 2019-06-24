@@ -145,7 +145,22 @@ const defaultRetryOptions = {
 	statusCodes: retryStatusCodes,
 	afterStatusCodes: retryAfterStatusCodes
 };
-const normalizeRetryOptions = retry => ({...defaultRetryOptions, ...(typeof retry === 'number' ? {retries: retry} : retry)});
+const normalizeRetryOptions = retry => {
+	if (typeof retry === 'number') {
+		return {
+			...defaultRetryOptions,
+			retries: retry
+		};
+	}
+
+	return {
+		...defaultRetryOptions,
+		...retry,
+		methods: retry.methods ? new Set(retryMethods) : defaultRetryOptions.methods,
+		statusCodes: retry.statusCodes ? new Set(retryStatusCodes) : defaultRetryOptions.statusCodes,
+		afterStatusCodes: retryAfterStatusCodes
+	};
+};
 
 class Ky {
 	constructor(input, {

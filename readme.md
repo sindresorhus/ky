@@ -172,7 +172,7 @@ import ky from 'ky';
 
 ##### retry
 
-Type: `Object` or `number`
+Type: `number | object`<br>
 
 Default:
 - retries: `2`
