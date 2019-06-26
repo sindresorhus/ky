@@ -172,7 +172,7 @@ import ky from 'ky';
 
 ##### retry
 
-Type: `number | object`<br>
+Type: `object | number`<br>
 
 Default:
 - retries: `2`
@@ -189,6 +189,15 @@ If [`Retry-After`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Ret
 
 Delays between retries counts with function `0.3 * (2 ** (retry - 1)) * 1000`, where `retry` is attempt number (starts from 1).
 
+```js
+import ky from 'ky';
+
+(async () => {
+	const retryOptions = {retries: 10, methods: ['get'], statusCodes: [413]};
+
+  	const parsed = await ky('https://example.com', {retry: retryOptions}).json();
+})();
+```
 
 ##### timeout
 

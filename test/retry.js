@@ -227,3 +227,92 @@ test('retry - can provide retry as number', async t => {
 
 	await server.close();
 });
+
+test('doesn\'t retry on 413 with empty statusCodes and methods', async t => {
+	let requestCount = 0;
+
+	const server = await createTestServer();
+
+	server.get('/', async (request, response) => {
+		requestCount++;
+
+		response.sendStatus(413);
+	});
+
+	await t.throwsAsync(ky(server.url, {retry: {
+		retries: 10,
+		statusCodes: [],
+		methods: []
+	}}).text());
+
+	t.is(requestCount, 1);
+});
+
+test('doesn\'t retry on 413 with empty methods', async t => {
+	let requestCount = 0;
+
+	const server = await createTestServer();
+	server.get('/', async (request, response) => {
+		requestCount++;
+
+		response.sendStatus(413);
+	});
+
+	await t.throwsAsync(ky(server.url, {retry: {
+		retries: 10,
+		methods: new Set([])
+	}}).text());
+
+	t.is(requestCount, 1);
+});
+
+test('does retry on 408 with methods provided as array', async t => {
+	let requestCount = 0;
+
+	const server = await createTestServer();
+	server.get('/', async (request, response) => {
+		requestCount++;
+
+		response.sendStatus(408);
+	});
+
+	await t.throwsAsync(ky(server.url, {retry: {
+		retries: 4,
+		methods: ['get']
+	}}).text());
+
+	t.is(requestCount, 4);
+});
+
+test('does retry on 408 with statusCodes provided as array', async t => {
+	let requestCount = 0;
+
+	const server = await createTestServer();
+	server.get('/', async (request, response) => {
+		requestCount++;
+
+		response.sendStatus(408);
+	});
+
+	await t.throwsAsync(ky(server.url, {retry: {
+		retries: 4,
+		statusCodes: [408]
+	}}).text());
+
+	t.is(requestCount, 4);
+});
+
+test('doesn\'t retry when retry.retries is set to 0', async t => {
+	let requestCount = 0;
+
+	const server = await createTestServer();
+	server.get('/', (request, response) => {
+		requestCount++;
+
+		response.sendStatus(408);
+	});
+
+	await t.throwsAsync(ky(server.url, {retry: {retries: 0}}).text());
+
+	t.is(requestCount, 1);
+});
