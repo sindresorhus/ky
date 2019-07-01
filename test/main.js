@@ -397,3 +397,60 @@ test('throws when using FormData with `content-type` header', t => {
 		}
 	}), 'The `content-type` header cannot be used with a URLSearchParams body. It will be set automatically.');
 });
+
+test('supports Request instance as input', async t => {
+	const server = await createTestServer();
+	const inputRequest = new Request(server.url, {method: 'POST'});
+
+	server.post('/', (request, response) => {
+		response.end(request.method);
+	});
+
+	t.is(await ky(inputRequest).text(), inputRequest.method);
+
+	await server.close();
+});
+
+test('options override Request instance method', async t => {
+	const server = await createTestServer();
+	const inputRequest = new Request(server.url, {method: 'GET'});
+
+	server.post('/', (request, response) => {
+		response.end(request.method);
+	});
+
+	t.is(await ky(inputRequest, {method: 'POST'}).text(), 'POST');
+
+	await server.close();
+});
+
+test('options override Request instance body', async t => {
+	const server = await createTestServer();
+
+	const requestBody = JSON.stringify({test: true});
+	const expectedBody = JSON.stringify({test: false});
+
+	const inputRequest = new Request(server.url, {
+		method: 'POST',
+		body: requestBody
+	});
+
+	server.post('/', (request, response) => {
+		let body = [];
+
+		request.on('data', chunk => {
+			body.push(chunk);
+		});
+
+		request.on('end', () => {
+			body = Buffer.concat(body).toString();
+
+			t.is(body, expectedBody);
+			response.end();
+		});
+	});
+
+	await ky(inputRequest, {body: expectedBody});
+
+	await server.close();
+});
