@@ -21,18 +21,27 @@ const getGlobal = property => {
 	}
 };
 
-const document = getGlobal('document');
-const Headers = getGlobal('Headers');
-const Response = getGlobal('Response');
-const ReadableStream = getGlobal('ReadableStream');
-const fetch = getGlobal('fetch');
-const AbortController = getGlobal('AbortController');
-const FormData = getGlobal('FormData');
+const globals = [
+	'document',
+	'Headers',
+	'Response',
+	'ReadableStream',
+	'fetch',
+	'AbortController',
+	'FormData'
+].reduce((acc, key) => {
+	Object.defineProperty(acc, key, {
+		get() {
+			return getGlobal(key);
+		}
+	});
+	return acc;
+}, {});
 
 const isObject = value => value !== null && typeof value === 'object';
-const supportsAbortController = typeof AbortController === 'function';
-const supportsStreams = typeof ReadableStream === 'function';
-const supportsFormData = typeof FormData === 'function';
+const supportsAbortController = typeof globals.AbortController === 'function';
+const supportsStreams = typeof globals.ReadableStream === 'function';
+const supportsFormData = typeof globals.FormData === 'function';
 
 const deepMerge = (...sources) => {
 	let returnValue = {};
@@ -183,7 +192,7 @@ class Ky {
 		this._input = this._options.prefixUrl + this._input;
 
 		if (searchParams) {
-			const url = new URL(this._input, document && document.baseURI);
+			const url = new URL(this._input, globals.document && globals.document.baseURI);
 			if (typeof searchParams === 'string' || (URLSearchParams && searchParams instanceof URLSearchParams)) {
 				url.search = searchParams;
 			} else if (Object.values(searchParams).every(param => typeof param === 'number' || typeof param === 'string')) {
@@ -202,9 +211,9 @@ class Ky {
 		}, hooks);
 		this._throwHttpErrors = throwHttpErrors;
 
-		const headers = new Headers(this._options.headers || {});
+		const headers = new globals.Headers(this._options.headers || {});
 
-		if (((supportsFormData && this._options.body instanceof FormData) || this._options.body instanceof URLSearchParams) && headers.has('content-type')) {
+		if (((supportsFormData && this._options.body instanceof globals.FormData) || this._options.body instanceof URLSearchParams) && headers.has('content-type')) {
 			throw new Error(`The \`content-type\` header cannot be used with a ${this._options.body.constructor.name} body. It will be set automatically.`);
 		}
 
@@ -227,7 +236,7 @@ class Ky {
 				// eslint-disable-next-line no-await-in-loop
 				const modifiedResponse = await hook(response.clone());
 
-				if (modifiedResponse instanceof Response) {
+				if (modifiedResponse instanceof globals.Response) {
 					response = modifiedResponse;
 				}
 			}
@@ -322,10 +331,10 @@ class Ky {
 		}
 
 		if (this._timeout === false) {
-			return fetch(this._input, this._options);
+			return globals.fetch(this._input, this._options);
 		}
 
-		return timeout(fetch(this._input, this._options), this._timeout, this.abortController);
+		return timeout(globals.fetch(this._input, this._options), this._timeout, this.abortController);
 	}
 
 	/* istanbul ignore next */
@@ -333,8 +342,8 @@ class Ky {
 		const totalBytes = Number(response.headers.get('content-length')) || 0;
 		let transferredBytes = 0;
 
-		return new Response(
-			new ReadableStream({
+		return new globals.Response(
+			new globals.ReadableStream({
 				start(controller) {
 					const reader = response.body.getReader();
 
