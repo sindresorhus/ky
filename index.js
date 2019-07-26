@@ -140,7 +140,9 @@ const timeout = (promise, ms, abortController) =>
 		promise
 			.then(resolve)
 			.catch(reject)
-			.then(() => clearTimeout(timeoutID));
+			.then(() => {
+				clearTimeout(timeoutID);
+			});
 		/* eslint-enable promise/prefer-await-to-then */
 	});
 
