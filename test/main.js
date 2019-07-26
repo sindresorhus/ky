@@ -309,7 +309,7 @@ test('ky.create() throws when given non-object argument', t => {
 		'hello',
 		[],
 		null,
-		() => { },
+		() => {},
 		Symbol('ky')
 	];
 
