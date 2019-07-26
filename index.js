@@ -115,27 +115,36 @@ class TimeoutError extends Error {
 	}
 }
 
-const delay = ms => new Promise((resolve, reject) => {
+const safeTimeout = (resolve, reject, ms) => {
 	if (ms > 2147483647) { // The maximum value of a 32bit int (see #117)
 		reject(new RangeError('The `timeout` option cannot be greater than 2147483647'));
-	} else {
-		setTimeout(resolve, ms);
 	}
-});
+
+	return setTimeout(resolve, ms);
+};
+
+const delay = ms => new Promise((resolve, reject) => safeTimeout(resolve, reject, ms));
 
 // `Promise.race()` workaround (#91)
-const timeout = (promise, ms, abortController) => new Promise((resolve, reject) => {
-	/* eslint-disable promise/prefer-await-to-then */
-	promise.then(resolve).catch(reject);
-	delay(ms).then(() => {
-		if (supportsAbortController) {
-			abortController.abort();
-		}
+const timeout = (promise, ms, abortController) =>
+	new Promise((resolve, reject) => {
+		const timeoutID = safeTimeout(() => {
+			if (supportsAbortController) {
+				abortController.abort();
+			}
 
-		reject(new TimeoutError());
-	}).catch(reject);
-	/* eslint-enable promise/prefer-await-to-then */
-});
+			reject(new TimeoutError());
+		}, reject, ms);
+
+		/* eslint-disable promise/prefer-await-to-then */
+		promise
+			.then(resolve)
+			.catch(reject)
+			.then(() => {
+				clearTimeout(timeoutID);
+			});
+		/* eslint-enable promise/prefer-await-to-then */
+	});
 
 const normalizeRequestMethod = input => requestMethods.includes(input) ? input.toUpperCase() : input;
 
