@@ -43,24 +43,28 @@ export interface RetryOptions {
  	@default 2
  	*/
 	retries?: number;
+
 	/**
  	The set of methods allowed to retry
 
  	@default new Set(['get', 'put', 'head', 'delete', 'options', 'trace'])
  	*/
 	methods?: string[];
+
 	/**
  	The set of statusCodes allowed to retry
 
  	@default new Set([408, 413, 429, 500, 502, 503, 504])
  	*/
 	statusCodes?: number[];
+
 	/**
  	The set of statusCodes allowed to retry with Retry-After header
 
  	@default new Set([413, 429, 503])
  	*/
 	afterStatusCodes?: number[];
+
 	/**
  	If Retry-After header is greater than `maxRetryAfter`, the request will be canceled.
 
