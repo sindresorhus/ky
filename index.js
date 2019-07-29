@@ -195,11 +195,26 @@ class Ky {
 			const url = new URL(this._input, document && document.baseURI);
 			if (typeof searchParams === 'string' || (URLSearchParams && searchParams instanceof URLSearchParams)) {
 				url.search = searchParams;
-			} else if (Object.values(searchParams).every(param => typeof param === 'number' || typeof param === 'string')) {
-				url.search = new URLSearchParams(searchParams).toString();
 			} else {
-				throw new Error('The `searchParams` option must be either a string, `URLSearchParams` instance or an object with string and number values');
+				const search = new URLSearchParams();
+				Object.entries(searchParams).forEach(([key, value]) => {
+					if (typeof value === 'number' || typeof value === 'string') {
+						search.append(key, value);
+					} else if (value instanceof Array) {
+						value.forEach(subValue => {
+							if (typeof subValue === 'number' || typeof subValue === 'string') {
+								search.append(key, subValue);
+							} else {
+								throw new Error('The `searchParams` option must be either a string, `URLSearchParams` instance or an object with (array of) string and number values');
+							}
+						})
+					} else {
+						throw new Error('The `searchParams` option must be either a string, `URLSearchParams` instance or an object with (array of) string and number values');
+					}
+				});
+				url.search = search.toString();
 			}
+
 
 			this._input = url.toString();
 		}

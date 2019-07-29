@@ -49,7 +49,7 @@ export interface Options extends RequestInit {
 	Search parameters to include in the request URL.
 	Setting this will override all existing search parameters in the input URL.
 	*/
-	searchParams?: string | {[key: string]: string | number} | URLSearchParams;
+	searchParams?: string | {[key: string]: string | number | Array<string | number>} | URLSearchParams;
 
 	/**
 	Prepends the input URL with the specified prefix.
