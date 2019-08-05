@@ -153,11 +153,19 @@ const normalizeRetryOptions = retry => {
 		};
 	}
 
+	if (retry.methods && !Array.isArray(retry.methods)) {
+		throw new Error('retry.methods must be an array');
+	}
+
+	if (retry.statusCodes && !Array.isArray(retry.statusCodes)) {
+		throw new Error('retry.statusCodes must be an array');
+	}
+
 	return {
 		...defaultRetryOptions,
 		...retry,
-		methods: retry.methods ? new Set(retryMethods) : defaultRetryOptions.methods,
-		statusCodes: retry.statusCodes ? new Set(retryStatusCodes) : defaultRetryOptions.statusCodes,
+		methods: retry.methods ? new Set(retry.methods) : defaultRetryOptions.methods,
+		statusCodes: retry.statusCodes ? new Set(retry.statusCodes) : defaultRetryOptions.statusCodes,
 		afterStatusCodes: retryAfterStatusCodes
 	};
 };
