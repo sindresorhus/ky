@@ -47,21 +47,21 @@ export interface RetryOptions {
 	/**
  	The set of methods allowed to retry
 
- 	@default new Set(['get', 'put', 'head', 'delete', 'options', 'trace'])
+ 	@default ['get', 'put', 'head', 'delete', 'options', 'trace']
  	*/
 	methods?: string[];
 
 	/**
  	The set of statusCodes allowed to retry
 
- 	@default new Set([408, 413, 429, 500, 502, 503, 504])
+ 	@default [408, 413, 429, 500, 502, 503, 504]
  	*/
 	statusCodes?: number[];
 
 	/**
  	The set of statusCodes allowed to retry with Retry-After header
 
- 	@default new Set([413, 429, 503])
+ 	@default [413, 429, 503]
  	*/
 	afterStatusCodes?: number[];
 
