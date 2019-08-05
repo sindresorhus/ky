@@ -179,11 +179,11 @@ test('retry - respect retry methods', async t => {
 		response.sendStatus(408);
 	});
 
-	await t.throwsAsync(ky(server.url, {method: 'post', retry: {retries: 3, methods: new Set(['get'])}}).text());
+	await t.throwsAsync(ky(server.url, {method: 'post', retry: {retries: 3, methods: ['get']}}).text());
 	t.is(requestCount, 1);
 
 	requestCount = 0;
-	await t.throwsAsync(ky(server.url, {retry: {retries: 3, methods: new Set(['get'])}}).text());
+	await t.throwsAsync(ky(server.url, {retry: {retries: 3, methods: ['get']}}).text());
 	t.is(requestCount, 3);
 
 	await server.close();
@@ -246,6 +246,8 @@ test('doesn\'t retry on 413 with empty statusCodes and methods', async t => {
 	}}).text());
 
 	t.is(requestCount, 1);
+
+	await server.close();
 });
 
 test('doesn\'t retry on 413 with empty methods', async t => {
@@ -260,10 +262,12 @@ test('doesn\'t retry on 413 with empty methods', async t => {
 
 	await t.throwsAsync(ky(server.url, {retry: {
 		retries: 10,
-		methods: new Set([])
+		methods: []
 	}}).text());
 
 	t.is(requestCount, 1);
+
+	await server.close();
 });
 
 test('does retry on 408 with methods provided as array', async t => {
@@ -282,6 +286,8 @@ test('does retry on 408 with methods provided as array', async t => {
 	}}).text());
 
 	t.is(requestCount, 4);
+
+	await server.close();
 });
 
 test('does retry on 408 with statusCodes provided as array', async t => {
@@ -300,6 +306,8 @@ test('does retry on 408 with statusCodes provided as array', async t => {
 	}}).text());
 
 	t.is(requestCount, 4);
+
+	await server.close();
 });
 
 test('doesn\'t retry when retry.retries is set to 0', async t => {
@@ -315,4 +323,22 @@ test('doesn\'t retry when retry.retries is set to 0', async t => {
 	await t.throwsAsync(ky(server.url, {retry: {retries: 0}}).text());
 
 	t.is(requestCount, 1);
+
+	await server.close();
+});
+
+test('throws when retry.methods is not an array', async t => {
+	const server = await createTestServer();
+
+	await t.throws(() => ky(server.url, {retry: {methods: new Set(['get'])}}));
+
+	await server.close();
+});
+
+test('throws when retry.statusCodes is not an array', async t => {
+	const server = await createTestServer();
+
+	await t.throws(() => ky(server.url, {retry: {statusCodes: new Set([403])}}));
+
+	await server.close();
 });
