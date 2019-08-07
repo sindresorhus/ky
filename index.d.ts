@@ -92,12 +92,12 @@ export interface Options extends RequestInit {
 	onDownloadProgress?: (progress: DownloadProgress, chunk: Uint8Array) => void;
 }
 
-interface OptionsWithoutBody extends _Omit<Options, 'body'> {
+export interface OptionsWithoutBody extends _Omit<Options, 'body'> {
 	method?: 'get' | 'head'
 }
 
-interface OptionsWithBody extends Options {
-	method?: 'post' | 'put' | 'delete'
+export interface OptionsWithBody extends Options {
+	method?: 'post' | 'put' | 'delete' | 'patch'
 }
 
 /**
