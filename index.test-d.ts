@@ -20,12 +20,13 @@ type Method = typeof requestMethods[number];
 // Test Ky HTTP methods
 for (const method of requestMethods) {
 	expectType<ResponsePromise>(ky[method as Method](url));
-}
+},
 
 const requestBodyMethods = [
 	'post',
 	'put',
-	'delete'
+	'delete',
+	'patch'
 ] as const;
 
 type RequestBodyMethod = typeof requestBodyMethods[number];
