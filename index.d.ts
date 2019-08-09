@@ -96,10 +96,6 @@ interface OptionsWithoutBody extends _Omit<Options, 'body'> {
 	method?: 'get' | 'head'
 }
 
-interface OptionsWithBody extends Options {
-	method?: 'post' | 'put' | 'delete'
-}
-
 /**
 Returns a `Response` object with `Body` methods added for convenience.
 */
@@ -172,7 +168,7 @@ declare const ky: {
 	})();
 	```
 	*/
-	(url: Request | URL | string, options?: OptionsWithoutBody | OptionsWithBody): ResponsePromise;
+	(url: Request | URL | string, options?: OptionsWithoutBody | Options): ResponsePromise;
 
 	/**
 	Fetch the given `url` using the option `{method: 'get'}`.
@@ -180,7 +176,7 @@ declare const ky: {
 	@param url - `Request` object, `URL` object, or URL string.
 	@returns A promise with `Body` methods added.
 	*/
-	get(url: Request | URL | string, options?: _Omit<Options, 'body'>): ResponsePromise;
+	get(url: Request | URL | string, options?: OptionsWithoutBody): ResponsePromise;
 
 	/**
 	Fetch the given `url` using the option `{method: 'post'}`.
@@ -212,7 +208,7 @@ declare const ky: {
 	@param url - `Request` object, `URL` object, or URL string.
 	@returns A promise with `Body` methods added.
 	*/
-	head(url: Request | URL | string, options?: _Omit<Options, 'body'>): ResponsePromise;
+	head(url: Request | URL | string, options?: OptionsWithoutBody): ResponsePromise;
 
 	/**
 	Fetch the given `url` using the option `{method: 'delete'}`.
