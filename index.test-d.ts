@@ -1,5 +1,5 @@
 import {expectType} from 'tsd';
-import ky, {HTTPError, TimeoutError, ResponsePromise, DownloadProgress, Options} from '.';
+import ky, {HTTPError, TimeoutError, ResponsePromise, DownloadProgress, Options, Input} from '.';
 
 const url = 'https://sindresorhus';
 
@@ -62,12 +62,13 @@ ky(url, {
 ky(new URL(url));
 ky(new Request(url));
 
-// reusable options
+// reusable types
+const input: Input = new URL('https://sindresorhus');
 const options: Options = {
 	method: 'get',
 	timeout: 5000,
 }
-ky(url, options);
+ky(input, options);
 
 // `searchParams` option
 ky(url, {searchParams: 'foo=bar'});
