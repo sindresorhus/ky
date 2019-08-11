@@ -1,5 +1,5 @@
 import {expectType} from 'tsd';
-import ky, {HTTPError, TimeoutError, ResponsePromise, DownloadProgress} from '.';
+import ky, {HTTPError, TimeoutError, ResponsePromise, DownloadProgress, Options, Input} from '.';
 
 const url = 'https://sindresorhus';
 
@@ -20,12 +20,14 @@ type Method = typeof requestMethods[number];
 // Test Ky HTTP methods
 for (const method of requestMethods) {
 	expectType<ResponsePromise>(ky[method as Method](url));
+	ky(url, {method});
 }
 
 const requestBodyMethods = [
 	'post',
 	'put',
-	'delete'
+	'delete',
+	'patch'
 ] as const;
 
 type RequestBodyMethod = typeof requestBodyMethods[number];
@@ -33,6 +35,7 @@ type RequestBodyMethod = typeof requestBodyMethods[number];
 // Test Ky HTTP methods with `body`
 for (const method of requestBodyMethods) {
 	expectType<ResponsePromise>(ky[method as RequestBodyMethod](url, {body: 'x'}));
+	ky(url, {method, body: 'x'});
 }
 
 expectType<typeof ky>(ky.create({}));
@@ -58,6 +61,14 @@ ky(url, {
 
 ky(new URL(url));
 ky(new Request(url));
+
+// Reusable types
+const input: Input = new URL('https://sindresorhus');
+const options: Options = {
+	method: 'get',
+	timeout: 5000,
+}
+ky(input, options);
 
 // `searchParams` option
 ky(url, {searchParams: 'foo=bar'});
