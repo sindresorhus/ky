@@ -20,7 +20,7 @@ type Method = typeof requestMethods[number];
 // Test Ky HTTP methods
 for (const method of requestMethods) {
 	expectType<ResponsePromise>(ky[method as Method](url));
-	ky(url, { method });
+	ky(url, {method});
 }
 
 const requestBodyMethods = [
@@ -62,7 +62,7 @@ ky(url, {
 ky(new URL(url));
 ky(new Request(url));
 
-// reusable types
+// Reusable types
 const input: Input = new URL('https://sindresorhus');
 const options: Options = {
 	method: 'get',
