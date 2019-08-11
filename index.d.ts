@@ -96,11 +96,11 @@ export interface Options extends RequestInit {
 Normalized options passed to the `fetch` call and the beforeRequest hooks.
 */
 interface NormalizedOptions extends RequestInit {
-	// Extended from RequestInit, but ensured to be set (not optional).
+	// Extended from `RequestInit`, but ensured to be set (not optional).
 	method: RequestInit['method'];
 	credentials: RequestInit['credentials'];
 
-	// Extended from custom Ky Options, but ensured to be set (not optional).
+	// Extended from custom Ky `Options`, but ensured to be set (not optional).
 	retry: Options['retry'];
 	prefixUrl: Options['prefixUrl'];
 	onDownloadProgress: Options['onDownloadProgress'];
