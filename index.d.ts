@@ -1,6 +1,6 @@
 /// <reference lib="dom"/>
 
-type _Omit<T, K extends keyof T> = Pick<T, Exclude<keyof T, K>>;
+type Except<T, K extends keyof T> = Pick<T, Exclude<keyof T, K>>;
 
 export type BeforeRequestHook = (options: NormalizedOptions) => void | Promise<void>;
 
@@ -93,7 +93,7 @@ interface KyOptions extends RequestInit {
 }
 
 /**
-Normalized options passed to the `fetch` call and the beforeRequest hooks.
+Normalized options passed to the `fetch` call and the `beforeRequest` hooks.
 */
 interface NormalizedOptions extends RequestInit {
 	// Extended from `RequestInit`, but ensured to be set (not optional).
@@ -109,7 +109,7 @@ interface NormalizedOptions extends RequestInit {
 	headers: Headers;
 }
 
-interface OptionsWithoutBody extends _Omit<KyOptions, 'body' | 'json'> {
+interface OptionsWithoutBody extends Except<KyOptions, 'body' | 'json'> {
 	method?: 'get' | 'head';
 }
 

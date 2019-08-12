@@ -104,7 +104,7 @@ With the UMD version, it's also easy to use `ky` [without a bundler](#how-do-i-u
 
 ## API
 
-### ky(input, [options])
+### ky(input, options?)
 
 The `input` and `options` are the same as [`fetch`](https://developer.mozilla.org/en-US/docs/Web/API/WindowOrWorkerGlobalScope/fetch), with some exceptions:
 
@@ -113,12 +113,12 @@ The `input` and `options` are the same as [`fetch`](https://developer.mozilla.or
 
 Returns a [`Response` object](https://developer.mozilla.org/en-US/docs/Web/API/Response) with [`Body` methods](https://developer.mozilla.org/en-US/docs/Web/API/Body#Methods) added for convenience. So you can, for example, call `ky.get(input).json()` directly without having to await the `Response` first. When called like that, proper `Accept` header will be set depending on body method used. Unlike the `Body` methods of `window.Fetch`; these will throw an `HTTPError` if the response status is not in the range `200...299`.
 
-### ky.get(input, [options])
-### ky.post(input, [options])
-### ky.put(input, [options])
-### ky.patch(input, [options])
-### ky.head(input, [options])
-### ky.delete(input, [options])
+### ky.get(input, options?)
+### ky.post(input, options?)
+### ky.put(input, options?)
+### ky.patch(input, options?)
+### ky.head(input, options?)
+### ky.delete(input, options?)
 
 Sets `options.method` to the method name and makes a request.
 
