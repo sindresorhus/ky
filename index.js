@@ -23,6 +23,7 @@ const getGlobal = property => {
 
 const document = getGlobal('document');
 const Headers = getGlobal('Headers');
+const Request = getGlobal('Request');
 const Response = getGlobal('Response');
 const ReadableStream = getGlobal('ReadableStream');
 const fetch = getGlobal('fetch');
