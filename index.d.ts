@@ -39,7 +39,7 @@ export interface Hooks {
 /**
 Options are the same as `window.fetch`, with some exceptions.
 */
-export interface Options extends RequestInit {
+interface KyOptions extends RequestInit {
 	/**
 	Shortcut for sending JSON. Use this instead of the `body` option.
 	*/
@@ -100,22 +100,26 @@ interface NormalizedOptions extends RequestInit {
 	method: RequestInit['method'];
 	credentials: RequestInit['credentials'];
 
-	// Extended from custom Ky `Options`, but ensured to be set (not optional).
-	retry: Options['retry'];
-	prefixUrl: Options['prefixUrl'];
-	onDownloadProgress: Options['onDownloadProgress'];
+	// Extended from custom `KyOptions`, but ensured to be set (not optional).
+	retry: KyOptions['retry'];
+	prefixUrl: KyOptions['prefixUrl'];
+	onDownloadProgress: KyOptions['onDownloadProgress'];
 
 	// New type.
 	headers: Headers;
 }
 
-interface OptionsWithoutBody extends _Omit<Options, 'body'> {
+interface OptionsWithoutBody extends _Omit<KyOptions, 'body' | 'json'> {
 	method?: 'get' | 'head';
 }
 
-interface OptionsWithBody extends Options {
-	method?: 'post' | 'put' | 'delete';
+interface OptionsWithBody extends KyOptions {
+	method?: 'post' | 'put' | 'delete' | 'patch'
 }
+
+export type Options = OptionsWithoutBody | OptionsWithBody;
+
+export type Input = Request | URL | string;
 
 /**
 Returns a `Response` object with `Body` methods added for convenience.
@@ -189,7 +193,7 @@ declare const ky: {
 	})();
 	```
 	*/
-	(url: Request | URL | string, options?: OptionsWithoutBody | OptionsWithBody): ResponsePromise;
+	(url: Input, options?: Options): ResponsePromise;
 
 	/**
 	Fetch the given `url` using the option `{method: 'get'}`.
@@ -197,7 +201,7 @@ declare const ky: {
 	@param url - `Request` object, `URL` object, or URL string.
 	@returns A promise with `Body` methods added.
 	*/
-	get(url: Request | URL | string, options?: _Omit<Options, 'body'>): ResponsePromise;
+	get(url: Input, options?: OptionsWithoutBody): ResponsePromise;
 
 	/**
 	Fetch the given `url` using the option `{method: 'post'}`.
@@ -205,7 +209,7 @@ declare const ky: {
 	@param url - `Request` object, `URL` object, or URL string.
 	@returns A promise with `Body` methods added.
 	*/
-	post(url: Request | URL | string, options?: Options): ResponsePromise;
+	post(url: Input, options?: OptionsWithBody): ResponsePromise;
 
 	/**
 	Fetch the given `url` using the option `{method: 'put'}`.
@@ -213,7 +217,7 @@ declare const ky: {
 	@param url - `Request` object, `URL` object, or URL string.
 	@returns A promise with `Body` methods added.
 	*/
-	put(url: Request | URL | string, options?: Options): ResponsePromise;
+	put(url: Input, options?: OptionsWithBody): ResponsePromise;
 
 	/**
 	Fetch the given `url` using the option `{method: 'patch'}`.
@@ -221,7 +225,7 @@ declare const ky: {
 	@param url - `Request` object, `URL` object, or URL string.
 	@returns A promise with `Body` methods added.
 	*/
-	patch(url: Request | URL | string, options?: Options): ResponsePromise;
+	patch(url: Input, options?: OptionsWithBody): ResponsePromise;
 
 	/**
 	Fetch the given `url` using the option `{method: 'head'}`.
@@ -229,7 +233,7 @@ declare const ky: {
 	@param url - `Request` object, `URL` object, or URL string.
 	@returns A promise with `Body` methods added.
 	*/
-	head(url: Request | URL | string, options?: _Omit<Options, 'body'>): ResponsePromise;
+	head(url: Input, options?: OptionsWithoutBody): ResponsePromise;
 
 	/**
 	Fetch the given `url` using the option `{method: 'delete'}`.
@@ -237,7 +241,7 @@ declare const ky: {
 	@param url - `Request` object, `URL` object, or URL string.
 	@returns A promise with `Body` methods added.
 	*/
-	delete(url: Request | URL | string, options?: Options): ResponsePromise;
+	delete(url: Input, options?: OptionsWithBody): ResponsePromise;
 
 	/**
 	Create a new Ky instance with complete new defaults.
