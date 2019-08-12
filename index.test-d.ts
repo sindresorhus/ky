@@ -48,6 +48,7 @@ ky(url, {
 		beforeRequest: [
 			options => {
 				expectType<Object>(options);
+				options.headers.set('foo', 'bar');
 			}
 		],
 		afterResponse: [

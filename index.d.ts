@@ -2,7 +2,7 @@
 
 type _Omit<T, K extends keyof T> = Pick<T, Exclude<keyof T, K>>;
 
-export type BeforeRequestHook = (options: Options) => void | Promise<void>;
+export type BeforeRequestHook = (options: NormalizedOptions) => void | Promise<void>;
 
 export type AfterResponseHook = (response: Response) => Response | void | Promise<Response | void>;
 
@@ -92,8 +92,25 @@ interface KyOptions extends RequestInit {
 	onDownloadProgress?: (progress: DownloadProgress, chunk: Uint8Array) => void;
 }
 
+/**
+Normalized options passed to the `fetch` call and the beforeRequest hooks.
+*/
+interface NormalizedOptions extends RequestInit {
+	// Extended from `RequestInit`, but ensured to be set (not optional).
+	method: RequestInit['method'];
+	credentials: RequestInit['credentials'];
+
+	// Extended from custom `KyOptions`, but ensured to be set (not optional).
+	retry: KyOptions['retry'];
+	prefixUrl: KyOptions['prefixUrl'];
+	onDownloadProgress: KyOptions['onDownloadProgress'];
+
+	// New type.
+	headers: Headers;
+}
+
 interface OptionsWithoutBody extends _Omit<KyOptions, 'body' | 'json'> {
-	method?: 'get' | 'head'
+	method?: 'get' | 'head';
 }
 
 interface OptionsWithBody extends KyOptions {
@@ -241,6 +258,6 @@ declare const ky: {
 	@returns A new Ky instance.
 	*/
 	extend(defaultOptions: Options): typeof ky;
-}
+};
 
 export default ky;
