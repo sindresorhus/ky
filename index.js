@@ -23,6 +23,7 @@ const getGlobal = property => {
 
 const document = getGlobal('document');
 const Headers = getGlobal('Headers');
+const Request = getGlobal('Request');
 const Response = getGlobal('Response');
 const ReadableStream = getGlobal('ReadableStream');
 const fetch = getGlobal('fetch');
@@ -166,6 +167,45 @@ class Ky {
 			...otherOptions
 		};
 
+		if (input instanceof Request) {
+			this._input = input;
+
+			// `ky` options have precedence over `Request` options
+			this._options = {
+				...this._options,
+				method: otherOptions.method || input.method,
+				headers: otherOptions.headers || input.headers,
+				body: otherOptions.body || input.body,
+				credentials: otherOptions.credentials || input.credentials
+			};
+		} else {
+			this._input = String(input || '');
+			this._options.prefixUrl = String(this._options.prefixUrl || '');
+
+			if (this._options.prefixUrl && this._input.startsWith('/')) {
+				throw new Error('`input` must not begin with a slash when using `prefixUrl`');
+			}
+
+			if (this._options.prefixUrl && !this._options.prefixUrl.endsWith('/')) {
+				this._options.prefixUrl += '/';
+			}
+
+			this._input = this._options.prefixUrl + this._input;
+
+			if (searchParams) {
+				const url = new URL(this._input, document && document.baseURI);
+				if (typeof searchParams === 'string' || (URLSearchParams && searchParams instanceof URLSearchParams)) {
+					url.search = searchParams;
+				} else if (Object.values(searchParams).every(param => typeof param === 'number' || typeof param === 'string')) {
+					url.search = new URLSearchParams(searchParams).toString();
+				} else {
+					throw new Error('The `searchParams` option must be either a string, `URLSearchParams` instance or an object with string and number values');
+				}
+
+				this._input = url.toString();
+			}
+		}
+
 		if (supportsAbortController) {
 			this.abortController = new AbortController();
 			if (this._options.signal) {
@@ -178,31 +218,6 @@ class Ky {
 		}
 
 		this._options.method = normalizeRequestMethod(this._options.method);
-		this._options.prefixUrl = String(this._options.prefixUrl || '');
-		this._input = String(input || '');
-
-		if (this._options.prefixUrl && this._input.startsWith('/')) {
-			throw new Error('`input` must not begin with a slash when using `prefixUrl`');
-		}
-
-		if (this._options.prefixUrl && !this._options.prefixUrl.endsWith('/')) {
-			this._options.prefixUrl += '/';
-		}
-
-		this._input = this._options.prefixUrl + this._input;
-
-		if (searchParams) {
-			const url = new URL(this._input, document && document.baseURI);
-			if (typeof searchParams === 'string' || (URLSearchParams && searchParams instanceof URLSearchParams)) {
-				url.search = searchParams;
-			} else if (Object.values(searchParams).every(param => typeof param === 'number' || typeof param === 'string')) {
-				url.search = new URLSearchParams(searchParams).toString();
-			} else {
-				throw new Error('The `searchParams` option must be either a string, `URLSearchParams` instance or an object with string and number values');
-			}
-
-			this._input = url.toString();
-		}
 
 		this._timeout = timeout;
 		this._hooks = deepMerge({

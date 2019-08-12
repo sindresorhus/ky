@@ -122,6 +122,8 @@ Returns a [`Response` object](https://developer.mozilla.org/en-US/docs/Web/API/R
 
 Sets `options.method` to the method name and makes a request.
 
+When using a `Request` instance as `input`, any URL altering options (example: `prefixUrl`)  will not work.
+
 #### options
 
 Type: `object`
