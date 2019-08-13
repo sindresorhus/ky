@@ -211,7 +211,7 @@ This hook enables you to modify the request right before it is sent. Ky will mak
 Type: `Function[]`<br>
 Default: `[]`
 
-This hook enables you to read and optionally modify the response. The hook function receives a clone of the response as the first argument. The return value of the hook function will be used by Ky as the response object if it's an instance of [`Response`](https://developer.mozilla.org/en-US/docs/Web/API/Response).
+This hook enables you to read and optionally modify the response. The hook function receives a clone of the response, normalized input, and normalized options as arguments. The return value of the hook function will be used by Ky as the response object if it's an instance of [`Response`](https://developer.mozilla.org/en-US/docs/Web/API/Response).
 
 ```js
 import ky from 'ky';
@@ -226,6 +226,18 @@ import ky from 'ky';
 
 					// Or return a `Response` instance to overwrite the response.
 					return new Response('A different response', {status: 200});
+				},
+				// Retry with a fresh token on 403 error
+				async (response, input, options) => {
+					if (response.status === 403) {
+						// Get a fresh token
+						const token = await ky.get('https://example.com/token').text();
+						// Retry with the token
+						options.headers.set('Authorization', `token ${token}`);
+						return ky(input,  {
+							...options,
+						});
+					}
 				}
 			]
 		}
