@@ -217,7 +217,7 @@ This hook enables you to read and optionally modify the response. The hook funct
 import ky from 'ky';
 
 (async () => {
-	await ky.get('https://example.com', {
+	await ky('https://example.com', {
 		hooks: {
 			afterResponse: [
 				response => {
@@ -232,7 +232,7 @@ import ky from 'ky';
 				async (response, input, options) => {
 					if (response.status === 403) {
 						// Get a fresh token
-						const token = await ky.get('https://example.com/token').text();
+						const token = await ky('https://example.com/token').text();
 						
 						// Retry with the token
 						options.headers.set('Authorization', `token ${token}`);
