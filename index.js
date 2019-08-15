@@ -252,7 +252,7 @@ class Ky {
 				const modifiedResponse = await hook(
 					response.clone(),
 					this._input,
-					this._options,
+					this._options
 				);
 
 				if (modifiedResponse instanceof Response) {
