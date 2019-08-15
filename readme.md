@@ -227,16 +227,17 @@ import ky from 'ky';
 					// Or return a `Response` instance to overwrite the response.
 					return new Response('A different response', {status: 200});
 				},
-				// Retry with a fresh token on 403 error
+
+				// Or retry with a fresh token on a 403 error
 				async (response, input, options) => {
 					if (response.status === 403) {
 						// Get a fresh token
 						const token = await ky.get('https://example.com/token').text();
+						
 						// Retry with the token
 						options.headers.set('Authorization', `token ${token}`);
-						return ky(input,  {
-							...options,
-						});
+						
+						return ky(input, {...options});
 					}
 				}
 			]
