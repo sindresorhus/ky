@@ -5,9 +5,9 @@ type Except<T, K extends keyof T> = Pick<T, Exclude<keyof T, K>>;
 export type BeforeRequestHook = (options: NormalizedOptions) => void | Promise<void>;
 
 export type AfterResponseHook = (
-	response: Response,
 	input: Input,
 	options: NormalizedOptions,
+	response: Response,
 ) => Response | void | Promise<Response | void>;
 
 export interface DownloadProgress {

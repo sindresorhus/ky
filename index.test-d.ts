@@ -52,7 +52,9 @@ ky(url, {
 			}
 		],
 		afterResponse: [
-			response => {
+			(input, options, response) => {
+				expectType<Input>(input);
+				expectType<Object>(options);
 				expectType<Response>(response);
 				return new Response('Test');
 			}
