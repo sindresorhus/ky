@@ -237,7 +237,7 @@ import ky from 'ky';
 						// Retry with the token
 						options.headers.set('Authorization', `token ${token}`);
 						
-						return ky(input, {...options});
+						return ky(input, options);
 					}
 				}
 			]
