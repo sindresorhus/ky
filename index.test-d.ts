@@ -46,7 +46,8 @@ expectType<TimeoutError>(new TimeoutError);
 ky(url, {
 	hooks: {
 		beforeRequest: [
-			options => {
+			(input, options) => {
+				expectType<Input>(input);
 				expectType<Object>(options);
 				options.headers.set('foo', 'bar');
 			}

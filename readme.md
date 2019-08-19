@@ -204,7 +204,9 @@ Hooks allow modifications during the request lifecycle. Hook functions may be as
 Type: `Function[]`<br>
 Default: `[]`
 
-This hook enables you to modify the request right before it is sent. Ky will make no further changes to the request after this. The hook function receives the normalized options as the first argument. You could, for example, modify `options.headers` here.
+This hook enables you to modify the request right before it is sent. Ky will make no further changes to the request after this. The hook function receives normalized input and options as arguments. You could, for example, modify `options.headers` here.
+
+Note that the argument order has changed in non-backward compatible way since [#163](https://github.com/sindresorhus/ky/pull/163).
 
 ###### hooks.afterResponse
 

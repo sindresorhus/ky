@@ -23,7 +23,7 @@ test('hooks can be async', async t => {
 			json,
 			hooks: {
 				beforeRequest: [
-					async options => {
+					async (_input, options) => {
 						await delay(100);
 						const bodyJson = JSON.parse(options.body);
 						bodyJson.foo = false;
@@ -70,7 +70,7 @@ test('beforeRequest hook allows modifications', async t => {
 			json,
 			hooks: {
 				beforeRequest: [
-					options => {
+					(_input, options) => {
 						const bodyJson = JSON.parse(options.body);
 						bodyJson.foo = false;
 						options.body = JSON.stringify(bodyJson);

@@ -2,7 +2,10 @@
 
 type Except<T, K extends keyof T> = Pick<T, Exclude<keyof T, K>>;
 
-export type BeforeRequestHook = (options: NormalizedOptions) => void | Promise<void>;
+export type BeforeRequestHook = (
+	input: Input,
+	options: NormalizedOptions,
+) => void | Promise<void>;
 
 export type AfterResponseHook = (
 	input: Input,
