@@ -48,10 +48,7 @@ export interface Options extends RequestInit {
 	/**
 	HTTP request method.
 	*/
-	method?: LiteralUnion<
-		'get' | 'head' | 'post' | 'put' | 'delete' | 'connect' | 'options' | 'trace' | 'patch',
-		string
-	>;
+	method?: LiteralUnion<'get' | 'head' | 'post' | 'put' | 'delete' | 'options' | 'patch', string>;
 
 	/**
 	Shortcut for sending JSON. Use this instead of the `body` option.
@@ -237,28 +234,12 @@ declare const ky: {
 	delete(url: Input, options?: Options): ResponsePromise;
 
 	/**
-	Fetch the given `url` using the option `{method: 'connect'}`.
-
-	@param url - `Request` object, `URL` object, or URL string.
-	@returns A promise with `Body` methods added.
-	*/
-	connect(url: Input, options?: Options): ResponsePromise;
-
-		/**
 	Fetch the given `url` using the option `{method: 'options'}`.
 
 	@param url - `Request` object, `URL` object, or URL string.
 	@returns A promise with `Body` methods added.
 	*/
 	options(url: Input, options?: Options): ResponsePromise;
-
-	/**
-	Fetch the given `url` using the option `{method: 'trace'}`.
-
-	@param url - `Request` object, `URL` object, or URL string.
-	@returns A promise with `Body` methods added.
-	*/
-	trace(url: Input, options?: Options): ResponsePromise;
 
 	/**
 	Fetch the given `url` using the option `{method: 'patch'}`.

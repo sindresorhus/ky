@@ -12,9 +12,7 @@ const requestMethods = [
 	'post',
 	'put',
 	'delete',
-	'connect',
 	'options',
-	'trace',
 	'patch',
 ] as const;
 
