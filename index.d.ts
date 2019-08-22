@@ -1,9 +1,10 @@
 /// <reference lib="dom"/>
 
 type Primitive = null | undefined | string | number | boolean | symbol | bigint;
+
 type LiteralUnion<LiteralType extends BaseType, BaseType extends Primitive> =
 	| LiteralType
-	| (BaseType & { _?: never });
+	| (BaseType & {_?: never});
 
 export type Input = Request | URL | string;
 
