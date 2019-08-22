@@ -1,5 +1,10 @@
 /// <reference lib="dom"/>
 
+type Primitive = null | undefined | string | number | boolean | symbol | bigint;
+type LiteralUnion<LiteralType extends BaseType, BaseType extends Primitive> =
+	| LiteralType
+	| (BaseType & { _?: never });
+
 export type Input = Request | URL | string;
 
 export type BeforeRequestHook = (options: NormalizedOptions) => void | Promise<void>;
@@ -40,6 +45,14 @@ export interface Hooks {
 Options are the same as `window.fetch`, with some exceptions.
 */
 export interface Options extends RequestInit {
+	/**
+	HTTP request method.
+	*/
+	method?: LiteralUnion<
+		'get' | 'head' | 'post' | 'put' | 'delete' | 'connect' | 'options' | 'trace' | 'patch',
+		string
+	>;
+
 	/**
 	Shortcut for sending JSON. Use this instead of the `body` option.
 	*/
@@ -192,6 +205,14 @@ declare const ky: {
 	get(url: Input, options?: Options): ResponsePromise;
 
 	/**
+	Fetch the given `url` using the option `{method: 'head'}`.
+
+	@param url - `Request` object, `URL` object, or URL string.
+	@returns A promise with `Body` methods added.
+	*/
+	head(url: Input, options?: Options): ResponsePromise;
+
+	/**
 	Fetch the given `url` using the option `{method: 'post'}`.
 
 	@param url - `Request` object, `URL` object, or URL string.
@@ -208,28 +229,44 @@ declare const ky: {
 	put(url: Input, options?: Options): ResponsePromise;
 
 	/**
-	Fetch the given `url` using the option `{method: 'patch'}`.
-
-	@param url - `Request` object, `URL` object, or URL string.
-	@returns A promise with `Body` methods added.
-	*/
-	patch(url: Input, options?: Options): ResponsePromise;
-
-	/**
-	Fetch the given `url` using the option `{method: 'head'}`.
-
-	@param url - `Request` object, `URL` object, or URL string.
-	@returns A promise with `Body` methods added.
-	*/
-	head(url: Input, options?: Options): ResponsePromise;
-
-	/**
 	Fetch the given `url` using the option `{method: 'delete'}`.
 
 	@param url - `Request` object, `URL` object, or URL string.
 	@returns A promise with `Body` methods added.
 	*/
 	delete(url: Input, options?: Options): ResponsePromise;
+
+	/**
+	Fetch the given `url` using the option `{method: 'connect'}`.
+
+	@param url - `Request` object, `URL` object, or URL string.
+	@returns A promise with `Body` methods added.
+	*/
+	connect(url: Input, options?: Options): ResponsePromise;
+
+		/**
+	Fetch the given `url` using the option `{method: 'options'}`.
+
+	@param url - `Request` object, `URL` object, or URL string.
+	@returns A promise with `Body` methods added.
+	*/
+	options(url: Input, options?: Options): ResponsePromise;
+
+	/**
+	Fetch the given `url` using the option `{method: 'trace'}`.
+
+	@param url - `Request` object, `URL` object, or URL string.
+	@returns A promise with `Body` methods added.
+	*/
+	trace(url: Input, options?: Options): ResponsePromise;
+
+	/**
+	Fetch the given `url` using the option `{method: 'patch'}`.
+
+	@param url - `Request` object, `URL` object, or URL string.
+	@returns A promise with `Body` methods added.
+	*/
+	patch(url: Input, options?: Options): ResponsePromise;
 
 	/**
 	Create a new Ky instance with complete new defaults.

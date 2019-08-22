@@ -8,18 +8,19 @@ expectType<ResponsePromise>(ky(url));
 
 const requestMethods = [
 	'get',
+	'head',
 	'post',
 	'put',
+	'delete',
+	'connect',
+	'options',
+	'trace',
 	'patch',
-	'head',
-	'delete'
 ] as const;
-
-type Method = typeof requestMethods[number];
 
 // Test Ky HTTP methods
 for (const method of requestMethods) {
-	expectType<ResponsePromise>(ky[method as Method](url));
+	expectType<ResponsePromise>(ky[method](url));
 	ky(url, {method});
 }
 
