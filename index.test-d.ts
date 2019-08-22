@@ -63,7 +63,7 @@ interface CustomOptions extends Options {
 }
 async function customKy(input: Input, options?: CustomOptions) {
 	if (options && options.foo) {
-		options.json = { foo: options.foo };
+		options.json = {foo: options.foo};
 	}
 	return ky(input, options);
 }
