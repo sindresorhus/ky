@@ -55,13 +55,13 @@ const options: Options = {
 }
 ky(input, options);
 
-// Extending ky
+// Extending Ky
 interface CustomOptions extends Options {
 	foo?: boolean;
 }
 async function customKy(input: Input, options?: CustomOptions) {
 	if (options && options.foo) {
-		options.json = { foo: options.foo };
+		options.json = {foo: options.foo};
 	}
 	return ky(input, options);
 }
