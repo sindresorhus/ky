@@ -8,12 +8,11 @@ expectType<ResponsePromise>(ky(url));
 
 const requestMethods = [
 	'get',
-	'head',
 	'post',
 	'put',
 	'delete',
-	'options',
 	'patch',
+	'head',
 ] as const;
 
 // Test Ky HTTP methods
