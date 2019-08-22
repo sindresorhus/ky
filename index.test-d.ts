@@ -10,32 +10,15 @@ const requestMethods = [
 	'get',
 	'post',
 	'put',
+	'delete',
 	'patch',
 	'head',
-	'delete'
 ] as const;
-
-type Method = typeof requestMethods[number];
 
 // Test Ky HTTP methods
 for (const method of requestMethods) {
-	expectType<ResponsePromise>(ky[method as Method](url));
+	expectType<ResponsePromise>(ky[method](url));
 	ky(url, {method});
-}
-
-const requestBodyMethods = [
-	'post',
-	'put',
-	'delete',
-	'patch'
-] as const;
-
-type RequestBodyMethod = typeof requestBodyMethods[number];
-
-// Test Ky HTTP methods with `body`
-for (const method of requestBodyMethods) {
-	expectType<ResponsePromise>(ky[method as RequestBodyMethod](url, {body: 'x'}));
-	ky(url, {method, body: 'x'});
 }
 
 expectType<typeof ky>(ky.create({}));
@@ -70,6 +53,18 @@ const options: Options = {
 	timeout: 5000,
 }
 ky(input, options);
+
+// Extending Ky
+interface CustomOptions extends Options {
+	foo?: boolean;
+}
+async function customKy(input: Input, options?: CustomOptions) {
+	if (options && options.foo) {
+		options.json = {foo: options.foo};
+	}
+	return ky(input, options);
+}
+customKy(input, options);
 
 // `searchParams` option
 ky(url, {searchParams: 'foo=bar'});

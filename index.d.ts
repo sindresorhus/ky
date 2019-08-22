@@ -1,6 +1,12 @@
 /// <reference lib="dom"/>
 
-type Except<T, K extends keyof T> = Pick<T, Exclude<keyof T, K>>;
+type Primitive = null | undefined | string | number | boolean | symbol | bigint;
+
+type LiteralUnion<LiteralType extends BaseType, BaseType extends Primitive> =
+	| LiteralType
+	| (BaseType & {_?: never});
+
+export type Input = Request | URL | string;
 
 export type BeforeRequestHook = (options: NormalizedOptions) => void | Promise<void>;
 
@@ -39,7 +45,12 @@ export interface Hooks {
 /**
 Options are the same as `window.fetch`, with some exceptions.
 */
-interface KyOptions extends RequestInit {
+export interface Options extends RequestInit {
+	/**
+	HTTP request method.
+	*/
+	method?: LiteralUnion<'get' | 'post' | 'put' | 'delete' | 'patch' | 'head', string>;
+
 	/**
 	Shortcut for sending JSON. Use this instead of the `body` option.
 	*/
@@ -101,25 +112,13 @@ interface NormalizedOptions extends RequestInit {
 	credentials: RequestInit['credentials'];
 
 	// Extended from custom `KyOptions`, but ensured to be set (not optional).
-	retry: KyOptions['retry'];
-	prefixUrl: KyOptions['prefixUrl'];
-	onDownloadProgress: KyOptions['onDownloadProgress'];
+	retry: Options['retry'];
+	prefixUrl: Options['prefixUrl'];
+	onDownloadProgress: Options['onDownloadProgress'];
 
 	// New type.
 	headers: Headers;
 }
-
-interface OptionsWithoutBody extends Except<KyOptions, 'body' | 'json'> {
-	method?: 'get' | 'head';
-}
-
-interface OptionsWithBody extends KyOptions {
-	method?: 'post' | 'put' | 'delete' | 'patch'
-}
-
-export type Options = OptionsWithoutBody | OptionsWithBody;
-
-export type Input = Request | URL | string;
 
 /**
 Returns a `Response` object with `Body` methods added for convenience.
@@ -201,7 +200,7 @@ declare const ky: {
 	@param url - `Request` object, `URL` object, or URL string.
 	@returns A promise with `Body` methods added.
 	*/
-	get(url: Input, options?: OptionsWithoutBody): ResponsePromise;
+	get(url: Input, options?: Options): ResponsePromise;
 
 	/**
 	Fetch the given `url` using the option `{method: 'post'}`.
@@ -209,7 +208,7 @@ declare const ky: {
 	@param url - `Request` object, `URL` object, or URL string.
 	@returns A promise with `Body` methods added.
 	*/
-	post(url: Input, options?: OptionsWithBody): ResponsePromise;
+	post(url: Input, options?: Options): ResponsePromise;
 
 	/**
 	Fetch the given `url` using the option `{method: 'put'}`.
@@ -217,23 +216,7 @@ declare const ky: {
 	@param url - `Request` object, `URL` object, or URL string.
 	@returns A promise with `Body` methods added.
 	*/
-	put(url: Input, options?: OptionsWithBody): ResponsePromise;
-
-	/**
-	Fetch the given `url` using the option `{method: 'patch'}`.
-
-	@param url - `Request` object, `URL` object, or URL string.
-	@returns A promise with `Body` methods added.
-	*/
-	patch(url: Input, options?: OptionsWithBody): ResponsePromise;
-
-	/**
-	Fetch the given `url` using the option `{method: 'head'}`.
-
-	@param url - `Request` object, `URL` object, or URL string.
-	@returns A promise with `Body` methods added.
-	*/
-	head(url: Input, options?: OptionsWithoutBody): ResponsePromise;
+	put(url: Input, options?: Options): ResponsePromise;
 
 	/**
 	Fetch the given `url` using the option `{method: 'delete'}`.
@@ -241,7 +224,23 @@ declare const ky: {
 	@param url - `Request` object, `URL` object, or URL string.
 	@returns A promise with `Body` methods added.
 	*/
-	delete(url: Input, options?: OptionsWithBody): ResponsePromise;
+	delete(url: Input, options?: Options): ResponsePromise;
+
+	/**
+	Fetch the given `url` using the option `{method: 'patch'}`.
+
+	@param url - `Request` object, `URL` object, or URL string.
+	@returns A promise with `Body` methods added.
+	*/
+	patch(url: Input, options?: Options): ResponsePromise;
+
+	/**
+	Fetch the given `url` using the option `{method: 'head'}`.
+
+	@param url - `Request` object, `URL` object, or URL string.
+	@returns A promise with `Body` methods added.
+	*/
+	head(url: Input, options?: Options): ResponsePromise;
 
 	/**
 	Create a new Ky instance with complete new defaults.
