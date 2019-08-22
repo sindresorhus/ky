@@ -57,7 +57,7 @@ const options: Options = {
 }
 ky(input, options);
 
-// Extending ky
+// Extending Ky
 interface CustomOptions extends Options {
 	foo?: boolean;
 }
