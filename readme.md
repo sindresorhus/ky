@@ -204,28 +204,45 @@ Hooks allow modifications during the request lifecycle. Hook functions may be as
 Type: `Function[]`<br>
 Default: `[]`
 
-This hook enables you to modify the request right before it is sent. Ky will make no further changes to the request after this. The hook function receives the normalized options as the first argument. You could, for example, modify `options.headers` here.
+This hook enables you to modify the request right before it is sent. Ky will make no further changes to the request after this. The hook function receives normalized input and options as arguments. You could, for example, modify `options.headers` here.
+
+Note that the argument order has changed in non-backward compatible way since [#163](https://github.com/sindresorhus/ky/pull/163).
 
 ###### hooks.afterResponse
 
 Type: `Function[]`<br>
 Default: `[]`
 
-This hook enables you to read and optionally modify the response. The hook function receives a clone of the response as the first argument. The return value of the hook function will be used by Ky as the response object if it's an instance of [`Response`](https://developer.mozilla.org/en-US/docs/Web/API/Response).
+This hook enables you to read and optionally modify the response. The hook function receives normalized input, options, and a clone of the response as arguments. The return value of the hook function will be used by Ky as the response object if it's an instance of [`Response`](https://developer.mozilla.org/en-US/docs/Web/API/Response).
+
+Note that the argument order has changed in non-backward compatible way since [#163](https://github.com/sindresorhus/ky/pull/163).
 
 ```js
 import ky from 'ky';
 
 (async () => {
-	await ky.get('https://example.com', {
+	await ky('https://example.com', {
 		hooks: {
 			afterResponse: [
-				response => {
+				(_input, _options, response) => {
 					// You could do something with the response, for example, logging.
 					log(response);
 
 					// Or return a `Response` instance to overwrite the response.
 					return new Response('A different response', {status: 200});
+				},
+
+				// Or retry with a fresh token on a 403 error
+				async (input, options, response) => {
+					if (response.status === 403) {
+						// Get a fresh token
+						const token = await ky('https://example.com/token').text();
+
+						// Retry with the token
+						options.headers.set('Authorization', `token ${token}`);
+
+						return ky(input, options);
+					}
 				}
 			]
 		}

@@ -23,7 +23,7 @@ test('hooks can be async', async t => {
 			json,
 			hooks: {
 				beforeRequest: [
-					async options => {
+					async (_input, options) => {
 						await delay(100);
 						const bodyJson = JSON.parse(options.body);
 						bodyJson.foo = false;
@@ -70,7 +70,7 @@ test('beforeRequest hook allows modifications', async t => {
 			json,
 			hooks: {
 				beforeRequest: [
-					options => {
+					(_input, options) => {
 						const bodyJson = JSON.parse(options.body);
 						bodyJson.foo = false;
 						options.body = JSON.stringify(bodyJson);
@@ -101,7 +101,7 @@ test('afterResponse hook accept success response', async t => {
 			json,
 			hooks: {
 				afterResponse: [
-					async response => {
+					async (_input, _options, response) => {
 						t.is(response.status, 200);
 						t.deepEqual(await response.json(), json);
 					}
@@ -129,7 +129,7 @@ test('afterResponse hook accept fail response', async t => {
 			json,
 			hooks: {
 				afterResponse: [
-					async response => {
+					async (_input, _options, response) => {
 						t.is(response.status, 500);
 						t.deepEqual(await response.json(), json);
 					}
@@ -161,7 +161,7 @@ test('afterResponse hook can change response instance by sequence', async t => {
 						() => new Response(modifiedBody1, {
 							status: modifiedStatus1
 						}),
-						async response => {
+						async (_input, _options, response) => {
 							t.is(response.status, modifiedStatus1);
 							t.is(await response.text(), modifiedBody1);
 
@@ -233,7 +233,7 @@ test('`afterResponse` hook gets called even if using body shortcuts', async t =>
 	await ky.get(server.url, {
 		hooks: {
 			afterResponse: [
-				response => {
+				(_input, _options, response) => {
 					called = true;
 					return response;
 				}
@@ -242,6 +242,52 @@ test('`afterResponse` hook gets called even if using body shortcuts', async t =>
 	}).json();
 
 	t.true(called);
+
+	await server.close();
+});
+
+test('`afterResponse` hook is called with input, normalized options, and response which can be used to retry', async t => {
+	const server = await createTestServer();
+	server.post('/', async (request, response) => {
+		const body = await pBody(request);
+		const json = JSON.parse(body);
+		if (json.token === 'valid:token') {
+			response.json(json);
+		} else {
+			response.sendStatus(403);
+		}
+	});
+
+	const json = {
+		foo: true,
+		token: 'invalid:token'
+	};
+
+	t.deepEqual(await ky.post(
+		server.url,
+		{
+			json,
+			hooks: {
+				afterResponse: [
+					async (input, options, response) => {
+						if (response.status === 403) {
+							// Retry request with valid token
+							return ky(input, {
+								...options,
+								body: JSON.stringify({
+									...JSON.parse(options.body),
+									token: 'valid:token'
+								})
+							});
+						}
+					}
+				]
+			}
+		}
+	).json(), {
+		foo: true,
+		token: 'valid:token'
+	});
 
 	await server.close();
 });

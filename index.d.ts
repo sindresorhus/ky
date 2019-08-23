@@ -8,9 +8,16 @@ type LiteralUnion<LiteralType extends BaseType, BaseType extends Primitive> =
 
 export type Input = Request | URL | string;
 
-export type BeforeRequestHook = (options: NormalizedOptions) => void | Promise<void>;
+export type BeforeRequestHook = (
+	input: Input,
+	options: NormalizedOptions,
+) => void | Promise<void>;
 
-export type AfterResponseHook = (response: Response) => Response | void | Promise<Response | void>;
+export type AfterResponseHook = (
+	input: Input,
+	options: NormalizedOptions,
+	response: Response,
+) => Response | void | Promise<Response | void>;
 
 export interface DownloadProgress {
 	percent: number;
