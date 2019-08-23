@@ -150,16 +150,17 @@ const timeout = (promise, ms, abortController) =>
 const normalizeRequestMethod = input => requestMethods.includes(input) ? input.toUpperCase() : input;
 
 const defaultRetryOptions = {
-	retries: 2,
+	limit: 2,
 	methods: retryMethods,
 	statusCodes: retryStatusCodes,
 	afterStatusCodes: retryAfterStatusCodes
 };
+
 const normalizeRetryOptions = retry => {
 	if (typeof retry === 'number') {
 		return {
 			...defaultRetryOptions,
-			retries: retry
+			limit: retry
 		};
 	}
 
@@ -329,7 +330,7 @@ class Ky {
 	_calculateRetryDelay(error) {
 		this._retryCount++;
 
-		if (this._retryCount < this._options.retry.retries && !(error instanceof TimeoutError)) {
+		if (this._retryCount < this._options.retry.limit && !(error instanceof TimeoutError)) {
 			if (error instanceof HTTPError) {
 				if (!this._options.retry.statusCodes.has(error.response.status)) {
 					return 0;

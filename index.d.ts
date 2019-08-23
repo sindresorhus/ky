@@ -51,38 +51,38 @@ export interface Hooks {
 
 export interface RetryOptions {
 	/**
- 	The number of times to retry failed requests.
+	The number of times to retry failed requests.
 
- 	@default 2
- 	*/
-	retries?: number;
+	@default 2
+	*/
+	limit?: number;
 
 	/**
- 	The set of methods allowed to retry
+	The HTTP methods allowed to retry.
 
- 	@default ['get', 'put', 'head', 'delete', 'options', 'trace']
- 	*/
+	@default ['get', 'put', 'head', 'delete', 'options', 'trace']
+	*/
 	methods?: string[];
 
 	/**
- 	The set of statusCodes allowed to retry
+	The HTTP status codes allowed to retry.
 
- 	@default [408, 413, 429, 500, 502, 503, 504]
- 	*/
+	@default [408, 413, 429, 500, 502, 503, 504]
+	*/
 	statusCodes?: number[];
 
 	/**
- 	The set of statusCodes allowed to retry with Retry-After header
+	The HTTP status codes allowed to retry with a `Retry-After` header.
 
- 	@default [413, 429, 503]
- 	*/
+	@default [413, 429, 503]
+	*/
 	afterStatusCodes?: number[];
 
 	/**
- 	If Retry-After header is greater than `maxRetryAfter`, the request will be canceled.
+	If the `Retry-After` header is greater than `maxRetryAfter`, the request will be canceled.
 
- 	@default undefined
- 	*/
+	@default Infinity
+	*/
 	maxRetryAfter?: number;
 }
 
@@ -113,18 +113,22 @@ export interface Options extends RequestInit {
 	prefixUrl?: URL | string;
 
 	/**
- 	RetryOptions or Number of times to retry failed requests
+	How many times to retry failed requests.
 
- 	```
-  	import ky from 'ky';
+	```
+	import ky from 'ky';
 
 	(async () => {
-		const retryOptions = {retries: 10, methods: ['get'], statusCodes: [413]};
-
-	  	const parsed = await ky('https://example.com', {retry: retryOptions}).json();
+		const parsed = await ky('https://example.com', {
+			retry: {
+				limit: 10,
+				methods: ['get'],
+				statusCodes: [413]
+			}
+		}).json();
 	})();
-  	```
- 	*/
+	```
+	*/
 	retry?: RetryOptions | number;
 
 	/**
