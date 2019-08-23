@@ -149,6 +149,37 @@ const timeout = (promise, ms, abortController) =>
 
 const normalizeRequestMethod = input => requestMethods.includes(input) ? input.toUpperCase() : input;
 
+const defaultRetryOptions = {
+	retries: 2,
+	methods: retryMethods,
+	statusCodes: retryStatusCodes,
+	afterStatusCodes: retryAfterStatusCodes
+};
+const normalizeRetryOptions = retry => {
+	if (typeof retry === 'number') {
+		return {
+			...defaultRetryOptions,
+			retries: retry
+		};
+	}
+
+	if (retry.methods && !Array.isArray(retry.methods)) {
+		throw new Error('retry.methods must be an array');
+	}
+
+	if (retry.statusCodes && !Array.isArray(retry.statusCodes)) {
+		throw new Error('retry.statusCodes must be an array');
+	}
+
+	return {
+		...defaultRetryOptions,
+		...retry,
+		methods: retry.methods ? new Set(retry.methods) : defaultRetryOptions.methods,
+		statusCodes: retry.statusCodes ? new Set(retry.statusCodes) : defaultRetryOptions.statusCodes,
+		afterStatusCodes: retryAfterStatusCodes
+	};
+};
+
 class Ky {
 	constructor(input, {
 		timeout = 10000,
@@ -156,6 +187,7 @@ class Ky {
 		throwHttpErrors = true,
 		searchParams,
 		json,
+		retry = {},
 		...otherOptions
 	}) {
 		this._retryCount = 0;
@@ -163,7 +195,7 @@ class Ky {
 		this._options = {
 			method: 'get',
 			credentials: 'same-origin', // TODO: This can be removed when the spec change is implemented in all browsers. Context: https://www.chromestatus.com/feature/4539473312350208
-			retry: 2,
+			retry: normalizeRetryOptions(retry),
 			...otherOptions
 		};
 
@@ -281,7 +313,7 @@ class Ky {
 			return response;
 		};
 
-		const isRetriableMethod = retryMethods.has(this._options.method.toLowerCase());
+		const isRetriableMethod = this._options.retry.methods.has(this._options.method.toLowerCase());
 		const result = isRetriableMethod ? this._retry(fn) : fn();
 
 		for (const [type, mimeType] of Object.entries(responseTypes)) {
@@ -297,19 +329,23 @@ class Ky {
 	_calculateRetryDelay(error) {
 		this._retryCount++;
 
-		if (this._retryCount < this._options.retry && !(error instanceof TimeoutError)) {
+		if (this._retryCount < this._options.retry.retries && !(error instanceof TimeoutError)) {
 			if (error instanceof HTTPError) {
-				if (!retryStatusCodes.has(error.response.status)) {
+				if (!this._options.retry.statusCodes.has(error.response.status)) {
 					return 0;
 				}
 
 				const retryAfter = error.response.headers.get('Retry-After');
-				if (retryAfter && retryAfterStatusCodes.has(error.response.status)) {
+				if (retryAfter && this._options.retry.afterStatusCodes.has(error.response.status)) {
 					let after = Number(retryAfter);
 					if (Number.isNaN(after)) {
 						after = Date.parse(retryAfter) - Date.now();
 					} else {
 						after *= 1000;
+					}
+
+					if (typeof this._options.retry.maxRetryAfter !== 'undefined' && after > this._options.retry.maxRetryAfter) {
+						return 0;
 					}
 
 					return after;

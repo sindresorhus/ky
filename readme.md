@@ -174,15 +174,32 @@ import ky from 'ky';
 
 ##### retry
 
-Type: `number`<br>
-Default: `2`
+Type: `object | number`<br>
 
-Retry failed requests made with one of the below methods that result in a network error or one of the below status codes.
+Default:
+- retries: `2`
+- methods: `get` `put` `head` `delete` `options` `trace`
+- statusCodes: [`408`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/408) [`413`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/413) [`429`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/429) [`500`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/500) [`502`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/502) [`503`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/503) [`504`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/504)
+- maxRetryAfter: `undefined`
 
-Methods: `GET` `PUT` `HEAD` `DELETE` `OPTIONS` `TRACE`<br>
-Status codes: [`408`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/408) [`413`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/413) [`429`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/429) [`500`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/500) [`502`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/502) [`503`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/503) [`504`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/504)
+If `retry` is a number, it will be used as retries and other defaults will remain in place.
 
-It adheres to the [`Retry-After`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Retry-After) response header.
+An object representing `retries`, `methods`, `statusCodes` and `maxRetryAfter` fields for the time until retry, allowed methods, allowed status codes and maximum [`Retry-After`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Retry-After) time.
+
+If `maxRetryAfter` is set to `undefined`, it will use `options.timeout`.<br>
+If [`Retry-After`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Retry-After) header is greater than `maxRetryAfter`, it will cancel the request.
+
+Delays between retries counts with function `0.3 * (2 ** (retry - 1)) * 1000`, where `retry` is attempt number (starts from 1).
+
+```js
+import ky from 'ky';
+
+(async () => {
+	const retryOptions = {retries: 10, methods: ['get'], statusCodes: [413]};
+
+  	const parsed = await ky('https://example.com', {retry: retryOptions}).json();
+})();
+```
 
 ##### timeout
 
