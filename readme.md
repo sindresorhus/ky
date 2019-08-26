@@ -215,7 +215,7 @@ If set to `false`, there will be no timeout.
 ##### hooks
 
 Type: `object<string, Function[]>`<br>
-Default: `{beforeRequest: [], afterResponse: []}`
+Default: `{beforeRequest: [], beforeRetry: [], afterResponse: []}`
 
 Hooks allow modifications during the request lifecycle. Hook functions may be async and are run serially.
 
@@ -227,6 +227,31 @@ Default: `[]`
 This hook enables you to modify the request right before it is sent. Ky will make no further changes to the request after this. The hook function receives normalized input and options as arguments. You could, for example, modify `options.headers` here.
 
 Note that the argument order has changed in non-backward compatible way since [#163](https://github.com/sindresorhus/ky/pull/163).
+
+###### hooks.beforeRetry
+
+Type: `Function[]`<br>
+Default: `[]`
+
+This hook enables you to modify the request right before retry. Ky will make no further changes to the request after this. The hook function receives the normalized input and options, an error instance of the previous request, and retry count as arguments. You could, for example, modify `options.headers` here.
+
+```js
+import ky from 'ky';
+
+(async () => {
+	await ky('https://example.com', {
+		hooks: {
+			beforeRetry: [
+				async (input, options, errors, retryCount) => {
+					// You can modify options, for example, apply a fresh token
+					const token = await ky('https://example.com/refresh-token');
+					options.headers.set('Authorization', `token ${token}`);
+				}
+			]
+		}
+	});
+})();
+```
 
 ###### hooks.afterResponse
 

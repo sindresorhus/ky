@@ -291,3 +291,139 @@ test.failing('`afterResponse` hook is called with input, normalized options, and
 
 	await server.close();
 });
+
+test('beforeRetry hook is never called for the initial request', async t => {
+	const fixture = 'fixture';
+	const server = await createTestServer();
+	server.get('/', async (request, response) => {
+		response.end(request.headers.unicorn);
+	});
+
+	t.not(
+		await ky
+			.get(server.url, {
+				hooks: {
+					beforeRetry: [
+						(_input, options) => {
+							options.headers.set('unicorn', fixture);
+						}
+					]
+				}
+			})
+			.text(),
+		fixture
+	);
+
+	await server.close();
+});
+
+test('beforeRetry hook allows modifications of non initial requests', async t => {
+	let requestCount = 0;
+
+	const fixture = 'fixture';
+	const server = await createTestServer();
+	server.get('/', async (request, response) => {
+		requestCount++;
+
+		if (requestCount > 1) {
+			response.end(request.headers.unicorn);
+		} else {
+			response.sendStatus(408);
+		}
+	});
+
+	t.is(
+		await ky
+			.get(server.url, {
+				hooks: {
+					beforeRetry: [
+						(_input, options) => {
+							options.headers.set('unicorn', fixture);
+						}
+					]
+				}
+			})
+			.text(),
+		fixture
+	);
+
+	await server.close();
+});
+
+test('beforeRetry hook is called with error and retryCount', async t => {
+	let requestCount = 0;
+
+	const server = await createTestServer();
+	server.get('/', async (request, response) => {
+		requestCount++;
+
+		if (requestCount > 1) {
+			response.end(request.headers.unicorn);
+		} else {
+			response.sendStatus(408);
+		}
+	});
+
+	await ky.get(server.url, {
+		hooks: {
+			beforeRetry: [
+				(_input, options, error, retryCount) => {
+					t.truthy(error);
+					t.true(retryCount >= 1);
+				}
+			]
+		}
+	});
+
+	await server.close();
+});
+
+test('catches beforeRetry thrown errors', async t => {
+	let requestCount = 0;
+
+	const server = await createTestServer();
+	server.get('/', async (request, response) => {
+		requestCount++;
+
+		if (requestCount > 1) {
+			response.end(request.headers.unicorn);
+		} else {
+			response.sendStatus(408);
+		}
+	});
+
+	const errorString = 'oops';
+	const error = new Error(errorString);
+
+	await t.throwsAsync(ky.get(server.url, {
+		hooks: {
+			beforeRetry: [() => {
+				throw error;
+			}]
+		}
+	}), errorString);
+});
+
+test('catches beforeRetry promise rejections', async t => {
+	let requestCount = 0;
+
+	const server = await createTestServer();
+	server.get('/', async (request, response) => {
+		requestCount++;
+
+		if (requestCount > 1) {
+			response.end(request.headers.unicorn);
+		} else {
+			response.sendStatus(408);
+		}
+	});
+
+	const errorString = 'oops';
+	const error = new Error(errorString);
+
+	await t.throwsAsync(ky.get(server.url, {
+		hooks: {
+			beforeRetry: [() => Promise.reject(error)]
+		}
+	}), errorString);
+});

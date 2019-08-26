@@ -35,6 +35,15 @@ ky(url, {
 				options.headers.set('foo', 'bar');
 			}
 		],
+		beforeRetry: [
+			(input, options, error, retryCount) => {
+				expectType<Input>(input);
+				expectType<Object>(options);
+				expectType<Error>(error);
+				expectType<number>(retryCount);
+				options.headers.set('foo', 'bar');
+			}
+		],
 		afterResponse: [
 			(input, options, response) => {
 				expectType<Input>(input);
