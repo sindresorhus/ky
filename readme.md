@@ -215,7 +215,7 @@ If set to `false`, there will be no timeout.
 ##### hooks
 
 Type: `object<string, Function[]>`<br>
-Default: `{beforeRequest: []}`
+Default: `{beforeRequest: [], afterResponse: []}`
 
 Hooks allow modifications during the request lifecycle. Hook functions may be async and are run serially.
 
