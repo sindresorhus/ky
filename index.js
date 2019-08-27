@@ -179,8 +179,8 @@ class Ky {
 				credentials: otherOptions.credentials || input.credentials
 			};
 		} else {
-			this._input = String(input || '');
-			this._options.prefixUrl = String(this._options.prefixUrl || '');
+			this._input = String(input === 0 ? 0 : input || '');
+			this._options.prefixUrl = String(this._options.prefixUrl === 0 ? 0 : this._options.prefixUrl || '');
 
 			if (this._options.prefixUrl && this._input.startsWith('/')) {
 				throw new Error('`input` must not begin with a slash when using `prefixUrl`');
