@@ -14,7 +14,7 @@
 	},
 	"scripts": {
 		"build": "rollup index.js --format=umd --name=ky --file=umd.js",
-		"prepublishOnly": "npm run build",
+		"prepare": "npm run build",
 		"test": "xo && npm run build && nyc ava && tsd"
 	},
 	"files": [
