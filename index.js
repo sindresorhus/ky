@@ -23,10 +23,10 @@ const globals = {};
 			return globalThis[property];
 		}
 	};
-	
+
 	const globalProperties = [
 		'document',
-		'Headers', 
+		'Headers',
 		'Request',
 		'Response',
 		'ReadableStream',
