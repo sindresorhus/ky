@@ -104,7 +104,7 @@ With the UMD version, it's also easy to use `ky` [without a bundler](#how-do-i-u
 
 ## API
 
-### ky(input, [options])
+### ky(input, options?)
 
 The `input` and `options` are the same as [`fetch`](https://developer.mozilla.org/en-US/docs/Web/API/WindowOrWorkerGlobalScope/fetch), with some exceptions:
 
@@ -113,14 +113,16 @@ The `input` and `options` are the same as [`fetch`](https://developer.mozilla.or
 
 Returns a [`Response` object](https://developer.mozilla.org/en-US/docs/Web/API/Response) with [`Body` methods](https://developer.mozilla.org/en-US/docs/Web/API/Body#Methods) added for convenience. So you can, for example, call `ky.get(input).json()` directly without having to await the `Response` first. When called like that, proper `Accept` header will be set depending on body method used. Unlike the `Body` methods of `window.Fetch`; these will throw an `HTTPError` if the response status is not in the range `200...299`.
 
-### ky.get(input, [options])
-### ky.post(input, [options])
-### ky.put(input, [options])
-### ky.patch(input, [options])
-### ky.head(input, [options])
-### ky.delete(input, [options])
+### ky.get(input, options?)
+### ky.post(input, options?)
+### ky.put(input, options?)
+### ky.patch(input, options?)
+### ky.head(input, options?)
+### ky.delete(input, options?)
 
 Sets `options.method` to the method name and makes a request.
+
+When using a `Request` instance as `input`, any URL altering options (example: `prefixUrl`)  will not work.
 
 #### options
 
@@ -172,15 +174,35 @@ import ky from 'ky';
 
 ##### retry
 
-Type: `number`<br>
-Default: `2`
+Type: `object | number`<br>
 
-Retry failed requests made with one of the below methods that result in a network error or one of the below status codes.
+Default:
+- `limit`: `2`
+- `methods`: `get` `put` `head` `delete` `options` `trace`
+- `statusCodes`: [`408`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/408) [`413`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/413) [`429`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/429) [`500`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/500) [`502`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/502) [`503`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/503) [`504`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/504)
+- `maxRetryAfter`: `undefined`
 
-Methods: `GET` `PUT` `HEAD` `DELETE` `OPTIONS` `TRACE`<br>
-Status codes: [`408`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/408) [`413`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/413) [`429`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/429) [`500`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/500) [`502`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/502) [`503`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/503) [`504`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/504)
+An object representing `limit`, `methods`, `statusCodes` and `maxRetryAfter` fields for maximum retry count, allowed methods, allowed status codes and maximum [`Retry-After`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Retry-After) time.
 
-It adheres to the [`Retry-After`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Retry-After) response header.
+If `retry` is a number, it will be used as `limit` and other defaults will remain in place.
+
+If `maxRetryAfter` is set to `undefined`, it will use `options.timeout`. If [`Retry-After`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Retry-After) header is greater than `maxRetryAfter`, it will cancel the request.
+
+Delays between retries is calculated with the function `0.3 * (2 ** (retry - 1)) * 1000`, where `retry` is the attempt number (starts from 1).
+
+```js
+import ky from 'ky';
+
+(async () => {
+	const parsed = await ky('https://example.com', {
+		retry: {
+			limit: 10,
+			methods: ['get'],
+			statusCodes: [413]
+		}
+	}).json();
+})();
+```
 
 ##### timeout
 
@@ -202,28 +224,45 @@ Hooks allow modifications during the request lifecycle. Hook functions may be as
 Type: `Function[]`<br>
 Default: `[]`
 
-This hook enables you to modify the request right before it is sent. Ky will make no further changes to the request after this. The hook function receives the normalized options as the first argument. You could, for example, modify `options.headers` here.
+This hook enables you to modify the request right before it is sent. Ky will make no further changes to the request after this. The hook function receives normalized input and options as arguments. You could, for example, modify `options.headers` here.
+
+Note that the argument order has changed in non-backward compatible way since [#163](https://github.com/sindresorhus/ky/pull/163).
 
 ###### hooks.afterResponse
 
 Type: `Function[]`<br>
 Default: `[]`
 
-This hook enables you to read and optionally modify the response. The hook function receives a clone of the response as the first argument. The return value of the hook function will be used by Ky as the response object if it's an instance of [`Response`](https://developer.mozilla.org/en-US/docs/Web/API/Response).
+This hook enables you to read and optionally modify the response. The hook function receives normalized input, options, and a clone of the response as arguments. The return value of the hook function will be used by Ky as the response object if it's an instance of [`Response`](https://developer.mozilla.org/en-US/docs/Web/API/Response).
+
+Note that the argument order has changed in non-backward compatible way since [#163](https://github.com/sindresorhus/ky/pull/163).
 
 ```js
 import ky from 'ky';
 
 (async () => {
-	await ky.get('https://example.com', {
+	await ky('https://example.com', {
 		hooks: {
 			afterResponse: [
-				response => {
+				(_input, _options, response) => {
 					// You could do something with the response, for example, logging.
 					log(response);
 
 					// Or return a `Response` instance to overwrite the response.
 					return new Response('A different response', {status: 200});
+				},
+
+				// Or retry with a fresh token on a 403 error
+				async (input, options, response) => {
+					if (response.status === 403) {
+						// Get a fresh token
+						const token = await ky('https://example.com/token').text();
+
+						// Retry with the token
+						options.headers.set('Authorization', `token ${token}`);
+
+						return ky(input, options);
+					}
 				}
 			]
 		}

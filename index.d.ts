@@ -1,10 +1,23 @@
 /// <reference lib="dom"/>
 
-type _Omit<T, K extends keyof T> = Pick<T, Exclude<keyof T, K>>;
+type Primitive = null | undefined | string | number | boolean | symbol | bigint;
 
-export type BeforeRequestHook = (options: Options) => void | Promise<void>;
+type LiteralUnion<LiteralType extends BaseType, BaseType extends Primitive> =
+	| LiteralType
+	| (BaseType & {_?: never});
 
-export type AfterResponseHook = (response: Response) => Response | void | Promise<Response | void>;
+export type Input = Request | URL | string;
+
+export type BeforeRequestHook = (
+	input: Input,
+	options: NormalizedOptions,
+) => void | Promise<void>;
+
+export type AfterResponseHook = (
+	input: Input,
+	options: NormalizedOptions,
+	response: Response,
+) => Response | void | Promise<Response | void>;
 
 export interface DownloadProgress {
 	percent: number;
@@ -36,10 +49,52 @@ export interface Hooks {
 	afterResponse?: AfterResponseHook[];
 }
 
+export interface RetryOptions {
+	/**
+	The number of times to retry failed requests.
+
+	@default 2
+	*/
+	limit?: number;
+
+	/**
+	The HTTP methods allowed to retry.
+
+	@default ['get', 'put', 'head', 'delete', 'options', 'trace']
+	*/
+	methods?: string[];
+
+	/**
+	The HTTP status codes allowed to retry.
+
+	@default [408, 413, 429, 500, 502, 503, 504]
+	*/
+	statusCodes?: number[];
+
+	/**
+	The HTTP status codes allowed to retry with a `Retry-After` header.
+
+	@default [413, 429, 503]
+	*/
+	afterStatusCodes?: number[];
+
+	/**
+	If the `Retry-After` header is greater than `maxRetryAfter`, the request will be canceled.
+
+	@default Infinity
+	*/
+	maxRetryAfter?: number;
+}
+
 /**
 Options are the same as `window.fetch`, with some exceptions.
 */
 export interface Options extends RequestInit {
+	/**
+	HTTP request method.
+	*/
+	method?: LiteralUnion<'get' | 'post' | 'put' | 'delete' | 'patch' | 'head', string>;
+
 	/**
 	Shortcut for sending JSON. Use this instead of the `body` option.
 	*/
@@ -58,11 +113,23 @@ export interface Options extends RequestInit {
 	prefixUrl?: URL | string;
 
 	/**
-	Numer of times to retry failed requests.
+	How many times to retry failed requests.
 
-	@default 2
+	```
+	import ky from 'ky';
+
+	(async () => {
+		const parsed = await ky('https://example.com', {
+			retry: {
+				limit: 10,
+				methods: ['get'],
+				statusCodes: [413]
+			}
+		}).json();
+	})();
+	```
 	*/
-	retry?: number;
+	retry?: RetryOptions | number;
 
 	/**
 	Timeout in milliseconds for getting a response. Can not be greater than 2147483647.
@@ -92,12 +159,21 @@ export interface Options extends RequestInit {
 	onDownloadProgress?: (progress: DownloadProgress, chunk: Uint8Array) => void;
 }
 
-interface OptionsWithoutBody extends _Omit<Options, 'body'> {
-	method?: 'get' | 'head'
-}
+/**
+Normalized options passed to the `fetch` call and the `beforeRequest` hooks.
+*/
+interface NormalizedOptions extends RequestInit {
+	// Extended from `RequestInit`, but ensured to be set (not optional).
+	method: RequestInit['method'];
+	credentials: RequestInit['credentials'];
 
-interface OptionsWithBody extends Options {
-	method?: 'post' | 'put' | 'delete'
+	// Extended from custom `KyOptions`, but ensured to be set (not optional).
+	retry: Options['retry'];
+	prefixUrl: Options['prefixUrl'];
+	onDownloadProgress: Options['onDownloadProgress'];
+
+	// New type.
+	headers: Headers;
 }
 
 /**
@@ -172,7 +248,7 @@ declare const ky: {
 	})();
 	```
 	*/
-	(url: Request | URL | string, options?: OptionsWithoutBody | OptionsWithBody): ResponsePromise;
+	(url: Input, options?: Options): ResponsePromise;
 
 	/**
 	Fetch the given `url` using the option `{method: 'get'}`.
@@ -180,7 +256,7 @@ declare const ky: {
 	@param url - `Request` object, `URL` object, or URL string.
 	@returns A promise with `Body` methods added.
 	*/
-	get(url: Request | URL | string, options?: _Omit<Options, 'body'>): ResponsePromise;
+	get(url: Input, options?: Options): ResponsePromise;
 
 	/**
 	Fetch the given `url` using the option `{method: 'post'}`.
@@ -188,7 +264,7 @@ declare const ky: {
 	@param url - `Request` object, `URL` object, or URL string.
 	@returns A promise with `Body` methods added.
 	*/
-	post(url: Request | URL | string, options?: Options): ResponsePromise;
+	post(url: Input, options?: Options): ResponsePromise;
 
 	/**
 	Fetch the given `url` using the option `{method: 'put'}`.
@@ -196,23 +272,7 @@ declare const ky: {
 	@param url - `Request` object, `URL` object, or URL string.
 	@returns A promise with `Body` methods added.
 	*/
-	put(url: Request | URL | string, options?: Options): ResponsePromise;
-
-	/**
-	Fetch the given `url` using the option `{method: 'patch'}`.
-
-	@param url - `Request` object, `URL` object, or URL string.
-	@returns A promise with `Body` methods added.
-	*/
-	patch(url: Request | URL | string, options?: Options): ResponsePromise;
-
-	/**
-	Fetch the given `url` using the option `{method: 'head'}`.
-
-	@param url - `Request` object, `URL` object, or URL string.
-	@returns A promise with `Body` methods added.
-	*/
-	head(url: Request | URL | string, options?: _Omit<Options, 'body'>): ResponsePromise;
+	put(url: Input, options?: Options): ResponsePromise;
 
 	/**
 	Fetch the given `url` using the option `{method: 'delete'}`.
@@ -220,7 +280,23 @@ declare const ky: {
 	@param url - `Request` object, `URL` object, or URL string.
 	@returns A promise with `Body` methods added.
 	*/
-	delete(url: Request | URL | string, options?: Options): ResponsePromise;
+	delete(url: Input, options?: Options): ResponsePromise;
+
+	/**
+	Fetch the given `url` using the option `{method: 'patch'}`.
+
+	@param url - `Request` object, `URL` object, or URL string.
+	@returns A promise with `Body` methods added.
+	*/
+	patch(url: Input, options?: Options): ResponsePromise;
+
+	/**
+	Fetch the given `url` using the option `{method: 'head'}`.
+
+	@param url - `Request` object, `URL` object, or URL string.
+	@returns A promise with `Body` methods added.
+	*/
+	head(url: Input, options?: Options): ResponsePromise;
 
 	/**
 	Create a new Ky instance with complete new defaults.
@@ -237,6 +313,6 @@ declare const ky: {
 	@returns A new Ky instance.
 	*/
 	extend(defaultOptions: Options): typeof ky;
-}
+};
 
 export default ky;

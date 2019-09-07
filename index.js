@@ -25,22 +25,23 @@ const globals = {};
 	};
 	
 	const globalProperties = [
-	    'document',
-	    'Headers',
-	    'Response',
-	    'ReadableStream',
-	    'fetch',
-	    'AbortController',
-	    'FormData'
+		'document',
+		'Headers', 
+		'Request',
+		'Response',
+		'ReadableStream',
+		'fetch',
+		'AbortController',
+		'FormData'
 	];
 
 	const props = {};
 	for (const property of globalProperties) {
-	    props[property] = {
-		get() {
-		    return getGlobal(property);
-		}
-	    }
+		props[property] = {
+			get() {
+				return getGlobal(property);
+			}
+		};
 	}
 
 	Object.defineProperties(globals, props);
@@ -56,7 +57,7 @@ const deepMerge = (...sources) => {
 
 	for (const source of sources) {
 		if (Array.isArray(source)) {
-			if (!(Array.isArray(returnValue))) {
+		  if (!(Array.isArray(returnValue))) {
 				returnValue = [];
 			}
 
@@ -132,29 +133,70 @@ class TimeoutError extends Error {
 	}
 }
 
-const delay = ms => new Promise((resolve, reject) => {
+const safeTimeout = (resolve, reject, ms) => {
 	if (ms > 2147483647) { // The maximum value of a 32bit int (see #117)
 		reject(new RangeError('The `timeout` option cannot be greater than 2147483647'));
-	} else {
-		setTimeout(resolve, ms);
 	}
-});
+
+	return setTimeout(resolve, ms);
+};
+
+const delay = ms => new Promise((resolve, reject) => safeTimeout(resolve, reject, ms));
 
 // `Promise.race()` workaround (#91)
-const timeout = (promise, ms, abortController) => new Promise((resolve, reject) => {
-	/* eslint-disable promise/prefer-await-to-then */
-	promise.then(resolve).catch(reject);
-	delay(ms).then(() => {
-		if (supportsAbortController) {
-			abortController.abort();
-		}
+const timeout = (promise, ms, abortController) =>
+	new Promise((resolve, reject) => {
+		const timeoutID = safeTimeout(() => {
+			if (supportsAbortController) {
+				abortController.abort();
+			}
 
-		reject(new TimeoutError());
-	}).catch(reject);
-	/* eslint-enable promise/prefer-await-to-then */
-});
+			reject(new TimeoutError());
+		}, reject, ms);
+
+		/* eslint-disable promise/prefer-await-to-then */
+		promise
+			.then(resolve)
+			.catch(reject)
+			.then(() => {
+				clearTimeout(timeoutID);
+			});
+		/* eslint-enable promise/prefer-await-to-then */
+	});
 
 const normalizeRequestMethod = input => requestMethods.includes(input) ? input.toUpperCase() : input;
+
+const defaultRetryOptions = {
+	limit: 2,
+	methods: retryMethods,
+	statusCodes: retryStatusCodes,
+	afterStatusCodes: retryAfterStatusCodes
+};
+
+const normalizeRetryOptions = retry => {
+	if (typeof retry === 'number') {
+		return {
+			...defaultRetryOptions,
+			limit: retry
+		};
+	}
+
+	if (retry.methods && !Array.isArray(retry.methods)) {
+		throw new Error('retry.methods must be an array');
+	}
+
+	if (retry.statusCodes && !Array.isArray(retry.statusCodes)) {
+		throw new Error('retry.statusCodes must be an array');
+	}
+
+	return {
+		...defaultRetryOptions,
+		...retry,
+		methods: retry.methods ? new Set(retry.methods) : defaultRetryOptions.methods,
+		statusCodes: retry.statusCodes ? new Set(retry.statusCodes) : defaultRetryOptions.statusCodes,
+		afterStatusCodes: retryAfterStatusCodes
+	};
+};
 
 class Ky {
 	constructor(input, {
@@ -163,6 +205,7 @@ class Ky {
 		throwHttpErrors = true,
 		searchParams,
 		json,
+		retry = {},
 		...otherOptions
 	}) {
 		this._retryCount = 0;
@@ -170,9 +213,48 @@ class Ky {
 		this._options = {
 			method: 'get',
 			credentials: 'same-origin', // TODO: This can be removed when the spec change is implemented in all browsers. Context: https://www.chromestatus.com/feature/4539473312350208
-			retry: 2,
+			retry: normalizeRetryOptions(retry),
 			...otherOptions
 		};
+
+		if (input instanceof Request) {
+			this._input = input;
+
+			// `ky` options have precedence over `Request` options
+			this._options = {
+				...this._options,
+				method: otherOptions.method || input.method,
+				headers: otherOptions.headers || input.headers,
+				body: otherOptions.body || input.body,
+				credentials: otherOptions.credentials || input.credentials
+			};
+		} else {
+			this._input = String(input || '');
+			this._options.prefixUrl = String(this._options.prefixUrl || '');
+
+			if (this._options.prefixUrl && this._input.startsWith('/')) {
+				throw new Error('`input` must not begin with a slash when using `prefixUrl`');
+			}
+
+			if (this._options.prefixUrl && !this._options.prefixUrl.endsWith('/')) {
+				this._options.prefixUrl += '/';
+			}
+
+			this._input = this._options.prefixUrl + this._input;
+
+			if (searchParams) {
+				const url = new URL(this._input, document && document.baseURI);
+				if (typeof searchParams === 'string' || (URLSearchParams && searchParams instanceof URLSearchParams)) {
+					url.search = searchParams;
+				} else if (Object.values(searchParams).every(param => typeof param === 'number' || typeof param === 'string')) {
+					url.search = new URLSearchParams(searchParams).toString();
+				} else {
+					throw new Error('The `searchParams` option must be either a string, `URLSearchParams` instance or an object with string and number values');
+				}
+
+				this._input = url.toString();
+			}
+		}
 
 		if (supportsAbortController) {
 			this.abortController = new AbortController();
@@ -186,31 +268,6 @@ class Ky {
 		}
 
 		this._options.method = normalizeRequestMethod(this._options.method);
-		this._options.prefixUrl = String(this._options.prefixUrl || '');
-		this._input = String(input || '');
-
-		if (this._options.prefixUrl && this._input.startsWith('/')) {
-			throw new Error('`input` must not begin with a slash when using `prefixUrl`');
-		}
-
-		if (this._options.prefixUrl && !this._options.prefixUrl.endsWith('/')) {
-			this._options.prefixUrl += '/';
-		}
-
-		this._input = this._options.prefixUrl + this._input;
-
-		if (searchParams) {
-			const url = new URL(this._input, globals.document && globals.document.baseURI);
-			if (typeof searchParams === 'string' || (URLSearchParams && searchParams instanceof URLSearchParams)) {
-				url.search = searchParams;
-			} else if (Object.values(searchParams).every(param => typeof param === 'number' || typeof param === 'string')) {
-				url.search = new URLSearchParams(searchParams).toString();
-			} else {
-				throw new Error('The `searchParams` option must be either a string, `URLSearchParams` instance or an object with string and number values');
-			}
-
-			this._input = url.toString();
-		}
 
 		this._timeout = timeout;
 		this._hooks = deepMerge({
@@ -242,7 +299,11 @@ class Ky {
 
 			for (const hook of this._hooks.afterResponse) {
 				// eslint-disable-next-line no-await-in-loop
-				const modifiedResponse = await hook(response.clone());
+				const modifiedResponse = await hook(
+					this._input,
+					this._options,
+					response.clone()
+				);
 
 				if (modifiedResponse instanceof globals.Response) {
 					response = modifiedResponse;
@@ -270,7 +331,7 @@ class Ky {
 			return response;
 		};
 
-		const isRetriableMethod = retryMethods.has(this._options.method.toLowerCase());
+		const isRetriableMethod = this._options.retry.methods.has(this._options.method.toLowerCase());
 		const result = isRetriableMethod ? this._retry(fn) : fn();
 
 		for (const [type, mimeType] of Object.entries(responseTypes)) {
@@ -286,19 +347,23 @@ class Ky {
 	_calculateRetryDelay(error) {
 		this._retryCount++;
 
-		if (this._retryCount < this._options.retry && !(error instanceof TimeoutError)) {
+		if (this._retryCount < this._options.retry.limit && !(error instanceof TimeoutError)) {
 			if (error instanceof HTTPError) {
-				if (!retryStatusCodes.has(error.response.status)) {
+				if (!this._options.retry.statusCodes.has(error.response.status)) {
 					return 0;
 				}
 
 				const retryAfter = error.response.headers.get('Retry-After');
-				if (retryAfter && retryAfterStatusCodes.has(error.response.status)) {
+				if (retryAfter && this._options.retry.afterStatusCodes.has(error.response.status)) {
 					let after = Number(retryAfter);
 					if (Number.isNaN(after)) {
 						after = Date.parse(retryAfter) - Date.now();
 					} else {
 						after *= 1000;
+					}
+
+					if (typeof this._options.retry.maxRetryAfter !== 'undefined' && after > this._options.retry.maxRetryAfter) {
+						return 0;
 					}
 
 					return after;
@@ -335,7 +400,7 @@ class Ky {
 	async _fetch() {
 		for (const hook of this._hooks.beforeRequest) {
 			// eslint-disable-next-line no-await-in-loop
-			await hook(this._options);
+			await hook(this._input, this._options);
 		}
 
 		if (this._timeout === false) {

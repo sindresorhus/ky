@@ -1,5 +1,5 @@
 import {expectType} from 'tsd';
-import ky, {HTTPError, TimeoutError, ResponsePromise, DownloadProgress} from '.';
+import ky, {HTTPError, TimeoutError, ResponsePromise, DownloadProgress, Options, Input} from '.';
 
 const url = 'https://sindresorhus';
 
@@ -10,29 +10,15 @@ const requestMethods = [
 	'get',
 	'post',
 	'put',
+	'delete',
 	'patch',
 	'head',
-	'delete'
 ] as const;
-
-type Method = typeof requestMethods[number];
 
 // Test Ky HTTP methods
 for (const method of requestMethods) {
-	expectType<ResponsePromise>(ky[method as Method](url));
-}
-
-const requestBodyMethods = [
-	'post',
-	'put',
-	'delete'
-] as const;
-
-type RequestBodyMethod = typeof requestBodyMethods[number];
-
-// Test Ky HTTP methods with `body`
-for (const method of requestBodyMethods) {
-	expectType<ResponsePromise>(ky[method as RequestBodyMethod](url, {body: 'x'}));
+	expectType<ResponsePromise>(ky[method](url));
+	ky(url, {method});
 }
 
 expectType<typeof ky>(ky.create({}));
@@ -43,12 +29,16 @@ expectType<TimeoutError>(new TimeoutError);
 ky(url, {
 	hooks: {
 		beforeRequest: [
-			options => {
+			(input, options) => {
+				expectType<Input>(input);
 				expectType<Object>(options);
+				options.headers.set('foo', 'bar');
 			}
 		],
 		afterResponse: [
-			response => {
+			(input, options, response) => {
+				expectType<Input>(input);
+				expectType<Object>(options);
 				expectType<Response>(response);
 				return new Response('Test');
 			}
@@ -58,6 +48,26 @@ ky(url, {
 
 ky(new URL(url));
 ky(new Request(url));
+
+// Reusable types
+const input: Input = new URL('https://sindresorhus');
+const options: Options = {
+	method: 'get',
+	timeout: 5000,
+}
+ky(input, options);
+
+// Extending Ky
+interface CustomOptions extends Options {
+	foo?: boolean;
+}
+async function customKy(input: Input, options?: CustomOptions) {
+	if (options && options.foo) {
+		options.json = {foo: options.foo};
+	}
+	return ky(input, options);
+}
+customKy(input, options);
 
 // `searchParams` option
 ky(url, {searchParams: 'foo=bar'});
