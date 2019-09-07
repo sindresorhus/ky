@@ -25,6 +25,10 @@ const globals = {};
 			parent = globalThis;
 		}
 
+		if (typeof parent === 'undefined') {
+			return;
+		}
+
 		const globalProperty = parent[property];
 
 		if (typeof globalProperty === 'function') {
