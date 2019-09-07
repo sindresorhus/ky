@@ -1,42 +1,50 @@
 /*! MIT License © Sindre Sorhus */
 
-const getGlobal = property => {
-	/* istanbul ignore next */
-	if (typeof self !== 'undefined' && self && property in self) {
-		return self[property];
-	}
+const globals = {};
 
-	/* istanbul ignore next */
-	if (typeof window !== 'undefined' && window && property in window) {
-		return window[property];
-	}
-
-	if (typeof global !== 'undefined' && global && property in global) {
-		return global[property];
-	}
-
-	/* istanbul ignore next */
-	if (typeof globalThis !== 'undefined' && globalThis) {
-		return globalThis[property];
-	}
-};
-
-const globals = [
-	'document',
-	'Headers',
-	'Response',
-	'ReadableStream',
-	'fetch',
-	'AbortController',
-	'FormData'
-].reduce((acc, key) => {
-	Object.defineProperty(acc, key, {
-		get() {
-			return getGlobal(key);
+{
+	const getGlobal = property => {
+		/* istanbul ignore next */
+		if (typeof self !== 'undefined' && self && property in self) {
+			return self[property];
 		}
-	});
-	return acc;
-}, {});
+
+		/* istanbul ignore next */
+		if (typeof window !== 'undefined' && window && property in window) {
+			return window[property];
+		}
+
+		if (typeof global !== 'undefined' && global && property in global) {
+			return global[property];
+		}
+
+		/* istanbul ignore next */
+		if (typeof globalThis !== 'undefined' && globalThis) {
+			return globalThis[property];
+		}
+	};
+	
+	const globalProperties = [
+	    'document',
+	    'Headers',
+	    'Response',
+	    'ReadableStream',
+	    'fetch',
+	    'AbortController',
+	    'FormData'
+	];
+
+	const props = {};
+	for (const property of globalProperties) {
+	    props[property] = {
+		get() {
+		    return getGlobal(property);
+		}
+	    }
+	}
+
+	Object.defineProperties(globals, props);
+}
 
 const isObject = value => value !== null && typeof value === 'object';
 const supportsAbortController = typeof globals.AbortController === 'function';
