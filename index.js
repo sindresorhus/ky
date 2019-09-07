@@ -57,7 +57,7 @@ const deepMerge = (...sources) => {
 
 	for (const source of sources) {
 		if (Array.isArray(source)) {
-		  if (!(Array.isArray(returnValue))) {
+			if (!(Array.isArray(returnValue))) {
 				returnValue = [];
 			}
 
