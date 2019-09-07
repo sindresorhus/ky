@@ -4,24 +4,34 @@ const globals = {};
 
 {
 	const getGlobal = property => {
+		let parent;
+
 		/* istanbul ignore next */
 		if (typeof self !== 'undefined' && self && property in self) {
-			return self[property];
+			parent = self;
 		}
 
 		/* istanbul ignore next */
 		if (typeof window !== 'undefined' && window && property in window) {
-			return window[property];
+			parent = window;
 		}
 
 		if (typeof global !== 'undefined' && global && property in global) {
-			return global[property];
+			parent = global;
 		}
 
 		/* istanbul ignore next */
 		if (typeof globalThis !== 'undefined' && globalThis) {
-			return globalThis[property];
+			parent = globalThis;
 		}
+
+		const globalProperty = parent[property];
+
+		if (typeof globalProperty === 'function') {
+			return globalProperty.bind(parent);
+		}
+
+		return globalProperty;
 	};
 
 	const globalProperties = [
@@ -217,7 +227,7 @@ class Ky {
 			...otherOptions
 		};
 
-		if (input instanceof Request) {
+		if (input instanceof globals.Request) {
 			this._input = input;
 
 			// `ky` options have precedence over `Request` options
@@ -243,7 +253,7 @@ class Ky {
 			this._input = this._options.prefixUrl + this._input;
 
 			if (searchParams) {
-				const url = new URL(this._input, document && document.baseURI);
+				const url = new URL(this._input, globals.document && globals.document.baseURI);
 				if (typeof searchParams === 'string' || (URLSearchParams && searchParams instanceof URLSearchParams)) {
 					url.search = searchParams;
 				} else if (Object.values(searchParams).every(param => typeof param === 'number' || typeof param === 'string')) {
@@ -257,7 +267,7 @@ class Ky {
 		}
 
 		if (supportsAbortController) {
-			this.abortController = new AbortController();
+			this.abortController = new globals.AbortController();
 			if (this._options.signal) {
 				this._options.signal.addEventListener('abort', () => {
 					this.abortController.abort();

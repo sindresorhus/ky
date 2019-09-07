@@ -86,6 +86,7 @@ test('throws TimeoutError even though it does not support AbortController', with
 	}, server.url);
 	t.is(error, 'TimeoutError: Request timed out');
 
+	// A note from @szmarczak: await server.close() hangs on my machine
 	await server.close();
 });
 
