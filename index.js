@@ -1,39 +1,70 @@
 /*! MIT License © Sindre Sorhus */
 
-const getGlobal = property => {
-	/* istanbul ignore next */
-	if (typeof self !== 'undefined' && self && property in self) {
-		return self[property];
+const globals = {};
+
+{
+	const getGlobal = property => {
+		let parent;
+
+		/* istanbul ignore next */
+		if (typeof self !== 'undefined' && self && property in self) {
+			parent = self;
+		}
+
+		/* istanbul ignore next */
+		if (typeof window !== 'undefined' && window && property in window) {
+			parent = window;
+		}
+
+		if (typeof global !== 'undefined' && global && property in global) {
+			parent = global;
+		}
+
+		/* istanbul ignore next */
+		if (typeof globalThis !== 'undefined' && globalThis) {
+			parent = globalThis;
+		}
+
+		if (typeof parent === 'undefined') {
+			return;
+		}
+
+		const globalProperty = parent[property];
+
+		if (typeof globalProperty === 'function') {
+			return globalProperty.bind(parent);
+		}
+
+		return globalProperty;
+	};
+
+	const globalProperties = [
+		'document',
+		'Headers',
+		'Request',
+		'Response',
+		'ReadableStream',
+		'fetch',
+		'AbortController',
+		'FormData'
+	];
+
+	const props = {};
+	for (const property of globalProperties) {
+		props[property] = {
+			get() {
+				return getGlobal(property);
+			}
+		};
 	}
 
-	/* istanbul ignore next */
-	if (typeof window !== 'undefined' && window && property in window) {
-		return window[property];
-	}
-
-	if (typeof global !== 'undefined' && global && property in global) {
-		return global[property];
-	}
-
-	/* istanbul ignore next */
-	if (typeof globalThis !== 'undefined' && globalThis) {
-		return globalThis[property];
-	}
-};
-
-const document = getGlobal('document');
-const Headers = getGlobal('Headers');
-const Request = getGlobal('Request');
-const Response = getGlobal('Response');
-const ReadableStream = getGlobal('ReadableStream');
-const fetch = getGlobal('fetch');
-const AbortController = getGlobal('AbortController');
-const FormData = getGlobal('FormData');
+	Object.defineProperties(globals, props);
+}
 
 const isObject = value => value !== null && typeof value === 'object';
-const supportsAbortController = typeof AbortController === 'function';
-const supportsStreams = typeof ReadableStream === 'function';
-const supportsFormData = typeof FormData === 'function';
+const supportsAbortController = typeof globals.AbortController === 'function';
+const supportsStreams = typeof globals.ReadableStream === 'function';
+const supportsFormData = typeof globals.FormData === 'function';
 
 const deepMerge = (...sources) => {
 	let returnValue = {};
@@ -200,7 +231,7 @@ class Ky {
 			...otherOptions
 		};
 
-		if (input instanceof Request) {
+		if (input instanceof globals.Request) {
 			this._input = input;
 
 			// `ky` options have precedence over `Request` options
@@ -226,7 +257,7 @@ class Ky {
 			this._input = this._options.prefixUrl + this._input;
 
 			if (searchParams) {
-				const url = new URL(this._input, document && document.baseURI);
+				const url = new URL(this._input, globals.document && globals.document.baseURI);
 				if (typeof searchParams === 'string' || (URLSearchParams && searchParams instanceof URLSearchParams)) {
 					url.search = searchParams;
 				} else if (Object.values(searchParams).every(param => typeof param === 'number' || typeof param === 'string')) {
@@ -240,7 +271,7 @@ class Ky {
 		}
 
 		if (supportsAbortController) {
-			this.abortController = new AbortController();
+			this.abortController = new globals.AbortController();
 			if (this._options.signal) {
 				this._options.signal.addEventListener('abort', () => {
 					this.abortController.abort();
@@ -259,9 +290,9 @@ class Ky {
 		}, hooks);
 		this._throwHttpErrors = throwHttpErrors;
 
-		const headers = new Headers(this._options.headers || {});
+		const headers = new globals.Headers(this._options.headers || {});
 
-		if (((supportsFormData && this._options.body instanceof FormData) || this._options.body instanceof URLSearchParams) && headers.has('content-type')) {
+		if (((supportsFormData && this._options.body instanceof globals.FormData) || this._options.body instanceof URLSearchParams) && headers.has('content-type')) {
 			throw new Error(`The \`content-type\` header cannot be used with a ${this._options.body.constructor.name} body. It will be set automatically.`);
 		}
 
@@ -288,7 +319,7 @@ class Ky {
 					response.clone()
 				);
 
-				if (modifiedResponse instanceof Response) {
+				if (modifiedResponse instanceof globals.Response) {
 					response = modifiedResponse;
 				}
 			}
@@ -387,10 +418,10 @@ class Ky {
 		}
 
 		if (this._timeout === false) {
-			return fetch(this._input, this._options);
+			return globals.fetch(this._input, this._options);
 		}
 
-		return timeout(fetch(this._input, this._options), this._timeout, this.abortController);
+		return timeout(globals.fetch(this._input, this._options), this._timeout, this.abortController);
 	}
 
 	/* istanbul ignore next */
@@ -398,8 +429,8 @@ class Ky {
 		const totalBytes = Number(response.headers.get('content-length')) || 0;
 		let transferredBytes = 0;
 
-		return new Response(
-			new ReadableStream({
+		return new globals.Response(
+			new globals.ReadableStream({
 				start(controller) {
 					const reader = response.body.getReader();
 
