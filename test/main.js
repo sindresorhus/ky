@@ -108,10 +108,11 @@ test('POST JSON', async t => {
 	await server.close();
 });
 
-test('cannot use `json` option along with the `body` option', t => {
-	t.throws(() => {
-		ky('https://example.com', {json: {foo: 'bar'}, body: 'foobar'});
-	}, 'The `json` option cannot be used with the `body` option');
+test('cannot use `json` option along with the `body` option', async t => {
+	await t.throwsAsync(
+		ky('https://example.com', {json: {foo: 'bar'}, body: 'foobar'}),
+		'The `json` option cannot be used with the `body` option'
+	);
 });
 
 test('custom headers', async t => {
@@ -163,7 +164,7 @@ test('timeout option', async t => {
 		response.end(fixture);
 	});
 
-	await t.throwsAsync(ky(server.url, {timeout: 500}).text(), TimeoutError);
+	await t.throwsAsync(ky(server.url, {timeout: 500, retry: 0}).text(), TimeoutError);
 	t.is(requestCount, 1);
 
 	await server.close();
@@ -195,7 +196,7 @@ test('invalid timeout option', async t => { // #117
 		response.end(fixture);
 	});
 
-	await t.throwsAsync(ky(server.url, {timeout: 21474836470}).text(), RangeError, 'The `timeout` option cannot be greater than 2147483647');
+	t.throws(() => ky(server.url, {timeout: 21474836470}).text(), RangeError, 'The `timeout` option cannot be greater than 2147483647');
 	t.is(requestCount, 0);
 
 	await server.close();
@@ -318,7 +319,7 @@ test('ky.create() throws when given non-object argument', t => {
 			ky.create(value);
 		}, {
 			instanceOf: TypeError,
-			message: 'The `options` argument must be an object'
+			message: 'The `defaultOptions` argument must be an object'
 		});
 	}
 });

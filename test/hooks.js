@@ -13,21 +13,20 @@ test('hooks can be async', async t => {
 		response.json(JSON.parse(await pBody(request)));
 	});
 
-	const json = {
+	const body = {
 		foo: true
 	};
 
 	const responseJson = await ky.post(
 		server.url,
 		{
-			json,
+			body,
 			hooks: {
 				beforeRequest: [
 					async (_input, options) => {
 						await delay(100);
-						const bodyJson = JSON.parse(options.body);
-						bodyJson.foo = false;
-						options.body = JSON.stringify(bodyJson);
+						options.body.foo = false;
+						options.body = JSON.stringify(options.body);
 					}
 				]
 			}
@@ -60,20 +59,19 @@ test('beforeRequest hook allows modifications', async t => {
 		response.json(JSON.parse(await pBody(request)));
 	});
 
-	const json = {
+	const body = {
 		foo: true
 	};
 
 	const responseJson = await ky.post(
 		server.url,
 		{
-			json,
+			body,
 			hooks: {
 				beforeRequest: [
 					(_input, options) => {
-						const bodyJson = JSON.parse(options.body);
-						bodyJson.foo = false;
-						options.body = JSON.stringify(bodyJson);
+						options.body.foo = false;
+						options.body = JSON.stringify(options.body);
 					}
 				]
 			}

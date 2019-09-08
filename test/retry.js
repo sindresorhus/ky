@@ -5,7 +5,6 @@ import ky from '..';
 const fixture = 'fixture';
 const defaultRetryCount = 2;
 const retryAfterOn413 = 2;
-const lastTried413access = Date.now();
 
 test('network error', async t => {
 	let requestCount = 0;
@@ -86,6 +85,8 @@ test('not on POST', async t => {
 test('respect 413 Retry-After', async t => {
 	let requestCount = 0;
 
+	let lastTried413access = Infinity;
+
 	const server = await createTestServer();
 	server.get('/', (request, response) => {
 		requestCount++;
@@ -93,6 +94,8 @@ test('respect 413 Retry-After', async t => {
 		if (requestCount === defaultRetryCount) {
 			response.end((Date.now() - lastTried413access).toString());
 		} else {
+			lastTried413access = Date.now();
+
 			response.writeHead(413, {
 				'Retry-After': retryAfterOn413
 			});
@@ -109,12 +112,16 @@ test('respect 413 Retry-After', async t => {
 test('respect 413 Retry-After with timestamp', async t => {
 	let requestCount = 0;
 
+	let lastTried413access = Infinity;
+
 	const server = await createTestServer();
 	server.get('/', (request, response) => {
 		requestCount++;
 		if (requestCount === defaultRetryCount) {
 			response.end((Date.now() - lastTried413access).toString());
 		} else {
+			lastTried413access = Date.now();
+
 			const date = (new Date(Date.now() + (retryAfterOn413 * 1000))).toUTCString();
 			response.writeHead(413, {
 				'Retry-After': date
@@ -124,7 +131,7 @@ test('respect 413 Retry-After with timestamp', async t => {
 	});
 
 	const result = await ky(server.url).text();
-	t.true(Number(result) >= retryAfterOn413 * 1000);
+	t.true(Number(result) >= (retryAfterOn413 - 1) * 1000);
 	t.is(requestCount, 2);
 
 	await server.close();
@@ -158,7 +165,7 @@ test('respect number of retries', async t => {
 
 	await t.throwsAsync(ky(server.url, {
 		retry: {
-			limit: 3
+			retries: 2
 		}
 	}).text());
 	t.is(requestCount, 3);
@@ -183,7 +190,7 @@ test('respect retry methods', async t => {
 	await t.throwsAsync(ky(server.url, {
 		method: 'post',
 		retry: {
-			limit: 3,
+			retries: 3,
 			methods: ['get']
 		}
 	}).text());
@@ -192,7 +199,7 @@ test('respect retry methods', async t => {
 	requestCount = 0;
 	await t.throwsAsync(ky(server.url, {
 		retry: {
-			limit: 3,
+			retries: 2,
 			methods: ['get']
 		}
 	}).text());
@@ -217,20 +224,10 @@ test('respect maxRetryAfter', async t => {
 
 	await t.throwsAsync(ky(server.url, {
 		retry: {
-			limit: 5,
 			maxRetryAfter: 100
 		}
 	}).text());
 	t.is(requestCount, 1);
-
-	requestCount = 0;
-	await t.throwsAsync(ky(server.url, {
-		retry: {
-			limit: 5,
-			maxRetryAfter: 2000
-		}
-	}).text());
-	t.is(requestCount, 5);
 
 	await server.close();
 });
@@ -244,8 +241,8 @@ test('retry - can provide retry as number', async t => {
 		response.sendStatus(408);
 	});
 
-	await t.throwsAsync(ky(server.url, {retry: 5}).text());
-	t.is(requestCount, 5);
+	await t.throwsAsync(ky(server.url, {retry: 0}).text());
+	t.is(requestCount, 1);
 
 	await server.close();
 });
@@ -262,7 +259,7 @@ test('doesn\'t retry on 413 with empty statusCodes and methods', async t => {
 
 	await t.throwsAsync(ky(server.url, {
 		retry: {
-			limit: 10,
+			retries: 10,
 			statusCodes: [],
 			methods: []
 		}
@@ -284,7 +281,7 @@ test('doesn\'t retry on 413 with empty methods', async t => {
 
 	await t.throwsAsync(ky(server.url, {
 		retry: {
-			limit: 10,
+			retries: 10,
 			methods: []
 		}
 	}).text());
@@ -305,7 +302,7 @@ test('does retry on 408 with methods provided as array', async t => {
 
 	await t.throwsAsync(ky(server.url, {
 		retry: {
-			limit: 4,
+			retries: 3,
 			methods: ['get']
 		}
 	}).text());
@@ -326,7 +323,7 @@ test('does retry on 408 with statusCodes provided as array', async t => {
 
 	await t.throwsAsync(ky(server.url, {
 		retry: {
-			limit: 4,
+			retries: 3,
 			statusCodes: [408]
 		}
 	}).text());
@@ -336,7 +333,7 @@ test('does retry on 408 with statusCodes provided as array', async t => {
 	await server.close();
 });
 
-test('doesn\'t retry when retry.limit is set to 0', async t => {
+test('doesn\'t retry when retry.retries is set to 0', async t => {
 	let requestCount = 0;
 
 	const server = await createTestServer();
@@ -347,7 +344,7 @@ test('doesn\'t retry when retry.limit is set to 0', async t => {
 
 	await t.throwsAsync(ky(server.url, {
 		retry: {
-			limit: 0
+			retries: 0
 		}
 	}).text());
 
@@ -362,7 +359,7 @@ test('throws when retry.methods is not an array', async t => {
 	t.throws(() => {
 		ky(server.url, {
 			retry: {
-				methods: new Set(['get'])
+				methods: ''
 			}
 		});
 	});
@@ -376,7 +373,7 @@ test('throws when retry.statusCodes is not an array', async t => {
 	t.throws(() => {
 		ky(server.url, {
 			retry: {
-				statusCodes: new Set([403])
+				statusCodes: ''
 			}
 		});
 	});
