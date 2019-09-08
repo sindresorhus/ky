@@ -142,7 +142,7 @@ const timeout = (promise, ms, abortController) =>
 			reject(new TimeoutError());
 
 			if (globals.AbortController) {
-				// abortController.abort();
+				abortController.abort();
 			}
 		}, ms);
 
