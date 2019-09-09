@@ -427,3 +427,15 @@ test('catches beforeRetry promise rejections', async t => {
 		}
 	}), errorString);
 });
+
+test('hooks beforeRequest returning Response skips HTTP Request', async t => {
+	const expectedResponse = 'empty hook';
+
+	const response = await ky.get('server.url', {hooks: {
+		beforeRequest: [
+			() => new Response(expectedResponse, {status: 200, statusText: 'OK'})
+		]
+	}}).text();
+
+	t.is(response, expectedResponse);
+});

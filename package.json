@@ -1,6 +1,6 @@
 {
 	"name": "ky",
-	"version": "0.12.0",
+	"version": "0.13.0",
 	"description": "Tiny and elegant HTTP client based on the browser Fetch API",
 	"license": "MIT",
 	"repository": "sindresorhus/ky",
@@ -14,7 +14,7 @@
 	},
 	"scripts": {
 		"build": "rollup index.js --format=umd --name=ky --file=umd.js",
-		"prepublishOnly": "npm run build",
+		"prepare": "npm run build",
 		"test": "xo && npm run build && nyc ava && tsd"
 	},
 	"files": [
