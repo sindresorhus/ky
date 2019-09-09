@@ -38,9 +38,7 @@ export interface DownloadProgress {
 
 export interface Hooks {
 	/**
-	Before the request is sent.
-
-	This hook enables you to modify the request right before it is sent. Ky will make no further changes to the request after this. The hook function receives the normalized options as the first argument. You could, for example, modify `options.headers` here.
+	This hook enables you to modify the request right before it is sent. Ky will make no further changes to the request after this. The hook function receives normalized input and options as arguments. You could, for example, modify `options.headers` here.
 
 	A [`Response`](https://developer.mozilla.org/en-US/docs/Web/API/Response) can be returned from this hook to completely avoid making a HTTP request. This can be used to mock a request, check an internal cache, etc. An **important** consideration when returning a `Response` from this hook is that all the following hooks will be skipped, so **ensure you only return a `Response` from the last hook**.
 
@@ -49,20 +47,68 @@ export interface Hooks {
 	beforeRequest?: BeforeRequestHook[];
 
 	/**
-	Before the request is retried.
+	This hook enables you to modify the request right before retry. Ky will make no further changes to the request after this. The hook function receives the normalized input and options, an error instance and the retry count as arguments. You could, for example, modify `options.headers` here.
 
-	This hook enables you to modify the request right before retry. The hook function receives the `input`, `options`, `error` and `retryCount` arguments. You could, for example, modify `options.headers` here.
+	@example
+	```
+	import ky from 'ky';
+
+	(async () => {
+		await ky('https://example.com', {
+			hooks: {
+				beforeRetry: [
+					async (input, options, errors, retryCount) => {
+						const token = await ky('https://example.com/refresh-token');
+						options.headers.set('Authorization', `token ${token}`);
+					}
+				]
+			}
+		});
+	})();
+	```
 
 	@default []
 	*/
 	beforeRetry?: BeforeRetryHook[];
 
 	/**
-	After the response is received.
-
-	This hook enables you to read and optionally modify the response. The return value of the hook function will be used by Ky as the response object if it's an instance of [`Response`](https://developer.mozilla.org/en-US/docs/Web/API/Response).
+	This hook enables you to read and optionally modify the response. The hook function receives normalized input, options, and a clone of the response as arguments. The return value of the hook function will be used by Ky as the response object if it's an instance of [`Response`](https://developer.mozilla.org/en-US/docs/Web/API/Response).
 
 	@default []
+
+	@example
+	```
+	import ky from 'ky';
+
+	(async () => {
+		await ky('https://example.com', {
+			hooks: {
+				afterResponse: [
+					(_input, _options, response) => {
+						// You could do something with the response, for example, logging.
+						log(response);
+
+						// Or return a `Response` instance to overwrite the response.
+						return new Response('A different response', {status: 200});
+					},
+
+					// Or retry with a fresh token on a 403 error
+					async (input, options, response) => {
+						if (response.status === 403) {
+							// Get a fresh token
+							const token = await ky('https://example.com/token').text();
+
+							// Retry with the token
+							options.headers.set('Authorization', `token ${token}`);
+
+							return ky(input, options);
+						}
+					}
+				]
+			}
+		});
+	})();
+	```
 	*/
 	afterResponse?: AfterResponseHook[];
 }
@@ -109,30 +155,58 @@ Options are the same as `window.fetch`, with some exceptions.
 */
 export interface Options extends RequestInit {
 	/**
-	HTTP request method.
+	HTTP method used to make the request.
+
+	Internally, the standard methods (`GET`, `POST`, `PUT`, `PATCH`, `HEAD` and `DELETE`) are uppercased in order to avoid server errors due to case sensitivity.
 	*/
 	method?: LiteralUnion<'get' | 'post' | 'put' | 'delete' | 'patch' | 'head', string>;
 
 	/**
 	Shortcut for sending JSON. Use this instead of the `body` option.
+
+	Accepts a plain object which will be `JSON.stringify()`'d and the correct header will be set for you.
 	*/
 	json?: unknown;
 
 	/**
 	Search parameters to include in the request URL.
+
 	Setting this will override all existing search parameters in the input URL.
 	*/
 	searchParams?: string | {[key: string]: string | number} | URLSearchParams;
 
 	/**
-	Prepends the input URL with the specified prefix.
-	The prefix can be any valid URL, either relative or absolute.
+	When specified, `prefixUrl` will be prepended to `input`. The prefix can be any valid URL, either relative or absolute. A trailing slash `/` is optional, one will be added automatically, if needed, when joining `prefixUrl` and `input`. The `input` argument cannot start with a `/` when using this option.
+
+	Useful when used with [`ky.extend()`](#kyextenddefaultoptions) to create niche-specific Ky-instances.
+
+	@example
+	```
+	import ky from 'ky';
+
+	// On https://example.com
+
+	(async () => {
+		await ky('unicorn', {prefixUrl: '/api'});
+		//=> 'https://example.com/api/unicorn'
+
+		await ky('unicorn', {prefixUrl: 'https://cats.com'});
+		//=> 'https://cats.com/unicorn'
+	})();
+	```
 	*/
 	prefixUrl?: URL | string;
 
 	/**
-	How many times to retry failed requests.
+	An object representing `limit`, `methods`, `statusCodes` and `maxRetryAfter` fields for maximum retry count, allowed methods, allowed status codes and maximum [`Retry-After`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Retry-After) time.
 
+	If `retry` is a number, it will be used as `limit` and other defaults will remain in place.
+
+	If `maxRetryAfter` is set to `undefined`, it will use `options.timeout`. If [`Retry-After`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Retry-After) header is greater than `maxRetryAfter`, it will cancel the request.
+
+	Delays between retries is calculated with the function `0.3 * (2 ** (retry - 1)) * 1000`, where `retry` is the attempt number (starts from 1).
+
+	@example
 	```
 	import ky from 'ky';
 
@@ -165,6 +239,8 @@ export interface Options extends RequestInit {
 	/**
 	Throw a `HTTPError` for error responses (non-2xx status codes).
 
+	Setting this to `false` may be useful if you are checking for resource availability and are expecting error responses.
+
 	@default true
 	*/
 	throwHttpErrors?: boolean;
@@ -173,6 +249,22 @@ export interface Options extends RequestInit {
 	Download progress event handler.
 
 	@param chunk - Note: It's empty for the first call.
+
+	@example
+	```
+	import ky from 'ky';
+
+	(async () => {
+		await ky('https://example.com', {
+			onDownloadProgress: (progress, chunk) => {
+				// Example output:
+				// `0% - 0 of 1271 bytes`
+				// `100% - 1271 of 1271 bytes`
+				console.log(`${progress.percent * 100}% - ${progress.transferredBytes} of ${progress.totalBytes} bytes`);
+			}
+		});
+	})();
+	```
 	*/
 	onDownloadProgress?: (progress: DownloadProgress, chunk: Uint8Array) => void;
 }

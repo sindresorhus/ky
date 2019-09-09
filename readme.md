@@ -228,8 +228,6 @@ This hook enables you to modify the request right before it is sent. Ky will mak
 
 A [`Response`](https://developer.mozilla.org/en-US/docs/Web/API/Response) can be returned from this hook to completely avoid making a HTTP request. This can be used to mock a request, check an internal cache, etc. An **important** consideration when returning a `Response` from this hook is that all the following hooks will be skipped, so **ensure you only return a `Response` from the last hook**.
 
-Note that the argument order has changed in non-backward compatible way since [#163](https://github.com/sindresorhus/ky/pull/163).
-
 ###### hooks.beforeRetry
 
 Type: `Function[]`<br>
@@ -260,8 +258,6 @@ Type: `Function[]`<br>
 Default: `[]`
 
 This hook enables you to read and optionally modify the response. The hook function receives normalized input, options, and a clone of the response as arguments. The return value of the hook function will be used by Ky as the response object if it's an instance of [`Response`](https://developer.mozilla.org/en-US/docs/Web/API/Response).
-
-Note that the argument order has changed in non-backward compatible way since [#163](https://github.com/sindresorhus/ky/pull/163).
 
 ```js
 import ky from 'ky';
