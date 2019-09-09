@@ -384,6 +384,7 @@ class Ky {
 		for (const hook of this._hooks.beforeRequest) {
 			// eslint-disable-next-line no-await-in-loop
 			const hookOutput = await hook(this._input, this._options);
+
 			if (hookOutput instanceof Response) {
 				return hookOutput;
 			}
