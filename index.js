@@ -383,10 +383,10 @@ class Ky {
 	async _fetch() {
 		for (const hook of this._hooks.beforeRequest) {
 			// eslint-disable-next-line no-await-in-loop
-			const hookOutput = await hook(this._input, this._options);
+			const result = await hook(this._input, this._options);
 
-			if (hookOutput instanceof Response) {
-				return hookOutput;
+			if (result instanceof Response) {
+				return result;
 			}
 		}
 
