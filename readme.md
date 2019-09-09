@@ -243,7 +243,6 @@ import ky from 'ky';
 		hooks: {
 			beforeRetry: [
 				async (input, options, errors, retryCount) => {
-					// You can modify options, for example, apply a fresh token
 					const token = await ky('https://example.com/refresh-token');
 					options.headers.set('Authorization', `token ${token}`);
 				}
