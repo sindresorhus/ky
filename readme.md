@@ -172,6 +172,12 @@ import ky from 'ky';
 })();
 ```
 
+We chose to go with `prefixUrl` instead of the built-in [`base URL`](https://developer.mozilla.org/en-US/docs/Web/API/URL) mechanism. Here's why:
+
+1. We want `ky(input, { prefixUrl })` to be [unambiguous](https://github.com/sindresorhus/got/issues/783) in its semantics. Specifically, it does _not_ follow the URL resolution algorithm. By restricting the allowed input, we're able to hopefully make this a little more clear and predictable.
+2. We want to enforce consistency. Having `myApi('foo')` in one place and `myApi('/foo')` in another place is confusing. Having a One True Way™ is nice in this case.
+3. The code to support any combination of optional slashes on `input` and `prefixUrl` would be more fussy and complicated. It sounds trivial, but there are notable edge cases that need to be handled specially due to how `fetch()` will resolve relative URLs. You can see evidence of this in some of the intermediate commits in [#11](https://github.com/sindresorhus/ky/pull/11) before we had finalized the algorithm.
+
 ##### retry
 
 Type: `object | number`<br>
