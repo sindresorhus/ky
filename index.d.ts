@@ -49,7 +49,7 @@ export interface Hooks {
 	/**
 	Before the request is retried.
 
-	This hook enables you to modify the request right before retry. The hook function receives the normalized options as the first argument. You could, for example, modify `options.headers` here.
+	This hook enables you to modify the request right before retry. The hook function receives the `input`, `options`, `error` and `retryCount` arguments. You could, for example, modify `options.headers` here.
 
 	@default []
 	*/
