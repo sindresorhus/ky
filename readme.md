@@ -233,7 +233,7 @@ Note that the argument order has changed in non-backward compatible way since [#
 Type: `Function[]`<br>
 Default: `[]`
 
-This hook enables you to modify the request right before retry. Ky will make no further changes to the request after this. The hook function receives the normalized input and options, an error instance of the previous request, and retry count as arguments. You could, for example, modify `options.headers` here.
+This hook enables you to modify the request right before retry. Ky will make no further changes to the request after this. The hook function receives the normalized input and options, an error instance and the retry count as arguments. You could, for example, modify `options.headers` here.
 
 ```js
 import ky from 'ky';
