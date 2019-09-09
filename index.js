@@ -286,6 +286,7 @@ class Ky {
 		this._timeout = timeout;
 		this._hooks = deepMerge({
 			beforeRequest: [],
+			beforeRetry: [],
 			afterResponse: []
 		}, hooks);
 		this._throwHttpErrors = throwHttpErrors;
@@ -402,6 +403,17 @@ class Ky {
 			const ms = this._calculateRetryDelay(error);
 			if (ms !== 0 && this._retryCount > 0) {
 				await delay(ms);
+
+				for (const hook of this._hooks.beforeRetry) {
+					// eslint-disable-next-line no-await-in-loop
+					await hook(
+						this._input,
+						this._options,
+						error,
+						this._retryCount,
+					);
+				}
+
 				return this._retry(fn);
 			}
 

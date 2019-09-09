@@ -13,6 +13,13 @@ export type BeforeRequestHook = (
 	options: NormalizedOptions,
 ) => void | Promise<void>;
 
+export type BeforeRetryHook = (
+	input: Input,
+	options: NormalizedOptions,
+	error: Error,
+	retryCount: number,
+) => void | Promise<void>;
+
 export type AfterResponseHook = (
 	input: Input,
 	options: NormalizedOptions,
@@ -38,6 +45,15 @@ export interface Hooks {
 	@default []
 	*/
 	beforeRequest?: BeforeRequestHook[];
+
+	/**
+	Before the request is retried.
+
+	This hook enables you to modify the request right before retry. The hook function receives the `input`, `options`, `error` and `retryCount` arguments. You could, for example, modify `options.headers` here.
+
+	@default []
+	*/
+	beforeRetry?: BeforeRetryHook[];
 
 	/**
 	After the response is received.
