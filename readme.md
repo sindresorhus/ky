@@ -226,6 +226,10 @@ Default: `[]`
 
 This hook enables you to modify the request right before it is sent. Ky will make no further changes to the request after this. The hook function receives normalized input and options as arguments. You could, for example, modify `options.headers` here.
 
+A [Response](https://developer.mozilla.org/en-US/docs/Web/API/Response) instance can be returned from a `beforeRequest` hook to completely avoid making an HTTP request. This is very helpful when mocking a request or using an internal cache.
+
+**Note:** all the following hooks will be skipped.
+
 Note that the argument order has changed in non-backward compatible way since [#163](https://github.com/sindresorhus/ky/pull/163).
 
 ###### hooks.afterResponse

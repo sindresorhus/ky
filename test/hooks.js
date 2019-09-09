@@ -291,3 +291,15 @@ test.failing('`afterResponse` hook is called with input, normalized options, and
 
 	await server.close();
 });
+
+test('hooks beforeRequest returning Response skips HTTP Request', async t => {
+	const expectedResponse = 'empty hook';
+
+	const response = await ky.get('server.url', {hooks: {
+		beforeRequest: [
+			() => new Response(expectedResponse, {status: 200, statusText: 'OK'})
+		]
+	}}).text();
+
+	t.is(response, expectedResponse);
+});
