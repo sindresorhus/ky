@@ -242,6 +242,8 @@ class Ky {
 				body: otherOptions.body || input.body,
 				credentials: otherOptions.credentials || input.credentials
 			};
+		} else if (!(input instanceof URL) && typeof input !== 'string') {
+			throw new Error('`input` must be a string, URL, or Request');
 		} else {
 			this._input = String(input || '');
 			this._options.prefixUrl = String(this._options.prefixUrl || '');
