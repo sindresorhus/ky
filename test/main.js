@@ -429,6 +429,10 @@ test('supports Request instance as input', async t => {
 	await server.close();
 });
 
+test('throws when input is not a string, URL, or Request', t => {
+	t.throws(() => ky.get(0), '`input` must be a string, URL, or Request');
+});
+
 test('options override Request instance method', async t => {
 	const server = await createTestServer();
 	const inputRequest = new Request(server.url, {method: 'GET'});
