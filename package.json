@@ -71,7 +71,6 @@
 	"ava": {
 		"babel": false,
 		"compileEnhancements": false,
-		"concurrency": 3,
 		"require": [
 			"esm",
 			"./test/_require"
