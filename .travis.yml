@@ -2,6 +2,11 @@ language: node_js
 node_js:
   - '12'
   - '10'
+dist: trusty
+addons:
+  apt:
+    packages:
+      - libnss3
 before_install:
   - "sysctl kernel.unprivileged_userns_clone=1"
   - "export DISPLAY=:99.0"
