@@ -1,8 +1,8 @@
-import test from 'ava';
+import {serial as test} from 'ava';
 import createTestServer from 'create-test-server';
 import withPage from './helpers/with-page';
 
-test.serial('prefixUrl option', withPage, async (t, page) => {
+test('prefixUrl option', withPage, async (t, page) => {
 	const server = await createTestServer();
 	server.get('/', (request, response) => {
 		response.end('zebra');
@@ -35,7 +35,7 @@ test.serial('prefixUrl option', withPage, async (t, page) => {
 	await server.close();
 });
 
-test.serial('aborting a request', withPage, async (t, page) => {
+test('aborting a request', withPage, async (t, page) => {
 	const server = await createTestServer();
 
 	server.get('/', (request, response) => {
@@ -64,7 +64,7 @@ test.serial('aborting a request', withPage, async (t, page) => {
 	await server.close();
 });
 
-test.serial('throws TimeoutError even though it does not support AbortController', withPage, async (t, page) => {
+test('throws TimeoutError even though it does not support AbortController', withPage, async (t, page) => {
 	const server = await createTestServer();
 
 	server.get('/', (request, response) => {
@@ -90,7 +90,7 @@ test.serial('throws TimeoutError even though it does not support AbortController
 	await server.close();
 });
 
-test.serial('onDownloadProgress works', withPage, async (t, page) => {
+test('onDownloadProgress works', withPage, async (t, page) => {
 	const server = await createTestServer();
 
 	server.get('/', (request, response) => {
@@ -134,7 +134,7 @@ test.serial('onDownloadProgress works', withPage, async (t, page) => {
 	await server.close();
 });
 
-test.serial('throws if onDownloadProgress is not a function', withPage, async (t, page) => {
+test('throws if onDownloadProgress is not a function', withPage, async (t, page) => {
 	const server = await createTestServer();
 
 	server.get('/', (request, response) => {
@@ -155,7 +155,7 @@ test.serial('throws if onDownloadProgress is not a function', withPage, async (t
 	await server.close();
 });
 
-test.serial('throws if does not support ReadableStream', withPage, async (t, page) => {
+test('throws if does not support ReadableStream', withPage, async (t, page) => {
 	const server = await createTestServer();
 
 	server.get('/', (request, response) => {
