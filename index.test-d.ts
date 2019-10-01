@@ -29,37 +29,43 @@ expectType<TimeoutError>(new TimeoutError);
 ky(url, {
 	hooks: {
 		beforeRequest: [
-			(input, options) => {
-				expectType<Input>(input);
+			(request, options) => {
+				expectType<Request>(request);
 				expectType<Object>(options);
-				options.headers.set('foo', 'bar');
+				request.headers.set('foo', 'bar');
 			},
-			(_input, _options) => {
+			(_request, _options) => {
+				return new Request('Test');
+			},
+			async (_request, _options) => {
+				return new Request('Test');
+			},
+			(_request, _options) => {
 				return new Response('Test');
 			},
-			async (_input, _options) => {
+			async (_request, _options) => {
 				return new Response('Test');
 			}
 		],
 		beforeRetry: [
-			(input, options, error, retryCount) => {
-				expectType<Input>(input);
+			(request, options, error, retryCount) => {
+				expectType<Request>(request);
 				expectType<Object>(options);
 				expectType<Error>(error);
 				expectType<number>(retryCount);
-				options.headers.set('foo', 'bar');
+				request.headers.set('foo', 'bar');
 			}
 		],
 		afterResponse: [
-			(input, options, response) => {
-				expectType<Input>(input);
+			(request, options, response) => {
+				expectType<Request>(request);
 				expectType<Object>(options);
 				expectType<Response>(response);
 			},
-			(_input, _options, _response) => {
+			(_request, _options, _response) => {
 				return new Response('Test');
 			},
-			async (_input, _options, _response) => {
+			async (_request, _options, _response) => {
 				return new Response('Test');
 			}
 		]

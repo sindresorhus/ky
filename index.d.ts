@@ -9,19 +9,19 @@ type LiteralUnion<LiteralType extends BaseType, BaseType extends Primitive> =
 export type Input = Request | URL | string;
 
 export type BeforeRequestHook = (
-	input: Input,
+	request: Request,
 	options: NormalizedOptions,
-) => Response | void | Promise<Response | void>;
+) => Request | Response | void | Promise<Request | Response | void>;
 
 export type BeforeRetryHook = (
-	input: Input,
+	request: Request,
 	options: NormalizedOptions,
 	error: Error,
 	retryCount: number,
 ) => void | Promise<void>;
 
 export type AfterResponseHook = (
-	input: Input,
+	request: Request,
 	options: NormalizedOptions,
 	response: Response,
 ) => Response | void | Promise<Response | void>;

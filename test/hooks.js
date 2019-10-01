@@ -23,11 +23,11 @@ test('hooks can be async', async t => {
 			json,
 			hooks: {
 				beforeRequest: [
-					async (_input, options) => {
+					async (request, options) => {
 						await delay(100);
 						const bodyJson = JSON.parse(options.body);
 						bodyJson.foo = false;
-						options.body = JSON.stringify(bodyJson);
+						return new Request(request, {body: JSON.stringify(bodyJson)});
 					}
 				]
 			}
@@ -70,10 +70,10 @@ test('beforeRequest hook allows modifications', async t => {
 			json,
 			hooks: {
 				beforeRequest: [
-					(_input, options) => {
+					(request, options) => {
 						const bodyJson = JSON.parse(options.body);
 						bodyJson.foo = false;
-						options.body = JSON.stringify(bodyJson);
+						return new Request(request, {body: JSON.stringify(bodyJson)});
 					}
 				]
 			}
@@ -337,8 +337,8 @@ test('beforeRetry hook allows modifications of non initial requests', async t =>
 			.get(server.url, {
 				hooks: {
 					beforeRetry: [
-						(_input, options) => {
-							options.headers.set('unicorn', fixture);
+						request => {
+							request.headers.set('unicorn', fixture);
 						}
 					]
 				}

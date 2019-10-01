@@ -214,110 +214,102 @@ const normalizeRetryOptions = retry => {
 
 class Ky {
 	constructor(input, {
-		timeout = 10000,
 		hooks,
-		throwHttpErrors = true,
-		searchParams,
 		json,
+		onDownloadProgress,
+		prefixUrl,
 		retry = {},
-		...otherOptions
+		searchParams,
+		throwHttpErrors = true,
+		timeout = 10000,
+		...fetchOptions
 	}) {
 		this._retryCount = 0;
-
+		this._input = input;
 		this._options = {
-			method: 'get',
-			credentials: 'same-origin', // TODO: This can be removed when the spec change is implemented in all browsers. Context: https://www.chromestatus.com/feature/4539473312350208
+			hooks: deepMerge({
+				beforeRequest: [],
+				beforeRetry: [],
+				afterResponse: []
+			}, hooks),
+			json,
+			onDownloadProgress,
+			prefixUrl: String(prefixUrl || ''),
 			retry: normalizeRetryOptions(retry),
-			...otherOptions
+			searchParams,
+			throwHttpErrors,
+			timeout
+		};
+		this._fetchOptions = {
+			// TODO: credentials can be removed when the spec change is implemented in all browsers. Context: https://www.chromestatus.com/feature/4539473312350208
+			credentials: this._input.credentials || 'same-origin',
+			...fetchOptions,
+			method: normalizeRequestMethod(fetchOptions.method || this._input.method)
 		};
 
-		if (input instanceof globals.Request) {
-			this._input = input;
-
-			// `ky` options have precedence over `Request` options
-			this._options = {
-				...this._options,
-				method: otherOptions.method || input.method,
-				headers: otherOptions.headers || input.headers,
-				body: otherOptions.body || input.body,
-				credentials: otherOptions.credentials || input.credentials
-			};
-		} else if (!(input instanceof URL) && typeof input !== 'string') {
+		if (typeof input !== 'string' && !(input instanceof URL || input instanceof globals.Request)) {
 			throw new TypeError('`input` must be a string, URL, or Request');
-		} else {
-			this._input = String(input || '');
-			this._options.prefixUrl = String(this._options.prefixUrl || '');
+		}
 
-			if (this._options.prefixUrl && this._input.startsWith('/')) {
+		if (this._options.prefixUrl && typeof this._input === 'string') {
+			if (this._input.startsWith('/')) {
 				throw new Error('`input` must not begin with a slash when using `prefixUrl`');
 			}
 
-			if (this._options.prefixUrl && !this._options.prefixUrl.endsWith('/')) {
+			if (!this._options.prefixUrl.endsWith('/')) {
 				this._options.prefixUrl += '/';
 			}
 
 			this._input = this._options.prefixUrl + this._input;
-
-			if (searchParams) {
-				const url = new URL(this._input, globals.document && globals.document.baseURI);
-				if (typeof searchParams === 'string' || (URLSearchParams && searchParams instanceof URLSearchParams)) {
-					url.search = searchParams;
-				} else if (Object.values(searchParams).every(param => typeof param === 'number' || typeof param === 'string')) {
-					url.search = new URLSearchParams(searchParams).toString();
-				} else {
-					throw new Error('The `searchParams` option must be either a string, `URLSearchParams` instance or an object with string and number values');
-				}
-
-				this._input = url.toString();
-			}
 		}
 
 		if (supportsAbortController) {
 			this.abortController = new globals.AbortController();
-			if (this._options.signal) {
-				this._options.signal.addEventListener('abort', () => {
+			if (this._fetchOptions.signal) {
+				this._fetchOptions.signal.addEventListener('abort', () => {
 					this.abortController.abort();
 				});
+				this._fetchOptions.signal = this.abortController.signal;
+			}
+		}
+
+		this.request = new globals.Request(this._input, this._fetchOptions);
+
+		if (searchParams) {
+			const url = new URL(this._input.url || this._input, globals.document && globals.document.baseURI);
+			if (typeof searchParams === 'string' || (URLSearchParams && searchParams instanceof URLSearchParams)) {
+				url.search = searchParams;
+			} else if (Object.values(searchParams).every(param => typeof param === 'number' || typeof param === 'string')) {
+				url.search = new URLSearchParams(searchParams).toString();
+			} else {
+				throw new Error('The `searchParams` option must be either a string, `URLSearchParams` instance or an object with string and number values');
 			}
 
-			this._options.signal = this.abortController.signal;
+			this.request = new globals.Request(url, this.request);
 		}
 
-		this._options.method = normalizeRequestMethod(this._options.method);
-
-		this._timeout = timeout;
-		this._hooks = deepMerge({
-			beforeRequest: [],
-			beforeRetry: [],
-			afterResponse: []
-		}, hooks);
-		this._throwHttpErrors = throwHttpErrors;
-
-		const headers = new globals.Headers(this._options.headers || {});
-
-		if (((supportsFormData && this._options.body instanceof globals.FormData) || this._options.body instanceof URLSearchParams) && headers.has('content-type')) {
-			throw new Error(`The \`content-type\` header cannot be used with a ${this._options.body.constructor.name} body. It will be set automatically.`);
+		if (((supportsFormData && this._fetchOptions.body instanceof globals.FormData) || this._fetchOptions.body instanceof URLSearchParams) && this.request.headers.has('content-type')) {
+			throw new Error(`The \`content-type\` header cannot be used with a ${this._fetchOptions.body.constructor.name} body. It will be set automatically.`);
 		}
 
-		if (json) {
-			if (this._options.body) {
+		if (this._options.json) {
+			if (this._fetchOptions.body) {
 				throw new Error('The `json` option cannot be used with the `body` option');
 			}
 
-			headers.set('content-type', 'application/json');
-			this._options.body = JSON.stringify(json);
+			this._fetchOptions.body = JSON.stringify(json);
+			this.request.headers.set('content-type', 'application/json');
+			this.request = new globals.Request(this.request, {body: this._fetchOptions.body});
 		}
-
-		this._options.headers = headers;
 
 		const fn = async () => {
 			await delay(1);
 			let response = await this._fetch();
 
-			for (const hook of this._hooks.afterResponse) {
+			for (const hook of this._options.hooks.afterResponse) {
 				// eslint-disable-next-line no-await-in-loop
 				const modifiedResponse = await hook(
-					this._input,
+					this.request,
 					this._options,
 					response.clone()
 				);
@@ -327,7 +319,7 @@ class Ky {
 				}
 			}
 
-			if (!response.ok && this._throwHttpErrors) {
+			if (!response.ok && this._options.throwHttpErrors) {
 				throw new HTTPError(response);
 			}
 
@@ -348,12 +340,12 @@ class Ky {
 			return response;
 		};
 
-		const isRetriableMethod = this._options.retry.methods.has(this._options.method.toLowerCase());
+		const isRetriableMethod = this._options.retry.methods.has(this.request.method.toLowerCase());
 		const result = isRetriableMethod ? this._retry(fn) : fn();
 
 		for (const [type, mimeType] of Object.entries(responseTypes)) {
 			result[type] = async () => {
-				headers.set('accept', mimeType);
+				this.request.headers.set('accept', mimeType);
 				return (await result).clone()[type]();
 			};
 		}
@@ -406,11 +398,11 @@ class Ky {
 			if (ms !== 0 && this._retryCount > 0) {
 				await delay(ms);
 
-				for (const hook of this._hooks.beforeRetry) {
+				for (const hook of this._options.hooks.beforeRetry) {
 					// eslint-disable-next-line no-await-in-loop
 					await hook(
-						this._input,
-						this._options,
+						this.request,
+						this._fetchOptions,
 						error,
 						this._retryCount,
 					);
@@ -419,27 +411,32 @@ class Ky {
 				return this._retry(fn);
 			}
 
-			if (this._throwHttpErrors) {
+			if (this._options.throwHttpErrors) {
 				throw error;
 			}
 		}
 	}
 
 	async _fetch() {
-		for (const hook of this._hooks.beforeRequest) {
+		for (const hook of this._options.hooks.beforeRequest) {
 			// eslint-disable-next-line no-await-in-loop
-			const result = await hook(this._input, this._options);
+			const result = await hook(this.request, this._fetchOptions);
+
+			if (result instanceof Request) {
+				this.request = result;
+				break;
+			}
 
 			if (result instanceof Response) {
 				return result;
 			}
 		}
 
-		if (this._timeout === false) {
-			return globals.fetch(this._input, this._options);
+		if (this._options.timeout === false) {
+			return globals.fetch(this.request);
 		}
 
-		return timeout(globals.fetch(this._input, this._options), this._timeout, this.abortController);
+		return timeout(globals.fetch(this.request), this._options.timeout, this.abortController);
 	}
 
 	/* istanbul ignore next */

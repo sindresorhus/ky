@@ -108,9 +108,27 @@ test('POST JSON', async t => {
 	await server.close();
 });
 
+test('cannot use `body` option with GET or HEAD method', t => {
+	t.throws(() => {
+		ky.get('https://example.com', {body: 'foobar'});
+	}, 'Request with GET/HEAD method cannot have body');
+	t.throws(() => {
+		ky.head('https://example.com', {body: 'foobar'});
+	}, 'Request with GET/HEAD method cannot have body');
+});
+
+test('cannot use `json` option with GET or HEAD method', t => {
+	t.throws(() => {
+		ky.get('https://example.com', {json: {}});
+	}, 'Request with GET/HEAD method cannot have body');
+	t.throws(() => {
+		ky.head('https://example.com', {json: {}});
+	}, 'Request with GET/HEAD method cannot have body');
+});
+
 test('cannot use `json` option along with the `body` option', t => {
 	t.throws(() => {
-		ky('https://example.com', {json: {foo: 'bar'}, body: 'foobar'});
+		ky.post('https://example.com', {json: {foo: 'bar'}, body: 'foobar'});
 	}, 'The `json` option cannot be used with the `body` option');
 });
 
