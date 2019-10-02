@@ -11,7 +11,7 @@ export type Input = Request | URL | string;
 export type BeforeRequestHook = (
 	input: Input,
 	options: NormalizedOptions,
-) => Response | void | Promise<void>;
+) => Response | void | Promise<Response | void>;
 
 export type BeforeRetryHook = (
 	input: Input,
