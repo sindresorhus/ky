@@ -37,8 +37,8 @@ ky(url, {
 			(_input, _options) => {
 				return new Response('Test');
 			},
-			(_input, _options) => {
-				return Promise.resolve(new Response('Test'));
+			async (_input, _options) => {
+				return new Response('Test');
 			}
 		],
 		beforeRetry: [
@@ -59,8 +59,8 @@ ky(url, {
 			(_input, _options, _response) => {
 				return new Response('Test');
 			},
-			(_input, _options, _response) => {
-				return Promise.resolve(new Response('Test'));
+			async (_input, _options, _response) => {
+				return new Response('Test');
 			}
 		]
 	}
