@@ -33,6 +33,7 @@ ky(url, {
 				expectType<Input>(input);
 				expectType<Object>(options);
 				options.headers.set('foo', 'bar');
+				return new Response('Test');
 			}
 		],
 		beforeRetry: [
