@@ -33,6 +33,12 @@ ky(url, {
 				expectType<Input>(input);
 				expectType<Object>(options);
 				options.headers.set('foo', 'bar');
+			},
+			(_input, _options) => {
+				return new Response('Test');
+			},
+			async (_input, _options) => {
+				return new Response('Test');
 			}
 		],
 		beforeRetry: [
@@ -49,6 +55,11 @@ ky(url, {
 				expectType<Input>(input);
 				expectType<Object>(options);
 				expectType<Response>(response);
+			},
+			(_input, _options, _response) => {
+				return new Response('Test');
+			},
+			async (_input, _options, _response) => {
 				return new Response('Test');
 			}
 		]
