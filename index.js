@@ -147,26 +147,18 @@ class TimeoutError extends Error {
 	}
 }
 
-const safeTimeout = (resolve, reject, ms) => {
-	if (ms > 2147483647) { // The maximum value of a 32bit int (see #117)
-		reject(new RangeError('The `timeout` option cannot be greater than 2147483647'));
-	}
-
-	return setTimeout(resolve, ms);
-};
-
-const delay = ms => new Promise((resolve, reject) => safeTimeout(resolve, reject, ms));
+const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 
 // `Promise.race()` workaround (#91)
 const timeout = (promise, ms, abortController) =>
 	new Promise((resolve, reject) => {
-		const timeoutID = safeTimeout(() => {
-			if (supportsAbortController) {
+		const timeoutID = setTimeout(() => {
+			if (abortController) {
 				abortController.abort();
 			}
 
 			reject(new TimeoutError());
-		}, reject, ms);
+		}, ms);
 
 		/* eslint-disable promise/prefer-await-to-then */
 		promise
@@ -210,6 +202,12 @@ const normalizeRetryOptions = retry => {
 		statusCodes: retry.statusCodes ? new Set(retry.statusCodes) : defaultRetryOptions.statusCodes,
 		afterStatusCodes: retryAfterStatusCodes
 	};
+};
+
+const assertSafeTimeout = timeout => {
+	if (timeout > 2147483647) { // The maximum value of a 32bit int (see issue #117)
+		throw new RangeError('The `timeout` option cannot be greater than 2147483647');
+	}
 };
 
 class Ky {
@@ -303,6 +301,7 @@ class Ky {
 		}
 
 		const fn = async () => {
+			assertSafeTimeout(timeout);
 			await delay(1);
 			let response = await this._fetch();
 

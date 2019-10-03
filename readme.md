@@ -154,7 +154,7 @@ Search parameters to include in the request URL. Setting this will override all 
 
 Type: `string | URL`
 
-When specified, `prefixUrl` will be prepended to `input`. The prefix can be any valid URL, either relative or absolute. A trailing slash `/` is optional, one will be added automatically, if needed, when joining `prefixUrl` and `input`. The `input` argument cannot start with a `/` when using this option.
+A prefix URL to prepend to the `input` argument, when `input` is a string. The prefix can be any valid URL, either relative or absolute. A trailing `/` slash is optional and will be added automatically, if needed, when it is joined with `input`. When using a prefix, `input` cannot start with a `/` slash.
 
 Useful when used with [`ky.extend()`](#kyextenddefaultoptions) to create niche-specific Ky-instances.
 
