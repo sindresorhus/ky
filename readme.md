@@ -226,7 +226,26 @@ Default: `[]`
 
 This hook enables you to modify the request right before it is sent. Ky will make no further changes to the request after this. The hook function receives `request` and `options` as arguments. You could, for example, modify the `request.headers` here.
 
-The hook can return a [`Request`](https://developer.mozilla.org/en-US/docs/Web/API/Request) to replace the outgoing request, or return a [`Response`](https://developer.mozilla.org/en-US/docs/Web/API/Response) to completely avoid making an HTTP request. This can be used to mock a request, check an internal cache, etc. An **important** consideration when returning a request or response from this hook is that all the following hooks will be skipped, so you may want to only return them from the last hook.
+The hook can return a [`Request`](https://developer.mozilla.org/en-US/docs/Web/API/Request) to replace the outgoing request, or return a [`Response`](https://developer.mozilla.org/en-US/docs/Web/API/Response) to completely avoid making an HTTP request. This can be used to mock a request, check an internal cache, etc. An **important** consideration when returning a request or response from this hook is that any remaining `beforeRequest` hooks will be skipped, so you may want to only return them from the last hook.
+
+```js
+import ky from 'ky';
+
+const api = ky.extend({
+	hooks: {
+		beforeRequest: [
+			(request) => {
+				request.headers.set('X-Requested-With', 'ky');
+			}
+		]
+	}
+});
+
+(async () => {
+	const users = await api.get('https://example.com/api/users');
+	// ...
+})();
+```
 
 ###### hooks.beforeRetry
 
