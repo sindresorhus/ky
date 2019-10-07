@@ -246,7 +246,7 @@ test('`afterResponse` hook gets called even if using body shortcuts', async t =>
 	await server.close();
 });
 
-test.failing('`afterResponse` hook is called with input, normalized options, and response which can be used to retry', async t => {
+test('`afterResponse` hook is called with input, normalized options, and response which can be used to retry', async t => {
 	const server = await createTestServer();
 	server.post('/', async (request, response) => {
 		const body = await pBody(request);
@@ -269,10 +269,10 @@ test.failing('`afterResponse` hook is called with input, normalized options, and
 			json,
 			hooks: {
 				afterResponse: [
-					async (input, options, response) => {
+					async (request, options, response) => {
 						if (response.status === 403) {
 							// Retry request with valid token
-							return ky(input, {
+							return ky(request, {
 								...options,
 								body: JSON.stringify({
 									...JSON.parse(options.body),

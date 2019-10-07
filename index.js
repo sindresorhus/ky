@@ -309,7 +309,7 @@ class Ky {
 				// eslint-disable-next-line no-await-in-loop
 				const modifiedResponse = await hook(
 					this.request,
-					this._options,
+					this._fetchOptions,
 					response.clone()
 				);
 
