@@ -23,11 +23,11 @@ test('hooks can be async', async t => {
 			json,
 			hooks: {
 				beforeRequest: [
-					async (_input, options) => {
+					async (request, options) => {
 						await delay(100);
 						const bodyJson = JSON.parse(options.body);
 						bodyJson.foo = false;
-						options.body = JSON.stringify(bodyJson);
+						return new Request(request, {body: JSON.stringify(bodyJson)});
 					}
 				]
 			}
@@ -70,10 +70,10 @@ test('beforeRequest hook allows modifications', async t => {
 			json,
 			hooks: {
 				beforeRequest: [
-					(_input, options) => {
+					(request, options) => {
 						const bodyJson = JSON.parse(options.body);
 						bodyJson.foo = false;
-						options.body = JSON.stringify(bodyJson);
+						return new Request(request, {body: JSON.stringify(bodyJson)});
 					}
 				]
 			}
@@ -246,7 +246,7 @@ test('`afterResponse` hook gets called even if using body shortcuts', async t =>
 	await server.close();
 });
 
-test.failing('`afterResponse` hook is called with input, normalized options, and response which can be used to retry', async t => {
+test('`afterResponse` hook is called with request, normalized options, and response which can be used to retry', async t => {
 	const server = await createTestServer();
 	server.post('/', async (request, response) => {
 		const body = await pBody(request);
@@ -269,10 +269,10 @@ test.failing('`afterResponse` hook is called with input, normalized options, and
 			json,
 			hooks: {
 				afterResponse: [
-					async (input, options, response) => {
+					async (request, options, response) => {
 						if (response.status === 403) {
 							// Retry request with valid token
-							return ky(input, {
+							return ky(request, {
 								...options,
 								body: JSON.stringify({
 									...JSON.parse(options.body),
@@ -337,8 +337,8 @@ test('beforeRetry hook allows modifications of non initial requests', async t =>
 			.get(server.url, {
 				hooks: {
 					beforeRetry: [
-						(_input, options) => {
-							options.headers.set('unicorn', fixture);
+						request => {
+							request.headers.set('unicorn', fixture);
 						}
 					]
 				}

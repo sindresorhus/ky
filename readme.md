@@ -122,7 +122,7 @@ Returns a [`Response` object](https://developer.mozilla.org/en-US/docs/Web/API/R
 
 Sets `options.method` to the method name and makes a request.
 
-When using a `Request` instance as `input`, any URL altering options (example: `prefixUrl`)  will not work.
+When using a `Request` instance as `input`, any URL altering options (such as `prefixUrl`) will be ignored.
 
 #### options
 
@@ -154,7 +154,7 @@ Search parameters to include in the request URL. Setting this will override all 
 
 Type: `string | URL`
 
-When specified, `prefixUrl` will be prepended to `input`. The prefix can be any valid URL, either relative or absolute. A trailing slash `/` is optional, one will be added automatically, if needed, when joining `prefixUrl` and `input`. The `input` argument cannot start with a `/` when using this option.
+A prefix URL to prepend to the `input` argument, when `input` is a string. The prefix can be any valid URL, either relative or absolute. A trailing `/` slash is optional and will be added automatically, if needed, when it is joined with `input`. When using a prefix, `input` cannot start with a `/` slash.
 
 Useful when used with [`ky.extend()`](#kyextenddefaultoptions) to create niche-specific Ky-instances.
 
@@ -224,16 +224,35 @@ Hooks allow modifications during the request lifecycle. Hook functions may be as
 Type: `Function[]`<br>
 Default: `[]`
 
-This hook enables you to modify the request right before it is sent. Ky will make no further changes to the request after this. The hook function receives normalized input and options as arguments. You could, for example, modify `options.headers` here.
+This hook enables you to modify the request right before it is sent. Ky will make no further changes to the request after this. The hook function receives `request` and `options` as arguments. You could, for example, modify the `request.headers` here.
 
-A [`Response`](https://developer.mozilla.org/en-US/docs/Web/API/Response) can be returned from this hook to completely avoid making a HTTP request. This can be used to mock a request, check an internal cache, etc. An **important** consideration when returning a `Response` from this hook is that all the following hooks will be skipped, so **ensure you only return a `Response` from the last hook**.
+The hook can return a [`Request`](https://developer.mozilla.org/en-US/docs/Web/API/Request) to replace the outgoing request, or return a [`Response`](https://developer.mozilla.org/en-US/docs/Web/API/Response) to completely avoid making an HTTP request. This can be used to mock a request, check an internal cache, etc. An **important** consideration when returning a request or response from this hook is that any remaining `beforeRequest` hooks will be skipped, so you may want to only return them from the last hook.
+
+```js
+import ky from 'ky';
+
+const api = ky.extend({
+	hooks: {
+		beforeRequest: [
+			request => {
+				request.headers.set('X-Requested-With', 'ky');
+			}
+		]
+	}
+});
+
+(async () => {
+	const users = await api.get('https://example.com/api/users');
+	// ...
+})();
+```
 
 ###### hooks.beforeRetry
 
 Type: `Function[]`<br>
 Default: `[]`
 
-This hook enables you to modify the request right before retry. Ky will make no further changes to the request after this. The hook function receives the normalized input and options, an error instance and the retry count as arguments. You could, for example, modify `options.headers` here.
+This hook enables you to modify the request right before retry. Ky will make no further changes to the request after this. The hook function receives the normalized request and options, an error instance and the retry count as arguments. You could, for example, modify `request.headers` here.
 
 ```js
 import ky from 'ky';
@@ -242,9 +261,9 @@ import ky from 'ky';
 	await ky('https://example.com', {
 		hooks: {
 			beforeRetry: [
-				async (input, options, errors, retryCount) => {
+				async (request, options, errors, retryCount) => {
 					const token = await ky('https://example.com/refresh-token');
-					options.headers.set('Authorization', `token ${token}`);
+					request.headers.set('Authorization', `token ${token}`);
 				}
 			]
 		}
@@ -257,7 +276,7 @@ import ky from 'ky';
 Type: `Function[]`<br>
 Default: `[]`
 
-This hook enables you to read and optionally modify the response. The hook function receives normalized input, options, and a clone of the response as arguments. The return value of the hook function will be used by Ky as the response object if it's an instance of [`Response`](https://developer.mozilla.org/en-US/docs/Web/API/Response).
+This hook enables you to read and optionally modify the response. The hook function receives normalized request, options, and a clone of the response as arguments. The return value of the hook function will be used by Ky as the response object if it's an instance of [`Response`](https://developer.mozilla.org/en-US/docs/Web/API/Response).
 
 ```js
 import ky from 'ky';
@@ -266,7 +285,7 @@ import ky from 'ky';
 	await ky('https://example.com', {
 		hooks: {
 			afterResponse: [
-				(_input, _options, response) => {
+				(_request, _options, response) => {
 					// You could do something with the response, for example, logging.
 					log(response);
 
@@ -275,15 +294,15 @@ import ky from 'ky';
 				},
 
 				// Or retry with a fresh token on a 403 error
-				async (input, options, response) => {
+				async (request, options, response) => {
 					if (response.status === 403) {
 						// Get a fresh token
 						const token = await ky('https://example.com/token').text();
 
 						// Retry with the token
-						options.headers.set('Authorization', `token ${token}`);
+						request.headers.set('Authorization', `token ${token}`);
 
-						return ky(input, options);
+						return ky(request);
 					}
 				}
 			]
