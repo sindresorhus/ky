@@ -234,7 +234,7 @@ import ky from 'ky';
 const api = ky.extend({
 	hooks: {
 		beforeRequest: [
-			(request) => {
+			request => {
 				request.headers.set('X-Requested-With', 'ky');
 			}
 		]
@@ -285,7 +285,7 @@ import ky from 'ky';
 	await ky('https://example.com', {
 		hooks: {
 			afterResponse: [
-				(request, options, response) => {
+				(_request, _options, response) => {
 					// You could do something with the response, for example, logging.
 					log(response);
 
