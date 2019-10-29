@@ -126,10 +126,27 @@ test('cannot use `json` option with GET or HEAD method', t => {
 	}, 'Request with GET/HEAD method cannot have body');
 });
 
-test('cannot use `json` option along with the `body` option', t => {
-	t.throws(() => {
-		ky.post('https://example.com', {json: {foo: 'bar'}, body: 'foobar'});
-	}, 'The `json` option cannot be used with the `body` option');
+test('`json` option overrides the `body` option', async t => {
+	t.plan(2);
+
+	const server = await createTestServer();
+	server.post('/', async (request, response) => {
+		t.is(request.headers['content-type'], 'application/json');
+		response.json(JSON.parse(await pBody(request)));
+	});
+
+	const json = {
+		foo: 'bar'
+	};
+
+	const responseJson = await ky.post(server.url, {
+		body: 'hello',
+		json
+	}).json();
+
+	t.deepEqual(json, responseJson);
+
+	await server.close();
 });
 
 test('custom headers', async t => {

@@ -274,10 +274,10 @@ test('`afterResponse` hook is called with request, normalized options, and respo
 							// Retry request with valid token
 							return ky(request, {
 								...options,
-								body: JSON.stringify({
-									...JSON.parse(options.body),
+								json: {
+									...options.json,
 									token: 'valid:token'
-								})
+								}
 							});
 						}
 					}

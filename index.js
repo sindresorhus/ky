@@ -89,14 +89,14 @@ const deepMerge = (...sources) => {
 	return returnValue;
 };
 
-const requestMethods = [
+const requestMethods = new Set([
 	'get',
 	'post',
 	'put',
 	'patch',
 	'head',
 	'delete'
-];
+]);
 
 const responseTypes = {
 	json: 'application/json',
@@ -169,7 +169,7 @@ const timeout = (promise, ms, abortController) =>
 		/* eslint-enable promise/prefer-await-to-then */
 	});
 
-const normalizeRequestMethod = input => requestMethods.includes(input) ? input.toUpperCase() : input;
+const normalizeRequestMethod = input => requestMethods.has(input) ? input.toUpperCase() : input;
 
 const defaultRetryOptions = {
 	limit: 2,
@@ -178,7 +178,7 @@ const defaultRetryOptions = {
 	afterStatusCodes: retryAfterStatusCodes
 };
 
-const normalizeRetryOptions = retry => {
+const normalizeRetryOptions = (retry = {}) => {
 	if (typeof retry === 'number') {
 		return {
 			...defaultRetryOptions,
@@ -186,12 +186,12 @@ const normalizeRetryOptions = retry => {
 		};
 	}
 
-	if (retry.methods && !Array.isArray(retry.methods)) {
-		throw new Error('retry.methods must be an array');
+	if (retry.methods && !(Array.isArray(retry.methods) || retry.methods instanceof Set)) {
+		throw new Error('retry.methods must be an array or a Set');
 	}
 
-	if (retry.statusCodes && !Array.isArray(retry.statusCodes)) {
-		throw new Error('retry.statusCodes must be an array');
+	if (retry.statusCodes && !(Array.isArray(retry.statusCodes) || retry.statusCodes instanceof Set)) {
+		throw new Error('retry.statusCodes must be an array or a Set');
 	}
 
 	return {
@@ -203,48 +203,30 @@ const normalizeRetryOptions = retry => {
 	};
 };
 
-const assertSafeTimeout = timeout => {
-	if (timeout > 2147483647) { // The maximum value of a 32bit int (see issue #117)
-		throw new RangeError('The `timeout` option cannot be greater than 2147483647');
-	}
-};
+// The maximum value of a 32bit int (see issue #117)
+const maxSafeTimeout = 2147483647;
 
 class Ky {
-	constructor(input, {
-		hooks,
-		json,
-		onDownloadProgress,
-		prefixUrl,
-		retry = {},
-		searchParams,
-		throwHttpErrors = true,
-		timeout = 10000,
-		...fetchOptions
-	}) {
+	constructor(input, options = {}) {
 		this._retryCount = 0;
 		this._input = input;
 		this._options = {
+			// TODO: credentials can be removed when the spec change is implemented in all browsers. Context: https://www.chromestatus.com/feature/4539473312350208
+			credentials: this._input.credentials || 'same-origin',
+			...options,
 			hooks: deepMerge({
 				beforeRequest: [],
 				beforeRetry: [],
 				afterResponse: []
-			}, hooks),
-			json,
-			onDownloadProgress,
-			prefixUrl: String(prefixUrl || ''),
-			retry: normalizeRetryOptions(retry),
-			searchParams,
-			throwHttpErrors,
-			timeout
-		};
-		this._fetchOptions = {
-			// TODO: credentials can be removed when the spec change is implemented in all browsers. Context: https://www.chromestatus.com/feature/4539473312350208
-			credentials: this._input.credentials || 'same-origin',
-			...fetchOptions,
-			method: normalizeRequestMethod(fetchOptions.method || this._input.method)
+			}, options.hooks),
+			method: normalizeRequestMethod(options.method || this._input.method),
+			prefixUrl: String(options.prefixUrl || ''),
+			retry: normalizeRetryOptions(options.retry),
+			throwHttpErrors: options.throwHttpErrors !== false,
+			timeout: typeof options.timeout === 'undefined' ? 10000 : options.timeout
 		};
 
-		if (typeof input !== 'string' && !(input instanceof URL || input instanceof globals.Request)) {
+		if (typeof this._input !== 'string' && !(this._input instanceof URL || this._input instanceof globals.Request)) {
 			throw new TypeError('`input` must be a string, URL, or Request');
 		}
 
@@ -262,38 +244,37 @@ class Ky {
 
 		if (supportsAbortController) {
 			this.abortController = new globals.AbortController();
-			if (this._fetchOptions.signal) {
-				this._fetchOptions.signal.addEventListener('abort', () => {
+			if (this._options.signal) {
+				this._options.signal.addEventListener('abort', () => {
 					this.abortController.abort();
 				});
-				this._fetchOptions.signal = this.abortController.signal;
+				this._options.signal = this.abortController.signal;
 			}
 		}
 
-		this.request = new globals.Request(this._input, this._fetchOptions);
+		this.request = new globals.Request(this._input, this._options);
 
-		if (searchParams) {
+		if (this._options.searchParams) {
 			const url = new URL(this.request.url);
-			url.search = new URLSearchParams(searchParams);
+			url.search = new URLSearchParams(this._options.searchParams);
 			this.request = new globals.Request(url, this.request);
 		}
 
-		if (((supportsFormData && this._fetchOptions.body instanceof globals.FormData) || this._fetchOptions.body instanceof URLSearchParams) && this.request.headers.has('content-type')) {
-			throw new Error(`The \`content-type\` header cannot be used with a ${this._fetchOptions.body.constructor.name} body. It will be set automatically.`);
+		if (((supportsFormData && this._options.body instanceof globals.FormData) || this._options.body instanceof URLSearchParams) && this.request.headers.has('content-type')) {
+			throw new Error(`The \`content-type\` header cannot be used with a ${this._options.body.constructor.name} body. It will be set automatically.`);
 		}
 
 		if (this._options.json) {
-			if (this._fetchOptions.body) {
-				throw new Error('The `json` option cannot be used with the `body` option');
-			}
-
-			this._fetchOptions.body = JSON.stringify(json);
+			this._options.body = JSON.stringify(this._options.json);
 			this.request.headers.set('content-type', 'application/json');
-			this.request = new globals.Request(this.request, {body: this._fetchOptions.body});
+			this.request = new globals.Request(this.request, {body: this._options.body});
 		}
 
 		const fn = async () => {
-			assertSafeTimeout(timeout);
+			if (this._options.timeout > maxSafeTimeout) {
+				throw new RangeError(`The \`timeout\` option cannot be greater than ${maxSafeTimeout}`);
+			}
+
 			await delay(1);
 			let response = await this._fetch();
 
@@ -301,7 +282,7 @@ class Ky {
 				// eslint-disable-next-line no-await-in-loop
 				const modifiedResponse = await hook(
 					this.request,
-					this._fetchOptions,
+					this._options,
 					response.clone()
 				);
 
@@ -385,7 +366,7 @@ class Ky {
 		try {
 			return await fn();
 		} catch (error) {
-			const ms = this._calculateRetryDelay(error);
+			const ms = Math.min(this._calculateRetryDelay(error), maxSafeTimeout);
 			if (ms !== 0 && this._retryCount > 0) {
 				await delay(ms);
 
@@ -393,7 +374,7 @@ class Ky {
 					// eslint-disable-next-line no-await-in-loop
 					await hook(
 						this.request,
-						this._fetchOptions,
+						this._options,
 						error,
 						this._retryCount,
 					);
@@ -411,7 +392,7 @@ class Ky {
 	async _fetch() {
 		for (const hook of this._options.hooks.beforeRequest) {
 			// eslint-disable-next-line no-await-in-loop
-			const result = await hook(this.request, this._fetchOptions);
+			const result = await hook(this.request, this._options);
 
 			if (result instanceof Request) {
 				this.request = result;
