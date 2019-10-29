@@ -39,7 +39,6 @@ const globals = {};
 	};
 
 	const globalProperties = [
-		'document',
 		'Headers',
 		'Request',
 		'Response',
@@ -274,7 +273,7 @@ class Ky {
 		this.request = new globals.Request(this._input, this._fetchOptions);
 
 		if (searchParams) {
-			const url = new URL(this._input.url || this._input, globals.document && globals.document.baseURI);
+			const url = new URL(this.request.url);
 			url.search = new URLSearchParams(searchParams);
 			this.request = new globals.Request(url, this.request);
 		}
