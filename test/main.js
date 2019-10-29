@@ -244,24 +244,19 @@ test('searchParams option', async t => {
 		response.end(request.url.slice(1));
 	});
 
-	const stringParams = '?pass=true';
-	const objectParams = {pass: 'true'};
-	const searchParams = new URLSearchParams(stringParams);
+	const arrayParams = [['cats', 'meow'], ['dogs', true], ['opossums', false]];
+	const objectParams = {
+		cats: 'meow',
+		dogs: true,
+		opossums: false
+	};
+	const searchParams = new URLSearchParams(arrayParams);
+	const stringParams = '?cats=meow&dogs=true&opossums=false';
 
-	t.is(await ky(server.url, {searchParams: stringParams}).text(), stringParams);
+	t.is(await ky(server.url, {searchParams: arrayParams}).text(), stringParams);
 	t.is(await ky(server.url, {searchParams: objectParams}).text(), stringParams);
 	t.is(await ky(server.url, {searchParams}).text(), stringParams);
-
-	t.throws(() => {
-		ky(server.url, {
-			searchParams: {
-				pass: [
-					'true',
-					'false'
-				]
-			}
-		});
-	}, /`searchParams` option must be/);
+	t.is(await ky(server.url, {searchParams: stringParams}).text(), stringParams);
 
 	await server.close();
 });

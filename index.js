@@ -275,14 +275,7 @@ class Ky {
 
 		if (searchParams) {
 			const url = new URL(this._input.url || this._input, globals.document && globals.document.baseURI);
-			if (typeof searchParams === 'string' || (URLSearchParams && searchParams instanceof URLSearchParams)) {
-				url.search = searchParams;
-			} else if (Object.values(searchParams).every(param => typeof param === 'number' || typeof param === 'string')) {
-				url.search = new URLSearchParams(searchParams).toString();
-			} else {
-				throw new Error('The `searchParams` option must be either a string, `URLSearchParams` instance or an object with string and number values');
-			}
-
+			url.search = new URLSearchParams(searchParams);
 			this.request = new globals.Request(url, this.request);
 		}
 
