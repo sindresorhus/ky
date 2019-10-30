@@ -126,21 +126,21 @@ export interface RetryOptions {
 
 	@default ['get', 'put', 'head', 'delete', 'options', 'trace']
 	*/
-	methods?: string[];
+	methods?: string[] | Set<string>;
 
 	/**
 	The HTTP status codes allowed to retry.
 
 	@default [408, 413, 429, 500, 502, 503, 504]
 	*/
-	statusCodes?: number[];
+	statusCodes?: number[] | Set<number>;
 
 	/**
 	The HTTP status codes allowed to retry with a `Retry-After` header.
 
 	@default [413, 429, 503]
 	*/
-	afterStatusCodes?: number[];
+	afterStatusCodes?: number[] | Set<number>;
 
 	/**
 	If the `Retry-After` header is greater than `maxRetryAfter`, the request will be canceled.
@@ -169,11 +169,11 @@ export interface Options extends RequestInit {
 	json?: unknown;
 
 	/**
-	Search parameters to include in the request URL.
+	Search parameters to include in the request URL. Setting this will override all existing search parameters in the input URL.
 
-	Setting this will override all existing search parameters in the input URL.
+	Accepts any value supported by [`URLSearchParams()`](https://developer.mozilla.org/en-US/docs/Web/API/URLSearchParams/URLSearchParams).
 	*/
-	searchParams?: string | {[key: string]: string | number} | URLSearchParams;
+	searchParams?: string | {[key: string]: string | number | boolean} | Array<Array<string | number | boolean>> | URLSearchParams;
 
 	/**
 	When specified, `prefixUrl` will be prepended to `input`. The prefix can be any valid URL, either relative or absolute. A trailing slash `/` is optional, one will be added automatically, if needed, when joining `prefixUrl` and `input`. The `input` argument cannot start with a `/` when using this option.
