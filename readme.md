@@ -491,9 +491,9 @@ Alternatively, you can use the [`umd.js`](umd.js) file with a traditional `<scri
 <script src="https://cdn.jsdelivr.net/npm/ky@0.11.0/umd.js"></script>
 <script>
 (async () => {
-	const ky = ky.default;
+	const client = ky.default;
 
-	const parsed = await ky('https://jsonplaceholder.typicode.com/todos/1').json();
+	const parsed = await client('https://jsonplaceholder.typicode.com/todos/1').json();
 
 	console.log(parsed.title);
 	//=> 'delectus aut autem
