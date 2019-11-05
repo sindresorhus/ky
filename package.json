@@ -23,6 +23,10 @@
 		"umd.js",
 		"umd.d.ts"
 	],
+	"funding": {
+		"type": "GitHub",
+		"url": "https://github.com/sponsors/sindresorhus"
+	},
 	"keywords": [
 		"fetch",
 		"request",
