@@ -315,27 +315,6 @@ test('does retry on 408 with methods provided as array', async t => {
 	await server.close();
 });
 
-test('does retry on 408 with methods provided as a Set', async t => {
-	let requestCount = 0;
-
-	const server = await createTestServer();
-	server.get('/', async (request, response) => {
-		requestCount++;
-		response.sendStatus(408);
-	});
-
-	await t.throwsAsync(ky(server.url, {
-		retry: {
-			limit: 4,
-			methods: new Set(['get'])
-		}
-	}).text());
-
-	t.is(requestCount, 4);
-
-	await server.close();
-});
-
 test('does retry on 408 with statusCodes provided as array', async t => {
 	let requestCount = 0;
 
@@ -349,27 +328,6 @@ test('does retry on 408 with statusCodes provided as array', async t => {
 		retry: {
 			limit: 4,
 			statusCodes: [408]
-		}
-	}).text());
-
-	t.is(requestCount, 4);
-
-	await server.close();
-});
-
-test('does retry on 408 with statusCodes provided as a Set', async t => {
-	let requestCount = 0;
-
-	const server = await createTestServer();
-	server.get('/', async (request, response) => {
-		requestCount++;
-		response.sendStatus(408);
-	});
-
-	await t.throwsAsync(ky(server.url, {
-		retry: {
-			limit: 4,
-			statusCodes: new Set([408])
 		}
 	}).text());
 
@@ -398,7 +356,7 @@ test('doesn\'t retry when retry.limit is set to 0', async t => {
 	await server.close();
 });
 
-test('throws when retry.methods is not an array or Set', async t => {
+test('throws when retry.methods is not an array', async t => {
 	const server = await createTestServer();
 
 	t.throws(() => {
@@ -412,7 +370,7 @@ test('throws when retry.methods is not an array or Set', async t => {
 	await server.close();
 });
 
-test('throws when retry.statusCodes is not an array or Set', async t => {
+test('throws when retry.statusCodes is not an array', async t => {
 	const server = await createTestServer();
 
 	t.throws(() => {

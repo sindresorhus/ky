@@ -89,14 +89,14 @@ const deepMerge = (...sources) => {
 	return returnValue;
 };
 
-const requestMethods = new Set([
+const requestMethods = [
 	'get',
 	'post',
 	'put',
 	'patch',
 	'head',
 	'delete'
-]);
+];
 
 const responseTypes = {
 	json: 'application/json',
@@ -106,16 +106,16 @@ const responseTypes = {
 	blob: '*/*'
 };
 
-const retryMethods = new Set([
+const retryMethods = [
 	'get',
 	'put',
 	'head',
 	'delete',
 	'options',
 	'trace'
-]);
+];
 
-const retryStatusCodes = new Set([
+const retryStatusCodes = [
 	408,
 	413,
 	429,
@@ -123,13 +123,13 @@ const retryStatusCodes = new Set([
 	502,
 	503,
 	504
-]);
+];
 
-const retryAfterStatusCodes = new Set([
+const retryAfterStatusCodes = [
 	413,
 	429,
 	503
-]);
+];
 
 class HTTPError extends Error {
 	constructor(response) {
@@ -169,7 +169,7 @@ const timeout = (promise, ms, abortController) =>
 		/* eslint-enable promise/prefer-await-to-then */
 	});
 
-const normalizeRequestMethod = input => requestMethods.has(input) ? input.toUpperCase() : input;
+const normalizeRequestMethod = input => requestMethods.includes(input) ? input.toUpperCase() : input;
 
 const defaultRetryOptions = {
 	limit: 2,
@@ -186,19 +186,17 @@ const normalizeRetryOptions = (retry = {}) => {
 		};
 	}
 
-	if (retry.methods && !(Array.isArray(retry.methods) || retry.methods instanceof Set)) {
-		throw new Error('retry.methods must be an array or a Set');
+	if (retry.methods && !Array.isArray(retry.methods)) {
+		throw new Error('retry.methods must be an array');
 	}
 
-	if (retry.statusCodes && !(Array.isArray(retry.statusCodes) || retry.statusCodes instanceof Set)) {
-		throw new Error('retry.statusCodes must be an array or a Set');
+	if (retry.statusCodes && !Array.isArray(retry.statusCodes)) {
+		throw new Error('retry.statusCodes must be an array');
 	}
 
 	return {
 		...defaultRetryOptions,
 		...retry,
-		methods: retry.methods ? new Set(retry.methods) : defaultRetryOptions.methods,
-		statusCodes: retry.statusCodes ? new Set(retry.statusCodes) : defaultRetryOptions.statusCodes,
 		afterStatusCodes: retryAfterStatusCodes
 	};
 };
@@ -312,7 +310,7 @@ class Ky {
 			return response;
 		};
 
-		const isRetriableMethod = this._options.retry.methods.has(this.request.method.toLowerCase());
+		const isRetriableMethod = this._options.retry.methods.includes(this.request.method.toLowerCase());
 		const result = isRetriableMethod ? this._retry(fn) : fn();
 
 		for (const [type, mimeType] of Object.entries(responseTypes)) {
@@ -330,12 +328,12 @@ class Ky {
 
 		if (this._retryCount < this._options.retry.limit && !(error instanceof TimeoutError)) {
 			if (error instanceof HTTPError) {
-				if (!this._options.retry.statusCodes.has(error.response.status)) {
+				if (!this._options.retry.statusCodes.includes(error.response.status)) {
 					return 0;
 				}
 
 				const retryAfter = error.response.headers.get('Retry-After');
-				if (retryAfter && this._options.retry.afterStatusCodes.has(error.response.status)) {
+				if (retryAfter && this._options.retry.afterStatusCodes.includes(error.response.status)) {
 					let after = Number(retryAfter);
 					if (Number.isNaN(after)) {
 						after = Date.parse(retryAfter) - Date.now();

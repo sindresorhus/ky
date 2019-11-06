@@ -126,21 +126,21 @@ export interface RetryOptions {
 
 	@default ['get', 'put', 'head', 'delete', 'options', 'trace']
 	*/
-	methods?: string[] | Set<string>;
+	methods?: string[];
 
 	/**
 	The HTTP status codes allowed to retry.
 
 	@default [408, 413, 429, 500, 502, 503, 504]
 	*/
-	statusCodes?: number[] | Set<number>;
+	statusCodes?: number[];
 
 	/**
 	The HTTP status codes allowed to retry with a `Retry-After` header.
 
 	@default [413, 429, 503]
 	*/
-	afterStatusCodes?: number[] | Set<number>;
+	afterStatusCodes?: number[];
 
 	/**
 	If the `Retry-After` header is greater than `maxRetryAfter`, the request will be canceled.

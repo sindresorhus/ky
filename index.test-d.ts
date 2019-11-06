@@ -133,16 +133,9 @@ ky(url, {
 // `retry` option
 ky(url, {retry: 100});
 ky(url, {
-	retry : {
+	retry: {
 		methods: [],
 		statusCodes: [],
 		afterStatusCodes: []
-	}
-});
-ky(url, {
-	retry : {
-		methods: new Set(),
-		statusCodes: new Set(),
-		afterStatusCodes: new Set()
 	}
 });
