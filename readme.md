@@ -472,8 +472,7 @@ Upload the [`index.js`](index.js) file in this repo somewhere, for example, to y
 
 ```html
 <script type="module">
-// Replace the version number with the latest version
-import ky from 'https://cdn.jsdelivr.net/npm/ky@0.11.0/index.js';
+import ky from 'https://cdn.jsdelivr.net/npm/ky@latest/index.js';
 
 (async () => {
 	const parsed = await ky('https://jsonplaceholder.typicode.com/todos/1').json();
@@ -487,13 +486,12 @@ import ky from 'https://cdn.jsdelivr.net/npm/ky@0.11.0/index.js';
 Alternatively, you can use the [`umd.js`](umd.js) file with a traditional `<script>` tag (without `type="module"`), in which case `ky` will be a global.
 
 ```html
-<!-- Replace the version number with the latest version -->
-<script src="https://cdn.jsdelivr.net/npm/ky@0.11.0/umd.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/ky@latest/umd.js"></script>
 <script>
 (async () => {
-	const ky = ky.default;
+	const client = ky.default;
 
-	const parsed = await ky('https://jsonplaceholder.typicode.com/todos/1').json();
+	const parsed = await client('https://jsonplaceholder.typicode.com/todos/1').json();
 
 	console.log(parsed.title);
 	//=> 'delectus aut autem
