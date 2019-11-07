@@ -99,6 +99,10 @@ customKy(input, options);
 ky(url, {searchParams: 'foo=bar'});
 ky(url, {searchParams: {foo: 'bar'}});
 ky(url, {searchParams: {foo: 1}});
+ky(url, {searchParams: {foo: true}});
+ky(url, {searchParams: [['foo', 'bar']]});
+ky(url, {searchParams: [['foo', 1]]});
+ky(url, {searchParams: [['foo', true]]});
 ky(url, {searchParams: new URLSearchParams({foo: 'bar'})});
 
 // `json` option
@@ -123,5 +127,15 @@ ky(url, {
 	onDownloadProgress: (progress, chunk) => {
 		expectType<DownloadProgress>(progress);
 		expectType<Uint8Array>(chunk);
+	}
+});
+
+// `retry` option
+ky(url, {retry: 100});
+ky(url, {
+	retry: {
+		methods: [],
+		statusCodes: [],
+		afterStatusCodes: []
 	}
 });

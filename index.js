@@ -39,7 +39,6 @@ const globals = {};
 	};
 
 	const globalProperties = [
-		'document',
 		'Headers',
 		'Request',
 		'Response',
@@ -107,16 +106,16 @@ const responseTypes = {
 	blob: '*/*'
 };
 
-const retryMethods = new Set([
+const retryMethods = [
 	'get',
 	'put',
 	'head',
 	'delete',
 	'options',
 	'trace'
-]);
+];
 
-const retryStatusCodes = new Set([
+const retryStatusCodes = [
 	408,
 	413,
 	429,
@@ -124,13 +123,13 @@ const retryStatusCodes = new Set([
 	502,
 	503,
 	504
-]);
+];
 
-const retryAfterStatusCodes = new Set([
+const retryAfterStatusCodes = [
 	413,
 	429,
 	503
-]);
+];
 
 class HTTPError extends Error {
 	constructor(response) {
@@ -179,7 +178,7 @@ const defaultRetryOptions = {
 	afterStatusCodes: retryAfterStatusCodes
 };
 
-const normalizeRetryOptions = retry => {
+const normalizeRetryOptions = (retry = {}) => {
 	if (typeof retry === 'number') {
 		return {
 			...defaultRetryOptions,
@@ -198,54 +197,34 @@ const normalizeRetryOptions = retry => {
 	return {
 		...defaultRetryOptions,
 		...retry,
-		methods: retry.methods ? new Set(retry.methods) : defaultRetryOptions.methods,
-		statusCodes: retry.statusCodes ? new Set(retry.statusCodes) : defaultRetryOptions.statusCodes,
 		afterStatusCodes: retryAfterStatusCodes
 	};
 };
 
-const assertSafeTimeout = timeout => {
-	if (timeout > 2147483647) { // The maximum value of a 32bit int (see issue #117)
-		throw new RangeError('The `timeout` option cannot be greater than 2147483647');
-	}
-};
+// The maximum value of a 32bit int (see issue #117)
+const maxSafeTimeout = 2147483647;
 
 class Ky {
-	constructor(input, {
-		hooks,
-		json,
-		onDownloadProgress,
-		prefixUrl,
-		retry = {},
-		searchParams,
-		throwHttpErrors = true,
-		timeout = 10000,
-		...fetchOptions
-	}) {
+	constructor(input, options = {}) {
 		this._retryCount = 0;
 		this._input = input;
 		this._options = {
+			// TODO: credentials can be removed when the spec change is implemented in all browsers. Context: https://www.chromestatus.com/feature/4539473312350208
+			credentials: this._input.credentials || 'same-origin',
+			...options,
 			hooks: deepMerge({
 				beforeRequest: [],
 				beforeRetry: [],
 				afterResponse: []
-			}, hooks),
-			json,
-			onDownloadProgress,
-			prefixUrl: String(prefixUrl || ''),
-			retry: normalizeRetryOptions(retry),
-			searchParams,
-			throwHttpErrors,
-			timeout
-		};
-		this._fetchOptions = {
-			// TODO: credentials can be removed when the spec change is implemented in all browsers. Context: https://www.chromestatus.com/feature/4539473312350208
-			credentials: this._input.credentials || 'same-origin',
-			...fetchOptions,
-			method: normalizeRequestMethod(fetchOptions.method || this._input.method)
+			}, options.hooks),
+			method: normalizeRequestMethod(options.method || this._input.method),
+			prefixUrl: String(options.prefixUrl || ''),
+			retry: normalizeRetryOptions(options.retry),
+			throwHttpErrors: options.throwHttpErrors !== false,
+			timeout: typeof options.timeout === 'undefined' ? 10000 : options.timeout
 		};
 
-		if (typeof input !== 'string' && !(input instanceof URL || input instanceof globals.Request)) {
+		if (typeof this._input !== 'string' && !(this._input instanceof URL || this._input instanceof globals.Request)) {
 			throw new TypeError('`input` must be a string, URL, or Request');
 		}
 
@@ -263,45 +242,37 @@ class Ky {
 
 		if (supportsAbortController) {
 			this.abortController = new globals.AbortController();
-			if (this._fetchOptions.signal) {
-				this._fetchOptions.signal.addEventListener('abort', () => {
+			if (this._options.signal) {
+				this._options.signal.addEventListener('abort', () => {
 					this.abortController.abort();
 				});
-				this._fetchOptions.signal = this.abortController.signal;
+				this._options.signal = this.abortController.signal;
 			}
 		}
 
-		this.request = new globals.Request(this._input, this._fetchOptions);
+		this.request = new globals.Request(this._input, this._options);
 
-		if (searchParams) {
-			const url = new URL(this._input.url || this._input, globals.document && globals.document.baseURI);
-			if (typeof searchParams === 'string' || (URLSearchParams && searchParams instanceof URLSearchParams)) {
-				url.search = searchParams;
-			} else if (Object.values(searchParams).every(param => typeof param === 'number' || typeof param === 'string')) {
-				url.search = new URLSearchParams(searchParams).toString();
-			} else {
-				throw new Error('The `searchParams` option must be either a string, `URLSearchParams` instance or an object with string and number values');
-			}
-
+		if (this._options.searchParams) {
+			const url = new URL(this.request.url);
+			url.search = new URLSearchParams(this._options.searchParams);
 			this.request = new globals.Request(url, this.request);
 		}
 
-		if (((supportsFormData && this._fetchOptions.body instanceof globals.FormData) || this._fetchOptions.body instanceof URLSearchParams) && this.request.headers.has('content-type')) {
-			throw new Error(`The \`content-type\` header cannot be used with a ${this._fetchOptions.body.constructor.name} body. It will be set automatically.`);
+		if (((supportsFormData && this._options.body instanceof globals.FormData) || this._options.body instanceof URLSearchParams) && this.request.headers.has('content-type')) {
+			throw new Error(`The \`content-type\` header cannot be used with a ${this._options.body.constructor.name} body. It will be set automatically.`);
 		}
 
 		if (this._options.json) {
-			if (this._fetchOptions.body) {
-				throw new Error('The `json` option cannot be used with the `body` option');
-			}
-
-			this._fetchOptions.body = JSON.stringify(json);
+			this._options.body = JSON.stringify(this._options.json);
 			this.request.headers.set('content-type', 'application/json');
-			this.request = new globals.Request(this.request, {body: this._fetchOptions.body});
+			this.request = new globals.Request(this.request, {body: this._options.body});
 		}
 
 		const fn = async () => {
-			assertSafeTimeout(timeout);
+			if (this._options.timeout > maxSafeTimeout) {
+				throw new RangeError(`The \`timeout\` option cannot be greater than ${maxSafeTimeout}`);
+			}
+
 			await delay(1);
 			let response = await this._fetch();
 
@@ -309,7 +280,7 @@ class Ky {
 				// eslint-disable-next-line no-await-in-loop
 				const modifiedResponse = await hook(
 					this.request,
-					this._fetchOptions,
+					this._options,
 					response.clone()
 				);
 
@@ -339,7 +310,7 @@ class Ky {
 			return response;
 		};
 
-		const isRetriableMethod = this._options.retry.methods.has(this.request.method.toLowerCase());
+		const isRetriableMethod = this._options.retry.methods.includes(this.request.method.toLowerCase());
 		const result = isRetriableMethod ? this._retry(fn) : fn();
 
 		for (const [type, mimeType] of Object.entries(responseTypes)) {
@@ -357,12 +328,12 @@ class Ky {
 
 		if (this._retryCount < this._options.retry.limit && !(error instanceof TimeoutError)) {
 			if (error instanceof HTTPError) {
-				if (!this._options.retry.statusCodes.has(error.response.status)) {
+				if (!this._options.retry.statusCodes.includes(error.response.status)) {
 					return 0;
 				}
 
 				const retryAfter = error.response.headers.get('Retry-After');
-				if (retryAfter && this._options.retry.afterStatusCodes.has(error.response.status)) {
+				if (retryAfter && this._options.retry.afterStatusCodes.includes(error.response.status)) {
 					let after = Number(retryAfter);
 					if (Number.isNaN(after)) {
 						after = Date.parse(retryAfter) - Date.now();
@@ -393,7 +364,7 @@ class Ky {
 		try {
 			return await fn();
 		} catch (error) {
-			const ms = this._calculateRetryDelay(error);
+			const ms = Math.min(this._calculateRetryDelay(error), maxSafeTimeout);
 			if (ms !== 0 && this._retryCount > 0) {
 				await delay(ms);
 
@@ -401,7 +372,7 @@ class Ky {
 					// eslint-disable-next-line no-await-in-loop
 					await hook(
 						this.request,
-						this._fetchOptions,
+						this._options,
 						error,
 						this._retryCount,
 					);
@@ -419,7 +390,7 @@ class Ky {
 	async _fetch() {
 		for (const hook of this._options.hooks.beforeRequest) {
 			// eslint-disable-next-line no-await-in-loop
-			const result = await hook(this.request, this._fetchOptions);
+			const result = await hook(this.request, this._options);
 
 			if (result instanceof Request) {
 				this.request = result;

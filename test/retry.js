@@ -362,7 +362,7 @@ test('throws when retry.methods is not an array', async t => {
 	t.throws(() => {
 		ky(server.url, {
 			retry: {
-				methods: new Set(['get'])
+				methods: 'get'
 			}
 		});
 	});
@@ -376,7 +376,7 @@ test('throws when retry.statusCodes is not an array', async t => {
 	t.throws(() => {
 		ky(server.url, {
 			retry: {
-				statusCodes: new Set([403])
+				statusCodes: 403
 			}
 		});
 	});
