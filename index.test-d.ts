@@ -29,26 +29,43 @@ expectType<TimeoutError>(new TimeoutError);
 ky(url, {
 	hooks: {
 		beforeRequest: [
-			(input, options) => {
-				expectType<Input>(input);
+			(request, options) => {
+				expectType<Request>(request);
 				expectType<Object>(options);
-				options.headers.set('foo', 'bar');
+				request.headers.set('foo', 'bar');
+			},
+			(_request, _options) => {
+				return new Request('Test');
+			},
+			async (_request, _options) => {
+				return new Request('Test');
+			},
+			(_request, _options) => {
+				return new Response('Test');
+			},
+			async (_request, _options) => {
+				return new Response('Test');
 			}
 		],
 		beforeRetry: [
-			(input, options, error, retryCount) => {
-				expectType<Input>(input);
+			(request, options, error, retryCount) => {
+				expectType<Request>(request);
 				expectType<Object>(options);
 				expectType<Error>(error);
 				expectType<number>(retryCount);
-				options.headers.set('foo', 'bar');
+				request.headers.set('foo', 'bar');
 			}
 		],
 		afterResponse: [
-			(input, options, response) => {
-				expectType<Input>(input);
+			(request, options, response) => {
+				expectType<Request>(request);
 				expectType<Object>(options);
 				expectType<Response>(response);
+			},
+			(_request, _options, _response) => {
+				return new Response('Test');
+			},
+			async (_request, _options, _response) => {
 				return new Response('Test');
 			}
 		]
@@ -82,6 +99,10 @@ customKy(input, options);
 ky(url, {searchParams: 'foo=bar'});
 ky(url, {searchParams: {foo: 'bar'}});
 ky(url, {searchParams: {foo: 1}});
+ky(url, {searchParams: {foo: true}});
+ky(url, {searchParams: [['foo', 'bar']]});
+ky(url, {searchParams: [['foo', 1]]});
+ky(url, {searchParams: [['foo', true]]});
 ky(url, {searchParams: new URLSearchParams({foo: 'bar'})});
 
 // `json` option
@@ -106,5 +127,15 @@ ky(url, {
 	onDownloadProgress: (progress, chunk) => {
 		expectType<DownloadProgress>(progress);
 		expectType<Uint8Array>(chunk);
+	}
+});
+
+// `retry` option
+ky(url, {retry: 100});
+ky(url, {
+	retry: {
+		methods: [],
+		statusCodes: [],
+		afterStatusCodes: []
 	}
 });

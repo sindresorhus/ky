@@ -1,4 +1,4 @@
-import test from 'ava';
+import {serial as test} from 'ava';
 import createTestServer from 'create-test-server';
 import withPage from './helpers/with-page';
 

@@ -108,10 +108,45 @@ test('POST JSON', async t => {
 	await server.close();
 });
 
-test('cannot use `json` option along with the `body` option', t => {
+test('cannot use `body` option with GET or HEAD method', t => {
 	t.throws(() => {
-		ky('https://example.com', {json: {foo: 'bar'}, body: 'foobar'});
-	}, 'The `json` option cannot be used with the `body` option');
+		ky.get('https://example.com', {body: 'foobar'});
+	}, 'Request with GET/HEAD method cannot have body');
+	t.throws(() => {
+		ky.head('https://example.com', {body: 'foobar'});
+	}, 'Request with GET/HEAD method cannot have body');
+});
+
+test('cannot use `json` option with GET or HEAD method', t => {
+	t.throws(() => {
+		ky.get('https://example.com', {json: {}});
+	}, 'Request with GET/HEAD method cannot have body');
+	t.throws(() => {
+		ky.head('https://example.com', {json: {}});
+	}, 'Request with GET/HEAD method cannot have body');
+});
+
+test('`json` option overrides the `body` option', async t => {
+	t.plan(2);
+
+	const server = await createTestServer();
+	server.post('/', async (request, response) => {
+		t.is(request.headers['content-type'], 'application/json');
+		response.json(JSON.parse(await pBody(request)));
+	});
+
+	const json = {
+		foo: 'bar'
+	};
+
+	const responseJson = await ky.post(server.url, {
+		body: 'hello',
+		json
+	}).json();
+
+	t.deepEqual(json, responseJson);
+
+	await server.close();
 });
 
 test('custom headers', async t => {
@@ -226,24 +261,19 @@ test('searchParams option', async t => {
 		response.end(request.url.slice(1));
 	});
 
-	const stringParams = '?pass=true';
-	const objectParams = {pass: 'true'};
-	const searchParams = new URLSearchParams(stringParams);
+	const arrayParams = [['cats', 'meow'], ['dogs', true], ['opossums', false]];
+	const objectParams = {
+		cats: 'meow',
+		dogs: true,
+		opossums: false
+	};
+	const searchParams = new URLSearchParams(arrayParams);
+	const stringParams = '?cats=meow&dogs=true&opossums=false';
 
-	t.is(await ky(server.url, {searchParams: stringParams}).text(), stringParams);
+	t.is(await ky(server.url, {searchParams: arrayParams}).text(), stringParams);
 	t.is(await ky(server.url, {searchParams: objectParams}).text(), stringParams);
 	t.is(await ky(server.url, {searchParams}).text(), stringParams);
-
-	t.throws(() => {
-		ky(server.url, {
-			searchParams: {
-				pass: [
-					'true',
-					'false'
-				]
-			}
-		});
-	}, /`searchParams` option must be/);
+	t.is(await ky(server.url, {searchParams: stringParams}).text(), stringParams);
 
 	await server.close();
 });
@@ -427,6 +457,12 @@ test('supports Request instance as input', async t => {
 	t.is(await ky(inputRequest).text(), inputRequest.method);
 
 	await server.close();
+});
+
+test('throws when input is not a string, URL, or Request', t => {
+	t.throws(() => {
+		ky.get(0);
+	}, '`input` must be a string, URL, or Request');
 });
 
 test('options override Request instance method', async t => {

@@ -122,7 +122,7 @@ Returns a [`Response` object](https://developer.mozilla.org/en-US/docs/Web/API/R
 
 Sets `options.method` to the method name and makes a request.
 
-When using a `Request` instance as `input`, any URL altering options (example: `prefixUrl`)  will not work.
+When using a `Request` instance as `input`, any URL altering options (such as `prefixUrl`) will be ignored.
 
 #### options
 
@@ -145,16 +145,18 @@ Shortcut for sending JSON. Use this instead of the `body` option. Accepts a plai
 
 ##### searchParams
 
-Type: `string | object<string, string | number> | URLSearchParams`<br>
+Type: `string | object<string, string | number | boolean> | Array<Array<string | number | boolean>> | URLSearchParams`<br>
 Default: `''`
 
 Search parameters to include in the request URL. Setting this will override all existing search parameters in the input URL.
+
+Accepts any value supported by [`URLSearchParams()`](https://developer.mozilla.org/en-US/docs/Web/API/URLSearchParams/URLSearchParams).
 
 ##### prefixUrl
 
 Type: `string | URL`
 
-A prefix to prepend to the `input` URL when making the request. It can be any valid URL, either relative or absolute. A trailing slash `/` is optional, one will be added automatically, if needed, when `prefixUrl` and `input` are joined. Only takes effect when `input` is a string. The `input` argument cannot start with a slash `/` when using this option.
+A prefix to prepend to the `input` URL when making the request. It can be any valid URL, either relative or absolute. A trailing slash `/` is optional and will be added automatically, if needed, when it is joined with `input`. Only takes effect when `input` is a string. The `input` argument cannot start with a slash `/` when using this option.
 
 Useful when used with [`ky.extend()`](#kyextenddefaultoptions) to create niche-specific Ky-instances.
 
@@ -228,18 +230,35 @@ Hooks allow modifications during the request lifecycle. Hook functions may be as
 Type: `Function[]`<br>
 Default: `[]`
 
-This hook enables you to modify the request right before it is sent. Ky will make no further changes to the request after this. The hook function receives normalized input and options as arguments. You could, for example, modify `options.headers` here.
+This hook enables you to modify the request right before it is sent. Ky will make no further changes to the request after this. The hook function receives `request` and `options` as arguments. You could, for example, modify the `request.headers` here.
 
-A [`Response`](https://developer.mozilla.org/en-US/docs/Web/API/Response) can be returned from this hook to completely avoid making a HTTP request. This can be used to mock a request, check an internal cache, etc. An **important** consideration when returning a `Response` from this hook is that all the following hooks will be skipped, so **ensure you only return a `Response` from the last hook**.
+The hook can return a [`Request`](https://developer.mozilla.org/en-US/docs/Web/API/Request) to replace the outgoing request, or return a [`Response`](https://developer.mozilla.org/en-US/docs/Web/API/Response) to completely avoid making an HTTP request. This can be used to mock a request, check an internal cache, etc. An **important** consideration when returning a request or response from this hook is that any remaining `beforeRequest` hooks will be skipped, so you may want to only return them from the last hook.
 
-Note that the argument order has changed in non-backward compatible way since [#163](https://github.com/sindresorhus/ky/pull/163).
+```js
+import ky from 'ky';
+
+const api = ky.extend({
+	hooks: {
+		beforeRequest: [
+			request => {
+				request.headers.set('X-Requested-With', 'ky');
+			}
+		]
+	}
+});
+
+(async () => {
+	const users = await api.get('https://example.com/api/users');
+	// ...
+})();
+```
 
 ###### hooks.beforeRetry
 
 Type: `Function[]`<br>
 Default: `[]`
 
-This hook enables you to modify the request right before retry. Ky will make no further changes to the request after this. The hook function receives the normalized input and options, an error instance and the retry count as arguments. You could, for example, modify `options.headers` here.
+This hook enables you to modify the request right before retry. Ky will make no further changes to the request after this. The hook function receives the normalized request and options, an error instance and the retry count as arguments. You could, for example, modify `request.headers` here.
 
 ```js
 import ky from 'ky';
@@ -248,9 +267,9 @@ import ky from 'ky';
 	await ky('https://example.com', {
 		hooks: {
 			beforeRetry: [
-				async (input, options, errors, retryCount) => {
+				async (request, options, errors, retryCount) => {
 					const token = await ky('https://example.com/refresh-token');
-					options.headers.set('Authorization', `token ${token}`);
+					request.headers.set('Authorization', `token ${token}`);
 				}
 			]
 		}
@@ -263,9 +282,7 @@ import ky from 'ky';
 Type: `Function[]`<br>
 Default: `[]`
 
-This hook enables you to read and optionally modify the response. The hook function receives normalized input, options, and a clone of the response as arguments. The return value of the hook function will be used by Ky as the response object if it's an instance of [`Response`](https://developer.mozilla.org/en-US/docs/Web/API/Response).
-
-Note that the argument order has changed in non-backward compatible way since [#163](https://github.com/sindresorhus/ky/pull/163).
+This hook enables you to read and optionally modify the response. The hook function receives normalized request, options, and a clone of the response as arguments. The return value of the hook function will be used by Ky as the response object if it's an instance of [`Response`](https://developer.mozilla.org/en-US/docs/Web/API/Response).
 
 ```js
 import ky from 'ky';
@@ -274,7 +291,7 @@ import ky from 'ky';
 	await ky('https://example.com', {
 		hooks: {
 			afterResponse: [
-				(_input, _options, response) => {
+				(_request, _options, response) => {
 					// You could do something with the response, for example, logging.
 					log(response);
 
@@ -283,15 +300,15 @@ import ky from 'ky';
 				},
 
 				// Or retry with a fresh token on a 403 error
-				async (input, options, response) => {
+				async (request, options, response) => {
 					if (response.status === 403) {
 						// Get a fresh token
 						const token = await ky('https://example.com/token').text();
 
 						// Retry with the token
-						options.headers.set('Authorization', `token ${token}`);
+						request.headers.set('Authorization', `token ${token}`);
 
-						return ky(input, options);
+						return ky(request);
 					}
 				}
 			]
@@ -461,8 +478,7 @@ Upload the [`index.js`](index.js) file in this repo somewhere, for example, to y
 
 ```html
 <script type="module">
-// Replace the version number with the latest version
-import ky from 'https://cdn.jsdelivr.net/npm/ky@0.11.0/index.js';
+import ky from 'https://cdn.jsdelivr.net/npm/ky@latest/index.js';
 
 (async () => {
 	const parsed = await ky('https://jsonplaceholder.typicode.com/todos/1').json();
@@ -476,13 +492,12 @@ import ky from 'https://cdn.jsdelivr.net/npm/ky@0.11.0/index.js';
 Alternatively, you can use the [`umd.js`](umd.js) file with a traditional `<script>` tag (without `type="module"`), in which case `ky` will be a global.
 
 ```html
-<!-- Replace the version number with the latest version -->
-<script src="https://cdn.jsdelivr.net/npm/ky@0.11.0/umd.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/ky@latest/umd.js"></script>
 <script>
 (async () => {
-	const ky = ky.default;
+	const client = ky.default;
 
-	const parsed = await ky('https://jsonplaceholder.typicode.com/todos/1').json();
+	const parsed = await client('https://jsonplaceholder.typicode.com/todos/1').json();
 
 	console.log(parsed.title);
 	//=> 'delectus aut autem
