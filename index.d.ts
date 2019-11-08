@@ -153,7 +153,7 @@ export interface RetryOptions {
 /**
 Options are the same as `window.fetch`, with some exceptions.
 */
-export interface Options extends RequestInit {
+export interface Options extends Omit<RequestInit, 'headers'> {
 	/**
 	HTTP method used to make the request.
 
