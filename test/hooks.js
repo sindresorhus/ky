@@ -3,7 +3,7 @@ import test from 'ava';
 import createTestServer from 'create-test-server';
 import body from 'body';
 import delay from 'delay';
-import ky, {ABANDON_RETRY} from '..';
+import ky, {stop} from '..';
 
 const pBody = util.promisify(body);
 
@@ -378,7 +378,7 @@ test('beforeRetry hook is called with error and retryCount', async t => {
 	await server.close();
 });
 
-test('beforeRetry hook can cancel retries by returning ABANDON_RETRY', async t => {
+test('beforeRetry hook can cancel retries by returning `stop`', async t => {
 	let requestCount = 0;
 
 	const server = await createTestServer();
@@ -397,15 +397,15 @@ test('beforeRetry hook can cancel retries by returning ABANDON_RETRY', async t =
 			beforeRetry: [
 				(_input, options, error, retryCount) => {
 					t.truthy(error);
-					t.true(retryCount === 1);
+					t.is(retryCount, 1);
 
-					return ABANDON_RETRY;
+					return stop;
 				}
 			]
 		}
 	});
 
-	t.true(requestCount === 1);
+	t.is(requestCount, 1);
 
 	await server.close();
 });

@@ -45,8 +45,7 @@ const globals = {};
 		'ReadableStream',
 		'fetch',
 		'AbortController',
-		'FormData',
-		'Symbol'
+		'FormData'
 	];
 
 	const props = {};
@@ -132,7 +131,7 @@ const retryAfterStatusCodes = [
 	503
 ];
 
-const ABANDON_RETRY = globals.Symbol('abandon-retry');
+const stop = Symbol('stop');
 
 class HTTPError extends Error {
 	constructor(response) {
@@ -385,7 +384,7 @@ class Ky {
 					);
 				}
 
-				if (beforeRetryResults.has(ABANDON_RETRY)) {
+				if (beforeRetryResults.has(stop)) {
 					return;
 				}
 
@@ -486,5 +485,5 @@ export default createInstance();
 export {
 	HTTPError,
 	TimeoutError,
-	ABANDON_RETRY
+	stop
 };

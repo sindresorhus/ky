@@ -340,9 +340,9 @@ export class TimeoutError extends Error {
 }
 
 /**
-Symbol for aborting retries in the `beforeRetry` hook
+Symbol for aborting retries in the `beforeRetry` hook.
 */
-export const ABANDON_RETRY: Symbol;
+declare const stop: unique symbol;
 
 declare const ky: {
 	/**
