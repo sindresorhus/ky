@@ -2,3 +2,4 @@ node_modules
 yarn.lock
 .nyc_output
 umd.js
+.idea

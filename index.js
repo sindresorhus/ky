@@ -81,7 +81,11 @@ const deepMerge = (...sources) => {
 					value = deepMerge(returnValue[key], value);
 				}
 
-				returnValue = {...returnValue, [key]: value};
+				if (value === undefined) {
+					delete returnValue[key];
+				} else {
+					returnValue = {...returnValue, [key]: value};
+				}
 			}
 		}
 	}
