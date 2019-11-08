@@ -193,7 +193,7 @@ test('JSON with 200 response and empty body', async t => {
 
 	const server = await createTestServer();
 	server.get('/', async (request, response) => {
-		t.is(request.headers['accept'], 'application/json');
+		t.is(request.headers.accept, 'application/json');
 		response.status(200).end();
 	});
 
@@ -207,7 +207,7 @@ test('JSON with 204 response and empty body', async t => {
 
 	const server = await createTestServer();
 	server.get('/', async (request, response) => {
-		t.is(request.headers['accept'], 'application/json');
+		t.is(request.headers.accept, 'application/json');
 		response.status(204).end();
 	});
 
