@@ -132,7 +132,7 @@ const retryAfterStatusCodes = [
 	503
 ];
 
-const NO_RETRY_SYMBOL = globals.Symbol('no-retry');
+const ABANDON_RETRY = globals.Symbol('abandon-retry');
 
 class HTTPError extends Error {
 	constructor(response) {
@@ -385,7 +385,7 @@ class Ky {
 					);
 				}
 
-				if (beforeRetryResults.has(NO_RETRY_SYMBOL)) {
+				if (beforeRetryResults.has(ABANDON_RETRY)) {
 					return;
 				}
 
@@ -486,5 +486,5 @@ export default createInstance();
 export {
 	HTTPError,
 	TimeoutError,
-	NO_RETRY_SYMBOL
+	ABANDON_RETRY
 };
