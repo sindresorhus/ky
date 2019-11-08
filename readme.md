@@ -156,7 +156,7 @@ Accepts any value supported by [`URLSearchParams()`](https://developer.mozilla.o
 
 Type: `string | URL`
 
-A prefix URL to prepend to the `input` argument, when `input` is a string. The prefix can be any valid URL, either relative or absolute. A trailing `/` slash is optional and will be added automatically, if needed, when it is joined with `input`. When using a prefix, `input` cannot start with a `/` slash.
+A prefix to prepend to the `input` URL when making the request. It can be any valid URL, either relative or absolute. A trailing slash `/` is optional and will be added automatically, if needed, when it is joined with `input`. Only takes effect when `input` is a string. The `input` argument cannot start with a slash `/` when using this option.
 
 Useful when used with [`ky.extend()`](#kyextenddefaultoptions) to create niche-specific Ky-instances.
 
@@ -173,6 +173,10 @@ import ky from 'ky';
 	//=> 'https://cats.com/unicorn'
 })();
 ```
+
+Notes:
+ - After `prefixUrl` and `input` are joined, the result is resolved against the [base URL](https://developer.mozilla.org/en-US/docs/Web/API/Node/baseURI) of the page (if any).
+ - Leading slashes in `input` are disallowed when using this option to enforce consistency and avoid confusion about how the `input` URL is handled, given that `input` will not follow the normal URL resolution rules when `prefixUrl` is being used, which changes the meaning of a leading slash.
 
 ##### retry
 
