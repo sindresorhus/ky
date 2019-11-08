@@ -162,6 +162,11 @@ export interface Options extends RequestInit {
 	method?: LiteralUnion<'get' | 'post' | 'put' | 'delete' | 'patch' | 'head', string>;
 
 	/**
+	Override default Headers
+	 */
+	headers?: HeadersInit | { [key: string]: undefined }
+
+	/**
 	Shortcut for sending JSON. Use this instead of the `body` option.
 
 	Accepts a plain object which will be `JSON.stringify()`'d and the correct header will be set for you.
