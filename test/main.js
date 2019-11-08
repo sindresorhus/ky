@@ -188,6 +188,36 @@ test('JSON with custom Headers instance', async t => {
 	await server.close();
 });
 
+test('.json() with 200 response and empty body', async t => {
+	t.plan(2);
+
+	const server = await createTestServer();
+	server.get('/', async (request, response) => {
+		t.is(request.headers.accept, 'application/json');
+		response.status(200).end();
+	});
+
+	await t.throwsAsync(ky(server.url).json(), /Unexpected end of JSON input/);
+
+	await server.close();
+});
+
+test('.json() with 204 response and empty body', async t => {
+	t.plan(2);
+
+	const server = await createTestServer();
+	server.get('/', async (request, response) => {
+		t.is(request.headers.accept, 'application/json');
+		response.status(204).end();
+	});
+
+	const responseJson = await ky(server.url).json();
+
+	t.is(responseJson, '');
+
+	await server.close();
+});
+
 test('timeout option', async t => {
 	let requestCount = 0;
 
