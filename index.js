@@ -315,7 +315,7 @@ class Ky {
 
 		for (const [type, mimeType] of Object.entries(responseTypes)) {
 			result[type] = async () => {
-				this.request.headers.set('accept', mimeType);
+				this.request.headers.set('accept', this.request.headers.get('accept') || mimeType);
 				const response = (await result).clone();
 				return (type === 'json' && response.status === 204) ? '' : response[type]();
 			};
