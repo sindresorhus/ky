@@ -316,7 +316,8 @@ class Ky {
 		for (const [type, mimeType] of Object.entries(responseTypes)) {
 			result[type] = async () => {
 				this.request.headers.set('accept', mimeType);
-				return (await result).clone()[type]();
+				const response = (await result).clone();
+				return response.status === 204 ? undefined : response[type]();
 			};
 		}
 
