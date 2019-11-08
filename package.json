@@ -9,6 +9,7 @@
 		"email": "sindresorhus@gmail.com",
 		"url": "sindresorhus.com"
 	},
+	"funding": "https://github.com/sindresorhus/ky?sponsor=1",
 	"engines": {
 		"node": ">=8"
 	},
@@ -23,10 +24,6 @@
 		"umd.js",
 		"umd.d.ts"
 	],
-	"funding": {
-		"type": "GitHub",
-		"url": "https://github.com/sponsors/sindresorhus"
-	},
 	"keywords": [
 		"fetch",
 		"request",
