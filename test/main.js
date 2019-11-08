@@ -188,7 +188,7 @@ test('JSON with custom Headers instance', async t => {
 	await server.close();
 });
 
-test('JSON with 200 response and empty body', async t => {
+test('.json() with 200 response and empty body', async t => {
 	t.plan(2);
 
 	const server = await createTestServer();
@@ -202,7 +202,7 @@ test('JSON with 200 response and empty body', async t => {
 	await server.close();
 });
 
-test('JSON with 204 response and empty body', async t => {
+test('.json() with 204 response and empty body', async t => {
 	t.plan(2);
 
 	const server = await createTestServer();
@@ -213,7 +213,7 @@ test('JSON with 204 response and empty body', async t => {
 
 	const responseJson = await ky(server.url).json();
 
-	t.is(responseJson, undefined);
+	t.is(responseJson, '');
 
 	await server.close();
 });
