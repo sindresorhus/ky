@@ -370,22 +370,19 @@ class Ky {
 			if (ms !== 0 && this._retryCount > 0) {
 				await delay(ms);
 
-				const beforeRetryResults = new Set();
-
 				for (const hook of this._options.hooks.beforeRetry) {
-					beforeRetryResults.add(
-						// eslint-disable-next-line no-await-in-loop
-						await hook(
-							this.request,
-							this._options,
-							error,
-							this._retryCount,
-						)
+					// eslint-disable-next-line no-await-in-loop
+					const hookResult = await hook(
+						this.request,
+						this._options,
+						error,
+						this._retryCount,
 					);
-				}
 
-				if (beforeRetryResults.has(stop)) {
-					return;
+					// If `stop` is returned from the hook, the retry process is stopped
+					if (hookResult === stop) {
+						return;
+					}
 				}
 
 				return this._retry(fn);

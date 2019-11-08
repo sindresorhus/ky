@@ -342,7 +342,7 @@ export class TimeoutError extends Error {
 /**
 Symbol for aborting retries in the `beforeRetry` hook.
 */
-declare const stop: unique symbol;
+export const stop: unique symbol;
 
 declare const ky: {
 	/**
