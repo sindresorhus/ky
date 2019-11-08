@@ -339,6 +339,11 @@ export class TimeoutError extends Error {
 	constructor();
 }
 
+/**
+Symbol for aborting retries in the `beforeRetry` hook
+*/
+export const NO_RETRY_SYMBOL: Symbol;
+
 declare const ky: {
 	/**
 	Fetch the given `url`.

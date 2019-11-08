@@ -45,7 +45,8 @@ const globals = {};
 		'ReadableStream',
 		'fetch',
 		'AbortController',
-		'FormData'
+		'FormData',
+		'Symbol'
 	];
 
 	const props = {};
@@ -130,6 +131,8 @@ const retryAfterStatusCodes = [
 	429,
 	503
 ];
+
+const NO_RETRY_SYMBOL = globals.Symbol('no-retry');
 
 class HTTPError extends Error {
 	constructor(response) {
@@ -368,14 +371,22 @@ class Ky {
 			if (ms !== 0 && this._retryCount > 0) {
 				await delay(ms);
 
+				const beforeRetryResults = new Set();
+
 				for (const hook of this._options.hooks.beforeRetry) {
-					// eslint-disable-next-line no-await-in-loop
-					await hook(
-						this.request,
-						this._options,
-						error,
-						this._retryCount,
+					beforeRetryResults.add(
+						// eslint-disable-next-line no-await-in-loop
+						await hook(
+							this.request,
+							this._options,
+							error,
+							this._retryCount,
+						)
 					);
+				}
+
+				if (beforeRetryResults.has(NO_RETRY_SYMBOL)) {
+					return;
 				}
 
 				return this._retry(fn);
@@ -474,5 +485,6 @@ export default createInstance();
 
 export {
 	HTTPError,
-	TimeoutError
+	TimeoutError,
+	NO_RETRY_SYMBOL
 };

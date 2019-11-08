@@ -3,7 +3,7 @@ import test from 'ava';
 import createTestServer from 'create-test-server';
 import body from 'body';
 import delay from 'delay';
-import ky from '..';
+import ky, {NO_RETRY_SYMBOL} from '..';
 
 const pBody = util.promisify(body);
 
@@ -374,6 +374,38 @@ test('beforeRetry hook is called with error and retryCount', async t => {
 			]
 		}
 	});
+
+	await server.close();
+});
+
+test('beforeRetry hook can cancel retries by returning NO_RETRY_SYMBOL', async t => {
+	let requestCount = 0;
+
+	const server = await createTestServer();
+	server.get('/', async (request, response) => {
+		requestCount++;
+
+		if (requestCount > 2) {
+			response.end(request.headers.unicorn);
+		} else {
+			response.sendStatus(408);
+		}
+	});
+
+	await ky.get(server.url, {
+		hooks: {
+			beforeRetry: [
+				(_input, options, error, retryCount) => {
+					t.truthy(error);
+					t.true(retryCount === 1);
+
+					return NO_RETRY_SYMBOL;
+				}
+			]
+		}
+	});
+
+	t.true(requestCount === 1);
 
 	await server.close();
 });
