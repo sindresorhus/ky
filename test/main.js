@@ -188,6 +188,24 @@ test('JSON with custom Headers instance', async t => {
 	await server.close();
 });
 
+test('.json() with custom accept header', async t => {
+	t.plan(2);
+
+	const server = await createTestServer();
+	server.get('/', async (request, response) => {
+		t.is(request.headers.accept, 'foo/bar');
+		response.json({});
+	});
+
+	const responseJson = await ky(server.url, {
+		headers: {accept: 'foo/bar'}
+	}).json();
+
+	t.deepEqual(responseJson, {});
+
+	await server.close();
+});
+
 test('.json() with 200 response and empty body', async t => {
 	t.plan(2);
 
