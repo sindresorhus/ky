@@ -25,7 +25,7 @@ expectType<typeof ky>(ky.create({}));
 expectType<typeof ky>(ky.extend({}));
 expectType<HTTPError>(new HTTPError(new Response));
 expectType<TimeoutError>(new TimeoutError);
-expectType<Symbol>(stop);
+expectType<symbol>(stop);
 
 ky(url, {
 	hooks: {
