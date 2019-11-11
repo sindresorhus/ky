@@ -387,7 +387,7 @@ The error thrown when the request times out.
 
 ### ky.stop
 
-A Symbol that can be returned by a `beforeRetry` hook to stop the retry. This will also short circuit the remaining `beforeRetry` hooks.
+A `Symbol` that can be returned by a `beforeRetry` hook to stop the retry. This will also short circuit the remaining `beforeRetry` hooks.
 
 ```js
 import ky, {stop} from 'ky';
@@ -397,14 +397,17 @@ import ky, {stop} from 'ky';
 		hooks: {
 			beforeRetry: [
 				async (request, options, errors, retryCount) => {
-					const stopRetry = await ky('https://example.com/api');
-					if (stopRetry) return stop;
+					const shouldStopRetry = await ky('https://example.com/api');
+					if (shouldStopRetry) {
+						return stop;
+					}
 				}
 			]
 		}
 	});
 })();
 ```
+
 
 ## Tips
 
