@@ -340,7 +340,28 @@ export class TimeoutError extends Error {
 }
 
 /**
-Symbol for aborting retries in the `beforeRetry` hook.
+A `Symbol` that can be returned by a `beforeRetry` hook to stop the retry.
+This will also short circuit the remaining `beforeRetry` hooks.
+
+@example
+```
+import ky, {stop as kyStop} from 'ky';
+
+(async () => {
+	await ky('https://example.com', {
+		hooks: {
+			beforeRetry: [
+				async (request, options, errors, retryCount) => {
+					const shouldStopRetry = await ky('https://example.com/api');
+					if (shouldStopRetry) {
+						return kyStop;
+					}
+				}
+			]
+		}
+	});
+})();
+```
 */
 export const stop: unique symbol;
 
