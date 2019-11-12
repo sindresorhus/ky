@@ -191,6 +191,33 @@ test('remove custom header by extending instance', async t => {
 	await server.close();
 });
 
+test('remove custom header by extending instance (Headers instance)', async t => {
+	const server = await createTestServer();
+	server.get('/', (request, response) => {
+		response.send(request.headers);
+		response.end();
+	});
+
+	const original = ky.create({
+		headers: new Headers({
+			rainbow: 'rainbow',
+			unicorn: 'unicorn'
+		})
+	});
+	const extended = original.extend({
+		headers: {
+			rainbow: undefined
+		}
+	});
+
+	const data = await extended(server.url).json();
+
+	t.true('unicorn' in data);
+	t.false('rainbow' in data);
+
+	await server.close();
+});
+
 test('JSON with custom Headers instance', async t => {
 	t.plan(3);
 
