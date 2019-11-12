@@ -212,7 +212,7 @@ test('remove custom header by extending instance (Headers instance)', async t =>
 
 	const data = await extended(server.url).json();
 
-	t.true('unicorn' in data);
+	t.false('unicorn' in data);
 	t.false('rainbow' in data);
 
 	await server.close();
