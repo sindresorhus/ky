@@ -357,13 +357,22 @@ Create a new `ky` instance with some defaults overridden with your own.
 
 In contrast to `ky.create()`, `ky.extend()` inherits defaults from its parent.
 
-You have also ability to remove headers with `extend()`:
+Tip: You can remove headers when extending:
 
 ```
 import ky from 'ky';
 
-const original = ky.create({headers: { rainbow: 'rainbow', unicorn: 'unicorn' }});
-const extended = original.extend({headers: { rainbow: undefined }});
+const original = ky.create({
+	headers: {
+		rainbow: 'rainbow',
+		unicorn: 'unicorn'
+	}
+});
+const extended = original.extend({
+	headers: {
+		rainbow: undefined
+	}
+});
 ```
 
 ### ky.create(defaultOptions)
