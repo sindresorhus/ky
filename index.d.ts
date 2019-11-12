@@ -163,6 +163,17 @@ export interface Options extends Omit<RequestInit, 'headers'> {
 
 	/**
 	Override default Headers
+
+	Extra types:
+	-  `{ [key: string]: undefined }` for add ability to remove headers with extend()
+
+	 	@example
+	 	```
+	 	import ky from 'ky';
+
+	 	const original = ky.create({headers: { rainbow: 'rainbow', unicorn: 'unicorn' }});
+	 	const extended = original.extend({headers: { rainbow: undefined }});
+	 	```
 	 */
 	headers?: HeadersInit | { [key: string]: undefined }
 
