@@ -37,7 +37,7 @@ for (const property of globalProperties) {
 	Object.defineProperty(globals, property, {
 		get() {
 			const globalObject = getGlobal(property);
-			const value = globalObject[property];
+			const value = globalObject && globalObject[property];
 			return typeof value === 'function' ? value.bind(globalObject) : value;
 		}
 	});
