@@ -2,62 +2,45 @@
 
 const globals = {};
 
-{
-	const getGlobal = property => {
-		let parent;
-
-		/* istanbul ignore next */
-		if (typeof self !== 'undefined' && self && property in self) {
-			parent = self;
-		}
-
-		/* istanbul ignore next */
-		if (typeof window !== 'undefined' && window && property in window) {
-			parent = window;
-		}
-
-		if (typeof global !== 'undefined' && global && property in global) {
-			parent = global;
-		}
-
-		/* istanbul ignore next */
-		if (typeof globalThis !== 'undefined' && globalThis) {
-			parent = globalThis;
-		}
-
-		if (typeof parent === 'undefined') {
-			return;
-		}
-
-		const globalProperty = parent[property];
-
-		if (typeof globalProperty === 'function') {
-			return globalProperty.bind(parent);
-		}
-
-		return globalProperty;
-	};
-
-	const globalProperties = [
-		'Headers',
-		'Request',
-		'Response',
-		'ReadableStream',
-		'fetch',
-		'AbortController',
-		'FormData'
-	];
-
-	const props = {};
-	for (const property of globalProperties) {
-		props[property] = {
-			get() {
-				return getGlobal(property);
-			}
-		};
+const getGlobal = property => {
+	/* istanbul ignore next */
+	if (typeof self !== 'undefined' && self && property in self) {
+		return self;
 	}
 
-	Object.defineProperties(globals, props);
+	/* istanbul ignore next */
+	if (typeof window !== 'undefined' && window && property in window) {
+		return window;
+	}
+
+	if (typeof global !== 'undefined' && global && property in global) {
+		return global;
+	}
+
+	/* istanbul ignore next */
+	if (typeof globalThis !== 'undefined' && globalThis) {
+		return globalThis;
+	}
+};
+
+const globalProperties = [
+	'Headers',
+	'Request',
+	'Response',
+	'ReadableStream',
+	'fetch',
+	'AbortController',
+	'FormData'
+];
+
+for (const property of globalProperties) {
+	Object.defineProperty(globals, property, {
+		get() {
+			const globalObject = getGlobal(property);
+			const value = globalObject && globalObject[property];
+			return typeof value === 'function' ? value.bind(globalObject) : value;
+		}
+	});
 }
 
 const isObject = value => value !== null && typeof value === 'object';
