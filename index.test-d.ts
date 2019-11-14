@@ -1,5 +1,5 @@
 import {expectType} from 'tsd';
-import ky, {HTTPError, TimeoutError, ResponsePromise, DownloadProgress, Options, Input, stop} from '.';
+import ky, {HTTPError, TimeoutError, ResponsePromise, DownloadProgress, Options, Input} from '.';
 
 const url = 'https://sindresorhus';
 
@@ -25,7 +25,7 @@ expectType<typeof ky>(ky.create({}));
 expectType<typeof ky>(ky.extend({}));
 expectType<HTTPError>(new HTTPError(new Response));
 expectType<TimeoutError>(new TimeoutError);
-expectType<symbol>(stop);
+expectType<symbol>(ky.stop);
 
 ky(url, {
 	hooks: {

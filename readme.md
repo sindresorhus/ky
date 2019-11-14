@@ -390,7 +390,7 @@ The error thrown when the request times out.
 A `Symbol` that can be returned by a `beforeRetry` hook to stop the retry. This will also short circuit the remaining `beforeRetry` hooks.
 
 ```js
-import ky, {stop as kyStop} from 'ky';
+import ky from 'ky';
 
 (async () => {
 	await ky('https://example.com', {
@@ -399,7 +399,7 @@ import ky, {stop as kyStop} from 'ky';
 				async (request, options, errors, retryCount) => {
 					const shouldStopRetry = await ky('https://example.com/api');
 					if (shouldStopRetry) {
-						return kyStop;
+						return ky.stop;
 					}
 				}
 			]

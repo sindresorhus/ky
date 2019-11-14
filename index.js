@@ -473,6 +473,7 @@ const createInstance = defaults => {
 
 	ky.create = newDefaults => createInstance(validateAndMerge(newDefaults));
 	ky.extend = newDefaults => createInstance(validateAndMerge(defaults, newDefaults));
+	ky.stop = stop;
 
 	return ky;
 };
@@ -481,6 +482,5 @@ export default createInstance();
 
 export {
 	HTTPError,
-	TimeoutError,
-	stop
+	TimeoutError
 };

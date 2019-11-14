@@ -3,7 +3,7 @@ import test from 'ava';
 import createTestServer from 'create-test-server';
 import body from 'body';
 import delay from 'delay';
-import ky, {stop} from '..';
+import ky from '..';
 
 const pBody = util.promisify(body);
 
@@ -399,7 +399,7 @@ test('beforeRetry hook can cancel retries by returning `stop`', async t => {
 					t.truthy(error);
 					t.is(retryCount, 1);
 
-					return stop;
+					return ky.stop;
 				}
 			]
 		}
