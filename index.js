@@ -360,7 +360,7 @@ class Ky {
 						this.request,
 						this._options,
 						error,
-						this._retryCount,
+						this._retryCount
 					);
 
 					// If `stop` is returned from the hook, the retry process is stopped

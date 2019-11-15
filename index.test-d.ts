@@ -1,5 +1,5 @@
 import {expectType} from 'tsd';
-import ky, {HTTPError, TimeoutError, ResponsePromise, DownloadProgress, Options, Input} from '.';
+import ky, {HTTPError, TimeoutError, ResponsePromise, DownloadProgress, Options, NormalizedOptions, Input} from '.';
 
 const url = 'https://sindresorhus';
 
@@ -25,14 +25,13 @@ expectType<typeof ky>(ky.create({}));
 expectType<typeof ky>(ky.extend({}));
 expectType<HTTPError>(new HTTPError(new Response));
 expectType<TimeoutError>(new TimeoutError);
-expectType<symbol>(ky.stop);
 
 ky(url, {
 	hooks: {
 		beforeRequest: [
 			(request, options) => {
 				expectType<Request>(request);
-				expectType<Object>(options);
+				expectType<NormalizedOptions>(options);
 				request.headers.set('foo', 'bar');
 			},
 			(_request, _options) => {
@@ -51,7 +50,7 @@ ky(url, {
 		beforeRetry: [
 			(request, options, error, retryCount) => {
 				expectType<Request>(request);
-				expectType<Object>(options);
+				expectType<NormalizedOptions>(options);
 				expectType<Error>(error);
 				expectType<number>(retryCount);
 				request.headers.set('foo', 'bar');
@@ -60,7 +59,7 @@ ky(url, {
 		afterResponse: [
 			(request, options, response) => {
 				expectType<Request>(request);
-				expectType<Object>(options);
+				expectType<NormalizedOptions>(options);
 				expectType<Response>(response);
 			},
 			(_request, _options, _response) => {

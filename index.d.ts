@@ -276,7 +276,7 @@ export interface Options extends RequestInit {
 /**
 Normalized options passed to the `fetch` call and the `beforeRequest` hooks.
 */
-interface NormalizedOptions extends RequestInit {
+export interface NormalizedOptions extends RequestInit {
 	// Extended from `RequestInit`, but ensured to be set (not optional).
 	method: RequestInit['method'];
 	credentials: RequestInit['credentials'];

@@ -57,7 +57,7 @@ test('aborting a request', withPage, async (t, page) => {
 		const controller = new AbortController();
 		const request = window.ky(`${url}/test`, {signal: controller.signal}).text();
 		controller.abort();
-		return request.catch(error => error.toString());
+		return request.catch(error_ => error_.toString());
 	}, server.url);
 	t.is(error, 'AbortError: The user aborted a request.');
 
@@ -82,7 +82,7 @@ test('throws TimeoutError even though it does not support AbortController', with
 		window.ky = window.ky.default;
 
 		const request = window.ky(`${url}/endless`, {timeout: 500}).text();
-		return request.catch(error => error.toString());
+		return request.catch(error_ => error_.toString());
 	}, server.url);
 	t.is(error, 'TimeoutError: Request timed out');
 
@@ -148,7 +148,7 @@ test('throws if onDownloadProgress is not a function', withPage, async (t, page)
 		window.ky = window.ky.default;
 
 		const request = window.ky(url, {onDownloadProgress: 1}).text();
-		return request.catch(error => error.toString());
+		return request.catch(error_ => error_.toString());
 	}, server.url);
 	t.is(error, 'TypeError: The `onDownloadProgress` option must be a function');
 
@@ -170,7 +170,7 @@ test('throws if does not support ReadableStream', withPage, async (t, page) => {
 		window.ky = window.ky.default;
 
 		const request = window.ky(url, {onDownloadProgress: () => {}}).text();
-		return request.catch(error => error.toString());
+		return request.catch(error_ => error_.toString());
 	}, server.url);
 	t.is(error, 'Error: Streams are not supported in your environment. `ReadableStream` is missing.');
 

@@ -130,7 +130,7 @@ Type: `object`
 
 ##### method
 
-Type: `string`<br>
+Type: `string`\
 Default: `get`
 
 HTTP method used to make the request.
@@ -145,7 +145,7 @@ Shortcut for sending JSON. Use this instead of the `body` option. Accepts a plai
 
 ##### searchParams
 
-Type: `string | object<string, string | number | boolean> | Array<Array<string | number | boolean>> | URLSearchParams`<br>
+Type: `string | object<string, string | number | boolean> | Array<Array<string | number | boolean>> | URLSearchParams`\
 Default: `''`
 
 Search parameters to include in the request URL. Setting this will override all existing search parameters in the input URL.
@@ -180,7 +180,7 @@ Notes:
 
 ##### retry
 
-Type: `object | number`<br>
+Type: `object | number`\
 
 Default:
 - `limit`: `2`
@@ -212,7 +212,7 @@ import ky from 'ky';
 
 ##### timeout
 
-Type: `number | false`<br>
+Type: `number | false`\
 Default: `10000`
 
 Timeout in milliseconds for getting a response. Can not be greater than 2147483647.
@@ -220,14 +220,14 @@ If set to `false`, there will be no timeout.
 
 ##### hooks
 
-Type: `object<string, Function[]>`<br>
+Type: `object<string, Function[]>`\
 Default: `{beforeRequest: [], beforeRetry: [], afterResponse: []}`
 
 Hooks allow modifications during the request lifecycle. Hook functions may be async and are run serially.
 
 ###### hooks.beforeRequest
 
-Type: `Function[]`<br>
+Type: `Function[]`\
 Default: `[]`
 
 This hook enables you to modify the request right before it is sent. Ky will make no further changes to the request after this. The hook function receives `request` and `options` as arguments. You could, for example, modify the `request.headers` here.
@@ -255,7 +255,7 @@ const api = ky.extend({
 
 ###### hooks.beforeRetry
 
-Type: `Function[]`<br>
+Type: `Function[]`\
 Default: `[]`
 
 This hook enables you to modify the request right before retry. Ky will make no further changes to the request after this. The hook function receives the normalized request and options, an error instance and the retry count as arguments. You could, for example, modify `request.headers` here.
@@ -279,7 +279,7 @@ import ky from 'ky';
 
 ###### hooks.afterResponse
 
-Type: `Function[]`<br>
+Type: `Function[]`\
 Default: `[]`
 
 This hook enables you to read and optionally modify the response. The hook function receives normalized request, options, and a clone of the response as arguments. The return value of the hook function will be used by Ky as the response object if it's an instance of [`Response`](https://developer.mozilla.org/en-US/docs/Web/API/Response).
@@ -319,7 +319,7 @@ import ky from 'ky';
 
 ##### throwHttpErrors
 
-Type: `boolean`<br>
+Type: `boolean`\
 Default: `true`
 
 Throw a `HTTPError` for error responses (non-2xx status codes).
