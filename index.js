@@ -114,6 +114,8 @@ const retryAfterStatusCodes = [
 	503
 ];
 
+const stop = Symbol('stop');
+
 class HTTPError extends Error {
 	constructor(response) {
 		super(response.statusText);
@@ -354,12 +356,17 @@ class Ky {
 
 				for (const hook of this._options.hooks.beforeRetry) {
 					// eslint-disable-next-line no-await-in-loop
-					await hook(
+					const hookResult = await hook(
 						this.request,
 						this._options,
 						error,
 						this._retryCount,
 					);
+
+					// If `stop` is returned from the hook, the retry process is stopped
+					if (hookResult === stop) {
+						return;
+					}
 				}
 
 				return this._retry(fn);
@@ -450,6 +457,7 @@ const createInstance = defaults => {
 
 	ky.create = newDefaults => createInstance(validateAndMerge(newDefaults));
 	ky.extend = newDefaults => createInstance(validateAndMerge(defaults, newDefaults));
+	ky.stop = stop;
 
 	return ky;
 };

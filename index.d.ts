@@ -427,6 +427,32 @@ declare const ky: {
 	@returns A new Ky instance.
 	*/
 	extend(defaultOptions: Options): typeof ky;
+
+	/**
+	A `Symbol` that can be returned by a `beforeRetry` hook to stop the retry.
+	This will also short circuit the remaining `beforeRetry` hooks.
+
+	@example
+	```
+	import ky from 'ky';
+
+	(async () => {
+		await ky('https://example.com', {
+			hooks: {
+				beforeRetry: [
+					async (request, options, errors, retryCount) => {
+						const shouldStopRetry = await ky('https://example.com/api');
+						if (shouldStopRetry) {
+							return ky.stop;
+						}
+					}
+				]
+			}
+		});
+	})();
+	```
+	*/
+	readonly stop: unique symbol;
 };
 
 export default ky;
