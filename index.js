@@ -455,6 +455,8 @@ const createInstance = defaults => {
 		ky[method] = (input, options) => new Ky(input, validateAndMerge(defaults, options, {method}));
 	}
 
+	ky.HTTPError = HTTPError;
+	ky.TimeoutError = TimeoutError;
 	ky.create = newDefaults => createInstance(validateAndMerge(newDefaults));
 	ky.extend = newDefaults => createInstance(validateAndMerge(defaults, newDefaults));
 	ky.stop = stop;
@@ -463,8 +465,3 @@ const createInstance = defaults => {
 };
 
 export default createInstance();
-
-export {
-	HTTPError,
-	TimeoutError
-};
