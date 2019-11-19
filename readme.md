@@ -181,7 +181,6 @@ Notes:
 ##### retry
 
 Type: `object | number`\
-
 Default:
 - `limit`: `2`
 - `methods`: `get` `put` `head` `delete` `options` `trace`
