@@ -331,7 +331,7 @@ export interface ResponsePromise extends Promise<Response> {
 /**
 The error has a response property with the `Response` object.
 */
-export class HTTPError extends Error {
+declare class HTTPError extends Error {
 	constructor(response: Response);
 	response: Response;
 }
@@ -339,7 +339,7 @@ export class HTTPError extends Error {
 /**
 The error thrown when the request times out.
 */
-export class TimeoutError extends Error {
+declare class TimeoutError extends Error {
 	constructor();
 }
 
@@ -453,6 +453,8 @@ declare const ky: {
 	```
 	*/
 	readonly stop: unique symbol;
+	readonly TimeoutError: TimeoutError;
+	readonly HTTPError: HTTPError;
 };
 
 export default ky;
