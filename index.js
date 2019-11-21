@@ -46,7 +46,6 @@ for (const property of globalProperties) {
 const isObject = value => value !== null && typeof value === 'object';
 const supportsAbortController = typeof globals.AbortController === 'function';
 const supportsStreams = typeof globals.ReadableStream === 'function';
-const supportsFormData = typeof globals.FormData === 'function';
 
 const deepMerge = (...sources) => {
 	let returnValue = {};
@@ -241,10 +240,6 @@ class Ky {
 			const url = new URL(this.request.url);
 			url.search = new URLSearchParams(this._options.searchParams);
 			this.request = new globals.Request(url, this.request);
-		}
-
-		if (((supportsFormData && this._options.body instanceof globals.FormData) || this._options.body instanceof URLSearchParams) && this.request.headers.has('content-type')) {
-			throw new Error(`The \`content-type\` header cannot be used with a ${this._options.body.constructor.name} body. It will be set automatically.`);
 		}
 
 		if (this._options.json) {
