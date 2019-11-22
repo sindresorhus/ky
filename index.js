@@ -362,7 +362,7 @@ class Ky {
 						error,
 						response: error.response.clone(),
 						retryCount: this._retryCount
-          });
+					});
 
 					// If `stop` is returned from the hook, the retry process is stopped
 					if (hookResult === stop) {
