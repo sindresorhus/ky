@@ -239,7 +239,7 @@ class Ky {
 		if (this._options.searchParams) {
 			const url = new URL(this.request.url);
 			url.search = new URLSearchParams(this._options.searchParams);
-			this.request = new globals.Request(url, this.request);
+			this.request = new globals.Request(url, this._options);
 		}
 
 		if (this._options.json) {
