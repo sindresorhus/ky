@@ -164,23 +164,6 @@ test('custom headers', async t => {
 	await server.close();
 });
 
-test('FormData with searchParams', async t => {
-	const server = await createTestServer();
-	server.post('/', async (request, response) => {
-		response.end(await pBody(request));
-	});
-
-	const formData = new FormData();
-	formData.append('file', new Buffer(fixture));
-	t.regex(await ky(server.url, {
-		method: 'post',
-		searchParams: 'foo=1',
-		body: formData
-	}).text(), new RegExp(fixture));
-
-	await server.close();
-});
-
 test('JSON with custom Headers instance', async t => {
 	t.plan(3);
 

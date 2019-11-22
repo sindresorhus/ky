@@ -54,7 +54,6 @@
 		"create-test-server": "2.1.1",
 		"delay": "^4.1.0",
 		"esm": "^3.2.22",
-		"form-data": "^3.0.0",
 		"node-fetch": "^2.5.0",
 		"nyc": "^14.1.1",
 		"puppeteer": "^1.15.0",
