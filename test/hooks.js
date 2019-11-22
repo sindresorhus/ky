@@ -378,6 +378,38 @@ test('beforeRetry hook is called with error and retryCount', async t => {
 	await server.close();
 });
 
+test('beforeRetry hook can cancel retries by returning `stop`', async t => {
+	let requestCount = 0;
+
+	const server = await createTestServer();
+	server.get('/', async (request, response) => {
+		requestCount++;
+
+		if (requestCount > 2) {
+			response.end(request.headers.unicorn);
+		} else {
+			response.sendStatus(408);
+		}
+	});
+
+	await ky.get(server.url, {
+		hooks: {
+			beforeRetry: [
+				(_input, options, error, retryCount) => {
+					t.truthy(error);
+					t.is(retryCount, 1);
+
+					return ky.stop;
+				}
+			]
+		}
+	});
+
+	t.is(requestCount, 1);
+
+	await server.close();
+});
+
 test('catches beforeRetry thrown errors', async t => {
 	let requestCount = 0;
 

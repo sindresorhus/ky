@@ -1,9 +1,10 @@
 {
 	"name": "ky",
-	"version": "0.15.0",
+	"version": "0.16.0",
 	"description": "Tiny and elegant HTTP client based on the browser Fetch API",
 	"license": "MIT",
 	"repository": "sindresorhus/ky",
+	"funding": "https://github.com/sindresorhus/ky?sponsor=1",
 	"author": {
 		"name": "Sindre Sorhus",
 		"email": "sindresorhus@gmail.com",
@@ -56,9 +57,9 @@
 		"node-fetch": "^2.5.0",
 		"nyc": "^14.1.1",
 		"puppeteer": "^1.15.0",
-		"rollup": "^1.11.3",
-		"tsd": "^0.7.2",
-		"xo": "^0.24.0"
+		"rollup": "^1.27.0",
+		"tsd": "^0.11.0",
+		"xo": "^0.25.3"
 	},
 	"xo": {
 		"envs": [
