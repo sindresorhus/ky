@@ -207,3 +207,27 @@ test('FormData with searchParams', withPage, async (t, page) => {
 
 	await server.close();
 });
+
+test('headers are preserved when input is a Request and there are searchParams in the options', withPage, async (t, page) => {
+	const server = await createTestServer();
+	server.get('/', (request, response) => {
+		response.end(request.headers['content-type']);
+	});
+
+	await page.goto(server.url);
+	await page.addScriptTag({path: './umd.js'});
+
+	const requestBody = await page.evaluate(url => {
+		window.ky = window.ky.default;
+		const request = new window.Request(url, {
+			headers: {'content-type': 'text/css'}
+		});
+		return window.ky(request, {
+			searchParams: 'foo=1'
+		}).text();
+	}, server.url);
+
+	t.is(requestBody, 'text/css');
+
+	await server.close();
+});
