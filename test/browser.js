@@ -182,17 +182,21 @@ test('throws if does not support ReadableStream', withPage, async (t, page) => {
 test('FormData with searchParams', withPage, async (t, page) => {
 	const server = await createTestServer();
 	server.get('/', (request, response) => {
-		response.end('nothing');
+		response.end();
 	});
 	server.post('/', async (request, response) => {
 		const pBody = util.promisify(body);
-		response.end(await pBody(request));
+		const requestBody = await pBody(request);
+
+		t.regex(requestBody, /bubblegum pie/);
+		t.deepEqual(request.query, {foo: '1'});
+
+		response.end();
 	});
 
 	await page.goto(server.url);
 	await page.addScriptTag({path: './umd.js'});
-
-	const requestBody = await page.evaluate(url => {
+	await page.evaluate(url => {
 		window.ky = window.ky.default;
 		const formData = new window.FormData();
 		formData.append('file', new window.File(['bubblegum pie'], 'my-file'));
@@ -200,10 +204,8 @@ test('FormData with searchParams', withPage, async (t, page) => {
 			method: 'post',
 			searchParams: 'foo=1',
 			body: formData
-		}).text();
+		});
 	}, server.url);
-
-	t.regex(requestBody, /bubblegum pie/);
 
 	await server.close();
 });
@@ -211,23 +213,26 @@ test('FormData with searchParams', withPage, async (t, page) => {
 test('headers are preserved when input is a Request and there are searchParams in the options', withPage, async (t, page) => {
 	const server = await createTestServer();
 	server.get('/', (request, response) => {
-		response.end(request.headers['content-type']);
+		response.end();
+	});
+	server.get('/test', (request, response) => {
+		t.is(request.headers['content-type'], 'text/css');
+		t.deepEqual(request.query, {foo: '1'});
+		response.end();
 	});
 
 	await page.goto(server.url);
 	await page.addScriptTag({path: './umd.js'});
 
-	const requestBody = await page.evaluate(url => {
+	await page.evaluate(url => {
 		window.ky = window.ky.default;
-		const request = new window.Request(url, {
+		const request = new window.Request(url + '/test', {
 			headers: {'content-type': 'text/css'}
 		});
 		return window.ky(request, {
 			searchParams: 'foo=1'
 		}).text();
 	}, server.url);
-
-	t.is(requestBody, 'text/css');
 
 	await server.close();
 });
