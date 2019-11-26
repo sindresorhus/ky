@@ -1,3 +1,5 @@
+import util from 'util';
+import body from 'body';
 import {serial as test} from 'ava';
 import createTestServer from 'create-test-server';
 import withPage from './helpers/with-page';
@@ -173,6 +175,64 @@ test('throws if does not support ReadableStream', withPage, async (t, page) => {
 		return request.catch(error_ => error_.toString());
 	}, server.url);
 	t.is(error, 'Error: Streams are not supported in your environment. `ReadableStream` is missing.');
+
+	await server.close();
+});
+
+test('FormData with searchParams', withPage, async (t, page) => {
+	const server = await createTestServer();
+	server.get('/', (request, response) => {
+		response.end();
+	});
+	server.post('/', async (request, response) => {
+		const pBody = util.promisify(body);
+		const requestBody = await pBody(request);
+
+		t.regex(requestBody, /bubblegum pie/);
+		t.deepEqual(request.query, {foo: '1'});
+
+		response.end();
+	});
+
+	await page.goto(server.url);
+	await page.addScriptTag({path: './umd.js'});
+	await page.evaluate(url => {
+		window.ky = window.ky.default;
+		const formData = new window.FormData();
+		formData.append('file', new window.File(['bubblegum pie'], 'my-file'));
+		return window.ky(url, {
+			method: 'post',
+			searchParams: 'foo=1',
+			body: formData
+		});
+	}, server.url);
+
+	await server.close();
+});
+
+test('headers are preserved when input is a Request and there are searchParams in the options', withPage, async (t, page) => {
+	const server = await createTestServer();
+	server.get('/', (request, response) => {
+		response.end();
+	});
+	server.get('/test', (request, response) => {
+		t.is(request.headers['content-type'], 'text/css');
+		t.deepEqual(request.query, {foo: '1'});
+		response.end();
+	});
+
+	await page.goto(server.url);
+	await page.addScriptTag({path: './umd.js'});
+
+	await page.evaluate(url => {
+		window.ky = window.ky.default;
+		const request = new window.Request(url + '/test', {
+			headers: {'content-type': 'text/css'}
+		});
+		return window.ky(request, {
+			searchParams: 'foo=1'
+		}).text();
+	}, server.url);
 
 	await server.close();
 });
