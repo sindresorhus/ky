@@ -158,6 +158,37 @@ test('form-data automatic `content-type` header', async t => {
 	t.is(headers['content-type'], `multipart/form-data;boundary=${form.getBoundary()}`);
 });
 
+test('form-data manual `content-type` header with search params', async t => {
+	const server = await createTestServer();
+	server.post('/', echoHeaders);
+
+	const form = new FormData();
+	form.append('a', 'b');
+	const headers = await ky.post(server.url, {
+		searchParams: 'foo=1',
+		headers: {
+			'content-type': 'custom'
+		},
+		body: form
+	}).json();
+
+	t.is(headers['content-type'], 'custom');
+});
+
+test('form-data automatic `content-type` header with search params', async t => {
+	const server = await createTestServer();
+	server.post('/', echoHeaders);
+
+	const form = new FormData();
+	form.append('a', 'b');
+	const headers = await ky.post(server.url, {
+		searchParams: 'foo=1',
+		body: form
+	}).json();
+
+	t.is(headers['content-type'], `multipart/form-data;boundary=${form.getBoundary()}`);
+});
+
 test('form-data sets `content-length` header', async t => {
 	const server = await createTestServer();
 	server.post('/', echoHeaders);
