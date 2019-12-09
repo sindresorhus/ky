@@ -198,6 +198,19 @@ test('removes undefined value headers', async t => {
 	t.is(headers['user-agent'], 'undefined');
 });
 
+test.failing('non-existent headers set to undefined are omitted', async t => {
+	const server = await createTestServer();
+	server.get('/', echoHeaders);
+
+	const headers = await ky.get(server.url, {
+		headers: {
+			blah: undefined
+		}
+	}).json();
+
+	t.false(Reflect.has(headers, 'blah'));
+});
+
 test('preserve port in host header if non-standard port', async t => {
 	const server = await createTestServer();
 	server.get('/', echoHeaders);
