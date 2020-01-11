@@ -48,10 +48,6 @@ test('does not remove user headers from `url` object argument', async t => {
 
 	const headers = await ky
 		.get(server.url, {
-			hostname: server.hostname,
-			port: server.port,
-			responseType: 'json',
-			protocol: 'http:',
 			headers: {
 				'X-Request-Id': 'value'
 			}
@@ -208,7 +204,7 @@ test.failing('non-existent headers set to undefined are omitted', async t => {
 		}
 	}).json();
 
-	t.false(Reflect.has(headers, 'blah'));
+	t.false('blah' in headers);
 });
 
 test('preserve port in host header if non-standard port', async t => {
