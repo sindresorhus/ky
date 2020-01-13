@@ -238,7 +238,18 @@ class Ky {
 
 		if (this._options.searchParams) {
 			const url = new URL(this.request.url);
-			url.search = new URLSearchParams(this._options.searchParams);
+			const urlSearchParams = new URLSearchParams(this._options.searchParams);
+			const hasSearchParamsInstanceProperty = Object.prototype.hasOwnProperty.call(url, '_searchParamsInstance');
+			if (hasSearchParamsInstanceProperty) {
+				url._searchParamsInstance = urlSearchParams;
+			} else {
+				url.search = urlSearchParams;
+			}
+
+			if (url._url && url._url.endsWith('/')) {
+				url._url = url._url.slice(0, -1);
+			}
+
 			this.request = new globals.Request(new globals.Request(url, this.request), this._options);
 		}
 
