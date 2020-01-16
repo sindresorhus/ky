@@ -547,3 +547,17 @@ test('options override Request instance body', async t => {
 
 	await server.close();
 });
+
+test('POST JSON with falsey value', async t => { // #222
+	const server = await createTestServer();
+	server.post('/', async (request, response) => {
+		response.json(JSON.parse(await pBody(request)));
+	});
+
+	const json = false;
+	const responseJson = await ky.post(server.url, {json}).json();
+
+	t.deepEqual(json, responseJson);
+
+	await server.close();
+});
