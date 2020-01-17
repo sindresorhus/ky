@@ -242,7 +242,7 @@ class Ky {
 			this.request = new globals.Request(new globals.Request(url, this.request), this._options);
 		}
 
-		if (Object.prototype.hasOwnProperty.call(this._options, 'json')) {
+		if ('json' in this._options) {
 			this._options.body = JSON.stringify(this._options.json);
 			this.request.headers.set('content-type', 'application/json');
 			this.request = new globals.Request(this.request, {body: this._options.body});

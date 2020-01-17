@@ -166,7 +166,7 @@ export interface Options extends RequestInit {
 
 	Accepts any plain object or value, which will be `JSON.stringify()`'d and sent in the body with the correct header set.
 	*/
-	json?: any;
+	json?: object | Array | string | number | boolean | null | undefined;
 
 	/**
 	Search parameters to include in the request URL. Setting this will override all existing search parameters in the input URL.
