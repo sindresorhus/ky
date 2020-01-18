@@ -139,7 +139,7 @@ Internally, the standard methods (`GET`, `POST`, `PUT`, `PATCH`, `HEAD` and `DEL
 
 ##### json
 
-Type: `object | Array | string | number | boolean | null`
+Type: `object` or other value supported by [JSON.stringify()](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/JSON/stringify)
 
 Shortcut for sending JSON. Use this instead of the `body` option. Accepts any plain object or value, which will be `JSON.stringify()`'d and sent in the body with the correct header set.
 
