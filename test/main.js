@@ -103,7 +103,7 @@ test('POST JSON', async t => {
 
 	const responseJson = await ky.post(server.url, {json}).json();
 
-	t.deepEqual(json, responseJson);
+	t.deepEqual(responseJson, json);
 
 	await server.close();
 });
@@ -144,7 +144,7 @@ test('`json` option overrides the `body` option', async t => {
 		json
 	}).json();
 
-	t.deepEqual(json, responseJson);
+	t.deepEqual(responseJson, json);
 
 	await server.close();
 });
@@ -183,7 +183,7 @@ test('JSON with custom Headers instance', async t => {
 		json
 	}).json();
 
-	t.deepEqual(json, responseJson);
+	t.deepEqual(responseJson, json);
 
 	await server.close();
 });
@@ -544,6 +544,20 @@ test('options override Request instance body', async t => {
 	});
 
 	await ky(inputRequest, {body: expectedBody});
+
+	await server.close();
+});
+
+test('POST JSON with falsey value', async t => { // #222
+	const server = await createTestServer();
+	server.post('/', async (request, response) => {
+		response.json(JSON.parse(await pBody(request)));
+	});
+
+	const json = false;
+	const responseJson = await ky.post(server.url, {json}).json();
+
+	t.deepEqual(responseJson, json);
 
 	await server.close();
 });
