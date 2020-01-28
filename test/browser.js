@@ -1,7 +1,6 @@
-import util from 'util';
-import body from 'body';
 import {serial as test} from 'ava';
 import createTestServer from 'create-test-server';
+import Busboy from 'busboy';
 import withPage from './helpers/with-page';
 
 test('prefixUrl option', withPage, async (t, page) => {
@@ -179,18 +178,39 @@ test('throws if does not support ReadableStream', withPage, async (t, page) => {
 	await server.close();
 });
 
-test('FormData with searchParams', withPage, async (t, page) => {
+test.failing('FormData with searchParams', withPage, async (t, page) => {
 	const server = await createTestServer();
 	server.get('/', (request, response) => {
 		response.end();
 	});
 	server.post('/', async (request, response) => {
-		const pBody = util.promisify(body);
-		const requestBody = await pBody(request);
-
-		t.regex(requestBody, /bubblegum pie/);
 		t.deepEqual(request.query, {foo: '1'});
+		const body = await new Promise((resolve, reject) => {
+			const busboy = new Busboy({headers: request.headers});
 
+			busboy.on('file', (fieldname, file, filename, encoding, mimetype) => {
+				let fileContent = '';
+
+				file.on('data', data => {
+					fileContent += data.toString('utf-8');
+				});
+
+				file.on('end', () => {
+					resolve({fieldname, filename, encoding, mimetype, fileContent});
+				});
+
+				file.on('error', reject);
+			});
+
+			busboy.on('error', reject);
+
+			request.pipe(busboy);
+		});
+		t.is(body.fieldname, 'file');
+		t.is(body.filename, 'my-file');
+		t.is(body.encoding, '7bit');
+		t.is(body.mimetype, 'text/plain');
+		t.is(body.fileContent, 'bubblegum pie');
 		response.end();
 	});
 
@@ -199,7 +219,7 @@ test('FormData with searchParams', withPage, async (t, page) => {
 	await page.evaluate(url => {
 		window.ky = window.ky.default;
 		const formData = new window.FormData();
-		formData.append('file', new window.File(['bubblegum pie'], 'my-file'));
+		formData.append('file', new window.File(['bubblegum pie'], 'my-file', {type: 'text/plain'}));
 		return window.ky(url, {
 			method: 'post',
 			searchParams: 'foo=1',
