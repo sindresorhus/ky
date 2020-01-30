@@ -161,7 +161,7 @@ test('respect number of retries', async t => {
 			retry: {
 				limit: 3
 			}
-		}).text(), 
+		}).text(),
 		/Request Timeout/
 	);
 	t.is(requestCount, 3);
@@ -243,7 +243,7 @@ test('respect maxRetryAfter', async t => {
 				maxRetryAfter: 2000
 			}
 		}).text(),
-		/Payload Too Large/		
+		/Payload Too Large/
 	);
 	t.is(requestCount, 5);
 
@@ -286,7 +286,7 @@ test('doesn\'t retry on 413 with empty statusCodes and methods', async t => {
 				methods: []
 			}
 		}).text(),
-		/Payload Too Large/		
+		/Payload Too Large/
 	);
 
 	t.is(requestCount, 1);
@@ -310,7 +310,7 @@ test('doesn\'t retry on 413 with empty methods', async t => {
 				methods: []
 			}
 		}).text(),
-		/Payload Too Large/		
+		/Payload Too Large/
 	);
 
 	t.is(requestCount, 1);
