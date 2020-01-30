@@ -156,11 +156,14 @@ test('respect number of retries', async t => {
 		response.sendStatus(408);
 	});
 
-	await t.throwsAsync(ky(server.url, {
-		retry: {
-			limit: 3
-		}
-	}).text());
+	await t.throwsAsync(
+		ky(server.url, {
+			retry: {
+				limit: 3
+			}
+		}).text(), 
+		/Request Timeout/
+	);
 	t.is(requestCount, 3);
 
 	await server.close();
@@ -180,22 +183,28 @@ test('respect retry methods', async t => {
 		response.sendStatus(408);
 	});
 
-	await t.throwsAsync(ky(server.url, {
-		method: 'post',
-		retry: {
-			limit: 3,
-			methods: ['get']
-		}
-	}).text());
+	await t.throwsAsync(
+		ky(server.url, {
+			method: 'post',
+			retry: {
+				limit: 3,
+				methods: ['get']
+			}
+		}).text(),
+		/Request Timeout/
+	);
 	t.is(requestCount, 1);
 
 	requestCount = 0;
-	await t.throwsAsync(ky(server.url, {
-		retry: {
-			limit: 3,
-			methods: ['get']
-		}
-	}).text());
+	await t.throwsAsync(
+		ky(server.url, {
+			retry: {
+				limit: 3,
+				methods: ['get']
+			}
+		}).text(),
+		/Request Timeout/
+	);
 	t.is(requestCount, 3);
 
 	await server.close();
@@ -215,21 +224,27 @@ test('respect maxRetryAfter', async t => {
 		response.end('');
 	});
 
-	await t.throwsAsync(ky(server.url, {
-		retry: {
-			limit: 5,
-			maxRetryAfter: 100
-		}
-	}).text());
+	await t.throwsAsync(
+		ky(server.url, {
+			retry: {
+				limit: 5,
+				maxRetryAfter: 100
+			}
+		}).text(),
+		/Payload Too Large/
+	);
 	t.is(requestCount, 1);
 
 	requestCount = 0;
-	await t.throwsAsync(ky(server.url, {
-		retry: {
-			limit: 5,
-			maxRetryAfter: 2000
-		}
-	}).text());
+	await t.throwsAsync(
+		ky(server.url, {
+			retry: {
+				limit: 5,
+				maxRetryAfter: 2000
+			}
+		}).text(),
+		/Payload Too Large/		
+	);
 	t.is(requestCount, 5);
 
 	await server.close();
@@ -244,7 +259,10 @@ test('retry - can provide retry as number', async t => {
 		response.sendStatus(408);
 	});
 
-	await t.throwsAsync(ky(server.url, {retry: 5}).text());
+	await t.throwsAsync(
+		ky(server.url, {retry: 5}).text(),
+		/Request Timeout/
+	);
 	t.is(requestCount, 5);
 
 	await server.close();
@@ -260,13 +278,16 @@ test('doesn\'t retry on 413 with empty statusCodes and methods', async t => {
 		response.sendStatus(413);
 	});
 
-	await t.throwsAsync(ky(server.url, {
-		retry: {
-			limit: 10,
-			statusCodes: [],
-			methods: []
-		}
-	}).text());
+	await t.throwsAsync(
+		ky(server.url, {
+			retry: {
+				limit: 10,
+				statusCodes: [],
+				methods: []
+			}
+		}).text(),
+		/Payload Too Large/		
+	);
 
 	t.is(requestCount, 1);
 
@@ -282,12 +303,15 @@ test('doesn\'t retry on 413 with empty methods', async t => {
 		response.sendStatus(413);
 	});
 
-	await t.throwsAsync(ky(server.url, {
-		retry: {
-			limit: 10,
-			methods: []
-		}
-	}).text());
+	await t.throwsAsync(
+		ky(server.url, {
+			retry: {
+				limit: 10,
+				methods: []
+			}
+		}).text(),
+		/Payload Too Large/		
+	);
 
 	t.is(requestCount, 1);
 
@@ -303,12 +327,15 @@ test('does retry on 408 with methods provided as array', async t => {
 		response.sendStatus(408);
 	});
 
-	await t.throwsAsync(ky(server.url, {
-		retry: {
-			limit: 4,
-			methods: ['get']
-		}
-	}).text());
+	await t.throwsAsync(
+		ky(server.url, {
+			retry: {
+				limit: 4,
+				methods: ['get']
+			}
+		}).text(),
+		/Request Timeout/
+	);
 
 	t.is(requestCount, 4);
 
@@ -324,12 +351,15 @@ test('does retry on 408 with statusCodes provided as array', async t => {
 		response.sendStatus(408);
 	});
 
-	await t.throwsAsync(ky(server.url, {
-		retry: {
-			limit: 4,
-			statusCodes: [408]
-		}
-	}).text());
+	await t.throwsAsync(
+		ky(server.url, {
+			retry: {
+				limit: 4,
+				statusCodes: [408]
+			}
+		}).text(),
+		/Request Timeout/
+	);
 
 	t.is(requestCount, 4);
 
@@ -345,11 +375,14 @@ test('doesn\'t retry when retry.limit is set to 0', async t => {
 		response.sendStatus(408);
 	});
 
-	await t.throwsAsync(ky(server.url, {
-		retry: {
-			limit: 0
-		}
-	}).text());
+	await t.throwsAsync(
+		ky(server.url, {
+			retry: {
+				limit: 0
+			}
+		}).text(),
+		/Request Timeout/
+	);
 
 	t.is(requestCount, 1);
 
