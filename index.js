@@ -389,10 +389,10 @@ class Ky {
 		}
 
 		if (this._options.timeout === false) {
-			return globals.fetch(this.request);
+			return globals.fetch(this.request.clone());
 		}
 
-		return timeout(globals.fetch(this.request), this._options.timeout, this.abortController);
+		return timeout(globals.fetch(this.request.clone()), this._options.timeout, this.abortController);
 	}
 
 	/* istanbul ignore next */
