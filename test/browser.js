@@ -4,6 +4,8 @@ import {serial as test} from 'ava';
 import createTestServer from 'create-test-server';
 import withPage from './helpers/with-page';
 
+const pBody = util.promisify(body);
+
 test('prefixUrl option', withPage, async (t, page) => {
 	const server = await createTestServer();
 	server.get('/', (request, response) => {
@@ -73,22 +75,24 @@ test('throws TimeoutError even though it does not support AbortController', with
 		response.end();
 	});
 
-	server.get('/endless', () => {});
+	server.get('/slow', (request, response) => {
+		setTimeout(() => {
+			response.end('ok');
+		}, 1000);
+	});
 
 	await page.goto(server.url);
 	await page.addScriptTag({path: './test/helpers/disable-abort-controller.js'});
 	await page.addScriptTag({path: './umd.js'});
 
-	// TODO: make set a timeout for this evaluation so we don't have to wait 30s
 	const error = await page.evaluate(url => {
 		window.ky = window.ky.default;
 
-		const request = window.ky(`${url}/endless`, {timeout: 500}).text();
+		const request = window.ky(`${url}/slow`, {timeout: 500}).text();
 		return request.catch(error_ => error_.toString());
 	}, server.url);
 	t.is(error, 'TimeoutError: Request timed out');
 
-	// A note from @szmarczak: await server.close() hangs on my machine
 	await server.close();
 });
 
@@ -180,12 +184,13 @@ test('throws if does not support ReadableStream', withPage, async (t, page) => {
 });
 
 test('FormData with searchParams', withPage, async (t, page) => {
+	t.plan(2);
+
 	const server = await createTestServer();
 	server.get('/', (request, response) => {
 		response.end();
 	});
 	server.post('/', async (request, response) => {
-		const pBody = util.promisify(body);
 		const requestBody = await pBody(request);
 
 		t.regex(requestBody, /bubblegum pie/);
@@ -211,6 +216,8 @@ test('FormData with searchParams', withPage, async (t, page) => {
 });
 
 test('headers are preserved when input is a Request and there are searchParams in the options', withPage, async (t, page) => {
+	t.plan(2);
+
 	const server = await createTestServer();
 	server.get('/', (request, response) => {
 		response.end();
@@ -233,6 +240,37 @@ test('headers are preserved when input is a Request and there are searchParams i
 			searchParams: 'foo=1'
 		}).text();
 	}, server.url);
+
+	await server.close();
+});
+
+test('retry with body', withPage, async (t, page) => {
+	let requestCount = 0;
+
+	const server = await createTestServer();
+	server.get('/', (request, response) => {
+		response.end('zebra');
+	});
+	server.put('/test', async (request, response) => {
+		requestCount++;
+		await pBody(request);
+		response.sendStatus(408);
+	});
+
+	await page.goto(server.url);
+	await page.addScriptTag({path: './umd.js'});
+
+	const error = await page.evaluate(url => {
+		window.ky = window.ky.default;
+		const request = window.ky(url + '/test', {
+			body: 'foo',
+			method: 'PUT',
+			retry: 2
+		}).text();
+		return request.catch(error_ => error_.toString());
+	}, server.url);
+	t.is(error, 'HTTPError: Request Timeout');
+	t.is(requestCount, 2);
 
 	await server.close();
 });
