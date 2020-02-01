@@ -254,7 +254,7 @@ test('retry with body', withPage, async (t, page) => {
 	server.put('/test', async (request, response) => {
 		requestCount++;
 		await pBody(request);
-		response.sendStatus(408);
+		response.sendStatus(502);
 	});
 
 	await page.goto(server.url);
@@ -269,7 +269,7 @@ test('retry with body', withPage, async (t, page) => {
 		}).text();
 		return request.catch(error_ => error_.toString());
 	}, server.url);
-	t.is(error, 'HTTPError: Request Timeout');
+	t.is(error, 'HTTPError: Bad Gateway');
 	t.is(requestCount, 2);
 
 	await server.close();
