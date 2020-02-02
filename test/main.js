@@ -3,7 +3,7 @@ import test from 'ava';
 import createTestServer from 'create-test-server';
 import body from 'body';
 import delay from 'delay';
-import ky, {TimeoutError} from '..';
+import ky from '..';
 
 const pBody = util.promisify(body);
 const fixture = 'fixture';
@@ -246,7 +246,7 @@ test('timeout option', async t => {
 		response.end(fixture);
 	});
 
-	await t.throwsAsync(ky(server.url, {timeout: 500}).text(), TimeoutError);
+	await t.throwsAsync(ky(server.url, {timeout: 500}).text(), ky.TimeoutError);
 	t.is(requestCount, 1);
 
 	await server.close();
@@ -262,7 +262,7 @@ test('timeout:false option', async t => {
 		response.end(fixture);
 	});
 
-	await t.notThrowsAsync(ky(server.url, {timeout: false}).text(), TimeoutError);
+	await t.notThrowsAsync(ky(server.url, {timeout: false}).text(), ky.TimeoutError);
 	t.is(requestCount, 1);
 
 	await server.close();

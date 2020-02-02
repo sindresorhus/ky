@@ -96,7 +96,7 @@ import ky from 'https://unpkg.com/ky/index.js';
 In environments that do not support `import`, you can load `ky` in [UMD format](https://medium.freecodecamp.org/anatomy-of-js-module-systems-and-building-libraries-fadcd8dbd0e). For example, using `require()`:
 
 ```js
-const ky = require('ky/umd').default;
+const ky = require('ky/umd');
 ```
 
 With the UMD version, it's also easy to use `ky` [without a bundler](#how-do-i-use-this-without-a-bundler-like-webpack) or module system.
@@ -517,9 +517,7 @@ Alternatively, you can use the [`umd.js`](umd.js) file with a traditional `<scri
 <script src="https://cdn.jsdelivr.net/npm/ky@latest/umd.js"></script>
 <script>
 (async () => {
-	const client = ky.default;
-
-	const parsed = await client('https://jsonplaceholder.typicode.com/todos/1').json();
+	const parsed = await ky('https://jsonplaceholder.typicode.com/todos/1').json();
 
 	console.log(parsed.title);
 	//=> 'delectus aut autem
