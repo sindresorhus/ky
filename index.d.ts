@@ -453,8 +453,8 @@ declare const ky: {
 	```
 	*/
 	readonly stop: unique symbol;
-	readonly TimeoutError: TimeoutError;
-	readonly HTTPError: HTTPError;
+	readonly TimeoutError: typeof TimeoutError;
+	readonly HTTPError: typeof HTTPError;
 };
 
 export default ky;
