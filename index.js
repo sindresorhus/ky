@@ -389,10 +389,10 @@ class Ky {
 		}
 
 		if (this._options.timeout === false) {
-			return globals.fetch(this.request);
+			return globals.fetch(this.request.clone());
 		}
 
-		return timeout(globals.fetch(this.request), this._options.timeout, this.abortController);
+		return timeout(globals.fetch(this.request.clone()), this._options.timeout, this.abortController);
 	}
 
 	/* istanbul ignore next */
@@ -450,6 +450,8 @@ const createInstance = defaults => {
 		ky[method] = (input, options) => new Ky(input, validateAndMerge(defaults, options, {method}));
 	}
 
+	ky.HTTPError = HTTPError;
+	ky.TimeoutError = TimeoutError;
 	ky.create = newDefaults => createInstance(validateAndMerge(newDefaults));
 	ky.extend = newDefaults => createInstance(validateAndMerge(defaults, newDefaults));
 	ky.stop = stop;
@@ -458,8 +460,3 @@ const createInstance = defaults => {
 };
 
 export default createInstance();
-
-export {
-	HTTPError,
-	TimeoutError
-};

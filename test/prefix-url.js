@@ -25,7 +25,9 @@ test('prefixUrl option', async t => {
 
 	t.throws(() => {
 		ky('/unicorn', {prefixUrl: `${server.url}/api`});
-	}, '`input` must not begin with a slash when using `prefixUrl`');
+	}, {
+		message: '`input` must not begin with a slash when using `prefixUrl`'
+	});
 
 	await server.close();
 });

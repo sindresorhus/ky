@@ -1,6 +1,6 @@
 {
 	"name": "ky",
-	"version": "0.16.2",
+	"version": "0.17.0",
 	"description": "Tiny and elegant HTTP client based on the browser Fetch API",
 	"license": "MIT",
 	"repository": "sindresorhus/ky",
@@ -11,7 +11,7 @@
 		"url": "sindresorhus.com"
 	},
 	"engines": {
-		"node": ">=8"
+		"node": ">=10"
 	},
 	"scripts": {
 		"build": "rollup index.js --format=umd --name=ky --file=umd.js",
@@ -48,18 +48,18 @@
 	],
 	"devDependencies": {
 		"abort-controller": "^3.0.0",
-		"ava": "^1.4.1",
+		"ava": "^3.2.0",
 		"body": "^5.1.0",
 		"busboy": "^0.3.1",
-		"codecov": "^3.4.0",
+		"codecov": "^3.6.4",
 		"create-test-server": "2.1.1",
 		"delay": "^4.1.0",
 		"esm": "^3.2.22",
 		"form-data": "^3.0.0",
 		"node-fetch": "^2.5.0",
-		"nyc": "^14.1.1",
-		"puppeteer": "^1.15.0",
-		"rollup": "^1.27.0",
+		"nyc": "^15.0.0",
+		"puppeteer": "^2.1.0",
+		"rollup": "^1.31.0",
 		"tsd": "^0.11.0",
 		"xo": "^0.25.3"
 	},
@@ -73,8 +73,6 @@
 		]
 	},
 	"ava": {
-		"babel": false,
-		"compileEnhancements": false,
 		"require": [
 			"esm",
 			"./test/_require"
