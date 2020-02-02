@@ -1,3 +1,5 @@
+import util from 'util';
+import body from 'body';
 import {serial as test} from 'ava';
 import createTestServer from 'create-test-server';
 import Busboy from 'busboy';
@@ -171,7 +173,7 @@ test('throws if does not support ReadableStream', withPage, async (t, page) => {
 });
 
 test.failing('FormData with searchParams', withPage, async (t, page) => {
-	t.plan(2);
+	t.plan(6);
 	const server = await createTestServer();
 	server.get('/', (request, response) => {
 		response.end();
