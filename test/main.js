@@ -103,7 +103,7 @@ test('POST JSON', async t => {
 
 	const responseJson = await ky.post(server.url, {json}).json();
 
-	t.deepEqual(json, responseJson);
+	t.deepEqual(responseJson, json);
 
 	await server.close();
 });
@@ -144,7 +144,7 @@ test('`json` option overrides the `body` option', async t => {
 		json
 	}).json();
 
-	t.deepEqual(json, responseJson);
+	t.deepEqual(responseJson, json);
 
 	await server.close();
 });
@@ -183,7 +183,7 @@ test('JSON with custom Headers instance', async t => {
 		json
 	}).json();
 
-	t.deepEqual(json, responseJson);
+	t.deepEqual(responseJson, json);
 
 	await server.close();
 });
@@ -485,15 +485,6 @@ test('throws AbortError when aborted by user', async t => {
 	await t.throwsAsync(response, {name: 'AbortError'});
 });
 
-test('throws when using FormData with `content-type` header', t => {
-	t.throws(() => ky.post('https://example.com', {
-		body: new URLSearchParams(),
-		headers: {
-			'content-type': ''
-		}
-	}), 'The `content-type` header cannot be used with a URLSearchParams body. It will be set automatically.');
-});
-
 test('supports Request instance as input', async t => {
 	const server = await createTestServer();
 	const inputRequest = new Request(server.url, {method: 'POST'});
@@ -553,6 +544,20 @@ test('options override Request instance body', async t => {
 	});
 
 	await ky(inputRequest, {body: expectedBody});
+
+	await server.close();
+});
+
+test('POST JSON with falsey value', async t => { // #222
+	const server = await createTestServer();
+	server.post('/', async (request, response) => {
+		response.json(JSON.parse(await pBody(request)));
+	});
+
+	const json = false;
+	const responseJson = await ky.post(server.url, {json}).json();
+
+	t.deepEqual(responseJson, json);
 
 	await server.close();
 });
