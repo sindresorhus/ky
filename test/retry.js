@@ -59,7 +59,7 @@ test('only on defined status codes', async t => {
 		}
 	});
 
-	await t.throwsAsync(ky(server.url).text(), /Bad Request/);
+	await t.throwsAsync(ky(server.url).text(), {message: /Bad Request/});
 
 	await server.close();
 });
@@ -78,7 +78,7 @@ test('not on POST', async t => {
 		}
 	});
 
-	await t.throwsAsync(ky.post(server.url).text(), /Internal Server Error/);
+	await t.throwsAsync(ky.post(server.url).text(), {message: /Internal Server Error/});
 
 	await server.close();
 });
@@ -139,7 +139,7 @@ test('doesn\'t retry on 413 without Retry-After header', async t => {
 		response.sendStatus(413);
 	});
 
-	await t.throwsAsync(ky(server.url).text(), /Payload Too Large/);
+	await t.throwsAsync(ky(server.url).text(), {message: /Payload Too Large/});
 	t.is(requestCount, 1);
 	await ky(server.url, {throwHttpErrors: false}).text();
 	t.is(requestCount, 2);
@@ -162,7 +162,9 @@ test('respect number of retries', async t => {
 				limit: 3
 			}
 		}).text(),
-		/Request Timeout/
+		{
+			message: /Request Timeout/
+		}
 	);
 	t.is(requestCount, 3);
 
@@ -191,7 +193,9 @@ test('respect retry methods', async t => {
 				methods: ['get']
 			}
 		}).text(),
-		/Request Timeout/
+		{
+			message: /Request Timeout/
+		}
 	);
 	t.is(requestCount, 1);
 
@@ -203,7 +207,9 @@ test('respect retry methods', async t => {
 				methods: ['get']
 			}
 		}).text(),
-		/Request Timeout/
+		{
+			message: /Request Timeout/
+		}
 	);
 	t.is(requestCount, 3);
 
@@ -231,7 +237,9 @@ test('respect maxRetryAfter', async t => {
 				maxRetryAfter: 100
 			}
 		}).text(),
-		/Payload Too Large/
+		{
+			message: /Payload Too Large/
+		}
 	);
 	t.is(requestCount, 1);
 
@@ -243,7 +251,9 @@ test('respect maxRetryAfter', async t => {
 				maxRetryAfter: 2000
 			}
 		}).text(),
-		/Payload Too Large/
+		{
+			message: /Payload Too Large/
+		}
 	);
 	t.is(requestCount, 5);
 
@@ -261,7 +271,9 @@ test('retry - can provide retry as number', async t => {
 
 	await t.throwsAsync(
 		ky(server.url, {retry: 5}).text(),
-		/Request Timeout/
+		{
+			message: /Request Timeout/
+		}
 	);
 	t.is(requestCount, 5);
 
@@ -286,7 +298,9 @@ test('doesn\'t retry on 413 with empty statusCodes and methods', async t => {
 				methods: []
 			}
 		}).text(),
-		/Payload Too Large/
+		{
+			message: /Payload Too Large/
+		}
 	);
 
 	t.is(requestCount, 1);
@@ -310,7 +324,9 @@ test('doesn\'t retry on 413 with empty methods', async t => {
 				methods: []
 			}
 		}).text(),
-		/Payload Too Large/
+		{
+			message: /Payload Too Large/
+		}
 	);
 
 	t.is(requestCount, 1);
@@ -334,7 +350,9 @@ test('does retry on 408 with methods provided as array', async t => {
 				methods: ['get']
 			}
 		}).text(),
-		/Request Timeout/
+		{
+			message: /Request Timeout/
+		}
 	);
 
 	t.is(requestCount, 4);
@@ -358,7 +376,9 @@ test('does retry on 408 with statusCodes provided as array', async t => {
 				statusCodes: [408]
 			}
 		}).text(),
-		/Request Timeout/
+		{
+			message: /Request Timeout/
+		}
 	);
 
 	t.is(requestCount, 4);
@@ -381,7 +401,9 @@ test('doesn\'t retry when retry.limit is set to 0', async t => {
 				limit: 0
 			}
 		}).text(),
-		/Request Timeout/
+		{
+			message: /Request Timeout/
+		}
 	);
 
 	t.is(requestCount, 1);

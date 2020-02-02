@@ -427,13 +427,16 @@ test('catches beforeRetry thrown errors', async t => {
 	const errorString = 'oops';
 	const error = new Error(errorString);
 
-	await t.throwsAsync(ky.get(server.url, {
-		hooks: {
-			beforeRetry: [() => {
-				throw error;
-			}]
-		}
-	}), errorString);
+	await t.throwsAsync(
+		ky.get(server.url, {
+			hooks: {
+				beforeRetry: [() => {
+					throw error;
+				}]
+			}
+		}),
+		{message: errorString}
+	);
 });
 
 test('catches beforeRetry promise rejections', async t => {
@@ -453,11 +456,14 @@ test('catches beforeRetry promise rejections', async t => {
 	const errorString = 'oops';
 	const error = new Error(errorString);
 
-	await t.throwsAsync(ky.get(server.url, {
-		hooks: {
-			beforeRetry: [() => Promise.reject(error)]
-		}
-	}), errorString);
+	await t.throwsAsync(
+		ky.get(server.url, {
+			hooks: {
+				beforeRetry: [() => Promise.reject(error)]
+			}
+		}),
+		{message: errorString}
+	);
 });
 
 test('hooks beforeRequest returning Response skips HTTP Request', async t => {

@@ -18,7 +18,6 @@ Ky targets [modern browsers](#browser-support) and [Deno](https://github.com/den
 
 It's just a tiny file with no dependencies.
 
-
 ## Benefits over plain `fetch`
 
 - Simpler API
@@ -30,7 +29,6 @@ It's just a tiny file with no dependencies.
 - URL prefix option
 - Instances with custom defaults
 - Hooks
-
 
 ## Install
 
@@ -47,7 +45,6 @@ $ npm install ky
 
 - [jsdelivr](https://www.jsdelivr.com/package/npm/ky)
 - [unpkg](https://unpkg.com/ky)
-
 
 ## Usage
 
@@ -100,7 +97,6 @@ const ky = require('ky/umd');
 ```
 
 With the UMD version, it's also easy to use `ky` [without a bundler](#how-do-i-use-this-without-a-bundler-like-webpack) or module system.
-
 
 ## API
 
@@ -411,10 +407,9 @@ import ky from 'ky';
 })();
 ```
 
-
 ## Tips
 
-### Sending Form Data
+### Sending form data
 
 Sending form data in Ky is identical to `fetch`. Just pass a [`FormData`](https://developer.mozilla.org/en-US/docs/Web/API/FormData) instance to the `body` option. The `Content-Type` header will be automatically set to `multipart/form-data`.
 
@@ -479,7 +474,6 @@ setTimeout(() => {
 })();
 ```
 
-
 ## FAQ
 
 #### How do I use this in Node.js?
@@ -543,22 +537,18 @@ It's just a random short npm package name I managed to get. It does, however, ha
 
 > A form of text-able slang, KY is an abbreviation for 空気読めない (kuuki yomenai), which literally translates into “cannot read the air.” It's a phrase applied to someone who misses the implied meaning.
 
-
 ## Browser support
 
 The latest version of Chrome, Firefox, and Safari.
 
-
 ## Node.js support
 
-Ky requires Node.js 10 or later, but it indicates Node.js 8 in package.json so you can use it with Node.js 8 by polyfilling the globals without having Yarn fail on install. However, you should just use [`ky-universal`](https://github.com/sindresorhus/ky-universal).
-
+Polyfill the needed browser global or just use [`ky-universal`](https://github.com/sindresorhus/ky-universal).
 
 ## Related
 
 - [ky-universal](https://github.com/sindresorhus/ky-universal) - Use Ky in both Node.js and browsers
 - [got](https://github.com/sindresorhus/got) - Simplified HTTP requests for Node.js
-
 
 ## Maintainers
 

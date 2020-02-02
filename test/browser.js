@@ -22,7 +22,7 @@ test('prefixUrl option', withPage, async (t, page) => {
 		return page.evaluate(() => {
 			return window.ky('/foo', {prefixUrl: '/'});
 		});
-	}, /`input` must not begin with a slash when using `prefixUrl`/);
+	}, {message: /`input` must not begin with a slash when using `prefixUrl`/});
 
 	const unprefixed = await page.evaluate(url => {
 		return window.ky(`${url}/api/unicorn`).text();
