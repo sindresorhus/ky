@@ -213,8 +213,8 @@ test.failing('FormData with searchParams ("multipart/form-data" parser)', withPa
 	server.post('/', async (request, response) => {
 		const body = await new Promise((resolve, reject) => {
 			const busboy = new Busboy({headers: request.headers});
-      busboy.on('error', reject);
-      busboy.on('file', async (fieldname, file, filename, encoding, mimetype) => {
+			busboy.on('error', reject);
+			busboy.on('file', async (fieldname, file, filename, encoding, mimetype) => {
 				let fileContent = '';
 				try {
 					for await (const chunk of file) {
@@ -228,8 +228,8 @@ test.failing('FormData with searchParams ("multipart/form-data" parser)', withPa
 			});
 			request.pipe(busboy);
 		});
-    t.deepEqual(request.query, {foo: '1'});
-    t.deepEqual(body, {
+		t.deepEqual(request.query, {foo: '1'});
+		t.deepEqual(body, {
 			fieldname: 'file',
 			filename: 'my-file',
 			encoding: '7bit',
