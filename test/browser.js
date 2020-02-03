@@ -204,7 +204,7 @@ test('FormData with searchParams', withPage, async (t, page) => {
 });
 
 // FIXME: More detailed test that reproduces the bug described in https://github.com/sindresorhus/ky/issues/209.
-test.failing('FormData with searchParams (detailed)', withPage, async (t, page) => {
+test.failing('FormData with searchParams ("multipart/form-data" parser)', withPage, async (t, page) => {
 	t.plan(2);
 	const server = await createTestServer();
 	server.get('/', (request, response) => {
@@ -231,10 +231,10 @@ test.failing('FormData with searchParams (detailed)', withPage, async (t, page) 
 		});
 		t.deepEqual(body, {
 			fieldname: 'file',
-      filename: 'my-file',
-      encoding: '7bit',
-      mimetype: 'text/plain',
-      fileContent: 'bubblegum pie'
+			filename: 'my-file',
+			encoding: '7bit',
+			mimetype: 'text/plain',
+			fileContent: 'bubblegum pie'
 		});
 		response.end();
 	});
