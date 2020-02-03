@@ -226,6 +226,7 @@ test.failing('FormData with searchParams ("multipart/form-data" parser)', withPa
 					resolve([null, error_]);
 				}
 			});
+			setTimeout(() => resolve([null, new Error('Timeout')]), 3000);
 			request.pipe(busboy);
 		});
 
