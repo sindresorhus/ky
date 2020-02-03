@@ -205,15 +205,15 @@ test('FormData with searchParams', withPage, async (t, page) => {
 
 // FIXME: More detailed test that reproduces the bug described in https://github.com/sindresorhus/ky/issues/209.
 test.failing('FormData with searchParams ("multipart/form-data" parser)', withPage, async (t, page) => {
-	t.plan(2);
+	t.plan(3);
 	const server = await createTestServer();
 	server.get('/', (request, response) => {
 		response.end();
 	});
 	server.post('/', async (request, response) => {
-		const body = await new Promise((resolve, reject) => {
+		const [body, error] = await new Promise(resolve => {
 			const busboy = new Busboy({headers: request.headers});
-			busboy.on('error', reject);
+			busboy.on('error', error => resolve(null, error));
 			busboy.on('file', async (fieldname, file, filename, encoding, mimetype) => {
 				let fileContent = '';
 				try {
@@ -221,13 +221,17 @@ test.failing('FormData with searchParams ("multipart/form-data" parser)', withPa
 						fileContent += chunk;
 					}
 
-					resolve({fieldname, filename, encoding, mimetype, fileContent});
-				} catch (error) {
-					reject(error);
+					resolve([{fieldname, filename, encoding, mimetype, fileContent}]);
+				} catch (error_) {
+					resolve([null, error_]);
 				}
 			});
 			request.pipe(busboy);
 		});
+
+		response.end();
+
+		t.falsy(error);
 		t.deepEqual(request.query, {foo: '1'});
 		t.deepEqual(body, {
 			fieldname: 'file',
@@ -236,7 +240,6 @@ test.failing('FormData with searchParams ("multipart/form-data" parser)', withPa
 			mimetype: 'text/plain',
 			fileContent: 'bubblegum pie'
 		});
-		response.end();
 	});
 
 	await page.goto(server.url);
