@@ -211,10 +211,10 @@ test.failing('FormData with searchParams ("multipart/form-data" parser)', withPa
 		response.end();
 	});
 	server.post('/', async (request, response) => {
-		t.deepEqual(request.query, {foo: '1'});
 		const body = await new Promise((resolve, reject) => {
 			const busboy = new Busboy({headers: request.headers});
-			busboy.on('file', async (fieldname, file, filename, encoding, mimetype) => {
+      busboy.on('error', reject);
+      busboy.on('file', async (fieldname, file, filename, encoding, mimetype) => {
 				let fileContent = '';
 				try {
 					for await (const chunk of file) {
@@ -226,10 +226,10 @@ test.failing('FormData with searchParams ("multipart/form-data" parser)', withPa
 					reject(error);
 				}
 			});
-			busboy.on('error', reject);
 			request.pipe(busboy);
 		});
-		t.deepEqual(body, {
+    t.deepEqual(request.query, {foo: '1'});
+    t.deepEqual(body, {
 			fieldname: 'file',
 			filename: 'my-file',
 			encoding: '7bit',
@@ -250,7 +250,6 @@ test.failing('FormData with searchParams ("multipart/form-data" parser)', withPa
 			body: formData
 		});
 	}, server.url);
-
 	await server.close();
 });
 
