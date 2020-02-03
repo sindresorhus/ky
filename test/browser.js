@@ -172,8 +172,40 @@ test('throws if does not support ReadableStream', withPage, async (t, page) => {
 	await server.close();
 });
 
-test.failing('FormData with searchParams', withPage, async (t, page) => {
-	t.plan(6);
+test('FormData with searchParams', withPage, async (t, page) => {
+	t.plan(2);
+
+	const server = await createTestServer();
+	server.get('/', (request, response) => {
+		response.end();
+	});
+	server.post('/', async (request, response) => {
+		const requestBody = await pBody(request);
+
+		t.regex(requestBody, /bubblegum pie/);
+		t.deepEqual(request.query, {foo: '1'});
+
+		response.end();
+	});
+
+	await page.goto(server.url);
+	await page.addScriptTag({path: './umd.js'});
+	await page.evaluate(url => {
+		const formData = new window.FormData();
+		formData.append('file', new window.File(['bubblegum pie'], 'my-file'));
+		return window.ky(url, {
+			method: 'post',
+			searchParams: 'foo=1',
+			body: formData
+		});
+	}, server.url);
+
+	await server.close();
+});
+
+// FIXME: More detailed test that reproduces the bug described in https://github.com/sindresorhus/ky/issues/209.
+test.failing('FormData with searchParams (detailed)', withPage, async (t, page) => {
+	t.plan(2);
 	const server = await createTestServer();
 	server.get('/', (request, response) => {
 		response.end();
@@ -182,30 +214,28 @@ test.failing('FormData with searchParams', withPage, async (t, page) => {
 		t.deepEqual(request.query, {foo: '1'});
 		const body = await new Promise((resolve, reject) => {
 			const busboy = new Busboy({headers: request.headers});
-
-			busboy.on('file', (fieldname, file, filename, encoding, mimetype) => {
+			busboy.on('file', async (fieldname, file, filename, encoding, mimetype) => {
 				let fileContent = '';
+				try {
+					for await (const chunk of file) {
+						fileContent += chunk;
+					}
 
-				file.on('data', data => {
-					fileContent += data.toString('utf-8');
-				});
-
-				file.on('end', () => {
 					resolve({fieldname, filename, encoding, mimetype, fileContent});
-				});
-
-				file.on('error', reject);
+				} catch (error) {
+					reject(error);
+				}
 			});
-
 			busboy.on('error', reject);
-
 			request.pipe(busboy);
 		});
-		t.is(body.fieldname, 'file');
-		t.is(body.filename, 'my-file');
-		t.is(body.encoding, '7bit');
-		t.is(body.mimetype, 'text/plain');
-		t.is(body.fileContent, 'bubblegum pie');
+		t.deepEqual(body, {
+			fieldname: 'file',
+      filename: 'my-file',
+      encoding: '7bit',
+      mimetype: 'text/plain',
+      fileContent: 'bubblegum pie'
+		});
 		response.end();
 	});
 
