@@ -2,6 +2,7 @@ import util from 'util';
 import body from 'body';
 import {serial as test} from 'ava';
 import createTestServer from 'create-test-server';
+import Busboy from 'busboy';
 import withPage from './helpers/with-page';
 
 const pBody = util.promisify(body);
@@ -199,6 +200,60 @@ test('FormData with searchParams', withPage, async (t, page) => {
 		});
 	}, server.url);
 
+	await server.close();
+});
+
+// FIXME: More detailed test that reproduces the bug described in https://github.com/sindresorhus/ky/issues/209
+test.failing('FormData with searchParams ("multipart/form-data" parser)', withPage, async (t, page) => {
+	t.plan(3);
+	const server = await createTestServer();
+	server.get('/', (request, response) => {
+		response.end();
+	});
+	server.post('/', async (request, response) => {
+		const [body, error] = await new Promise(resolve => {
+			const busboy = new Busboy({headers: request.headers});
+			busboy.on('error', error => resolve(null, error));
+			busboy.on('file', async (fieldname, file, filename, encoding, mimetype) => {
+				let fileContent = '';
+				try {
+					for await (const chunk of file) {
+						fileContent += chunk;
+					}
+
+					resolve([{fieldname, filename, encoding, mimetype, fileContent}]);
+				} catch (error_) {
+					resolve([null, error_]);
+				}
+			});
+			setTimeout(() => resolve([null, new Error('Timeout')]), 3000);
+			request.pipe(busboy);
+		});
+
+		response.end();
+
+		t.falsy(error);
+		t.deepEqual(request.query, {foo: '1'});
+		t.deepEqual(body, {
+			fieldname: 'file',
+			filename: 'my-file',
+			encoding: '7bit',
+			mimetype: 'text/plain',
+			fileContent: 'bubblegum pie'
+		});
+	});
+
+	await page.goto(server.url);
+	await page.addScriptTag({path: './umd.js'});
+	await page.evaluate(url => {
+		const formData = new window.FormData();
+		formData.append('file', new window.File(['bubblegum pie'], 'my-file', {type: 'text/plain'}));
+		return window.ky(url, {
+			method: 'post',
+			searchParams: 'foo=1',
+			body: formData
+		});
+	}, server.url);
 	await server.close();
 });
 
