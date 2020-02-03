@@ -153,13 +153,41 @@ export interface RetryOptions {
 /**
 Options are the same as `window.fetch`, with some exceptions.
 */
-export interface Options extends RequestInit {
+export interface Options extends Omit<RequestInit, 'headers'> {
 	/**
 	HTTP method used to make the request.
 
 	Internally, the standard methods (`GET`, `POST`, `PUT`, `PATCH`, `HEAD` and `DELETE`) are uppercased in order to avoid server errors due to case sensitivity.
 	*/
 	method?: LiteralUnion<'get' | 'post' | 'put' | 'delete' | 'patch' | 'head', string>;
+
+	/**
+	Override default Headers
+
+	You can remove a header with extend() by passing headers: `{[key:string]: undefined}`
+	You can pass a Headers instance or a plain object
+	@example
+	```
+	import ky from 'ky';
+
+	const original = ky.create({
+		headers: {
+			rainbow: 'rainbow',
+			unicorn: 'unicorn'
+		}
+	});
+
+	const extended = original.extend({
+		headers: {
+			rainbow: undefined
+		}
+	});
+
+	console.log('rainbow' in extended); // false
+	console.log('unicorn' in extended); // true
+	```
+	*/
+	headers?: HeadersInit | {[key: string]: undefined};
 
 	/**
 	Shortcut for sending JSON. Use this instead of the `body` option.
