@@ -203,7 +203,7 @@ test('FormData with searchParams', withPage, async (t, page) => {
 	await server.close();
 });
 
-// FIXME: More detailed test that reproduces the bug described in https://github.com/sindresorhus/ky/issues/209.
+// FIXME: More detailed test that reproduces the bug described in https://github.com/sindresorhus/ky/issues/209
 test.failing('FormData with searchParams ("multipart/form-data" parser)', withPage, async (t, page) => {
 	t.plan(3);
 	const server = await createTestServer();
