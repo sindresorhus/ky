@@ -95,9 +95,7 @@ const deepMerge = (...sources) => {
 			}
 		}
 
-		if (headers.constructor === globals.Headers) {
-			returnValue.headers = headers;
-		}
+		returnValue.headers = headers;
 	}
 
 	return returnValue;
