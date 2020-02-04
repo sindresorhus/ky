@@ -1,8 +1,6 @@
 import createTestServer from 'create-test-server';
 import FormData from 'form-data';
 import test from 'ava';
-
-import {mergeHeaders} from '../utils';
 import ky from '..';
 
 const echoHeaders = (request, response) => {
@@ -237,16 +235,6 @@ test('strip port in host header if implicit standard port & protocol (HTTP)', as
 test('strip port in host header if implicit standard port & protocol (HTTPS)', async t => {
 	const body = await ky.get('https://httpbin.org/headers').json();
 	t.is(body.headers.Host, 'httpbin.org');
-});
-
-test('`headers` must be an object', t => {
-	const headers = new Headers({'accept-encoding': 'gzip,deflate'});
-
-	const error = t.throws(() => {
-		mergeHeaders(headers, 3);
-	}, {instanceOf: TypeError});
-
-	t.is(error.message, 'The `headers` argument must be an object');
 });
 
 test('remove custom header by extending instance (plain objects)', async t => {

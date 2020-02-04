@@ -1,6 +1,107 @@
 /*! MIT License © Sindre Sorhus */
-import globals from './globals';
-import {supportsAbortController, supportsStreams, deepMerge, validateAndMerge} from './utils';
+
+const globals = {};
+
+const getGlobal = property => {
+	/* istanbul ignore next */
+	if (typeof self !== 'undefined' && self && property in self) {
+		return self;
+	}
+
+	/* istanbul ignore next */
+	if (typeof window !== 'undefined' && window && property in window) {
+		return window;
+	}
+
+	if (typeof global !== 'undefined' && global && property in global) {
+		return global;
+	}
+
+	/* istanbul ignore next */
+	if (typeof globalThis !== 'undefined' && globalThis) {
+		return globalThis;
+	}
+};
+
+const globalProperties = [
+	'Headers',
+	'Request',
+	'Response',
+	'ReadableStream',
+	'fetch',
+	'AbortController',
+	'FormData'
+];
+
+for (const property of globalProperties) {
+	Object.defineProperty(globals, property, {
+		get() {
+			const globalObject = getGlobal(property);
+			const value = globalObject && globalObject[property];
+			return typeof value === 'function' ? value.bind(globalObject) : value;
+		}
+	});
+}
+
+const isObject = value => value !== null && typeof value === 'object';
+const supportsAbortController = typeof globals.AbortController === 'function';
+const supportsStreams = typeof globals.ReadableStream === 'function';
+
+const mergeHeaders = (...sources) => {
+	const result = {};
+
+	for (const source of sources) {
+		if (!isObject(source)) {
+			throw new TypeError('The `headers` argument must be an object');
+		}
+
+		const headers = new globals.Headers(source);
+
+		for (const [key, value] of headers) {
+			// Headers constructor changes the value to a string
+			if (value === 'undefined' || typeof value === 'undefined') {
+				Reflect.deleteProperty(result, key);
+			} else {
+				Reflect.set(result, key, value);
+			}
+		}
+	}
+
+	return new globals.Headers(result);
+};
+
+const deepMerge = (...sources) => {
+	let returnValue = {};
+	let headers = {};
+
+	for (const source of sources) {
+		if (Array.isArray(source)) {
+			if (!(Array.isArray(returnValue))) {
+				returnValue = [];
+			}
+
+			returnValue = [...returnValue, ...source];
+		} else if (isObject(source)) {
+			for (let [key, value] of Object.entries(source)) {
+				if (isObject(value) && Reflect.has(returnValue, key)) {
+					value = deepMerge(returnValue[key], value);
+				}
+
+				returnValue = {...returnValue, [key]: value};
+			}
+
+			if (isObject(source.headers)) {
+				headers = mergeHeaders(headers, source.headers);
+			}
+		}
+
+		if (headers.constructor === globals.Headers) {
+			returnValue.headers = headers;
+		}
+	}
+
+	return returnValue;
+};
 
 const requestMethods = [
 	'get',
@@ -363,6 +464,16 @@ class Ky {
 		);
 	}
 }
+
+const validateAndMerge = (...sources) => {
+	for (const source of sources) {
+		if ((!isObject(source) || Array.isArray(source)) && typeof source !== 'undefined') {
+			throw new TypeError('The `options` argument must be an object');
+		}
+	}
+
+	return deepMerge({}, ...sources);
+};
 
 const createInstance = defaults => {
 	const ky = (input, options) => new Ky(input, validateAndMerge(defaults, options));
