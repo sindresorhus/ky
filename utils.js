@@ -16,7 +16,7 @@ export const mergeHeaders = (...sources) => {
 
 		for (const [key, value] of headers) {
 			// Headers constructor changes the value to a string
-			if (value === undefined || value === 'undefined') {
+			if (value === 'undefined' || typeof value === 'undefined') {
 				Reflect.deleteProperty(result, key);
 			} else {
 				Reflect.set(result, key, value);
@@ -29,6 +29,7 @@ export const mergeHeaders = (...sources) => {
 
 export const deepMerge = (...sources) => {
 	let returnValue = {};
+	let headers = {};
 
 	for (const source of sources) {
 		if (Array.isArray(source)) {
@@ -40,16 +41,18 @@ export const deepMerge = (...sources) => {
 		} else if (isObject(source)) {
 			for (let [key, value] of Object.entries(source)) {
 				if (isObject(value) && Reflect.has(returnValue, key)) {
-					if (key === 'headers') {
-						value = mergeHeaders(returnValue[key], value);
-					} else {
-						value = deepMerge(returnValue[key], value);
-					}
+					value = deepMerge(returnValue[key], value);
 				}
 
 				returnValue = {...returnValue, [key]: value};
 			}
+
+			if (isObject(source.headers)) {
+				headers = mergeHeaders(headers, source.headers);
+			}
 		}
+
+		returnValue.headers = headers;
 	}
 
 	return returnValue;
