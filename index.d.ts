@@ -164,8 +164,9 @@ export interface Options extends Omit<RequestInit, 'headers'> {
 	/**
 	Override default Headers
 
-	You can remove a header with extend() by passing headers: `{[key:string]: undefined}`
-	You can pass a Headers instance or a plain object
+	You can remove a header with `.extend()` by passing headers: `{[key:string]: undefined}`.
+	You can pass a Headers instance or a plain object.
+
 	@example
 	```
 	import ky from 'ky';
