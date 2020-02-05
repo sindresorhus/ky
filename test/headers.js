@@ -255,10 +255,10 @@ test('remove custom header by extending instance (plain objects)', async t => {
 		}
 	});
 
-	const headers = await extended(server.url).json();
+	const response = await extended(server.url).json();
 
-	t.true('unicorn' in headers);
-	t.false('rainbow' in headers);
+	t.true('unicorn' in response);
+	t.false('rainbow' in response);
 
 	await server.close();
 });
@@ -280,10 +280,10 @@ test('remove header by extending instance (Headers instance)', async t => {
 		})
 	});
 
-	const headers = await extended(server.url).json();
+	const response = await extended(server.url).json();
 
-	t.false('rainbow' in headers);
-	t.true('unicorn' in headers);
+	t.false('rainbow' in response);
+	t.true('unicorn' in response);
 
 	await server.close();
 });
@@ -305,10 +305,10 @@ test('remove header by extending instance (Headers instance and plain object)', 
 		}
 	});
 
-	const headers = await extended(server.url).json();
+	const response = await extended(server.url).json();
 
-	t.false('rainbow' in headers);
-	t.true('unicorn' in headers);
+	t.false('rainbow' in response);
+	t.true('unicorn' in response);
 
 	await server.close();
 });

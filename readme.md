@@ -358,6 +358,7 @@ You can pass a `Headers` instance or a plain object.
 ```js
 import ky from 'ky';
 
+const url = 'https://sindresorhus';
 const original = ky.create({
 	headers: {
 		rainbow: 'rainbow',
@@ -371,10 +372,12 @@ const extended = original.extend({
 	}
 });
 
-console.log('rainbow' in extended);
+const response = await extended(url + '/test').json();
+
+console.log('rainbow' in response);
 //=> false
 
-console.log('unicorn' in extended);
+console.log('unicorn' in response);
 //=> true
 ```
 
