@@ -184,8 +184,11 @@ export interface Options extends Omit<RequestInit, 'headers'> {
 		}
 	});
 
-	console.log('rainbow' in extended); // false
-	console.log('unicorn' in extended); // true
+	console.log('rainbow' in extended);
+	//=> false
+
+	console.log('unicorn' in extended);
+	//=> true
 	```
 	*/
 	headers?: HeadersInit | {[key: string]: undefined};
