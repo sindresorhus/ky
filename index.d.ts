@@ -162,7 +162,7 @@ export interface Options extends Omit<RequestInit, 'headers'> {
 	method?: LiteralUnion<'get' | 'post' | 'put' | 'delete' | 'patch' | 'head', string>;
 
 	/**
-	HTTP headers used to make the request
+	HTTP headers used to make the request.
 
 	You can remove a header with `.extend()` by passing headers: `{[key:string]: undefined}`.
 	You can pass a Headers instance or a plain object.
