@@ -352,8 +352,8 @@ Create a new `ky` instance with some defaults overridden with your own.
 
 In contrast to `ky.create()`, `ky.extend()` inherits defaults from its parent.
 
-You can remove a header with extend() by passing headers: `{[key:string]: undefined}`
-You can pass a Headers instance or a plain object
+You can remove a header with `.extend()` by passing headers: `{[key:string]: undefined}`
+You can pass a `Headers` instance or a plain object.
 
 ```js
 import ky from 'ky';
@@ -371,8 +371,11 @@ const extended = original.extend({
 	}
 });
 
-console.log('rainbow' in extended); // false
-console.log('unicorn' in extended); // true
+console.log('rainbow' in extended);
+//=> false
+
+console.log('unicorn' in extended);
+//=> true
 ```
 
 ### ky.create(defaultOptions)
