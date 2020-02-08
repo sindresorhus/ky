@@ -262,7 +262,7 @@ import ky from 'ky';
 	await ky('https://example.com', {
 		hooks: {
 			beforeRetry: [
-				async (request, options, errors, retryCount) => {
+				async ({request, options, errors, retryCount, response}) => {
 					const token = await ky('https://example.com/refresh-token');
 					request.headers.set('Authorization', `token ${token}`);
 				}
@@ -395,7 +395,7 @@ import ky from 'ky';
 	await ky('https://example.com', {
 		hooks: {
 			beforeRetry: [
-				async (request, options, errors, retryCount) => {
+				async ({request, options, errors, retryCount, response}) => {
 					const shouldStopRetry = await ky('https://example.com/api');
 					if (shouldStopRetry) {
 						return ky.stop;
