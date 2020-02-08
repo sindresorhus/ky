@@ -18,7 +18,6 @@ Ky targets [modern browsers](#browser-support) and [Deno](https://github.com/den
 
 It's just a tiny file with no dependencies.
 
-
 ## Benefits over plain `fetch`
 
 - Simpler API
@@ -30,7 +29,6 @@ It's just a tiny file with no dependencies.
 - URL prefix option
 - Instances with custom defaults
 - Hooks
-
 
 ## Install
 
@@ -47,7 +45,6 @@ $ npm install ky
 
 - [jsdelivr](https://www.jsdelivr.com/package/npm/ky)
 - [unpkg](https://unpkg.com/ky)
-
 
 ## Usage
 
@@ -96,11 +93,10 @@ import ky from 'https://unpkg.com/ky/index.js';
 In environments that do not support `import`, you can load `ky` in [UMD format](https://medium.freecodecamp.org/anatomy-of-js-module-systems-and-building-libraries-fadcd8dbd0e). For example, using `require()`:
 
 ```js
-const ky = require('ky/umd').default;
+const ky = require('ky/umd');
 ```
 
 With the UMD version, it's also easy to use `ky` [without a bundler](#how-do-i-use-this-without-a-bundler-like-webpack) or module system.
-
 
 ## API
 
@@ -139,9 +135,9 @@ Internally, the standard methods (`GET`, `POST`, `PUT`, `PATCH`, `HEAD` and `DEL
 
 ##### json
 
-Type: `object`
+Type: `object` and any other value accepted by [`JSON.stringify()`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/JSON/stringify)
 
-Shortcut for sending JSON. Use this instead of the `body` option. Accepts a plain object which will be `JSON.stringify()`'d and the correct header will be set for you.
+Shortcut for sending JSON. Use this instead of the `body` option. Accepts any plain object or value, which will be `JSON.stringify()`'d and sent in the body with the correct header set.
 
 ##### searchParams
 
@@ -411,12 +407,11 @@ import ky from 'ky';
 })();
 ```
 
-
 ## Tips
 
-### Sending Form Data
+### Sending form data
 
-Sending form data in Ky is identical to `fetch`. Just pass a [`FormData`](https://developer.mozilla.org/en-US/docs/Web/API/FormData) instance to the `body` option. The `Content-Type` header will be automatically set to `multipart/form-data`. Setting it manually will result in an error.
+Sending form data in Ky is identical to `fetch`. Just pass a [`FormData`](https://developer.mozilla.org/en-US/docs/Web/API/FormData) instance to the `body` option. The `Content-Type` header will be automatically set to `multipart/form-data`.
 
 ```js
 import ky from 'ky';
@@ -479,7 +474,6 @@ setTimeout(() => {
 })();
 ```
 
-
 ## FAQ
 
 #### How do I use this in Node.js?
@@ -517,9 +511,7 @@ Alternatively, you can use the [`umd.js`](umd.js) file with a traditional `<scri
 <script src="https://cdn.jsdelivr.net/npm/ky@latest/umd.js"></script>
 <script>
 (async () => {
-	const client = ky.default;
-
-	const parsed = await client('https://jsonplaceholder.typicode.com/todos/1').json();
+	const parsed = await ky('https://jsonplaceholder.typicode.com/todos/1').json();
 
 	console.log(parsed.title);
 	//=> 'delectus aut autem
@@ -545,22 +537,18 @@ It's just a random short npm package name I managed to get. It does, however, ha
 
 > A form of text-able slang, KY is an abbreviation for 空気読めない (kuuki yomenai), which literally translates into “cannot read the air.” It's a phrase applied to someone who misses the implied meaning.
 
-
 ## Browser support
 
 The latest version of Chrome, Firefox, and Safari.
 
-
 ## Node.js support
 
-Ky requires Node.js 10 or later, but it indicates Node.js 8 in package.json so you can use it with Node.js 8 by polyfilling the globals without having Yarn fail on install. However, you should just use [`ky-universal`](https://github.com/sindresorhus/ky-universal).
-
+Polyfill the needed browser global or just use [`ky-universal`](https://github.com/sindresorhus/ky-universal).
 
 ## Related
 
 - [ky-universal](https://github.com/sindresorhus/ky-universal) - Use Ky in both Node.js and browsers
 - [got](https://github.com/sindresorhus/got) - Simplified HTTP requests for Node.js
-
 
 ## Maintainers
 

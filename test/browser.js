@@ -1,6 +1,11 @@
+import util from 'util';
+import body from 'body';
 import {serial as test} from 'ava';
 import createTestServer from 'create-test-server';
+import Busboy from 'busboy';
 import withPage from './helpers/with-page';
+
+const pBody = util.promisify(body);
 
 test('prefixUrl option', withPage, async (t, page) => {
 	const server = await createTestServer();
@@ -16,11 +21,9 @@ test('prefixUrl option', withPage, async (t, page) => {
 
 	await t.throwsAsync(async () => {
 		return page.evaluate(() => {
-			window.ky = window.ky.default;
-
 			return window.ky('/foo', {prefixUrl: '/'});
 		});
-	}, /`input` must not begin with a slash when using `prefixUrl`/);
+	}, {message: /`input` must not begin with a slash when using `prefixUrl`/});
 
 	const unprefixed = await page.evaluate(url => {
 		return window.ky(`${url}/api/unicorn`).text();
@@ -52,8 +55,6 @@ test('aborting a request', withPage, async (t, page) => {
 	await page.addScriptTag({path: './umd.js'});
 
 	const error = await page.evaluate(url => {
-		window.ky = window.ky.default;
-
 		const controller = new AbortController();
 		const request = window.ky(`${url}/test`, {signal: controller.signal}).text();
 		controller.abort();
@@ -71,22 +72,22 @@ test('throws TimeoutError even though it does not support AbortController', with
 		response.end();
 	});
 
-	server.get('/endless', () => {});
+	server.get('/slow', (request, response) => {
+		setTimeout(() => {
+			response.end('ok');
+		}, 1000);
+	});
 
 	await page.goto(server.url);
 	await page.addScriptTag({path: './test/helpers/disable-abort-controller.js'});
 	await page.addScriptTag({path: './umd.js'});
 
-	// TODO: make set a timeout for this evaluation so we don't have to wait 30s
 	const error = await page.evaluate(url => {
-		window.ky = window.ky.default;
-
-		const request = window.ky(`${url}/endless`, {timeout: 500}).text();
+		const request = window.ky(`${url}/slow`, {timeout: 500}).text();
 		return request.catch(error_ => error_.toString());
 	}, server.url);
 	t.is(error, 'TimeoutError: Request timed out');
 
-	// A note from @szmarczak: await server.close() hangs on my machine
 	await server.close();
 });
 
@@ -108,8 +109,6 @@ test('onDownloadProgress works', withPage, async (t, page) => {
 	await page.addScriptTag({path: './umd.js'});
 
 	const result = await page.evaluate(async url => {
-		window.ky = window.ky.default;
-
 		// `new TextDecoder('utf-8').decode` hangs up?
 		const decodeUTF8 = array => String.fromCharCode(...array);
 
@@ -145,8 +144,6 @@ test('throws if onDownloadProgress is not a function', withPage, async (t, page)
 	await page.addScriptTag({path: './umd.js'});
 
 	const error = await page.evaluate(url => {
-		window.ky = window.ky.default;
-
 		const request = window.ky(url, {onDownloadProgress: 1}).text();
 		return request.catch(error_ => error_.toString());
 	}, server.url);
@@ -167,12 +164,153 @@ test('throws if does not support ReadableStream', withPage, async (t, page) => {
 	await page.addScriptTag({path: './umd.js'});
 
 	const error = await page.evaluate(url => {
-		window.ky = window.ky.default;
-
 		const request = window.ky(url, {onDownloadProgress: () => {}}).text();
 		return request.catch(error_ => error_.toString());
 	}, server.url);
 	t.is(error, 'Error: Streams are not supported in your environment. `ReadableStream` is missing.');
+
+	await server.close();
+});
+
+test('FormData with searchParams', withPage, async (t, page) => {
+	t.plan(2);
+
+	const server = await createTestServer();
+	server.get('/', (request, response) => {
+		response.end();
+	});
+	server.post('/', async (request, response) => {
+		const requestBody = await pBody(request);
+
+		t.regex(requestBody, /bubblegum pie/);
+		t.deepEqual(request.query, {foo: '1'});
+
+		response.end();
+	});
+
+	await page.goto(server.url);
+	await page.addScriptTag({path: './umd.js'});
+	await page.evaluate(url => {
+		const formData = new window.FormData();
+		formData.append('file', new window.File(['bubblegum pie'], 'my-file'));
+		return window.ky(url, {
+			method: 'post',
+			searchParams: 'foo=1',
+			body: formData
+		});
+	}, server.url);
+
+	await server.close();
+});
+
+// FIXME: More detailed test that reproduces the bug described in https://github.com/sindresorhus/ky/issues/209
+test.failing('FormData with searchParams ("multipart/form-data" parser)', withPage, async (t, page) => {
+	t.plan(3);
+	const server = await createTestServer();
+	server.get('/', (request, response) => {
+		response.end();
+	});
+	server.post('/', async (request, response) => {
+		const [body, error] = await new Promise(resolve => {
+			const busboy = new Busboy({headers: request.headers});
+			busboy.on('error', error => resolve(null, error));
+			busboy.on('file', async (fieldname, file, filename, encoding, mimetype) => {
+				let fileContent = '';
+				try {
+					for await (const chunk of file) {
+						fileContent += chunk;
+					}
+
+					resolve([{fieldname, filename, encoding, mimetype, fileContent}]);
+				} catch (error_) {
+					resolve([null, error_]);
+				}
+			});
+			setTimeout(() => resolve([null, new Error('Timeout')]), 3000);
+			request.pipe(busboy);
+		});
+
+		response.end();
+
+		t.falsy(error);
+		t.deepEqual(request.query, {foo: '1'});
+		t.deepEqual(body, {
+			fieldname: 'file',
+			filename: 'my-file',
+			encoding: '7bit',
+			mimetype: 'text/plain',
+			fileContent: 'bubblegum pie'
+		});
+	});
+
+	await page.goto(server.url);
+	await page.addScriptTag({path: './umd.js'});
+	await page.evaluate(url => {
+		const formData = new window.FormData();
+		formData.append('file', new window.File(['bubblegum pie'], 'my-file', {type: 'text/plain'}));
+		return window.ky(url, {
+			method: 'post',
+			searchParams: 'foo=1',
+			body: formData
+		});
+	}, server.url);
+	await server.close();
+});
+
+test('headers are preserved when input is a Request and there are searchParams in the options', withPage, async (t, page) => {
+	t.plan(2);
+
+	const server = await createTestServer();
+	server.get('/', (request, response) => {
+		response.end();
+	});
+	server.get('/test', (request, response) => {
+		t.is(request.headers['content-type'], 'text/css');
+		t.deepEqual(request.query, {foo: '1'});
+		response.end();
+	});
+
+	await page.goto(server.url);
+	await page.addScriptTag({path: './umd.js'});
+
+	await page.evaluate(url => {
+		const request = new window.Request(url + '/test', {
+			headers: {'content-type': 'text/css'}
+		});
+		return window.ky(request, {
+			searchParams: 'foo=1'
+		}).text();
+	}, server.url);
+
+	await server.close();
+});
+
+test('retry with body', withPage, async (t, page) => {
+	let requestCount = 0;
+
+	const server = await createTestServer();
+	server.get('/', (request, response) => {
+		response.end('zebra');
+	});
+	server.put('/test', async (request, response) => {
+		requestCount++;
+		await pBody(request);
+		response.sendStatus(502);
+	});
+
+	await page.goto(server.url);
+	await page.addScriptTag({path: './umd.js'});
+
+	const error = await page.evaluate(url => {
+		const request = window.ky(url + '/test', {
+			body: 'foo',
+			method: 'PUT',
+			retry: 2
+		}).text();
+		return request.catch(error_ => error_.toString());
+	}, server.url);
+	t.is(error, 'HTTPError: Bad Gateway');
+	t.is(requestCount, 2);
 
 	await server.close();
 });

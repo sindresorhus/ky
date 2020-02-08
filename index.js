@@ -46,7 +46,6 @@ for (const property of globalProperties) {
 const isObject = value => value !== null && typeof value === 'object';
 const supportsAbortController = typeof globals.AbortController === 'function';
 const supportsStreams = typeof globals.ReadableStream === 'function';
-const supportsFormData = typeof globals.FormData === 'function';
 
 const deepMerge = (...sources) => {
 	let returnValue = {};
@@ -240,14 +239,10 @@ class Ky {
 		if (this._options.searchParams) {
 			const url = new URL(this.request.url);
 			url.search = new URLSearchParams(this._options.searchParams);
-			this.request = new globals.Request(url, this.request);
+			this.request = new globals.Request(new globals.Request(url, this.request), this._options);
 		}
 
-		if (((supportsFormData && this._options.body instanceof globals.FormData) || this._options.body instanceof URLSearchParams) && this.request.headers.has('content-type')) {
-			throw new Error(`The \`content-type\` header cannot be used with a ${this._options.body.constructor.name} body. It will be set automatically.`);
-		}
-
-		if (this._options.json) {
+		if (this._options.json !== undefined) {
 			this._options.body = JSON.stringify(this._options.json);
 			this.request.headers.set('content-type', 'application/json');
 			this.request = new globals.Request(this.request, {body: this._options.body});
@@ -395,10 +390,10 @@ class Ky {
 		}
 
 		if (this._options.timeout === false) {
-			return globals.fetch(this.request);
+			return globals.fetch(this.request.clone());
 		}
 
-		return timeout(globals.fetch(this.request), this._options.timeout, this.abortController);
+		return timeout(globals.fetch(this.request.clone()), this._options.timeout, this.abortController);
 	}
 
 	/* istanbul ignore next */
@@ -456,6 +451,8 @@ const createInstance = defaults => {
 		ky[method] = (input, options) => new Ky(input, validateAndMerge(defaults, options, {method}));
 	}
 
+	ky.HTTPError = HTTPError;
+	ky.TimeoutError = TimeoutError;
 	ky.create = newDefaults => createInstance(validateAndMerge(newDefaults));
 	ky.extend = newDefaults => createInstance(validateAndMerge(defaults, newDefaults));
 	ky.stop = stop;
@@ -464,8 +461,3 @@ const createInstance = defaults => {
 };
 
 export default createInstance();
-
-export {
-	HTTPError,
-	TimeoutError
-};

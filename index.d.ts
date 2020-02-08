@@ -165,7 +165,7 @@ export interface Options extends RequestInit {
 	/**
 	Shortcut for sending JSON. Use this instead of the `body` option.
 
-	Accepts a plain object which will be `JSON.stringify()`'d and the correct header will be set for you.
+	Accepts any plain object or value, which will be `JSON.stringify()`'d and sent in the body with the correct header set.
 	*/
 	json?: unknown;
 
@@ -332,7 +332,7 @@ export interface ResponsePromise extends Promise<Response> {
 /**
 The error has a response property with the `Response` object.
 */
-export class HTTPError extends Error {
+declare class HTTPError extends Error {
 	constructor(response: Response);
 	response: Response;
 }
@@ -340,7 +340,7 @@ export class HTTPError extends Error {
 /**
 The error thrown when the request times out.
 */
-export class TimeoutError extends Error {
+declare class TimeoutError extends Error {
 	constructor();
 }
 
@@ -454,6 +454,8 @@ declare const ky: {
 	```
 	*/
 	readonly stop: unique symbol;
+	readonly TimeoutError: typeof TimeoutError;
+	readonly HTTPError: typeof HTTPError;
 };
 
 export default ky;

@@ -3,7 +3,7 @@ import test from 'ava';
 import createTestServer from 'create-test-server';
 import body from 'body';
 import delay from 'delay';
-import ky, {TimeoutError} from '..';
+import ky from '..';
 
 const pBody = util.promisify(body);
 const fixture = 'fixture';
@@ -103,7 +103,7 @@ test('POST JSON', async t => {
 
 	const responseJson = await ky.post(server.url, {json}).json();
 
-	t.deepEqual(json, responseJson);
+	t.deepEqual(responseJson, json);
 
 	await server.close();
 });
@@ -111,19 +111,29 @@ test('POST JSON', async t => {
 test('cannot use `body` option with GET or HEAD method', t => {
 	t.throws(() => {
 		ky.get('https://example.com', {body: 'foobar'});
-	}, 'Request with GET/HEAD method cannot have body');
+	}, {
+		message: 'Request with GET/HEAD method cannot have body'
+	});
+
 	t.throws(() => {
 		ky.head('https://example.com', {body: 'foobar'});
-	}, 'Request with GET/HEAD method cannot have body');
+	}, {
+		message: 'Request with GET/HEAD method cannot have body'
+	});
 });
 
 test('cannot use `json` option with GET or HEAD method', t => {
 	t.throws(() => {
 		ky.get('https://example.com', {json: {}});
-	}, 'Request with GET/HEAD method cannot have body');
+	}, {
+		message: 'Request with GET/HEAD method cannot have body'
+	});
+
 	t.throws(() => {
 		ky.head('https://example.com', {json: {}});
-	}, 'Request with GET/HEAD method cannot have body');
+	}, {
+		message: 'Request with GET/HEAD method cannot have body'
+	});
 });
 
 test('`json` option overrides the `body` option', async t => {
@@ -144,7 +154,7 @@ test('`json` option overrides the `body` option', async t => {
 		json
 	}).json();
 
-	t.deepEqual(json, responseJson);
+	t.deepEqual(responseJson, json);
 
 	await server.close();
 });
@@ -183,7 +193,7 @@ test('JSON with custom Headers instance', async t => {
 		json
 	}).json();
 
-	t.deepEqual(json, responseJson);
+	t.deepEqual(responseJson, json);
 
 	await server.close();
 });
@@ -215,7 +225,7 @@ test('.json() with 200 response and empty body', async t => {
 		response.status(200).end();
 	});
 
-	await t.throwsAsync(ky(server.url).json(), /Unexpected end of JSON input/);
+	await t.throwsAsync(ky(server.url).json(), {message: /Unexpected end of JSON input/});
 
 	await server.close();
 });
@@ -246,7 +256,11 @@ test('timeout option', async t => {
 		response.end(fixture);
 	});
 
-	await t.throwsAsync(ky(server.url, {timeout: 500}).text(), TimeoutError);
+	await t.throwsAsync(
+		ky(server.url, {timeout: 500}).text(),
+		{instanceOf: ky.TimeoutError}
+	);
+
 	t.is(requestCount, 1);
 
 	await server.close();
@@ -262,7 +276,10 @@ test('timeout:false option', async t => {
 		response.end(fixture);
 	});
 
-	await t.notThrowsAsync(ky(server.url, {timeout: false}).text(), TimeoutError);
+	await t.notThrowsAsync(
+		ky(server.url, {timeout: false}).text()
+	);
+
 	t.is(requestCount, 1);
 
 	await server.close();
@@ -278,7 +295,14 @@ test('invalid timeout option', async t => { // #117
 		response.end(fixture);
 	});
 
-	await t.throwsAsync(ky(server.url, {timeout: 21474836470}).text(), RangeError, 'The `timeout` option cannot be greater than 2147483647');
+	await t.throwsAsync(
+		ky(server.url, {timeout: 21474836470}).text(),
+		{
+			instanceOf: RangeError,
+			message: 'The `timeout` option cannot be greater than 2147483647'
+		}
+	);
+
 	t.is(requestCount, 0);
 
 	await server.close();
@@ -333,8 +357,7 @@ test('throwHttpErrors option', async t => {
 	});
 
 	await t.notThrowsAsync(
-		ky.get(server.url, {throwHttpErrors: false}).text(),
-		/Internal Server Error/
+		ky.get(server.url, {throwHttpErrors: false}).text()
 	);
 
 	await server.close();
@@ -347,8 +370,7 @@ test('throwHttpErrors option with POST', async t => {
 	});
 
 	await t.notThrowsAsync(
-		ky.post(server.url, {throwHttpErrors: false}).text(),
-		/Internal Server Error/
+		ky.post(server.url, {throwHttpErrors: false}).text()
 	);
 
 	await server.close();
@@ -485,15 +507,6 @@ test('throws AbortError when aborted by user', async t => {
 	await t.throwsAsync(response, {name: 'AbortError'});
 });
 
-test('throws when using FormData with `content-type` header', t => {
-	t.throws(() => ky.post('https://example.com', {
-		body: new URLSearchParams(),
-		headers: {
-			'content-type': ''
-		}
-	}), 'The `content-type` header cannot be used with a URLSearchParams body. It will be set automatically.');
-});
-
 test('supports Request instance as input', async t => {
 	const server = await createTestServer();
 	const inputRequest = new Request(server.url, {method: 'POST'});
@@ -510,7 +523,9 @@ test('supports Request instance as input', async t => {
 test('throws when input is not a string, URL, or Request', t => {
 	t.throws(() => {
 		ky.get(0);
-	}, '`input` must be a string, URL, or Request');
+	}, {
+		message: '`input` must be a string, URL, or Request'
+	});
 });
 
 test('options override Request instance method', async t => {
@@ -553,6 +568,20 @@ test('options override Request instance body', async t => {
 	});
 
 	await ky(inputRequest, {body: expectedBody});
+
+	await server.close();
+});
+
+test('POST JSON with falsey value', async t => { // #222
+	const server = await createTestServer();
+	server.post('/', async (request, response) => {
+		response.json(JSON.parse(await pBody(request)));
+	});
+
+	const json = false;
+	const responseJson = await ky.post(server.url, {json}).json();
+
+	t.deepEqual(responseJson, json);
 
 	await server.close();
 });
