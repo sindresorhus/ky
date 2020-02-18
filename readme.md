@@ -253,7 +253,7 @@ const api = ky.extend({
 Type: `Function[]`\
 Default: `[]`
 
-This hook enables you to modify the request right before retry. Ky will make no further changes to the request after this. The hook function receives the normalized request and options, an error instance and the retry count as arguments. You could, for example, modify `request.headers` here.
+This hook enables you to modify the request right before retry. Ky will make no further changes to the request after this. The hook function receives the normalized request and options, the failed response, an error instance and the retry count as arguments. You could, for example, modify `request.headers` here.
 
 ```js
 import ky from 'ky';
