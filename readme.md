@@ -352,13 +352,15 @@ Create a new `ky` instance with some defaults overridden with your own.
 
 In contrast to `ky.create()`, `ky.extend()` inherits defaults from its parent.
 
-You can remove a header with `.extend()` by passing headers: `{[key:string]: undefined}`
+You can remove a header with `.extend()` by passing the header with an `undefined` value.
+
 You can pass a `Headers` instance or a plain object.
 
 ```js
 import ky from 'ky';
 
-const url = 'https://sindresorhus';
+const url = 'https://sindresorhus.com';
+
 const original = ky.create({
 	headers: {
 		rainbow: 'rainbow',
@@ -372,7 +374,7 @@ const extended = original.extend({
 	}
 });
 
-const response = await extended(url + '/test').json();
+const response = await extended(`${url}/test`).json();
 
 console.log('rainbow' in response);
 //=> false
