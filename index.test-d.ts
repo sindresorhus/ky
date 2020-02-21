@@ -48,8 +48,9 @@ ky(url, {
 			}
 		],
 		beforeRetry: [
-			(request, options, error, retryCount) => {
+			({request, response, options, error, retryCount}) => {
 				expectType<Request>(request);
+				expectType<Response>(response);
 				expectType<NormalizedOptions>(options);
 				expectType<Error>(error);
 				expectType<number>(retryCount);

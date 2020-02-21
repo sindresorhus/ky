@@ -351,12 +351,13 @@ class Ky {
 
 				for (const hook of this._options.hooks.beforeRetry) {
 					// eslint-disable-next-line no-await-in-loop
-					const hookResult = await hook(
-						this.request,
-						this._options,
+					const hookResult = await hook({
+						request: this.request,
+						options: this._options,
 						error,
-						this._retryCount
-					);
+						response: error.response.clone(),
+						retryCount: this._retryCount
+					});
 
 					// If `stop` is returned from the hook, the retry process is stopped
 					if (hookResult === stop) {

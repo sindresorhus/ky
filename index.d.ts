@@ -13,12 +13,13 @@ export type BeforeRequestHook = (
 	options: NormalizedOptions,
 ) => Request | Response | void | Promise<Request | Response | void>;
 
-export type BeforeRetryHook = (
+export type BeforeRetryHook = (options: {
 	request: Request,
+	response: Response,
 	options: NormalizedOptions,
 	error: Error,
 	retryCount: number,
-) => void | Promise<void>;
+}) => void | Promise<void>;
 
 export type AfterResponseHook = (
 	request: Request,

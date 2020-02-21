@@ -304,7 +304,7 @@ test('beforeRetry hook is never called for the initial request', async t => {
 			.get(server.url, {
 				hooks: {
 					beforeRetry: [
-						(_input, options) => {
+						({options}) => {
 							options.headers.set('unicorn', fixture);
 						}
 					]
@@ -337,7 +337,7 @@ test('beforeRetry hook allows modifications of non initial requests', async t =>
 			.get(server.url, {
 				hooks: {
 					beforeRetry: [
-						request => {
+						({request}) => {
 							request.headers.set('unicorn', fixture);
 						}
 					]
@@ -367,7 +367,7 @@ test('beforeRetry hook is called with error and retryCount', async t => {
 	await ky.get(server.url, {
 		hooks: {
 			beforeRetry: [
-				(_input, options, error, retryCount) => {
+				({error, retryCount}) => {
 					t.truthy(error);
 					t.true(retryCount >= 1);
 				}
@@ -395,7 +395,7 @@ test('beforeRetry hook can cancel retries by returning `stop`', async t => {
 	await ky.get(server.url, {
 		hooks: {
 			beforeRetry: [
-				(_input, options, error, retryCount) => {
+				({error, retryCount}) => {
 					t.truthy(error);
 					t.is(retryCount, 1);
 
