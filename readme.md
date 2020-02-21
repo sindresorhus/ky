@@ -262,7 +262,7 @@ import ky from 'ky';
 	await ky('https://example.com', {
 		hooks: {
 			beforeRetry: [
-				async ({request, options, errors, retryCount, response}) => {
+				async ({request, response, options, errors, retryCount}) => {
 					const token = await ky('https://example.com/refresh-token');
 					request.headers.set('Authorization', `token ${token}`);
 				}
