@@ -15,9 +15,9 @@ export type BeforeRequestHook = (
 
 export type BeforeRetryHook = (options: {
 	request: Request,
+	response: Response,
 	options: NormalizedOptions,
 	error: Error,
-	response: Response;
 	retryCount: number,
 }) => void | Promise<void>;
 
