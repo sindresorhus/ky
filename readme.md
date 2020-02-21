@@ -395,7 +395,7 @@ import ky from 'ky';
 	await ky('https://example.com', {
 		hooks: {
 			beforeRetry: [
-				async ({request, options, errors, retryCount, response}) => {
+				async ({request, response, options, errors, retryCount}) => {
 					const shouldStopRetry = await ky('https://example.com/api');
 					if (shouldStopRetry) {
 						return ky.stop;
