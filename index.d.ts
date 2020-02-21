@@ -163,10 +163,10 @@ export interface Options extends Omit<RequestInit, 'headers'> {
 
 	/**
 	HTTP headers used to make the request.
+	
+	You can pass a `Headers` instance or a plain object.
 
 	You can remove a header with `.extend()` by passing the header with an `undefined` value.
-
-	You can pass a `Headers` instance or a plain object.
 
 	@example
 	```
