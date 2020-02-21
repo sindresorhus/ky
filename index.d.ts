@@ -164,14 +164,16 @@ export interface Options extends Omit<RequestInit, 'headers'> {
 	/**
 	HTTP headers used to make the request.
 
-	You can remove a header with `.extend()` by passing headers: `{[key:string]: undefined}`.
-	You can pass a Headers instance or a plain object.
+	You can remove a header with `.extend()` by passing the header with an `undefined` value.
+
+	You can pass a `Headers` instance or a plain object.
 
 	@example
 	```
 	import ky from 'ky';
 
-	const url = 'https://sindresorhus';
+	const url = 'https://sindresorhus.com';
+
 	const original = ky.create({
 		headers: {
 			rainbow: 'rainbow',
@@ -185,7 +187,7 @@ export interface Options extends Omit<RequestInit, 'headers'> {
 		}
 	});
 
-	const response = await extended(url + '/test').json();
+	const response = await extended(`${url}/test`).json();
 
 	console.log('rainbow' in response);
 	//=> false
