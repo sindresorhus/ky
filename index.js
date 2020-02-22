@@ -230,8 +230,9 @@ class Ky {
 				this._options.signal.addEventListener('abort', () => {
 					this.abortController.abort();
 				});
-				this._options.signal = this.abortController.signal;
 			}
+
+			this._options.signal = this.abortController.signal;
 		}
 
 		this.request = new globals.Request(this._input, this._options);
