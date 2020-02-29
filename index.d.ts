@@ -458,4 +458,9 @@ declare const ky: {
 	readonly HTTPError: typeof HTTPError;
 };
 
+declare namespace ky {
+	export type TimeoutError = InstanceType<typeof ky.TimeoutError>;
+	export type HTTPError = InstanceType<typeof ky.HTTPError>;
+}
+
 export default ky;

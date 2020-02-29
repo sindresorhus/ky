@@ -140,3 +140,17 @@ ky(url, {
 		afterStatusCodes: []
 	}
 });
+
+try {
+	ky.get(url);
+} catch (err) {
+	if (err instanceof ky.HTTPError) {
+		expectType<ky.HTTPError>(err);
+		const status = err.response.status;
+		expectType<number>(status);
+	} else if (err instanceof ky.TimeoutError) {
+		expectType<ky.TimeoutError>(err);
+	} else {
+		throw err;	
+	}
+}
