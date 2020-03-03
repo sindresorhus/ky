@@ -142,15 +142,15 @@ ky(url, {
 });
 
 try {
-	ky.get(url);
-} catch (err) {
-	if (err instanceof ky.HTTPError) {
-		expectType<ky.HTTPError>(err);
-		const status = err.response.status;
+	await ky.get(url);
+} catch (error) {
+	if (error instanceof ky.HTTPError) {
+		expectType<ky.HTTPError>(error);
+		const {status} = error.response;
 		expectType<number>(status);
-	} else if (err instanceof ky.TimeoutError) {
-		expectType<ky.TimeoutError>(err);
+	} else if (error instanceof ky.TimeoutError) {
+		expectType<ky.TimeoutError>(error);
 	} else {
-		throw err;	
+		throw error;	
 	}
 }
