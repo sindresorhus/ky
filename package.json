@@ -24,6 +24,8 @@
 		"umd.js",
 		"umd.d.ts"
 	],
+	"main": "index.js",
+	"module": "index.js",
 	"keywords": [
 		"fetch",
 		"request",
