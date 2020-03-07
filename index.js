@@ -51,18 +51,14 @@ const mergeHeaders = (...sources) => {
 	const result = {};
 
 	for (const source of sources) {
-		if (!isObject(source)) {
-			throw new TypeError('The `headers` argument must be an object');
-		}
+		const isHeadersInstance = source instanceof globals.Headers;
 
-		const headers = new globals.Headers(source);
-
-		for (const [key, value] of headers) {
+		for (const [key, value] of new globals.Headers(source)) {
 			// Headers constructor changes the value to a string
-			if (value === 'undefined' || typeof value === 'undefined') {
-				Reflect.deleteProperty(result, key);
+			if ((isHeadersInstance && value === 'undefined') || typeof value === 'undefined') {
+				delete result[key];
 			} else {
-				Reflect.set(result, key, value);
+				result[key] = value;
 			}
 		}
 	}
