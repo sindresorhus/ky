@@ -286,9 +286,6 @@ export interface NormalizedOptions extends RequestInit {
 	retry: Options['retry'];
 	prefixUrl: Options['prefixUrl'];
 	onDownloadProgress: Options['onDownloadProgress'];
-
-	// New type.
-	headers: Headers;
 }
 
 /**
