@@ -274,8 +274,6 @@ class Ky {
 			this.request = new globals.Request(this.request, {body: this._options.body});
 		}
 
-		console.log(this.request.headers, this._options.headers);
-
 		const fn = async () => {
 			if (this._options.timeout > maxSafeTimeout) {
 				throw new RangeError(`The \`timeout\` option cannot be greater than ${maxSafeTimeout}`);
