@@ -10,6 +10,11 @@
 		"email": "sindresorhus@gmail.com",
 		"url": "sindresorhus.com"
 	},
+	"type": "module",
+	"exports": {
+		"import": "./index.js",
+		"require": "./umd.js"
+	},
 	"engines": {
 		"node": ">=10"
 	},
@@ -24,11 +29,6 @@
 		"umd.js",
 		"umd.d.ts"
 	],
-	"type": "module",
-	"exports": {
-		"import": "./index.js",
-		"require": "./umd.js"
-	},
 	"keywords": [
 		"fetch",
 		"request",
