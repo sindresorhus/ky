@@ -355,6 +355,7 @@ In contrast to `ky.create()`, `ky.extend()` inherits defaults from its parent.
 You can pass headers as a `Headers` instance or a plain object.
 
 You can remove a header with `.extend()` by passing the header with an `undefined` value.
+Passing `undefined` as a string removes the header only if it comes from a `Headers` instance.
 
 ```js
 import ky from 'ky';

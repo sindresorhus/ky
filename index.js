@@ -48,22 +48,21 @@ const supportsAbortController = typeof globals.AbortController === 'function';
 const supportsStreams = typeof globals.ReadableStream === 'function';
 
 const mergeHeaders = (...sources) => {
-	const result = {};
+	const result = new globals.Headers();
 
 	for (const source of sources) {
 		const isHeadersInstance = source instanceof globals.Headers;
 
 		for (const [key, value] of new globals.Headers(source)) {
-			// Headers constructor changes the value to a string
-			if ((isHeadersInstance && value === 'undefined') || typeof value === 'undefined') {
-				delete result[key];
+			if ((isHeadersInstance && value === 'undefined') || value === undefined) {
+				result.delete(key);
 			} else {
-				result[key] = value;
+				result.set(key, value);
 			}
 		}
 	}
 
-	return new globals.Headers(result);
+	return result;
 };
 
 const deepMerge = (...sources) => {
@@ -274,6 +273,8 @@ class Ky {
 			this.request.headers.set('content-type', 'application/json');
 			this.request = new globals.Request(this.request, {body: this._options.body});
 		}
+
+		console.log(this.request.headers, this._options.headers);
 
 		const fn = async () => {
 			if (this._options.timeout > maxSafeTimeout) {
