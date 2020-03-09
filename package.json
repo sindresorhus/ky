@@ -24,6 +24,11 @@
 		"umd.js",
 		"umd.d.ts"
 	],
+	"type": "module",
+	"exports": {
+		"import": "./index.js",
+		"require": "./umd.js"
+	},
 	"keywords": [
 		"fetch",
 		"request",
