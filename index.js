@@ -118,7 +118,7 @@ const stop = Symbol('stop');
 
 class HTTPError extends Error {
 	constructor(response) {
-		super(response.statusText);
+		super(response.statusText || response.status || 'Unknown response error');
 		this.name = 'HTTPError';
 		this.response = response;
 	}
