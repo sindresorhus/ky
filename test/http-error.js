@@ -35,3 +35,12 @@ test('HTTPError handles undefined response.status', t => {
 
 	t.is(error.message, 'Unknown response error');
 });
+
+test('HTTPError handles a response.status of 0', t => {
+	const error = new ky.HTTPError(
+		// Apparently, it's possible to get a response status of 0.
+		createFakeResponse({statusText: undefined, status: 0})
+	);
+
+	t.is(error.message, '0');
+});
