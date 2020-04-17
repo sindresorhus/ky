@@ -123,7 +123,7 @@ class HTTPError extends Error {
 		super(
 			response.statusText ||
 			String(
-				response.status === 0 || response.status ?
+				(response.status === 0 || response.status) ?
 					response.status : 'Unknown response error'
 			)
 		);
