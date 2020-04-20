@@ -181,7 +181,7 @@ test('buffer as `options.body` sets `content-length` header', async t => {
 	t.is(Number(headers['content-length']), buffer.length);
 });
 
-test.failing('removes undefined value headers', async t => {
+test('removes undefined value headers', async t => {
 	const server = await createTestServer();
 	server.get('/', echoHeaders);
 
