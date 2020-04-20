@@ -209,7 +209,7 @@ test('FormData with searchParams ("multipart/form-data" parser)', withPage, asyn
 	t.plan(3);
 	const server = await createTestServer();
 	server.get('/', (request, response) => {
-		response.end({});
+		response.end();
 	});
 	server.post('/', async (request, response) => {
 		const [body, error] = await new Promise(resolve => {

@@ -223,7 +223,7 @@ test.failing('removes undefined value headers', async t => {
 		}
 	}).json();
 
-	t.is(headers['user-agent'], undefined);
+	t.is(headers['user-agent'], 'undefined');
 });
 
 test('non-existent headers set to undefined are omitted', async t => {
