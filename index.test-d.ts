@@ -48,8 +48,9 @@ ky(url, {
 			}
 		],
 		beforeRetry: [
-			(request, options, error, retryCount) => {
+			({request, response, options, error, retryCount}) => {
 				expectType<Request>(request);
+				expectType<Response>(response);
 				expectType<NormalizedOptions>(options);
 				expectType<Error>(error);
 				expectType<number>(retryCount);
@@ -139,3 +140,17 @@ ky(url, {
 		afterStatusCodes: []
 	}
 });
+
+try {
+	await ky.get(url);
+} catch (error) {
+	if (error instanceof ky.HTTPError) {
+		expectType<ky.HTTPError>(error);
+		const {status} = error.response;
+		expectType<number>(status);
+	} else if (error instanceof ky.TimeoutError) {
+		expectType<ky.TimeoutError>(error);
+	} else {
+		throw error;	
+	}
+}

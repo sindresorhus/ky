@@ -46,6 +46,7 @@ for (const property of globalProperties) {
 const isObject = value => value !== null && typeof value === 'object';
 const supportsAbortController = typeof globals.AbortController === 'function';
 const supportsStreams = typeof globals.ReadableStream === 'function';
+const supportsFormData = typeof globals.FormData === 'function';
 
 const mergeHeaders = (...sources) => {
 	const result = new globals.Headers();
@@ -142,7 +143,15 @@ const stop = Symbol('stop');
 
 class HTTPError extends Error {
 	constructor(response) {
-		super(response.statusText);
+		// Set the message to the status text, such as Unauthorized,
+		// with some fallbacks. This message should never be undefined.
+		super(
+			response.statusText ||
+			String(
+				(response.status === 0 || response.status) ?
+					response.status : 'Unknown response error'
+			)
+		);
 		this.name = 'HTTPError';
 		this.response = response;
 	}
@@ -256,8 +265,9 @@ class Ky {
 				this._options.signal.addEventListener('abort', () => {
 					this.abortController.abort();
 				});
-				this._options.signal = this.abortController.signal;
 			}
+
+			this._options.signal = this.abortController.signal;
 		}
 
 		this.request = new globals.Request(this._input, this._options);
@@ -265,6 +275,12 @@ class Ky {
 		if (this._options.searchParams) {
 			const url = new URL(this.request.url);
 			url.search = new URLSearchParams(this._options.searchParams);
+
+			// To provide correct form boundary, Content-Type header should be deleted each time when new Request instantiated from another one
+			if (((supportsFormData && this._options.body instanceof globals.FormData) || this._options.body instanceof URLSearchParams) && !(this._options.headers && this._options.headers['content-type'])) {
+				this.request.headers.delete('content-type');
+			}
+
 			this.request = new globals.Request(new globals.Request(url, this.request), this._options);
 		}
 
@@ -377,12 +393,13 @@ class Ky {
 
 				for (const hook of this._options.hooks.beforeRetry) {
 					// eslint-disable-next-line no-await-in-loop
-					const hookResult = await hook(
-						this.request,
-						this._options,
+					const hookResult = await hook({
+						request: this.request,
+						options: this._options,
 						error,
-						this._retryCount
-					);
+						response: error.response.clone(),
+						retryCount: this._retryCount
+					});
 
 					// If `stop` is returned from the hook, the retry process is stopped
 					if (hookResult === stop) {

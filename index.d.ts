@@ -13,12 +13,13 @@ export type BeforeRequestHook = (
 	options: NormalizedOptions,
 ) => Request | Response | void | Promise<Request | Response | void>;
 
-export type BeforeRetryHook = (
+export type BeforeRetryHook = (options: {
 	request: Request,
+	response: Response,
 	options: NormalizedOptions,
 	error: Error,
 	retryCount: number,
-) => void | Promise<void>;
+}) => void | Promise<void>;
 
 export type AfterResponseHook = (
 	request: Request,
@@ -322,9 +323,6 @@ export interface NormalizedOptions extends RequestInit {
 	retry: Options['retry'];
 	prefixUrl: Options['prefixUrl'];
 	onDownloadProgress: Options['onDownloadProgress'];
-
-	// New type.
-	headers: Headers;
 }
 
 /**
@@ -493,5 +491,10 @@ declare const ky: {
 	readonly TimeoutError: typeof TimeoutError;
 	readonly HTTPError: typeof HTTPError;
 };
+
+declare namespace ky {
+	export type TimeoutError = InstanceType<typeof ky.TimeoutError>;
+	export type HTTPError = InstanceType<typeof ky.HTTPError>;
+}
 
 export default ky;
