@@ -219,11 +219,13 @@ test.failing('removes undefined value headers', async t => {
 
 	const headers = await ky.get(server.url, {
 		headers: {
-			'user-agent': undefined
+			'user-agent': undefined,
+			unicorn: 'unicorn'
 		}
 	}).json();
 
 	t.is(headers['user-agent'], 'undefined');
+	t.is(headers.unicorn, 'unicorn');
 });
 
 test('non-existent headers set to undefined are omitted', async t => {
