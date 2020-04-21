@@ -212,7 +212,7 @@ test('buffer as `options.body` sets `content-length` header', async t => {
 	t.is(Number(headers['content-length']), buffer.length);
 });
 
-// TODO: Enable this when node-fetch allows for removal of default headers.
+// TODO: Enable this when node-fetch allows for removal of default headers. Context: https://github.com/node-fetch/node-fetch/issues/591
 test.failing('removes undefined value headers', async t => {
 	const server = await createTestServer();
 	server.get('/', echoHeaders);
