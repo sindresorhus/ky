@@ -51,7 +51,7 @@ const supportsFormData = typeof globals.FormData === 'function';
 const mergeHeaders = (source1, source2) => {
 	const result = new globals.Headers();
 
-	[source1, source2].forEach(source => {
+	for (const source of [source1, source2]) {
 		const isHeadersInstance = source instanceof globals.Headers;
 
 		for (const [key, value] of new globals.Headers(source)) {
@@ -61,7 +61,7 @@ const mergeHeaders = (source1, source2) => {
 				result.set(key, value);
 			}
 		}
-	});
+	}
 
 	return result;
 };
