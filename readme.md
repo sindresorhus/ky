@@ -375,7 +375,7 @@ const extended = original.extend({
 	}
 });
 
-const response = await extended(`${url}/test`).json();
+const response = await extended(url).json();
 
 console.log('rainbow' in response);
 //=> false

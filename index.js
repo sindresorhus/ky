@@ -49,17 +49,15 @@ const supportsStreams = typeof globals.ReadableStream === 'function';
 const supportsFormData = typeof globals.FormData === 'function';
 
 const mergeHeaders = (source1, source2) => {
-	const result = new globals.Headers();
+	const result = new globals.Headers(source1);
+	const isHeadersInstance = source2 instanceof globals.Headers;
+	const source = new globals.Headers(source2);
 
-	for (const source of [source1, source2]) {
-		const isHeadersInstance = source instanceof globals.Headers;
-
-		for (const [key, value] of new globals.Headers(source)) {
-			if ((isHeadersInstance && value === 'undefined') || value === undefined) {
-				result.delete(key);
-			} else {
-				result.set(key, value);
-			}
+	for (const [key, value] of source) {
+		if ((isHeadersInstance && value === 'undefined') || value === undefined) {
+			result.delete(key);
+		} else {
+			result.set(key, value);
 		}
 	}
 
