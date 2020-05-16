@@ -48,8 +48,25 @@ const supportsAbortController = typeof globals.AbortController === 'function';
 const supportsStreams = typeof globals.ReadableStream === 'function';
 const supportsFormData = typeof globals.FormData === 'function';
 
+const mergeHeaders = (source1, source2) => {
+	const result = new globals.Headers(source1);
+	const isHeadersInstance = source2 instanceof globals.Headers;
+	const source = new globals.Headers(source2);
+
+	for (const [key, value] of source) {
+		if ((isHeadersInstance && value === 'undefined') || value === undefined) {
+			result.delete(key);
+		} else {
+			result.set(key, value);
+		}
+	}
+
+	return result;
+};
+
 const deepMerge = (...sources) => {
 	let returnValue = {};
+	let headers = {};
 
 	for (const source of sources) {
 		if (Array.isArray(source)) {
@@ -66,7 +83,13 @@ const deepMerge = (...sources) => {
 
 				returnValue = {...returnValue, [key]: value};
 			}
+
+			if (isObject(source.headers)) {
+				headers = mergeHeaders(headers, source.headers);
+			}
 		}
+
+		returnValue.headers = headers;
 	}
 
 	return returnValue;
@@ -205,6 +228,7 @@ class Ky {
 			// TODO: credentials can be removed when the spec change is implemented in all browsers. Context: https://www.chromestatus.com/feature/4539473312350208
 			credentials: this._input.credentials || 'same-origin',
 			...options,
+			headers: mergeHeaders(this._input.headers, options.headers),
 			hooks: deepMerge({
 				beforeRequest: [],
 				beforeRetry: [],
