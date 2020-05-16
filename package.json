@@ -8,7 +8,7 @@
 	"author": {
 		"name": "Sindre Sorhus",
 		"email": "sindresorhus@gmail.com",
-		"url": "sindresorhus.com"
+		"url": "https://sindresorhus.com"
 	},
 	"engines": {
 		"node": ">=10"
@@ -58,8 +58,8 @@
 		"form-data": "^3.0.0",
 		"node-fetch": "^2.5.0",
 		"nyc": "^15.0.0",
-		"puppeteer": "^2.1.0",
-		"rollup": "^1.31.0",
+		"puppeteer": "^3.0.4",
+		"rollup": "^2.10.2",
 		"tsd": "^0.11.0",
 		"xo": "^0.25.3"
 	},

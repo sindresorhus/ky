@@ -14,11 +14,11 @@ export type BeforeRequestHook = (
 ) => Request | Response | void | Promise<Request | Response | void>;
 
 export type BeforeRetryHook = (options: {
-	request: Request,
-	response: Response,
-	options: NormalizedOptions,
-	error: Error,
-	retryCount: number,
+	request: Request;
+	response: Response;
+	options: NormalizedOptions;
+	error: Error;
+	retryCount: number;
 }) => void | Promise<void>;
 
 export type AfterResponseHook = (
@@ -329,11 +329,11 @@ export interface NormalizedOptions extends RequestInit {
 Returns a `Response` object with `Body` methods added for convenience. So you can, for example, call `ky.get(input).json()` directly without having to await the `Response` first. When called like that, an appropriate `Accept` header will be set depending on the body method used. Unlike the `Body` methods of `window.Fetch`; these will throw an `HTTPError` if the response status is not in the range of `200...299`. Also, `.json()` will return an empty string if the response status is `204` instead of throwing a parse error due to an empty body.
 */
 export interface ResponsePromise extends Promise<Response> {
-	arrayBuffer(): Promise<ArrayBuffer>;
+	arrayBuffer: () => Promise<ArrayBuffer>;
 
-	blob(): Promise<Blob>;
+	blob: () => Promise<Blob>;
 
-	formData(): Promise<FormData>;
+	formData: () => Promise<FormData>;
 
 	// TODO: Use `json<T extends JSONValue>(): Promise<T>;` when it's fixed in TS.
 	// See https://github.com/microsoft/TypeScript/issues/15300 and https://github.com/sindresorhus/ky/pull/80
@@ -358,9 +358,9 @@ export interface ResponsePromise extends Promise<Response> {
 	const result = await ky(…).json<Result>();
 	```
 	*/
-	json<T>(): Promise<T>;
+	json: <T>() => Promise<T>;
 
-	text(): Promise<string>;
+	text: () => Promise<string>;
 }
 
 /**
@@ -405,7 +405,7 @@ declare const ky: {
 	@param url - `Request` object, `URL` object, or URL string.
 	@returns A promise with `Body` methods added.
 	*/
-	get(url: Input, options?: Options): ResponsePromise;
+	get: (url: Input, options?: Options) => ResponsePromise;
 
 	/**
 	Fetch the given `url` using the option `{method: 'post'}`.
@@ -413,7 +413,7 @@ declare const ky: {
 	@param url - `Request` object, `URL` object, or URL string.
 	@returns A promise with `Body` methods added.
 	*/
-	post(url: Input, options?: Options): ResponsePromise;
+	post: (url: Input, options?: Options) => ResponsePromise;
 
 	/**
 	Fetch the given `url` using the option `{method: 'put'}`.
@@ -421,7 +421,7 @@ declare const ky: {
 	@param url - `Request` object, `URL` object, or URL string.
 	@returns A promise with `Body` methods added.
 	*/
-	put(url: Input, options?: Options): ResponsePromise;
+	put: (url: Input, options?: Options) => ResponsePromise;
 
 	/**
 	Fetch the given `url` using the option `{method: 'delete'}`.
@@ -429,7 +429,7 @@ declare const ky: {
 	@param url - `Request` object, `URL` object, or URL string.
 	@returns A promise with `Body` methods added.
 	*/
-	delete(url: Input, options?: Options): ResponsePromise;
+	delete: (url: Input, options?: Options) => ResponsePromise;
 
 	/**
 	Fetch the given `url` using the option `{method: 'patch'}`.
@@ -437,7 +437,7 @@ declare const ky: {
 	@param url - `Request` object, `URL` object, or URL string.
 	@returns A promise with `Body` methods added.
 	*/
-	patch(url: Input, options?: Options): ResponsePromise;
+	patch: (url: Input, options?: Options) => ResponsePromise;
 
 	/**
 	Fetch the given `url` using the option `{method: 'head'}`.
@@ -445,14 +445,14 @@ declare const ky: {
 	@param url - `Request` object, `URL` object, or URL string.
 	@returns A promise with `Body` methods added.
 	*/
-	head(url: Input, options?: Options): ResponsePromise;
+	head: (url: Input, options?: Options) => ResponsePromise;
 
 	/**
 	Create a new Ky instance with complete new defaults.
 
 	@returns A new Ky instance.
 	*/
-	create(defaultOptions: Options): typeof ky;
+	create: (defaultOptions: Options) => typeof ky;
 
 	/**
 	Create a new Ky instance with some defaults overridden with your own.
@@ -461,7 +461,7 @@ declare const ky: {
 
 	@returns A new Ky instance.
 	*/
-	extend(defaultOptions: Options): typeof ky;
+	extend: (defaultOptions: Options) => typeof ky;
 
 	/**
 	A `Symbol` that can be returned by a `beforeRetry` hook to stop the retry.
@@ -493,8 +493,8 @@ declare const ky: {
 };
 
 declare namespace ky {
-	export type TimeoutError = InstanceType<typeof ky.TimeoutError>;
-	export type HTTPError = InstanceType<typeof ky.HTTPError>;
+	export type TimeoutError = InstanceType<typeof TimeoutError>;
+	export type HTTPError = InstanceType<typeof HTTPError>;
 }
 
 export default ky;

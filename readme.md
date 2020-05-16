@@ -127,7 +127,7 @@ Type: `object`
 ##### method
 
 Type: `string`\
-Default: `get`
+Default: `'get'`
 
 HTTP method used to make the request.
 
