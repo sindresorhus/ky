@@ -346,6 +346,34 @@ import ky from 'ky';
 })();
 ```
 
+##### parseJson
+
+Type: `Function`
+
+User-defined function to handle JSON parsing. Useful e.g in these cases:
+
+1. Parse JSON via [bourne](https://github.com/hapijs/bourne) to protect from prototype pollution.
+2. Parse JSON with [reviver](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/JSON/parse).
+
+```js
+import ky from 'ky';
+import bourne from '@hapijs/bourne';
+
+(async () => {
+	const parsed = await ky('https://example.com', {
+		parseJson: text => bourne(text)
+	}).json();
+})();
+```
+
+Please note that this option only works when using it like `ky(...).json()` (like in the example above).
+It won't work if you first get the response object and then call `.json()` on it:
+
+```js
+const response = await ky('https://example.com');
+const parsed = await response.json(); // Won't use `parseJson` option there!
+```
+
 ### ky.extend(defaultOptions)
 
 Create a new `ky` instance with some defaults overridden with your own.

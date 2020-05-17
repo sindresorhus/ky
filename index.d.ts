@@ -207,6 +207,31 @@ export interface Options extends Omit<RequestInit, 'headers'> {
 	json?: unknown;
 
 	/**
+	User-defined JSON-parsing function.
+
+	Useful e.g in these cases:
+
+	1. Parse JSON via [bourne](https://github.com/hapijs/bourne) to protect from prototype pollution.
+	2. Parse JSON with [reviver](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/JSON/parse).
+
+	@default JSON.parse()
+
+	@example
+	```
+	import ky from 'ky';
+	import bourne from '@hapijs/bourne';
+
+	(async () => {
+		const parsed = await ky('https://example.com', {
+			parseJson: text => bourne(text)
+		}).json();
+	})();
+	```
+	*/
+
+	parseJson?: (text: string) => unknown
+
+	/**
 	Search parameters to include in the request URL. Setting this will override all existing search parameters in the input URL.
 
 	Accepts any value supported by [`URLSearchParams()`](https://developer.mozilla.org/en-US/docs/Web/API/URLSearchParams/URLSearchParams).
