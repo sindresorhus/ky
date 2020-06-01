@@ -209,10 +209,9 @@ export interface Options extends Omit<RequestInit, 'headers'> {
 	/**
 	User-defined JSON-parsing function.
 
-	Useful e.g in these cases:
-
-	1. Parse JSON via [bourne](https://github.com/hapijs/bourne) to protect from prototype pollution.
-	2. Parse JSON with [reviver](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/JSON/parse).
+	Use-cases:
+	1. Parse JSON via the [`bourne` package](https://github.com/hapijs/bourne) to protect from prototype pollution.
+	2. Parse JSON with [`reviver` option of `JSON.parse()`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/JSON/parse).
 
 	@default JSON.parse()
 
@@ -228,7 +227,6 @@ export interface Options extends Omit<RequestInit, 'headers'> {
 	})();
 	```
 	*/
-
 	parseJson?: (text: string) => unknown
 
 	/**
