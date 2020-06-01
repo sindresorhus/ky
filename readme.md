@@ -348,12 +348,14 @@ import ky from 'ky';
 
 ##### parseJson
 
-Type: `Function`
+Type: `Function`\
+Default: `JSON.parse()`
 
-User-defined function to handle JSON parsing. Useful e.g in these cases:
+User-defined JSON-parsing function.
 
-1. Parse JSON via [bourne](https://github.com/hapijs/bourne) to protect from prototype pollution.
-2. Parse JSON with [reviver](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/JSON/parse).
+Use-cases:
+1. Parse JSON via the [`bourne` package](https://github.com/hapijs/bourne) to protect from prototype pollution.
+2. Parse JSON with [`reviver` option of `JSON.parse()`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/JSON/parse).
 
 ```js
 import ky from 'ky';
@@ -366,7 +368,7 @@ import bourne from '@hapijs/bourne';
 })();
 ```
 
-Please note that this option only works when using it like `ky(...).json()` (like in the example above).
+Please note that this option only works when using it like `ky(…).json()` (like in the example above).
 It won't work if you first get the response object and then call `.json()` on it:
 
 ```js
