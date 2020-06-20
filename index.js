@@ -48,7 +48,7 @@ const supportsAbortController = typeof globals.AbortController === 'function';
 const supportsStreams = typeof globals.ReadableStream === 'function';
 const supportsFormData = typeof globals.FormData === 'function';
 
-const mergeHeaders = (source1, source2) => {
+const mergeHeaders = (source1 = {}, source2 = {}) => {
 	const result = new globals.Headers(source1);
 	const isHeadersInstance = source2 instanceof globals.Headers;
 	const source = new globals.Headers(source2);
