@@ -24,7 +24,7 @@ for (const method of requestMethods) {
 expectType<typeof ky>(ky.create({}));
 expectType<typeof ky>(ky.extend({}));
 expectType<InstanceType<typeof ky.HTTPError>>(new ky.HTTPError(new Response()));
-expectType<InstanceType<typeof ky.TimeoutError>>(new ky.TimeoutError());
+expectType<InstanceType<typeof ky.TimeoutError>>(new ky.TimeoutError(new Request('Test')));
 
 ky(url, {
 	hooks: {

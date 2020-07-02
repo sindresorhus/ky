@@ -375,7 +375,7 @@ declare class HTTPError extends Error {
 The error thrown when the request times out.
 */
 declare class TimeoutError extends Error {
-	constructor();
+	constructor(request: Request);
 }
 
 declare const ky: {
