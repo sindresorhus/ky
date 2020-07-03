@@ -228,11 +228,12 @@ class Ky {
 	constructor(input, options = {}) {
 		this._retryCount = 0;
 		this._input = input;
+		const headers = isObject(this._input.headers) ? this._input.headers : {};
 		this._options = {
 			// TODO: credentials can be removed when the spec change is implemented in all browsers. Context: https://www.chromestatus.com/feature/4539473312350208
 			credentials: this._input.credentials || 'same-origin',
 			...options,
-			headers: mergeHeaders(this._input.headers, options.headers),
+			headers: mergeHeaders(headers, options.headers),
 			hooks: deepMerge({
 				beforeRequest: [],
 				beforeRetry: [],
