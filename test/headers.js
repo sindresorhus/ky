@@ -212,30 +212,35 @@ test('buffer as `options.body` sets `content-length` header', async t => {
 	t.is(Number(headers['content-length']), buffer.length);
 });
 
-test('removes undefined value headers', async t => {
+// TODO: Enable this when node-fetch allows for removal of default headers. Context: https://github.com/node-fetch/node-fetch/issues/591
+test.failing('removes undefined value headers', async t => {
 	const server = await createTestServer();
 	server.get('/', echoHeaders);
 
 	const headers = await ky.get(server.url, {
 		headers: {
-			'user-agent': undefined
+			'user-agent': undefined,
+			unicorn: 'unicorn'
 		}
 	}).json();
 
 	t.is(headers['user-agent'], 'undefined');
+	t.is(headers.unicorn, 'unicorn');
 });
 
-test.failing('non-existent headers set to undefined are omitted', async t => {
+test('non-existent headers set to undefined are omitted', async t => {
 	const server = await createTestServer();
 	server.get('/', echoHeaders);
 
 	const headers = await ky.get(server.url, {
 		headers: {
-			blah: undefined
+			blah: undefined,
+			rainbow: 'unicorn'
 		}
 	}).json();
 
 	t.false('blah' in headers);
+	t.true('rainbow' in headers);
 });
 
 test('preserve port in host header if non-standard port', async t => {
@@ -264,4 +269,105 @@ test('strip port in host header if implicit standard port & protocol (HTTP)', as
 test('strip port in host header if implicit standard port & protocol (HTTPS)', async t => {
 	const body = await ky.get('https://httpbin.org/headers').json();
 	t.is(body.headers.Host, 'httpbin.org');
+});
+
+test('remove custom header by extending instance (plain objects)', async t => {
+	const server = await createTestServer();
+	server.get('/', echoHeaders);
+
+	const original = ky.create({
+		headers: {
+			rainbow: 'rainbow',
+			unicorn: 'unicorn'
+		}
+
+	});
+
+	const extended = original.extend({
+		headers: {
+			rainbow: undefined
+		}
+	});
+
+	const response = await extended(server.url).json();
+
+	t.true('unicorn' in response);
+	t.false('rainbow' in response);
+
+	await server.close();
+});
+
+test('remove header by extending instance (Headers instance)', async t => {
+	const server = await createTestServer();
+	server.get('/', echoHeaders);
+
+	const original = ky.create({
+		headers: new Headers({
+			rainbow: 'rainbow',
+			unicorn: 'unicorn'
+		})
+	});
+
+	const extended = original.extend({
+		headers: new Headers({
+			rainbow: undefined
+		})
+	});
+
+	const response = await extended(server.url).json();
+
+	t.false('rainbow' in response);
+	t.true('unicorn' in response);
+
+	await server.close();
+});
+
+test('remove header by extending instance (Headers instance and plain object)', async t => {
+	const server = await createTestServer();
+	server.get('/', echoHeaders);
+
+	const original = ky.create({
+		headers: new Headers({
+			rainbow: 'rainbow',
+			unicorn: 'unicorn'
+		})
+	});
+
+	const extended = original.extend({
+		headers: {
+			rainbow: undefined
+		}
+	});
+
+	const response = await extended(server.url).json();
+
+	t.false('rainbow' in response);
+	t.true('unicorn' in response);
+
+	await server.close();
+});
+
+test('remove header by extending instance (plain object and Headers instance)', async t => {
+	const server = await createTestServer();
+	server.get('/', echoHeaders);
+
+	const original = ky.create({
+		headers: {
+			rainbow: 'rainbow',
+			unicorn: 'unicorn'
+		}
+	});
+
+	const extended = original.extend({
+		headers: new Headers({
+			rainbow: undefined
+		})
+	});
+
+	const response = await extended(server.url).json();
+
+	t.false('rainbow' in response);
+	t.true('unicorn' in response);
+
+	await server.close();
 });

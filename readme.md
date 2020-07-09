@@ -127,7 +127,7 @@ Type: `object`
 ##### method
 
 Type: `string`\
-Default: `get`
+Default: `'get'`
 
 HTTP method used to make the request.
 
@@ -351,6 +351,38 @@ import ky from 'ky';
 Create a new `ky` instance with some defaults overridden with your own.
 
 In contrast to `ky.create()`, `ky.extend()` inherits defaults from its parent.
+
+You can pass headers as a `Headers` instance or a plain object.
+
+You can remove a header with `.extend()` by passing the header with an `undefined` value.
+Passing `undefined` as a string removes the header only if it comes from a `Headers` instance.
+
+```js
+import ky from 'ky';
+
+const url = 'https://sindresorhus.com';
+
+const original = ky.create({
+	headers: {
+		rainbow: 'rainbow',
+		unicorn: 'unicorn'
+	}
+});
+
+const extended = original.extend({
+	headers: {
+		rainbow: undefined
+	}
+});
+
+const response = await extended(url).json();
+
+console.log('rainbow' in response);
+//=> false
+
+console.log('unicorn' in response);
+//=> true
+```
 
 ### ky.create(defaultOptions)
 

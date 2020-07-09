@@ -12,7 +12,7 @@ const requestMethods = [
 	'put',
 	'delete',
 	'patch',
-	'head',
+	'head'
 ] as const;
 
 // Test Ky HTTP methods
@@ -80,8 +80,8 @@ ky(new Request(url));
 const input: Input = new URL('https://sindresorhus');
 const options: Options = {
 	method: 'get',
-	timeout: 5000,
-}
+	timeout: 5000
+};
 ky(input, options);
 
 // Extending Ky
@@ -89,11 +89,13 @@ interface CustomOptions extends Options {
 	foo?: boolean;
 }
 async function customKy(input: Input, options?: CustomOptions) {
-	if (options && options.foo) {
+	if (options?.foo) {
 		options.json = {foo: options.foo};
 	}
+
 	return ky(input, options);
 }
+
 customKy(input, options);
 
 // `searchParams` option
@@ -151,6 +153,6 @@ try {
 	} else if (error instanceof ky.TimeoutError) {
 		expectType<ky.TimeoutError>(error);
 	} else {
-		throw error;	
+		throw error;
 	}
 }
