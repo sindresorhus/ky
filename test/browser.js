@@ -96,27 +96,23 @@ test('onDownloadProgress works', withPage, async (t, page) => {
 
 	server.get('/', (request, response) => {
 		response.writeHead(200, {
-			'content-length': 4
+			'content-length': '4'
 		});
 
 		response.write('me');
 		setTimeout(() => {
 			response.end('ow');
-		}, 1000);
+		}, 100);
 	});
 
 	await page.goto(server.url);
 	await page.addScriptTag({path: './umd.js'});
 
 	const result = await page.evaluate(async url => {
-		// `new TextDecoder('utf-8').decode` hangs up?
-		const decodeUTF8 = array => String.fromCharCode(...array);
-
 		const data = [];
 		const text = await window.ky(url, {
 			onDownloadProgress: (progress, chunk) => {
-				const stringifiedChunk = decodeUTF8(chunk);
-				data.push([progress, stringifiedChunk]);
+				data.push([progress, new TextDecoder().decode(chunk)]);
 			}
 		}).text();
 
