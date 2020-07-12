@@ -54,7 +54,7 @@ const mergeHeaders = (source1, source2) => {
 	const source = new globals.Headers(source2 || {});
 
 	for (const [key, value] of source) {
-		if (isHeadersInstance && (value === undefined || value === 'undefined')) {
+		if ((isHeadersInstance && value === 'undefined') || value === undefined) {
 			result.delete(key);
 		} else {
 			result.set(key, value);
