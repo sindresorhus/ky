@@ -327,6 +327,12 @@ class Ky {
 				return this._stream(response.clone(), this._options.onDownloadProgress);
 			}
 
+			if (this._options.parseJson) {
+				response.json = async () => {
+					return this._options.parseJson(await response.text());
+				};
+			}
+
 			return response;
 		};
 

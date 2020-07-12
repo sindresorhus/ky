@@ -586,7 +586,31 @@ test('POST JSON with falsey value', async t => { // #222
 	await server.close();
 });
 
-test('parseJson option', async t => {
+test('parseJson option with response.json()', async t => {
+	const json = {hello: 'world'};
+
+	const server = await createTestServer();
+	server.get('/', async (request, response) => {
+		response.json(json);
+	});
+
+	const response = await ky.get(server.url, {
+		parseJson: text => ({
+			...JSON.parse(text),
+			extra: 'extraValue'
+		})
+	});
+	const responseJson = await response.json();
+
+	t.deepEqual(responseJson, {
+		...json,
+		extra: 'extraValue'
+	});
+
+	await server.close();
+});
+
+test('parseJson option with promise.json() shortcut', async t => {
 	const json = {hello: 'world'};
 
 	const server = await createTestServer();
