@@ -156,27 +156,28 @@ class HTTPError extends Error {
 }
 
 class TimeoutError extends Error {
-	constructor() {
+	constructor(request) {
 		super('Request timed out');
 		this.name = 'TimeoutError';
+		this.request = request;
 	}
 }
 
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 
 // `Promise.race()` workaround (#91)
-const timeout = (promise, ms, abortController) =>
+const timeout = (request, ms, abortController) =>
 	new Promise((resolve, reject) => {
 		const timeoutID = setTimeout(() => {
 			if (abortController) {
 				abortController.abort();
 			}
 
-			reject(new TimeoutError());
+			reject(new TimeoutError(request));
 		}, ms);
 
 		/* eslint-disable promise/prefer-await-to-then */
-		promise
+		globals.fetch(request)
 			.then(resolve)
 			.catch(reject)
 			.then(() => {
@@ -433,7 +434,7 @@ class Ky {
 			return globals.fetch(this.request.clone());
 		}
 
-		return timeout(globals.fetch(this.request.clone()), this._options.timeout, this.abortController);
+		return timeout(this.request.clone(), this._options.timeout, this.abortController);
 	}
 
 	/* istanbul ignore next */
