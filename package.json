@@ -58,9 +58,9 @@
 		"form-data": "^3.0.0",
 		"node-fetch": "^2.5.0",
 		"nyc": "^15.0.0",
-		"puppeteer": "^3.0.4",
+		"puppeteer": "^5.1.0",
 		"rollup": "^2.10.2",
-		"tsd": "^0.11.0",
+		"tsd": "^0.13.1",
 		"xo": "^0.25.3"
 	},
 	"sideEffects": false,

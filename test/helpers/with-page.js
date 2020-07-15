@@ -6,7 +6,6 @@ export default async function withPage(t, run) {
 	try {
 		await run(t, page);
 	} finally {
-		await page.close();
 		await browser.close();
 	}
 }
