@@ -272,8 +272,8 @@ class Ky {
 		this.request = new globals.Request(this._input, this._options);
 
 		if (this._options.searchParams) {
-			const url = new URL(this.request.url);
-			url.search = new URLSearchParams(this._options.searchParams);
+			const searchParams = '?' + new URLSearchParams(this._options.searchParams).toString();
+			const url = this.request.url.replace(/(?:\?.*?)?(?=#|$)/, searchParams);
 
 			// To provide correct form boundary, Content-Type header should be deleted each time when new Request instantiated from another one
 			if (((supportsFormData && this._options.body instanceof globals.FormData) || this._options.body instanceof URLSearchParams) && !(this._options.headers && this._options.headers['content-type'])) {

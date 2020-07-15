@@ -302,7 +302,7 @@ test('retry with body', withPage, async (t, page) => {
 	});
 	server.put('/test', async (request, response) => {
 		requestCount++;
-		t.is(request.body, 'foo');
+		t.is(await pBody(request), 'foo');
 		response.sendStatus(502);
 	});
 
