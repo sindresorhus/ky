@@ -8,6 +8,33 @@ const echoHeaders = (request, response) => {
 	response.end(JSON.stringify(request.headers));
 };
 
+test.serial('works with nullish headers even in old browsers', async t => {
+	t.plan(4);
+
+	const server = await createTestServer();
+	server.get('/', echoHeaders);
+
+	const OriginalHeaders = Headers;
+	// Some old browsers throw for new Headers(undefined) or new Headers(null)
+	// so we check that Ky never does that and passes an empty object instead.
+	// See: https://github.com/sindresorhus/ky/issues/260
+	global.Headers = class Headers extends OriginalHeaders {
+		constructor(headersInit) {
+			t.deepEqual(headersInit, {});
+			super(headersInit);
+		}
+	};
+
+	const response = await ky.get(server.url).json();
+
+	t.is(typeof response, 'object');
+	t.truthy(response);
+
+	await server.close();
+
+	global.Headers = OriginalHeaders;
+});
+
 test('`user-agent`', async t => {
 	const server = await createTestServer();
 	server.get('/', echoHeaders);

@@ -49,9 +49,9 @@ const supportsStreams = typeof globals.ReadableStream === 'function';
 const supportsFormData = typeof globals.FormData === 'function';
 
 const mergeHeaders = (source1, source2) => {
-	const result = new globals.Headers(source1);
+	const result = new globals.Headers(source1 || {});
 	const isHeadersInstance = source2 instanceof globals.Headers;
-	const source = new globals.Headers(source2);
+	const source = new globals.Headers(source2 || {});
 
 	for (const [key, value] of source) {
 		if ((isHeadersInstance && value === 'undefined') || value === undefined) {
