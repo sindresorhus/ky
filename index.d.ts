@@ -332,6 +332,8 @@ export interface Options extends Omit<RequestInit, 'headers'> {
 	```
 	*/
 	onDownloadProgress?: (progress: DownloadProgress, chunk: Uint8Array) => void;
+
+	fetch?: (input: RequestInfo, init?: RequestInit) => Promise<Response>;
 }
 
 /**

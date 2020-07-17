@@ -289,6 +289,14 @@ class Ky {
 			this.request = new globals.Request(this.request, {body: this._options.body});
 		}
 
+		if (this._options.fetch !== undefined) {
+			Object.defineProperty(globals, 'fetch', {
+				get() {
+					return this._options.fetch;
+				}
+			});
+		}
+
 		const fn = async () => {
 			if (this._options.timeout > maxSafeTimeout) {
 				throw new RangeError(`The \`timeout\` option cannot be greater than ${maxSafeTimeout}`);
