@@ -333,6 +333,26 @@ export interface Options extends Omit<RequestInit, 'headers'> {
 	*/
 	onDownloadProgress?: (progress: DownloadProgress, chunk: Uint8Array) => void;
 
+	/**
+	User-defined fetch function.
+
+	Use-cases:
+	1. Use custom `fetch` implementations like [isomorphic-unfetch](https://www.npmjs.com/package/isomorphic-unfetch).
+	2. Use the `fetch` wrapper function provided by some frameworks that use server-side rendering (SSR).
+
+	 @default fetch()
+
+	```js
+	import ky from 'ky';
+	import fetch from 'isomorphic-unfetch';
+
+	(async () => {
+		const parsed = await ky('https://example.com', {
+			fetch: fetch
+		}).json();
+	})();
+	```
+	 */
 	fetch?: (input: RequestInfo, init?: RequestInit) => Promise<Response>;
 }
 
