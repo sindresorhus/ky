@@ -292,7 +292,7 @@ class Ky {
 
 		if (this._options.fetch !== undefined) {
 			Object.defineProperty(globals, 'fetch', {
-				get() {
+				get: () => {
 					return this._options.fetch;
 				}
 			});
