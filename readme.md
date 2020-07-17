@@ -368,14 +368,6 @@ import bourne from '@hapijs/bourne';
 })();
 ```
 
-Please note that this option only works when using it like `ky(…).json()` (like in the example above).
-It won't work if you first get the response object and then call `.json()` on it:
-
-```js
-const response = await ky('https://example.com');
-const parsed = await response.json(); // Won't use `parseJson` option there!
-```
-
 ### ky.extend(defaultOptions)
 
 Create a new `ky` instance with some defaults overridden with your own.
