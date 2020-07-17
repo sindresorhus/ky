@@ -328,6 +328,12 @@ class Ky {
 				return this._stream(response.clone(), this._options.onDownloadProgress);
 			}
 
+			if (this._options.parseJson) {
+				response.json = async () => {
+					return this._options.parseJson(await response.text());
+				};
+			}
+
 			return response;
 		};
 
@@ -337,8 +343,20 @@ class Ky {
 		for (const [type, mimeType] of Object.entries(responseTypes)) {
 			result[type] = async () => {
 				this.request.headers.set('accept', this.request.headers.get('accept') || mimeType);
+
 				const response = (await result).clone();
-				return (type === 'json' && response.status === 204) ? '' : response[type]();
+
+				if (type === 'json') {
+					if (response.status === 204) {
+						return '';
+					}
+
+					if (options.parseJson) {
+						return options.parseJson(await response.text());
+					}
+				}
+
+				return response[type]();
 			};
 		}
 

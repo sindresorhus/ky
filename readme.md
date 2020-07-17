@@ -346,6 +346,28 @@ import ky from 'ky';
 })();
 ```
 
+##### parseJson
+
+Type: `Function`\
+Default: `JSON.parse()`
+
+User-defined JSON-parsing function.
+
+Use-cases:
+1. Parse JSON via the [`bourne` package](https://github.com/hapijs/bourne) to protect from prototype pollution.
+2. Parse JSON with [`reviver` option of `JSON.parse()`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/JSON/parse).
+
+```js
+import ky from 'ky';
+import bourne from '@hapijs/bourne';
+
+(async () => {
+	const parsed = await ky('https://example.com', {
+		parseJson: text => bourne(text)
+	}).json();
+})();
+```
+
 ### ky.extend(defaultOptions)
 
 Create a new `ky` instance with some defaults overridden with your own.
