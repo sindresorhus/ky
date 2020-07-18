@@ -22,10 +22,10 @@ test.serial('fetch option takes a custom fetch function', async t => {
 		return new Response(input.url);
 	};
 
-	t.is(await ky('/unicorn', { fetch: customFetch }).text(), '/unicorn');
-	t.is(await ky('/unicorn', { fetch: customFetch, searchParams: { foo: 'bar' } }).text(), '/unicorn?foo=bar');
-	t.is(await ky('/unicorn#hash', { fetch: customFetch, searchParams: 'foo' }).text(), '/unicorn?foo=#hash');
-	t.is(await ky('/unicorn?old', { fetch: customFetch, searchParams: 'new' }).text(), '/unicorn?new=');
-	t.is(await ky('/unicorn?old#hash', { fetch: customFetch, searchParams: 'new' }).text(), '/unicorn?new=#hash');
-	t.is(await ky('unicorn', { fetch: customFetch, prefixUrl: '/api/' }).text(), '/api/unicorn');
+	t.is(await ky('/unicorn', {fetch: customFetch}).text(), '/unicorn');
+	t.is(await ky('/unicorn', {fetch: customFetch, searchParams: { foo: 'bar'} }).text(), '/unicorn?foo=bar');
+	t.is(await ky('/unicorn#hash', {fetch: customFetch, searchParams: 'foo'}).text(), '/unicorn?foo=#hash');
+	t.is(await ky('/unicorn?old', {fetch: customFetch, searchParams: 'new'}).text(), '/unicorn?new=');
+	t.is(await ky('/unicorn?old#hash', {fetch: customFetch, searchParams: 'new'}).text(), '/unicorn?new=#hash');
+	t.is(await ky('unicorn', {fetch: customFetch, prefixUrl: '/api/'}).text(), '/api/unicorn');
 });
