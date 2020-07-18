@@ -167,7 +167,7 @@ class TimeoutError extends Error {
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 
 // `Promise.race()` workaround (#91)
-const timeout = (request, ms, abortController) =>
+const timeout = (request, abortController, options) =>
 	new Promise((resolve, reject) => {
 		const timeoutID = setTimeout(() => {
 			if (abortController) {
@@ -175,10 +175,10 @@ const timeout = (request, ms, abortController) =>
 			}
 
 			reject(new TimeoutError(request));
-		}, ms);
+		}, options.timeout);
 
 		/* eslint-disable promise/prefer-await-to-then */
-		globals.fetch(request)
+		options.fetch(request)
 			.then(resolve)
 			.catch(reject)
 			.then(() => {
@@ -240,7 +240,8 @@ class Ky {
 			prefixUrl: String(options.prefixUrl || ''),
 			retry: normalizeRetryOptions(options.retry),
 			throwHttpErrors: options.throwHttpErrors !== false,
-			timeout: typeof options.timeout === 'undefined' ? 10000 : options.timeout
+			timeout: typeof options.timeout === 'undefined' ? 10000 : options.timeout,
+			fetch: options.fetch || globals.fetch
 		};
 
 		if (typeof this._input !== 'string' && !(this._input instanceof URL || this._input instanceof globals.Request)) {
@@ -288,14 +289,6 @@ class Ky {
 			this._options.body = JSON.stringify(this._options.json);
 			this.request.headers.set('content-type', 'application/json');
 			this.request = new globals.Request(this.request, {body: this._options.body});
-		}
-
-		if (this._options.fetch !== undefined) {
-			Object.defineProperty(globals, 'fetch', {
-				get: () => {
-					return this._options.fetch;
-				}
-			});
 		}
 
 		const fn = async () => {
@@ -458,10 +451,10 @@ class Ky {
 		}
 
 		if (this._options.timeout === false) {
-			return globals.fetch(this.request.clone());
+			return this._options.fetch(this.request.clone());
 		}
 
-		return timeout(this.request.clone(), this._options.timeout, this.abortController);
+		return timeout(this.request.clone(), this.abortController, this._options);
 	}
 
 	/* istanbul ignore next */
