@@ -371,12 +371,12 @@ import bourne from '@hapijs/bourne';
 ##### fetch
 
 Type: `Function`\
-Default: `fetch()`
+Default: `fetch`
 
-User-defined fetch function.
+User-defined `fetch` function.
 
 Use-cases:
-1. Use custom `fetch` implementations like [isomorphic-unfetch](https://www.npmjs.com/package/isomorphic-unfetch).
+1. Use custom `fetch` implementations like [`isomorphic-unfetch`](https://www.npmjs.com/package/isomorphic-unfetch).
 2. Use the `fetch` wrapper function provided by some frameworks that use server-side rendering (SSR).
 
 ```js
