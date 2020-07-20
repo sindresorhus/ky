@@ -317,7 +317,7 @@ import ky from 'ky';
 Type: `boolean`\
 Default: `true`
 
-Throw an `HTTPError` when, after following redirects, the response has a non-2xx status code. To also throw for redirects, set the [`redirect`](https://developer.mozilla.org/en-US/docs/Web/API/WindowOrWorkerGlobalScope/fetch#Parameters) option to `'manual'`.
+Throw an `HTTPError` when, after following redirects, the response has a non-2xx status code. To also throw for redirects instead of following them, set the [`redirect`](https://developer.mozilla.org/en-US/docs/Web/API/WindowOrWorkerGlobalScope/fetch#Parameters) option to `'manual'`.
 
 Setting this to `false` may be useful if you are checking for resource availability and are expecting error responses.
 
