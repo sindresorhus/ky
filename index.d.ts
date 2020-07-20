@@ -349,7 +349,7 @@ export interface Options extends Omit<RequestInit, 'headers'> {
 
 	(async () => {
 		const parsed = await ky('https://example.com', {
-			fetch: fetch
+			fetch,
 		}).json();
 	})();
 	```
