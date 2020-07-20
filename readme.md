@@ -374,6 +374,7 @@ Type: `Function`\
 Default: `fetch`
 
 User-defined `fetch` function.
+Has to be fully compatible with the [Fetch API](https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API) standard.
 
 Use-cases:
 1. Use custom `fetch` implementations like [`isomorphic-unfetch`](https://www.npmjs.com/package/isomorphic-unfetch).
