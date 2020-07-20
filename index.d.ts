@@ -332,6 +332,30 @@ export interface Options extends Omit<RequestInit, 'headers'> {
 	```
 	*/
 	onDownloadProgress?: (progress: DownloadProgress, chunk: Uint8Array) => void;
+
+	/**
+	User-defined `fetch` function.
+	Has to be fully compatible with the [Fetch API](https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API) standard.
+
+	Use-cases:
+	1. Use custom `fetch` implementations like [`isomorphic-unfetch`](https://www.npmjs.com/package/isomorphic-unfetch).
+	2. Use the `fetch` wrapper function provided by some frameworks that use server-side rendering (SSR).
+
+	@default fetch
+
+	@example
+	```
+	import ky from 'ky';
+	import fetch from 'isomorphic-unfetch';
+
+	(async () => {
+		const parsed = await ky('https://example.com', {
+			fetch
+		}).json();
+	})();
+	```
+	*/
+	fetch?: (input: RequestInfo, init?: RequestInit) => Promise<Response>;
 }
 
 /**
