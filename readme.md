@@ -22,7 +22,7 @@ It's just a tiny file with no dependencies.
 
 - Simpler API
 - Method shortcuts (`ky.post()`)
-- Treats non-2xx status codes as errors
+- Treats non-2xx status codes as errors (after redirects)
 - Retries failed requests
 - JSON option
 - Timeout support
@@ -317,7 +317,7 @@ import ky from 'ky';
 Type: `boolean`\
 Default: `true`
 
-Throw a `HTTPError` for error responses (non-2xx status codes).
+Throw an `HTTPError` when, after following redirects, the response has a non-2xx status code. To also throw for redirects, set the [`redirect`](https://developer.mozilla.org/en-US/docs/Web/API/WindowOrWorkerGlobalScope/fetch#Parameters) option to `'manual'`.
 
 Setting this to `false` may be useful if you are checking for resource availability and are expecting error responses.
 
