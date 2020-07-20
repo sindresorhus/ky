@@ -39,8 +39,7 @@ for (const property of globalProperties) {
 			const globalObject = getGlobal(property);
 			const value = globalObject && globalObject[property];
 			return typeof value === 'function' ? value.bind(globalObject) : value;
-		},
-		configurable: true
+		}
 	});
 }
 
