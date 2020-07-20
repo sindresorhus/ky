@@ -17,8 +17,11 @@ test.serial('relative URLs are passed to fetch unresolved', async t => {
 	global.fetch = originalFetch;
 });
 
-test.serial('fetch option takes a custom fetch function', async t => {
+test('fetch option takes a custom fetch function', async t => {
+	t.plan(7);
+
 	const customFetch = async input => {
+		t.is(input instanceof Request);
 		return new Response(input.url);
 	};
 
