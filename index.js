@@ -311,6 +311,12 @@ class Ky {
 				}
 			}
 
+			if (this._options.parseJson) {
+				response.json = async () => {
+					return this._options.parseJson(await response.text());
+				};
+			}
+
 			if (!response.ok && this._options.throwHttpErrors) {
 				throw new HTTPError(response);
 			}
@@ -327,12 +333,6 @@ class Ky {
 				}
 
 				return this._stream(response.clone(), this._options.onDownloadProgress);
-			}
-
-			if (this._options.parseJson) {
-				response.json = async () => {
-					return this._options.parseJson(await response.text());
-				};
 			}
 
 			return response;
@@ -415,7 +415,6 @@ class Ky {
 						request: this.request,
 						options: this._options,
 						error,
-						response: error.response.clone(),
 						retryCount: this._retryCount
 					});
 

@@ -378,6 +378,85 @@ test('beforeRetry hook is called with error and retryCount', async t => {
 	await server.close();
 });
 
+test('beforeRetry hook is called even if the error has no response', async t => {
+	t.plan(5);
+
+	let requestCount = 0;
+
+	const server = await createTestServer();
+	server.get('/', async (request, response) => {
+		requestCount++;
+		response.end('unicorn');
+	});
+
+	const text = await ky.get(server.url, {
+		retry: 2,
+		async fetch(request) {
+			if (requestCount === 0) {
+				requestCount++;
+				throw new Error('simulated network failure');
+			}
+
+			return global.fetch(request);
+		},
+		hooks: {
+			beforeRetry: [
+				({error, retryCount}) => {
+					t.is(error.message, 'simulated network failure');
+					t.is(retryCount, 1);
+					t.is(requestCount, 1);
+				}
+			]
+		}
+	}).text();
+
+	t.is(text, 'unicorn');
+	t.is(requestCount, 2);
+
+	await server.close();
+});
+
+test('beforeRetry hook with parseJson and error.response', async t => {
+	t.plan(10);
+
+	let requestCount = 0;
+
+	const server = await createTestServer();
+	server.get('/', async (request, response) => {
+		requestCount++;
+		if (requestCount === 1) {
+			response.status(502).end('text');
+		} else {
+			response.end('text');
+		}
+	});
+
+	const json = await ky.get(server.url, {
+		retry: 2,
+		parseJson(text) {
+			t.is(text, 'text');
+			return {awesome: true};
+		},
+		hooks: {
+			beforeRetry: [
+				async ({error, retryCount}) => {
+					t.true(error instanceof ky.HTTPError);
+					t.is(error.message, 'Bad Gateway');
+					t.true(error.response instanceof Response);
+					t.deepEqual(await error.response.json(), {awesome: true});
+					t.is(retryCount, 1);
+					t.is(requestCount, 1);
+				}
+			]
+		}
+	}).json();
+
+	t.deepEqual(json, {awesome: true});
+	t.is(requestCount, 2);
+
+	await server.close();
+});
+
 test('beforeRetry hook can cancel retries by returning `stop`', async t => {
 	let requestCount = 0;
 
