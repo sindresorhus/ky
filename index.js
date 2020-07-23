@@ -303,7 +303,7 @@ class Ky {
 				const modifiedResponse = await hook(
 					this.request,
 					this._options,
-					response.clone()
+					this._decorateResponse(response.clone())
 				);
 
 				if (modifiedResponse instanceof globals.Response) {
@@ -311,11 +311,7 @@ class Ky {
 				}
 			}
 
-			if (this._options.parseJson) {
-				response.json = async () => {
-					return this._options.parseJson(await response.text());
-				};
-			}
+			this._decorateResponse(response);
 
 			if (!response.ok && this._options.throwHttpErrors) {
 				throw new HTTPError(response);
@@ -399,6 +395,16 @@ class Ky {
 		}
 
 		return 0;
+	}
+
+	_decorateResponse(response) {
+		if (this._options.parseJson) {
+			response.json = async () => {
+				return this._options.parseJson(await response.text());
+			};
+		}
+
+		return response;
 	}
 
 	async _retry(fn) {

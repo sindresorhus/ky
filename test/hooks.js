@@ -292,6 +292,34 @@ test('`afterResponse` hook is called with request, normalized options, and respo
 	await server.close();
 });
 
+test('afterResponse hook with parseJson and response.json()', async t => {
+	t.plan(5);
+
+	const server = await createTestServer();
+	server.get('/', async (request, response) => {
+		response.end('text');
+	});
+
+	const json = await ky.get(server.url, {
+		parseJson(text) {
+			t.is(text, 'text');
+			return {awesome: true};
+		},
+		hooks: {
+			afterResponse: [
+				async (request, options, response) => {
+					t.true(response instanceof Response);
+					t.deepEqual(await response.json(), {awesome: true});
+				}
+			]
+		}
+	}).json();
+
+	t.deepEqual(json, {awesome: true});
+
+	await server.close();
+});
+
 test('beforeRetry hook is never called for the initial request', async t => {
 	const fixture = 'fixture';
 	const server = await createTestServer();
@@ -416,7 +444,7 @@ test('beforeRetry hook is called even if the error has no response', async t => 
 	await server.close();
 });
 
-test('beforeRetry hook with parseJson and error.response', async t => {
+test('beforeRetry hook with parseJson and error.response.json()', async t => {
 	t.plan(10);
 
 	let requestCount = 0;
