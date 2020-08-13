@@ -74,7 +74,7 @@ With plain `fetch`, it would be:
 	});
 
 	if (!response.ok) {
-		throw new HTTPError('Fetch error:', response.statusText);
+		throw new HTTPError('Fetch error: ' + response.statusText);
 	}
 
 	const parsed = await response.json();
