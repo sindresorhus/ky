@@ -396,7 +396,7 @@ test('beforeRetry hook is called with error and retryCount', async t => {
 		hooks: {
 			beforeRetry: [
 				({error, retryCount}) => {
-					t.truthy(error);
+					t.true(error instanceof ky.HTTPError);
 					t.true(retryCount >= 1);
 				}
 			]
@@ -407,7 +407,7 @@ test('beforeRetry hook is called with error and retryCount', async t => {
 });
 
 test('beforeRetry hook is called even if the error has no response', async t => {
-	t.plan(5);
+	t.plan(6);
 
 	let requestCount = 0;
 
@@ -431,6 +431,7 @@ test('beforeRetry hook is called even if the error has no response', async t => 
 			beforeRetry: [
 				({error, retryCount}) => {
 					t.is(error.message, 'simulated network failure');
+					t.is(error.response, undefined);
 					t.is(retryCount, 1);
 					t.is(requestCount, 1);
 				}
