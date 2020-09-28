@@ -48,7 +48,9 @@ export interface Hooks {
 	beforeRequest?: BeforeRequestHook[];
 
 	/**
-	This hook enables you to modify the request right before retry. Ky will make no further changes to the request after this. The hook function receives the normalized input and options, an error instance and the retry count as arguments. You could, for example, modify `options.headers` here.
+	This hook enables you to modify the request right before retry. Ky will make no further changes to the request after this. The hook function receives an object with the normalized request and options, an error instance, and the retry count. You could, for example, modify `request.headers` here.
+
+	If the request received a response, it will be available at `error.response`. Be aware that some types of errors, such as network errors, inherently mean that a response was not received.
 
 	@example
 	```
@@ -58,7 +60,7 @@ export interface Hooks {
 		await ky('https://example.com', {
 			hooks: {
 				beforeRetry: [
-					async (input, options, errors, retryCount) => {
+					async ({request, options, error, retryCount}) => {
 						const token = await ky('https://example.com/refresh-token');
 						options.headers.set('Authorization', `token ${token}`);
 					}
@@ -522,7 +524,7 @@ declare const ky: {
 		await ky('https://example.com', {
 			hooks: {
 				beforeRetry: [
-					async (request, options, errors, retryCount) => {
+					async ({request, options, error, retryCount}) => {
 						const shouldStopRetry = await ky('https://example.com/api');
 						if (shouldStopRetry) {
 							return ky.stop;

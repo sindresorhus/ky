@@ -303,13 +303,15 @@ class Ky {
 				const modifiedResponse = await hook(
 					this.request,
 					this._options,
-					response.clone()
+					this._decorateResponse(response.clone())
 				);
 
 				if (modifiedResponse instanceof globals.Response) {
 					response = modifiedResponse;
 				}
 			}
+
+			this._decorateResponse(response);
 
 			if (!response.ok && this._options.throwHttpErrors) {
 				throw new HTTPError(response);
@@ -327,12 +329,6 @@ class Ky {
 				}
 
 				return this._stream(response.clone(), this._options.onDownloadProgress);
-			}
-
-			if (this._options.parseJson) {
-				response.json = async () => {
-					return this._options.parseJson(await response.text());
-				};
 			}
 
 			return response;
@@ -401,6 +397,16 @@ class Ky {
 		return 0;
 	}
 
+	_decorateResponse(response) {
+		if (this._options.parseJson) {
+			response.json = async () => {
+				return this._options.parseJson(await response.text());
+			};
+		}
+
+		return response;
+	}
+
 	async _retry(fn) {
 		try {
 			return await fn();
@@ -415,7 +421,6 @@ class Ky {
 						request: this.request,
 						options: this._options,
 						error,
-						response: error.response.clone(),
 						retryCount: this._retryCount
 					});
 
