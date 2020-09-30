@@ -14,11 +14,11 @@ export type BeforeRequestHook = (
 ) => Request | Response | void | Promise<Request | Response | void>;
 
 export type BeforeRetryHook = (options: {
-	request: Request,
-	response: Response,
-	options: NormalizedOptions,
-	error: Error,
-	retryCount: number,
+	request: Request;
+	response: Response;
+	options: NormalizedOptions;
+	error: Error;
+	retryCount: number;
 }) => void | Promise<void>;
 
 export type AfterResponseHook = (
@@ -48,7 +48,9 @@ export interface Hooks {
 	beforeRequest?: BeforeRequestHook[];
 
 	/**
-	This hook enables you to modify the request right before retry. Ky will make no further changes to the request after this. The hook function receives the normalized input and options, an error instance and the retry count as arguments. You could, for example, modify `options.headers` here.
+	This hook enables you to modify the request right before retry. Ky will make no further changes to the request after this. The hook function receives an object with the normalized request and options, an error instance, and the retry count. You could, for example, modify `request.headers` here.
+
+	If the request received a response, it will be available at `error.response`. Be aware that some types of errors, such as network errors, inherently mean that a response was not received.
 
 	@example
 	```
@@ -58,7 +60,7 @@ export interface Hooks {
 		await ky('https://example.com', {
 			hooks: {
 				beforeRetry: [
-					async (input, options, errors, retryCount) => {
+					async ({request, options, error, retryCount}) => {
 						const token = await ky('https://example.com/refresh-token');
 						options.headers.set('Authorization', `token ${token}`);
 					}
@@ -154,7 +156,7 @@ export interface RetryOptions {
 /**
 Options are the same as `window.fetch`, with some exceptions.
 */
-export interface Options extends RequestInit {
+export interface Options extends Omit<RequestInit, 'headers'> {
 	/**
 	HTTP method used to make the request.
 
@@ -163,11 +165,71 @@ export interface Options extends RequestInit {
 	method?: LiteralUnion<'get' | 'post' | 'put' | 'delete' | 'patch' | 'head', string>;
 
 	/**
+	HTTP headers used to make the request.
+
+	You can pass a `Headers` instance or a plain object.
+
+	You can remove a header with `.extend()` by passing the header with an `undefined` value.
+
+	@example
+	```
+	import ky from 'ky';
+
+	const url = 'https://sindresorhus.com';
+
+	const original = ky.create({
+		headers: {
+			rainbow: 'rainbow',
+			unicorn: 'unicorn'
+		}
+	});
+
+	const extended = original.extend({
+		headers: {
+			rainbow: undefined
+		}
+	});
+
+	const response = await extended(url).json();
+
+	console.log('rainbow' in response);
+	//=> false
+
+	console.log('unicorn' in response);
+	//=> true
+	```
+	*/
+	headers?: HeadersInit | {[key: string]: undefined};
+
+	/**
 	Shortcut for sending JSON. Use this instead of the `body` option.
 
 	Accepts any plain object or value, which will be `JSON.stringify()`'d and sent in the body with the correct header set.
 	*/
 	json?: unknown;
+
+	/**
+	User-defined JSON-parsing function.
+
+	Use-cases:
+	1. Parse JSON via the [`bourne` package](https://github.com/hapijs/bourne) to protect from prototype pollution.
+	2. Parse JSON with [`reviver` option of `JSON.parse()`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/JSON/parse).
+
+	@default JSON.parse()
+
+	@example
+	```
+	import ky from 'ky';
+	import bourne from '@hapijs/bourne';
+
+	(async () => {
+		const parsed = await ky('https://example.com', {
+			parseJson: text => bourne(text)
+		}).json();
+	})();
+	```
+	*/
+	parseJson?: (text: string) => unknown
 
 	/**
 	Search parameters to include in the request URL. Setting this will override all existing search parameters in the input URL.
@@ -242,7 +304,7 @@ export interface Options extends RequestInit {
 	hooks?: Hooks;
 
 	/**
-	Throw a `HTTPError` for error responses (non-2xx status codes).
+	Throw an `HTTPError` when, after following redirects, the response has a non-2xx status code. To also throw for redirects instead of following them, set the [`redirect`](https://developer.mozilla.org/en-US/docs/Web/API/WindowOrWorkerGlobalScope/fetch#Parameters) option to `'manual'`.
 
 	Setting this to `false` may be useful if you are checking for resource availability and are expecting error responses.
 
@@ -272,6 +334,30 @@ export interface Options extends RequestInit {
 	```
 	*/
 	onDownloadProgress?: (progress: DownloadProgress, chunk: Uint8Array) => void;
+
+	/**
+	User-defined `fetch` function.
+	Has to be fully compatible with the [Fetch API](https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API) standard.
+
+	Use-cases:
+	1. Use custom `fetch` implementations like [`isomorphic-unfetch`](https://www.npmjs.com/package/isomorphic-unfetch).
+	2. Use the `fetch` wrapper function provided by some frameworks that use server-side rendering (SSR).
+
+	@default fetch
+
+	@example
+	```
+	import ky from 'ky';
+	import fetch from 'isomorphic-unfetch';
+
+	(async () => {
+		const parsed = await ky('https://example.com', {
+			fetch
+		}).json();
+	})();
+	```
+	*/
+	fetch?: (input: RequestInfo, init?: RequestInit) => Promise<Response>;
 }
 
 /**
@@ -286,20 +372,17 @@ export interface NormalizedOptions extends RequestInit {
 	retry: Options['retry'];
 	prefixUrl: Options['prefixUrl'];
 	onDownloadProgress: Options['onDownloadProgress'];
-
-	// New type.
-	headers: Headers;
 }
 
 /**
 Returns a `Response` object with `Body` methods added for convenience. So you can, for example, call `ky.get(input).json()` directly without having to await the `Response` first. When called like that, an appropriate `Accept` header will be set depending on the body method used. Unlike the `Body` methods of `window.Fetch`; these will throw an `HTTPError` if the response status is not in the range of `200...299`. Also, `.json()` will return an empty string if the response status is `204` instead of throwing a parse error due to an empty body.
 */
 export interface ResponsePromise extends Promise<Response> {
-	arrayBuffer(): Promise<ArrayBuffer>;
+	arrayBuffer: () => Promise<ArrayBuffer>;
 
-	blob(): Promise<Blob>;
+	blob: () => Promise<Blob>;
 
-	formData(): Promise<FormData>;
+	formData: () => Promise<FormData>;
 
 	// TODO: Use `json<T extends JSONValue>(): Promise<T>;` when it's fixed in TS.
 	// See https://github.com/microsoft/TypeScript/issues/15300 and https://github.com/sindresorhus/ky/pull/80
@@ -324,9 +407,9 @@ export interface ResponsePromise extends Promise<Response> {
 	const result = await ky(…).json<Result>();
 	```
 	*/
-	json<T>(): Promise<T>;
+	json: <T>() => Promise<T>;
 
-	text(): Promise<string>;
+	text: () => Promise<string>;
 }
 
 /**
@@ -341,7 +424,7 @@ declare class HTTPError extends Error {
 The error thrown when the request times out.
 */
 declare class TimeoutError extends Error {
-	constructor();
+	constructor(request: Request);
 }
 
 declare const ky: {
@@ -371,7 +454,7 @@ declare const ky: {
 	@param url - `Request` object, `URL` object, or URL string.
 	@returns A promise with `Body` methods added.
 	*/
-	get(url: Input, options?: Options): ResponsePromise;
+	get: (url: Input, options?: Options) => ResponsePromise;
 
 	/**
 	Fetch the given `url` using the option `{method: 'post'}`.
@@ -379,7 +462,7 @@ declare const ky: {
 	@param url - `Request` object, `URL` object, or URL string.
 	@returns A promise with `Body` methods added.
 	*/
-	post(url: Input, options?: Options): ResponsePromise;
+	post: (url: Input, options?: Options) => ResponsePromise;
 
 	/**
 	Fetch the given `url` using the option `{method: 'put'}`.
@@ -387,7 +470,7 @@ declare const ky: {
 	@param url - `Request` object, `URL` object, or URL string.
 	@returns A promise with `Body` methods added.
 	*/
-	put(url: Input, options?: Options): ResponsePromise;
+	put: (url: Input, options?: Options) => ResponsePromise;
 
 	/**
 	Fetch the given `url` using the option `{method: 'delete'}`.
@@ -395,7 +478,7 @@ declare const ky: {
 	@param url - `Request` object, `URL` object, or URL string.
 	@returns A promise with `Body` methods added.
 	*/
-	delete(url: Input, options?: Options): ResponsePromise;
+	delete: (url: Input, options?: Options) => ResponsePromise;
 
 	/**
 	Fetch the given `url` using the option `{method: 'patch'}`.
@@ -403,7 +486,7 @@ declare const ky: {
 	@param url - `Request` object, `URL` object, or URL string.
 	@returns A promise with `Body` methods added.
 	*/
-	patch(url: Input, options?: Options): ResponsePromise;
+	patch: (url: Input, options?: Options) => ResponsePromise;
 
 	/**
 	Fetch the given `url` using the option `{method: 'head'}`.
@@ -411,14 +494,14 @@ declare const ky: {
 	@param url - `Request` object, `URL` object, or URL string.
 	@returns A promise with `Body` methods added.
 	*/
-	head(url: Input, options?: Options): ResponsePromise;
+	head: (url: Input, options?: Options) => ResponsePromise;
 
 	/**
 	Create a new Ky instance with complete new defaults.
 
 	@returns A new Ky instance.
 	*/
-	create(defaultOptions: Options): typeof ky;
+	create: (defaultOptions: Options) => typeof ky;
 
 	/**
 	Create a new Ky instance with some defaults overridden with your own.
@@ -427,7 +510,7 @@ declare const ky: {
 
 	@returns A new Ky instance.
 	*/
-	extend(defaultOptions: Options): typeof ky;
+	extend: (defaultOptions: Options) => typeof ky;
 
 	/**
 	A `Symbol` that can be returned by a `beforeRetry` hook to stop the retry.
@@ -441,7 +524,7 @@ declare const ky: {
 		await ky('https://example.com', {
 			hooks: {
 				beforeRetry: [
-					async (request, options, errors, retryCount) => {
+					async ({request, options, error, retryCount}) => {
 						const shouldStopRetry = await ky('https://example.com/api');
 						if (shouldStopRetry) {
 							return ky.stop;
@@ -459,8 +542,8 @@ declare const ky: {
 };
 
 declare namespace ky {
-	export type TimeoutError = InstanceType<typeof ky.TimeoutError>;
-	export type HTTPError = InstanceType<typeof ky.HTTPError>;
+	export type TimeoutError = InstanceType<typeof TimeoutError>;
+	export type HTTPError = InstanceType<typeof HTTPError>;
 }
 
 export default ky;

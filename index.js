@@ -48,8 +48,25 @@ const supportsAbortController = typeof globals.AbortController === 'function';
 const supportsStreams = typeof globals.ReadableStream === 'function';
 const supportsFormData = typeof globals.FormData === 'function';
 
+const mergeHeaders = (source1, source2) => {
+	const result = new globals.Headers(source1 || {});
+	const isHeadersInstance = source2 instanceof globals.Headers;
+	const source = new globals.Headers(source2 || {});
+
+	for (const [key, value] of source) {
+		if ((isHeadersInstance && value === 'undefined') || value === undefined) {
+			result.delete(key);
+		} else {
+			result.set(key, value);
+		}
+	}
+
+	return result;
+};
+
 const deepMerge = (...sources) => {
 	let returnValue = {};
+	let headers = {};
 
 	for (const source of sources) {
 		if (Array.isArray(source)) {
@@ -66,7 +83,13 @@ const deepMerge = (...sources) => {
 
 				returnValue = {...returnValue, [key]: value};
 			}
+
+			if (isObject(source.headers)) {
+				headers = mergeHeaders(headers, source.headers);
+			}
 		}
+
+		returnValue.headers = headers;
 	}
 
 	return returnValue;
@@ -118,34 +141,43 @@ const stop = Symbol('stop');
 
 class HTTPError extends Error {
 	constructor(response) {
-		super(response.statusText);
+		// Set the message to the status text, such as Unauthorized,
+		// with some fallbacks. This message should never be undefined.
+		super(
+			response.statusText ||
+			String(
+				(response.status === 0 || response.status) ?
+					response.status : 'Unknown response error'
+			)
+		);
 		this.name = 'HTTPError';
 		this.response = response;
 	}
 }
 
 class TimeoutError extends Error {
-	constructor() {
+	constructor(request) {
 		super('Request timed out');
 		this.name = 'TimeoutError';
+		this.request = request;
 	}
 }
 
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 
 // `Promise.race()` workaround (#91)
-const timeout = (promise, ms, abortController) =>
+const timeout = (request, abortController, options) =>
 	new Promise((resolve, reject) => {
 		const timeoutID = setTimeout(() => {
 			if (abortController) {
 				abortController.abort();
 			}
 
-			reject(new TimeoutError());
-		}, ms);
+			reject(new TimeoutError(request));
+		}, options.timeout);
 
 		/* eslint-disable promise/prefer-await-to-then */
-		promise
+		options.fetch(request)
 			.then(resolve)
 			.catch(reject)
 			.then(() => {
@@ -197,6 +229,7 @@ class Ky {
 			// TODO: credentials can be removed when the spec change is implemented in all browsers. Context: https://www.chromestatus.com/feature/4539473312350208
 			credentials: this._input.credentials || 'same-origin',
 			...options,
+			headers: mergeHeaders(this._input.headers, options.headers),
 			hooks: deepMerge({
 				beforeRequest: [],
 				beforeRetry: [],
@@ -206,7 +239,8 @@ class Ky {
 			prefixUrl: String(options.prefixUrl || ''),
 			retry: normalizeRetryOptions(options.retry),
 			throwHttpErrors: options.throwHttpErrors !== false,
-			timeout: typeof options.timeout === 'undefined' ? 10000 : options.timeout
+			timeout: typeof options.timeout === 'undefined' ? 10000 : options.timeout,
+			fetch: options.fetch || globals.fetch
 		};
 
 		if (typeof this._input !== 'string' && !(this._input instanceof URL || this._input instanceof globals.Request)) {
@@ -239,8 +273,8 @@ class Ky {
 		this.request = new globals.Request(this._input, this._options);
 
 		if (this._options.searchParams) {
-			const url = new URL(this.request.url);
-			url.search = new URLSearchParams(this._options.searchParams);
+			const searchParams = '?' + new URLSearchParams(this._options.searchParams).toString();
+			const url = this.request.url.replace(/(?:\?.*?)?(?=#|$)/, searchParams);
 
 			// To provide correct form boundary, Content-Type header should be deleted each time when new Request instantiated from another one
 			if (((supportsFormData && this._options.body instanceof globals.FormData) || this._options.body instanceof URLSearchParams) && !(this._options.headers && this._options.headers['content-type'])) {
@@ -269,13 +303,15 @@ class Ky {
 				const modifiedResponse = await hook(
 					this.request,
 					this._options,
-					response.clone()
+					this._decorateResponse(response.clone())
 				);
 
 				if (modifiedResponse instanceof globals.Response) {
 					response = modifiedResponse;
 				}
 			}
+
+			this._decorateResponse(response);
 
 			if (!response.ok && this._options.throwHttpErrors) {
 				throw new HTTPError(response);
@@ -304,8 +340,20 @@ class Ky {
 		for (const [type, mimeType] of Object.entries(responseTypes)) {
 			result[type] = async () => {
 				this.request.headers.set('accept', this.request.headers.get('accept') || mimeType);
+
 				const response = (await result).clone();
-				return (type === 'json' && response.status === 204) ? '' : response[type]();
+
+				if (type === 'json') {
+					if (response.status === 204) {
+						return '';
+					}
+
+					if (options.parseJson) {
+						return options.parseJson(await response.text());
+					}
+				}
+
+				return response[type]();
 			};
 		}
 
@@ -349,6 +397,16 @@ class Ky {
 		return 0;
 	}
 
+	_decorateResponse(response) {
+		if (this._options.parseJson) {
+			response.json = async () => {
+				return this._options.parseJson(await response.text());
+			};
+		}
+
+		return response;
+	}
+
 	async _retry(fn) {
 		try {
 			return await fn();
@@ -363,7 +421,6 @@ class Ky {
 						request: this.request,
 						options: this._options,
 						error,
-						response: error.response.clone(),
 						retryCount: this._retryCount
 					});
 
@@ -398,10 +455,10 @@ class Ky {
 		}
 
 		if (this._options.timeout === false) {
-			return globals.fetch(this.request.clone());
+			return this._options.fetch(this.request.clone());
 		}
 
-		return timeout(globals.fetch(this.request.clone()), this._options.timeout, this.abortController);
+		return timeout(this.request.clone(), this.abortController, this._options);
 	}
 
 	/* istanbul ignore next */

@@ -333,19 +333,19 @@ test('searchParams option', async t => {
 		response.end(request.url.slice(1));
 	});
 
-	const arrayParams = [['cats', 'meow'], ['dogs', true], ['opossums', false]];
-	const objectParams = {
+	const arrayParameters = [['cats', 'meow'], ['dogs', true], ['opossums', false]];
+	const objectParameters = {
 		cats: 'meow',
 		dogs: true,
 		opossums: false
 	};
-	const searchParams = new URLSearchParams(arrayParams);
-	const stringParams = '?cats=meow&dogs=true&opossums=false';
+	const searchParameters = new URLSearchParams(arrayParameters);
+	const stringParameters = '?cats=meow&dogs=true&opossums=false';
 
-	t.is(await ky(server.url, {searchParams: arrayParams}).text(), stringParams);
-	t.is(await ky(server.url, {searchParams: objectParams}).text(), stringParams);
-	t.is(await ky(server.url, {searchParams}).text(), stringParams);
-	t.is(await ky(server.url, {searchParams: stringParams}).text(), stringParams);
+	t.is(await ky(server.url, {searchParams: arrayParameters}).text(), stringParameters);
+	t.is(await ky(server.url, {searchParams: objectParameters}).text(), stringParameters);
+	t.is(await ky(server.url, {searchParams: searchParameters}).text(), stringParameters);
+	t.is(await ky(server.url, {searchParams: stringParameters}).text(), stringParameters);
 
 	await server.close();
 });
@@ -582,6 +582,53 @@ test('POST JSON with falsey value', async t => { // #222
 	const responseJson = await ky.post(server.url, {json}).json();
 
 	t.deepEqual(responseJson, json);
+
+	await server.close();
+});
+
+test('parseJson option with response.json()', async t => {
+	const json = {hello: 'world'};
+
+	const server = await createTestServer();
+	server.get('/', async (request, response) => {
+		response.json(json);
+	});
+
+	const response = await ky.get(server.url, {
+		parseJson: text => ({
+			...JSON.parse(text),
+			extra: 'extraValue'
+		})
+	});
+	const responseJson = await response.json();
+
+	t.deepEqual(responseJson, {
+		...json,
+		extra: 'extraValue'
+	});
+
+	await server.close();
+});
+
+test('parseJson option with promise.json() shortcut', async t => {
+	const json = {hello: 'world'};
+
+	const server = await createTestServer();
+	server.get('/', async (request, response) => {
+		response.json(json);
+	});
+
+	const responseJson = await ky.get(server.url, {
+		parseJson: text => ({
+			...JSON.parse(text),
+			extra: 'extraValue'
+		})
+	}).json();
+
+	t.deepEqual(responseJson, {
+		...json,
+		extra: 'extraValue'
+	});
 
 	await server.close();
 });

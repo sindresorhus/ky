@@ -22,7 +22,7 @@ It's just a tiny file with no dependencies.
 
 - Simpler API
 - Method shortcuts (`ky.post()`)
-- Treats non-2xx status codes as errors
+- Treats non-2xx status codes as errors (after redirects)
 - Retries failed requests
 - JSON option
 - Timeout support
@@ -74,7 +74,7 @@ With plain `fetch`, it would be:
 	});
 
 	if (!response.ok) {
-		throw new HTTPError('Fetch error:', response.statusText);
+		throw new HTTPError(`Fetch error: ${response.statusText}`);
 	}
 
 	const parsed = await response.json();
@@ -127,7 +127,7 @@ Type: `object`
 ##### method
 
 Type: `string`\
-Default: `get`
+Default: `'get'`
 
 HTTP method used to make the request.
 
@@ -253,7 +253,9 @@ const api = ky.extend({
 Type: `Function[]`\
 Default: `[]`
 
-This hook enables you to modify the request right before retry. Ky will make no further changes to the request after this. The hook function receives the normalized request and options, the failed response, an error instance and the retry count as arguments. You could, for example, modify `request.headers` here.
+This hook enables you to modify the request right before retry. Ky will make no further changes to the request after this. The hook function receives an object with the normalized request and options, an error instance, and the retry count. You could, for example, modify `request.headers` here.
+
+If the request received a response, it will be available at `error.response`. Be aware that some types of errors, such as network errors, inherently mean that a response was not received.
 
 ```js
 import ky from 'ky';
@@ -262,7 +264,7 @@ import ky from 'ky';
 	await ky('https://example.com', {
 		hooks: {
 			beforeRetry: [
-				async ({request, response, options, errors, retryCount}) => {
+				async ({request, options, error, retryCount}) => {
 					const token = await ky('https://example.com/refresh-token');
 					request.headers.set('Authorization', `token ${token}`);
 				}
@@ -317,7 +319,7 @@ import ky from 'ky';
 Type: `boolean`\
 Default: `true`
 
-Throw a `HTTPError` for error responses (non-2xx status codes).
+Throw an `HTTPError` when, after following redirects, the response has a non-2xx status code. To also throw for redirects instead of following them, set the [`redirect`](https://developer.mozilla.org/en-US/docs/Web/API/WindowOrWorkerGlobalScope/fetch#Parameters) option to `'manual'`.
 
 Setting this to `false` may be useful if you are checking for resource availability and are expecting error responses.
 
@@ -346,11 +348,88 @@ import ky from 'ky';
 })();
 ```
 
+##### parseJson
+
+Type: `Function`\
+Default: `JSON.parse()`
+
+User-defined JSON-parsing function.
+
+Use-cases:
+1. Parse JSON via the [`bourne` package](https://github.com/hapijs/bourne) to protect from prototype pollution.
+2. Parse JSON with [`reviver` option of `JSON.parse()`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/JSON/parse).
+
+```js
+import ky from 'ky';
+import bourne from '@hapijs/bourne';
+
+(async () => {
+	const parsed = await ky('https://example.com', {
+		parseJson: text => bourne(text)
+	}).json();
+})();
+```
+
+##### fetch
+
+Type: `Function`\
+Default: `fetch`
+
+User-defined `fetch` function.
+Has to be fully compatible with the [Fetch API](https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API) standard.
+
+Use-cases:
+1. Use custom `fetch` implementations like [`isomorphic-unfetch`](https://www.npmjs.com/package/isomorphic-unfetch).
+2. Use the `fetch` wrapper function provided by some frameworks that use server-side rendering (SSR).
+
+```js
+import ky from 'ky';
+import fetch from 'isomorphic-unfetch';
+
+(async () => {
+	const parsed = await ky('https://example.com', {
+		fetch
+	}).json();
+})();
+```
+
 ### ky.extend(defaultOptions)
 
 Create a new `ky` instance with some defaults overridden with your own.
 
 In contrast to `ky.create()`, `ky.extend()` inherits defaults from its parent.
+
+You can pass headers as a `Headers` instance or a plain object.
+
+You can remove a header with `.extend()` by passing the header with an `undefined` value.
+Passing `undefined` as a string removes the header only if it comes from a `Headers` instance.
+
+```js
+import ky from 'ky';
+
+const url = 'https://sindresorhus.com';
+
+const original = ky.create({
+	headers: {
+		rainbow: 'rainbow',
+		unicorn: 'unicorn'
+	}
+});
+
+const extended = original.extend({
+	headers: {
+		rainbow: undefined
+	}
+});
+
+const response = await extended(url).json();
+
+console.log('rainbow' in response);
+//=> false
+
+console.log('unicorn' in response);
+//=> true
+```
 
 ### ky.create(defaultOptions)
 
@@ -395,7 +474,7 @@ import ky from 'ky';
 	await ky('https://example.com', {
 		hooks: {
 			beforeRetry: [
-				async ({request, response, options, errors, retryCount}) => {
+				async ({request, options, error, retryCount}) => {
 					const shouldStopRetry = await ky('https://example.com/api');
 					if (shouldStopRetry) {
 						return ky.stop;

@@ -9,6 +9,7 @@ const pBody = util.promisify(body);
 
 test('prefixUrl option', withPage, async (t, page) => {
 	const server = await createTestServer();
+
 	server.get('/', (request, response) => {
 		response.end('zebra');
 	});
@@ -19,21 +20,23 @@ test('prefixUrl option', withPage, async (t, page) => {
 	await page.goto(server.url);
 	await page.addScriptTag({path: './umd.js'});
 
-	await t.throwsAsync(async () => {
-		return page.evaluate(() => {
+	await t.throwsAsync(
+		page.evaluate(() => {
 			return window.ky('/foo', {prefixUrl: '/'});
-		});
-	}, {message: /`input` must not begin with a slash when using `prefixUrl`/});
+		}),
+		{message: /`input` must not begin with a slash when using `prefixUrl`/}
+	);
 
-	const unprefixed = await page.evaluate(url => {
-		return window.ky(`${url}/api/unicorn`).text();
+	const results = await page.evaluate(url => {
+		return Promise.all([
+			window.ky(`${url}/api/unicorn`).text(),
+			window.ky(`${url}/api/unicorn`, {prefixUrl: null}).text(),
+			window.ky('api/unicorn', {prefixUrl: url}).text(),
+			window.ky('api/unicorn', {prefixUrl: `${url}/`}).text()
+		]);
 	}, server.url);
-	t.is(unprefixed, 'rainbow');
 
-	const prefixed = await page.evaluate(prefixUrl => {
-		return window.ky('api/unicorn', {prefixUrl}).text();
-	}, server.url);
-	t.is(prefixed, 'rainbow');
+	t.deepEqual(results, ['rainbow', 'rainbow', 'rainbow', 'rainbow']);
 
 	await server.close();
 });
@@ -96,7 +99,7 @@ test('onDownloadProgress works', withPage, async (t, page) => {
 
 	server.get('/', (request, response) => {
 		response.writeHead(200, {
-			'content-length': 4
+			'content-length': '4'
 		});
 
 		response.write('me');
@@ -289,6 +292,8 @@ test('headers are preserved when input is a Request and there are searchParams i
 });
 
 test('retry with body', withPage, async (t, page) => {
+	t.plan(4);
+
 	let requestCount = 0;
 
 	const server = await createTestServer();
@@ -297,22 +302,24 @@ test('retry with body', withPage, async (t, page) => {
 	});
 	server.put('/test', async (request, response) => {
 		requestCount++;
-		await pBody(request);
+		t.is(await pBody(request), 'foo');
 		response.sendStatus(502);
 	});
 
 	await page.goto(server.url);
 	await page.addScriptTag({path: './umd.js'});
 
-	const error = await page.evaluate(url => {
-		const request = window.ky(url + '/test', {
-			body: 'foo',
-			method: 'PUT',
-			retry: 2
-		}).text();
-		return request.catch(error_ => error_.toString());
-	}, server.url);
-	t.is(error, 'HTTPError: Bad Gateway');
+	await t.throwsAsync(
+		page.evaluate(async url => {
+			return window.ky(url + '/test', {
+				body: 'foo',
+				method: 'PUT',
+				retry: 2
+			});
+		}, server.url),
+		{message: /HTTPError: Bad Gateway/}
+	);
+
 	t.is(requestCount, 2);
 
 	await server.close();
