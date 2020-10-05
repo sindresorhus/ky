@@ -5,6 +5,9 @@
 	"license": "MIT",
 	"repository": "sindresorhus/ky",
 	"funding": "https://github.com/sindresorhus/ky?sponsor=1",
+	"main": "./umd.js",
+	"module": "./index.js",
+	"types": "./index.d.ts",
 	"author": {
 		"name": "Sindre Sorhus",
 		"email": "sindresorhus@gmail.com",
