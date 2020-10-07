@@ -7,6 +7,8 @@
 	"funding": "https://github.com/sindresorhus/ky?sponsor=1",
 	"main": "./umd.js",
 	"module": "./index.js",
+	"browser": "./index.js",
+	"unpkg": "./index.js",
 	"types": "./index.d.ts",
 	"author": {
 		"name": "Sindre Sorhus",
