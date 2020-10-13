@@ -628,6 +628,7 @@ Polyfill the needed browser global or just use [`ky-universal`](https://github.c
 
 - [ky-universal](https://github.com/sindresorhus/ky-universal) - Use Ky in both Node.js and browsers
 - [got](https://github.com/sindresorhus/got) - Simplified HTTP requests for Node.js
+- [ky-hooks-change-case](https://github.com/alice-health/ky-hooks-change-case) - Use the ky hooks to modify cases on requests and responses of objects
 
 ## Maintainers
 
