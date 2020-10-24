@@ -334,7 +334,7 @@ class Ky {
 			return response;
 		};
 
-		const isRetriableMethod = this._options.retry.methods.includes(this.request.method.toLowerCase());
+		const isRetriableMethod = this._options.retry.methods.includes((this.request.method || 'GET').toLowerCase());
 		const result = isRetriableMethod ? this._retry(fn) : fn();
 
 		for (const [type, mimeType] of Object.entries(responseTypes)) {
