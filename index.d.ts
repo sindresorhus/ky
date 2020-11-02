@@ -1,5 +1,3 @@
-/// <reference lib="dom"/>
-
 type Primitive = null | undefined | string | number | boolean | symbol | bigint;
 
 type LiteralUnion<LiteralType extends BaseType, BaseType extends Primitive> =
