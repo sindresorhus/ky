@@ -425,6 +425,7 @@ The error thrown when the request times out.
 */
 declare class TimeoutError extends Error {
 	constructor(request: Request);
+	request: Request;
 }
 
 declare const ky: {

@@ -85,11 +85,13 @@ test('throws TimeoutError even though it does not support AbortController', with
 	await page.addScriptTag({path: './test/helpers/disable-abort-controller.js'});
 	await page.addScriptTag({path: './umd.js'});
 
+	let request;
 	const error = await page.evaluate(url => {
-		const request = window.ky(`${url}/slow`, {timeout: 500}).text();
+		request = window.ky(`${url}/slow`, {timeout: 500}).text();
 		return request.catch(error_ => error_.toString());
 	}, server.url);
 	t.is(error, 'TimeoutError: Request timed out');
+	t.is(error.request, request);
 
 	await server.close();
 });
