@@ -63,7 +63,7 @@ test('aborting a request', withPage, async (t, page) => {
 		controller.abort();
 		return request.catch(error_ => error_.toString());
 	}, server.url);
-	t.is(error, 'AbortError: The user aborted a request.');
+	t.is(error, 'AbortError: Failed to execute \'fetch\' on \'Window\': The user aborted a request.');
 
 	await server.close();
 });
