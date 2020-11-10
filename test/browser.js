@@ -69,37 +69,36 @@ test('aborting a request', withPage, async (t, page) => {
 });
 
 test('throws TimeoutError even though it does not support AbortController', withPage, async (t, page) => {
-		const server = await createTestServer();
+	const server = await createTestServer();
 
-		server.get('/', (request, response) => {
-			response.end();
+	server.get('/', (request, response) => {
+		response.end();
+	});
+
+	server.get('/slow', (request, response) => {
+		setTimeout(() => {
+			response.end('ok');
+		}, 1000);
+	});
+
+	await page.goto(server.url);
+	await page.addScriptTag({path: './test/helpers/disable-abort-controller.js'});
+	await page.addScriptTag({path: './umd.js'});
+
+	const error = await page.evaluate(url => {
+		const request = window.ky(`${url}/slow`, {timeout: 500}).text();
+		return request.catch(error_ => {
+			return {
+				message: error_.toString(),
+				request: {url: error_.request.url}
+			};
 		});
+	}, server.url);
+	t.is(error.message, 'TimeoutError: Request timed out');
+	t.is(error.request.url, `${server.url}/slow`);
 
-		server.get('/slow', (request, response) => {
-			setTimeout(() => {
-				response.end('ok');
-			}, 1000);
-		});
-
-		await page.goto(server.url);
-		await page.addScriptTag({path: './test/helpers/disable-abort-controller.js'});
-		await page.addScriptTag({path: './umd.js'});
-
-		const error = await page.evaluate(url => {
-			const request = window.ky(`${url}/slow`, { timeout: 500 }).text();
-			return request.catch(error_ => {
-				return {
-					message: error_.toString(),
-					request: { url: error_.request.url }
-				};
-			});
-		}, server.url);
-		t.is(error.message, 'TimeoutError: Request timed out');
-		t.is(error.request.url, `${server.url}/slow`);
-
-		await server.close();
-	}
-);
+	await server.close();
+});
 
 test('onDownloadProgress works', withPage, async (t, page) => {
 	const server = await createTestServer();
