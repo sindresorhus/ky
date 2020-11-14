@@ -87,9 +87,15 @@ test('throws TimeoutError even though it does not support AbortController', with
 
 	const error = await page.evaluate(url => {
 		const request = window.ky(`${url}/slow`, {timeout: 500}).text();
-		return request.catch(error_ => error_.toString());
+		return request.catch(error_ => {
+			return {
+				message: error_.toString(),
+				request: {url: error_.request.url}
+			};
+		});
 	}, server.url);
-	t.is(error, 'TimeoutError: Request timed out');
+	t.is(error.message, 'TimeoutError: Request timed out');
+	t.is(error.request.url, `${server.url}/slow`);
 
 	await server.close();
 });

@@ -152,6 +152,8 @@ try {
 		expectType<number>(status);
 	} else if (error instanceof ky.TimeoutError) {
 		expectType<ky.TimeoutError>(error);
+		const {method} = error.request;
+		expectType<string>(method);
 	} else {
 		throw error;
 	}
