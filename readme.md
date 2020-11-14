@@ -565,7 +565,7 @@ Check out [`ky-universal`](https://github.com/sindresorhus/ky-universal#faq).
 
 #### How do I test a browser library that uses this?
 
-Either use a test runner that can run in the browser, like Mocha, or use [AVA](http://ava.li) with `ky-universal`. [Read more.](https://github.com/sindresorhus/ky-universal#faq)
+Either use a test runner that can run in the browser, like Mocha, or use [AVA](https://avajs.dev) with `ky-universal`. [Read more.](https://github.com/sindresorhus/ky-universal#faq)
 
 #### How do I use this without a bundler like Webpack?
 
