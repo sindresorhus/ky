@@ -95,7 +95,8 @@ test('aborting a request with onDonwloadProgress', withPage, async (t, page) => 
 		setTimeout(() => controller.abort(), 500);
 		return request.catch(error_ => error_.toString());
 	}, server.url);
-	t.is(error, 'AbortError: Failed to execute \'fetch\' on \'Window\': The user aborted a request.');
+	// This should be an AbortError like in the 'aborting a request' test, but there is a bug in Chromium
+	t.is(error, 'TypeError: Failed to fetch');
 
 	await server.close();
 });
