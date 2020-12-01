@@ -1,0 +1,26 @@
+name: CI
+on:
+  - push
+  - pull_request
+jobs:
+  test:
+    name: Node.js ${{ matrix.node-version }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version:
+          - 14
+          - 12
+          - 10
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/setup-node@v1
+        with:
+          node-version: ${{ matrix.node-version }}
+      - run: npm install
+      - run: npm test
+      - uses: codecov/codecov-action@v1
+        if: matrix.os == 'ubuntu-latest' && matrix.node_version == 14
+        with:
+          fail_ci_if_error: true
