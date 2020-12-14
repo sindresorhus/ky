@@ -20,7 +20,7 @@ export type BeforeRetryOptions = {
 };
 export type BeforeRetryHook = (
 	options: BeforeRetryOptions
-) => void | Promise<void>;
+) => typeof ky.stop | void | Promise<typeof ky.stop | void>;
 
 export type AfterResponseHook = (
 	request: Request,
