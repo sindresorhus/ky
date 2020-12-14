@@ -140,7 +140,7 @@ const retryAfterStatusCodes = [
 const stop = Symbol('stop');
 
 class HTTPError extends Error {
-	constructor(response) {
+	constructor(response, request, options) {
 		// Set the message to the status text, such as Unauthorized,
 		// with some fallbacks. This message should never be undefined.
 		super(
@@ -152,6 +152,8 @@ class HTTPError extends Error {
 		);
 		this.name = 'HTTPError';
 		this.response = response;
+		this.request = request;
+		this.options = options;
 	}
 }
 
@@ -314,7 +316,7 @@ class Ky {
 			this._decorateResponse(response);
 
 			if (!response.ok && this._options.throwHttpErrors) {
-				throw new HTTPError(response);
+				throw new HTTPError(response, this.request, this._optoins);
 			}
 
 			// If `onDownloadProgress` is passed, it uses the stream API internally
