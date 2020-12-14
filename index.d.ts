@@ -11,13 +11,16 @@ export type BeforeRequestHook = (
 	options: NormalizedOptions,
 ) => Request | Response | void | Promise<Request | Response | void>;
 
-export type BeforeRetryHook = (options: {
+export type BeforeRetryOptions = {
 	request: Request;
-	response: Response;
+	response:  Response;
 	options: NormalizedOptions;
 	error: Error;
 	retryCount: number;
-}) => typeof ky.stop | void | Promise<typeof ky.stop | void>;
+};
+export type BeforeRetryHook = (
+	options: BeforeRetryOptions
+) => void | Promise<void>;
 
 export type AfterResponseHook = (
 	request: Request,
@@ -367,8 +370,8 @@ export interface NormalizedOptions extends RequestInit {
 	credentials: RequestInit['credentials'];
 
 	// Extended from custom `KyOptions`, but ensured to be set (not optional).
-	retry: Options['retry'];
-	prefixUrl: Options['prefixUrl'];
+	retry: RetryOptions;
+	prefixUrl: string;
 	onDownloadProgress: Options['onDownloadProgress'];
 }
 
