@@ -486,7 +486,7 @@ test('beforeRetry hook with parseJson and error.response.json()', async t => {
 	await server.close();
 });
 
-test('beforeRetry hook can cancel retries by returning `stop`', async t => {
+test('beforeRetry hook can cancel retries by returning `stop` and throws the original error', async t => {
 	let requestCount = 0;
 
 	const server = await createTestServer();
@@ -500,7 +500,8 @@ test('beforeRetry hook can cancel retries by returning `stop`', async t => {
 		}
 	});
 
-	await ky.get(server.url, {
+
+	await t.throwsAsync(ky.get(server.url, {
 		hooks: {
 			beforeRetry: [
 				({error, retryCount}) => {
@@ -511,7 +512,7 @@ test('beforeRetry hook can cancel retries by returning `stop`', async t => {
 				}
 			]
 		}
-	});
+	}).text());
 
 	t.is(requestCount, 1);
 
