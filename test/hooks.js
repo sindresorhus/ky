@@ -500,7 +500,6 @@ test('beforeRetry hook can cancel retries by returning `stop` and throws the ori
 		}
 	});
 
-
 	await t.throwsAsync(ky.get(server.url, {
 		hooks: {
 			beforeRetry: [
