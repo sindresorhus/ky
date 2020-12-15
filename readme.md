@@ -465,7 +465,7 @@ The error thrown when the request times out.
 
 ### ky.stop
 
-A `Symbol` that can be returned by a `beforeRetry` hook to stop the retry. This will also short circuit the remaining `beforeRetry` hooks.
+A `Symbol` that can be returned by a `beforeRetry` hook to stop the retry. This will also short circuit the remaining `beforeRetry` hooks. The original error that caused the retry attempt will be thrown.
 
 ```js
 import ky from 'ky';

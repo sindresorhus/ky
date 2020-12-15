@@ -426,7 +426,7 @@ class Ky {
 
 					// If `stop` is returned from the hook, the retry process is stopped
 					if (hookResult === stop) {
-						return;
+						throw error;
 					}
 				}
 
