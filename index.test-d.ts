@@ -56,10 +56,10 @@ ky(url, {
 				expectType<number>(retryCount);
 				request.headers.set('foo', 'bar');
 			},
-			({_request, _response, _options, _error, _retryCount}) => {
+			(_options) => {
 				return ky.stop;
 			},
-			async ({_request, _response, _options, _error, _retryCount}) => {
+			async (_options) => {
 				return ky.stop;
 			}
 		],
