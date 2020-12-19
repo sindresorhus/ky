@@ -68,6 +68,39 @@ test('aborting a request', withPage, async (t, page) => {
 	await server.close();
 });
 
+test('aborting a request with onDonwloadProgress', withPage, async (t, page) => {
+	const server = await createTestServer();
+
+	server.get('/', (request, response) => {
+		response.end('meow');
+	});
+
+	server.get('/test', (request, response) => {
+		response.writeHead(200, {
+			'content-length': '4'
+		});
+
+		response.write('me');
+		setTimeout(() => {
+			response.end('ow');
+		}, 1000);
+	});
+
+	await page.goto(server.url);
+	await page.addScriptTag({path: './umd.js'});
+
+	const error = await page.evaluate(url => {
+		const controller = new AbortController();
+		const request = window.ky(`${url}/test`, {signal: controller.signal, onDownloadProgress: () => {}}).text();
+		setTimeout(() => controller.abort(), 500);
+		return request.catch(error_ => error_.toString());
+	}, server.url);
+	// This should be an AbortError like in the 'aborting a request' test, but there is a bug in Chromium
+	t.is(error, 'TypeError: Failed to fetch');
+
+	await server.close();
+});
+
 test('throws TimeoutError even though it does not support AbortController', withPage, async (t, page) => {
 	const server = await createTestServer();
 

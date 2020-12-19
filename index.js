@@ -468,7 +468,7 @@ class Ky {
 
 		return new globals.Response(
 			new globals.ReadableStream({
-				start(controller) {
+				async start(controller) {
 					const reader = response.body.getReader();
 
 					if (onDownloadProgress) {
@@ -489,10 +489,10 @@ class Ky {
 						}
 
 						controller.enqueue(value);
-						read();
+						await read();
 					}
 
-					read();
+					await read();
 				}
 			})
 		);
