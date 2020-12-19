@@ -55,6 +55,12 @@ ky(url, {
 				expectType<Error>(error);
 				expectType<number>(retryCount);
 				request.headers.set('foo', 'bar');
+			},
+			({_request, _response, _options, _error, _retryCount}) => {
+				return ky.stop;
+			},
+			async ({_request, _response, _options, _error, _retryCount}) => {
+				return ky.stop;
 			}
 		],
 		afterResponse: [
