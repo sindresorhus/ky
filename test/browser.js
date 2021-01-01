@@ -1,9 +1,9 @@
 import util from 'util';
 import body from 'body';
-import {serial as test} from 'ava';
+import test from 'ava';
 import createTestServer from 'create-test-server';
 import Busboy from 'busboy';
-import withPage from './helpers/with-page';
+import withPage from './helpers/with-page.js';
 
 const pBody = util.promisify(body);
 

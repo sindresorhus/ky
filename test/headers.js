@@ -1,7 +1,7 @@
 import createTestServer from 'create-test-server';
 import FormData from 'form-data';
 import test from 'ava';
-import ky from '..';
+import ky from '../index.js';
 
 const echoHeaders = (request, response) => {
 	request.resume();

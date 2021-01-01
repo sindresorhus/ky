@@ -10,6 +10,11 @@
 		"email": "sindresorhus@gmail.com",
 		"url": "https://sindresorhus.com"
 	},
+	"type": "module",
+	"exports": {
+		"import": "./index.js",
+		"require": "./umd.js"
+	},
 	"engines": {
 		"node": ">=10"
 	},
@@ -48,7 +53,7 @@
 	],
 	"devDependencies": {
 		"abort-controller": "^3.0.0",
-		"ava": "^3.2.0",
+		"ava": "^3.15.0",
 		"body": "^5.1.0",
 		"busboy": "^0.3.1",
 		"create-test-server": "2.1.1",
@@ -69,13 +74,22 @@
 		],
 		"globals": [
 			"globalThis"
-		]
+		],
+		"rules": {
+			"import/no-useless-path-segments": "off",
+			"unicorn/import-index": "off",
+			"import/extensions": "off"
+		}
 	},
 	"ava": {
+		"serial": true,
 		"require": [
 			"esm",
 			"./test/_require"
-		]
+		],
+		"nonSemVerExperiments": {
+			"nextGenConfig": true
+		}
 	},
 	"tsd": {
 		"compilerOptions": {

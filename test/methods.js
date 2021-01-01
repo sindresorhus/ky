@@ -1,6 +1,6 @@
 import test from 'ava';
 import createTestServer from 'create-test-server';
-import ky from '..';
+import ky from '../index.js';
 
 test('common method is normalized', async t => {
 	const server = await createTestServer();
