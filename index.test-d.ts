@@ -1,5 +1,5 @@
 import {expectType} from 'tsd';
-import ky, {ResponsePromise, DownloadProgress, Options, NormalizedOptions, Input} from '.';
+import ky, {BeforeRetryOptions, ResponsePromise, DownloadProgress, Options, NormalizedOptions, Input} from '.';
 
 const url = 'https://sindresorhus';
 
@@ -48,7 +48,9 @@ ky(url, {
 			}
 		],
 		beforeRetry: [
-			({request, response, options, error, retryCount}) => {
+			(beforeRetryOptions) => {
+				const { request, response, options, error, retryCount } = beforeRetryOptions
+				expectType<BeforeRetryOptions>(beforeRetryOptions)
 				expectType<Request>(request);
 				expectType<Response>(response);
 				expectType<NormalizedOptions>(options);

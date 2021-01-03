@@ -13,7 +13,7 @@ export type BeforeRequestHook = (
 
 export type BeforeRetryOptions = {
 	request: Request;
-	response:  Response;
+	response: Response;
 	options: NormalizedOptions;
 	error: Error;
 	retryCount: number;
