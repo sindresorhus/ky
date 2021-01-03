@@ -84,5 +84,11 @@
 				"dom"
 			]
 		}
+	},
+	"nyc": {
+		"reporter": [
+			"text",
+			"lcov"
+		]
 	}
 }
