@@ -461,7 +461,7 @@ Exposed for `instanceof` checks. The error has a `response` property with the [`
 
 ### ky.TimeoutError
 
-The error thrown when the request times out.
+The error thrown when the request times out. It only has a `request` property with the [`Request` object](https://developer.mozilla.org/en-US/docs/Web/API/Request).
 
 ### ky.stop
 
