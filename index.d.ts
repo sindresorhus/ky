@@ -411,13 +411,13 @@ export interface ResponsePromise extends Promise<Response> {
 }
 
 /**
-The error has a response property with the `Response` object.
+The error has a response, request and options properties that contain `Response`, `Request` and `NormalizedOptions` objects respectively
 */
 declare class HTTPError extends Error {
 	constructor(response: Response, request: Request, options: NormalizedOptions);
 	response: Response;
-	request: Request;;
-	options: NormalizedOptions;;
+	request: Request;
+	options: NormalizedOptions;
 }
 
 /**

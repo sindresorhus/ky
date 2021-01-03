@@ -316,7 +316,7 @@ class Ky {
 			this._decorateResponse(response);
 
 			if (!response.ok && this._options.throwHttpErrors) {
-				throw new HTTPError(response, this.request, this._optoins);
+				throw new HTTPError(response, this.request, this._options);
 			}
 
 			// If `onDownloadProgress` is passed, it uses the stream API internally

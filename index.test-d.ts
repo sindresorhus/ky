@@ -26,7 +26,7 @@ expectType<typeof ky>(ky.extend({}));
 expectType<InstanceType<typeof ky.HTTPError>>(
 	new ky.HTTPError(
 		new Response(),
-		new Request("http://example.com"),
+		new Request('https://example.com'),
 		{} as NormalizedOptions
 	)
 );
