@@ -1,6 +1,6 @@
 import test from 'ava';
 import {Response} from 'node-fetch';
-import ky from '..';
+import ky from '../index.js';
 
 function createFakeResponse({status, statusText}) {
 	// Start with a realistic fetch Response.

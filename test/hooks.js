@@ -3,7 +3,7 @@ import test from 'ava';
 import createTestServer from 'create-test-server';
 import body from 'body';
 import delay from 'delay';
-import ky from '..';
+import ky from '../index.js';
 
 const pBody = util.promisify(body);
 

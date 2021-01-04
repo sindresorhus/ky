@@ -1,5 +1,5 @@
 import test from 'ava';
-import ky from '..';
+import ky from '../index.js';
 
 test.serial('relative URLs are passed to fetch unresolved', async t => {
 	const originalFetch = global.fetch;

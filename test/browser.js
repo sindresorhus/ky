@@ -1,10 +1,11 @@
 import util from 'util';
 import body from 'body';
-import {serial as test} from 'ava';
+import ava from 'ava'; // eslint-disable-line ava/use-test
 import createTestServer from 'create-test-server';
 import Busboy from 'busboy';
-import withPage from './helpers/with-page';
+import withPage from './helpers/with-page.js';
 
+const test = ava.serial;
 const pBody = util.promisify(body);
 
 test('prefixUrl option', withPage, async (t, page) => {
