@@ -258,7 +258,7 @@ This hook enables you to modify the request right before retry. Ky will make no 
 
 If the request received a response, `error` will be an `HTTPError` and the `Response` object will be available at `error.response`. Be aware that some types of errors, such as network errors, inherently mean that a response was not received. In this case `error` will not be an instance of `HTTPError` though.
 
-You can prevent Ky from retrying the request by throwing `error`. Ky will not handle it in any way, this error will be propagated to the request initiator. The rest of `beforeRetry` hooks will be fired if you `throw error`. Another way to do it is to return the [`ky.stop`](#ky.stop) symbol, but it has important caveats which are described in the dedicated section. You should only use it if you are absolutely sure that `throw error` doesn't work for you.
+You can prevent Ky from retrying the request by throwing `error`. Ky will not handle it in any way, this error will be propagated to the request initiator. The rest of `beforeRetry` hooks will not be fired if you `throw error`. Another way to do it is to return the [`ky.stop`](#ky.stop) symbol, but it has important caveats which are described in the dedicated section. You should only use it if you are absolutely sure that `throw error` doesn't work for you.
 
 ```js
 import ky from 'ky';
