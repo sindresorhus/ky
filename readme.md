@@ -480,18 +480,22 @@ A valid use case for `ky.stop` is to prevent retries when making requests for si
 import ky from 'ky';
 
 (async () => {
-	await ky('https://example.com', {
+	const options = {
 		hooks: {
 			beforeRetry: [
 				async ({request, options, error, retryCount}) => {
-					const shouldStopRetry = await ky('https://example.com/api');
-					if (shouldStopRetry) {
-						return ky.stop;
-					}
+					const token = await ky('https://example.com/refresh-token');
+					request.headers.set('Authorization', `token ${token}`);
 				}
 			]
 		}
-	});
+	}
+
+	// If `ky.stop` is returned from `beforeRetry` hook, `response
+	// will be `undefined` here
+	const response = await ky('https://example.com', options);
+	// This is not allowed
+	const text = await ky('https://example.com', options).text()
 })();
 ```
 
