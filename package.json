@@ -82,7 +82,6 @@
 		}
 	},
 	"ava": {
-		"serial": true,
 		"require": [
 			"esm",
 			"./test/_require"
