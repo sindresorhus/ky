@@ -47,8 +47,10 @@ export interface Hooks {
 
 	/**
 	This hook enables you to modify the request right before retry. Ky will make no further changes to the request after this. The hook function receives an object with the normalized request and options, an error instance, and the retry count. You could, for example, modify `request.headers` here.
-
-	If the request received a response, it will be available at `error.response`. Be aware that some types of errors, such as network errors, inherently mean that a response was not received.
+	
+	If the request received a response, the error will be of type `HTTPError` and the `Response` object will be available at `error.response`. Be aware that some types of errors, such as network errors, inherently mean that a response was not received. In that case, the error will not be an instance of `HTTPError`.
+	
+	You can prevent Ky from retrying the request by throwing an error. Ky will not handle it in any way and the error will be propagated to the request initiator. The rest of the `beforeRetry` hooks will not be called in this case. Alternatively, you can return the [`ky.stop`](#ky.stop) symbol to do the same thing but without propagating an error (this has some limitations, see `ky.stop` docs for details).
 
 	@example
 	```
@@ -512,15 +514,19 @@ declare const ky: {
 	extend: (defaultOptions: Options) => typeof ky;
 
 	/**
-	A `Symbol` that can be returned by a `beforeRetry` hook to stop the retry.
-	This will also short circuit the remaining `beforeRetry` hooks.
+	A `Symbol` that can be returned by a `beforeRetry` hook to stop the retry. This will also short circuit the remaining `beforeRetry` hooks.
+	
+	Note: Returning this symbol makes Ky abort and return with an `undefined` response. Be sure to check for a response before accessing any properties on it or use [optional chaining](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Operators/Optional_chaining). It is also incompatible with body methods, such as `.json()` or `.text()`, because there is no response to parse. In general, we recommend throwing an error instead of returning this symbol, as that will cause Ky to abort and then throw, which avoids these limitations.
+	
+	A valid use-case for `ky.stop` is to prevent retries when making requests for side effects, where the returned data is not important. For example, logging client activity to the server.
+	
 
 	@example
 	```
 	import ky from 'ky';
-
+	
 	(async () => {
-		await ky('https://example.com', {
+		const options = {
 			hooks: {
 				beforeRetry: [
 					async ({request, options, error, retryCount}) => {
@@ -531,7 +537,13 @@ declare const ky: {
 					}
 				]
 			}
-		});
+		};
+		
+		// Note that response will be undefined in case `ky.stop` is returned
+		const response = await ky.post('https://example.com', options);
+		
+		// Using .text() or other body methods is not suppported
+		const text = await ky('https://example.com', options).text();
 	})();
 	```
 	*/
