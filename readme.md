@@ -468,13 +468,11 @@ The error thrown when the request times out.
 
 ### ky.stop
 
-A special `Symbol` that can be returned by a `beforeRetry` hook to stop the retry. This will also short circuit the remaining `beforeRetry` hooks.
+A `Symbol` that can be returned by a `beforeRetry` hook to stop the retry. This will also short circuit the remaining `beforeRetry` hooks.
 
-#### Warning
+Note: This aborts _successfully_ and Ky will return with an `undefined` response. If you use `ky.stop`, be sure to check for a response first before accessing any properties on it or use [optional chaining](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Operators/Optional_chaining). It is also incompatible with body methods, such as `.json()` or `.text()`, because there is no response to parse. In general, we recommend to `throw error` instead of `return ky.stop`, as that will abort _unsuccesfully_ and Ky will throw, which avoids these limitations.
 
-Consider throwing `error` in `beforeRetry` hook before using `ky.stop`. If `ky.stop` is returned, you will **not** get the `response` object even if it was received but had `4xx-5xx` status. It is also incompatible with shortcut methods, such as `.json` or `.text`. Since no response is returned, these are unable to call the native methods to retrieve response body.
-
-A valid use case for `ky.stop` is to prevent retries when making requests for side effects, where returned data is not important. For example, logging client activity to the server. If you are going to use the body of the response in any way, you probably don't want to use `ky.stop`.
+A valid use case for `ky.stop` is to prevent retries when making requests for side effects, where returned data is not important. For example, logging client activity to the server.
 
 ```js
 import ky from 'ky';
@@ -491,11 +489,10 @@ import ky from 'ky';
 		}
 	}
 
-	// If `ky.stop` is returned from `beforeRetry` hook, `response
-	// will be `undefined` here
-	const response = await ky('https://example.com', options);
-	// This is not allowed
-	const text = await ky('https://example.com', options).text()
+	await ky.post('https://example.com', options);
+	
+	// Using .text() or other body methods is not suppported
+	const text = await ky('https://example.com', options).text();
 })();
 ```
 
