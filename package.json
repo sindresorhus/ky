@@ -15,7 +15,7 @@
 		"node": ">=12"
 	},
 	"scripts": {
-		"test": "xo && nyc ava && tsd"
+		"test": "xo && ava && tsd"
 	},
 	"files": [
 		"index.js",

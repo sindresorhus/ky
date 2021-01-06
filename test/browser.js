@@ -1,17 +1,20 @@
 import util from 'util';
+import fs from 'fs';
 import body from 'body';
 import ava from 'ava'; // eslint-disable-line ava/use-test
 import createTestServer from 'create-test-server';
 import Busboy from 'busboy';
 import withPage from './helpers/with-page.js';
 
+// It's serial as Puppeteer cannot handle full concurrency.
 const test = ava.serial;
+
 const pBody = util.promisify(body);
 
 const kyScript = {
 	type: 'module',
 	content: `
-		import ky from './index.js';
+		${fs.readFileSync(new URL('../index.js', import.meta.url), 'utf8')}
 		window.ky = ky;
 	`
 };
@@ -324,7 +327,6 @@ test('headers are preserved when input is a Request and there are searchParams i
 		response.end();
 	});
 
-	await page.setBypassCSP(true);
 	await page.goto(server.url);
 	await page.addScriptTag(kyScript);
 

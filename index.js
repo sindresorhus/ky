@@ -503,4 +503,6 @@ const createInstance = defaults => {
 	return ky;
 };
 
-export default createInstance();
+const ky = createInstance();
+
+export default ky;
