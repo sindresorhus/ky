@@ -11,23 +11,15 @@
 		"url": "https://sindresorhus.com"
 	},
 	"type": "module",
-	"exports": {
-		"import": "./index.js",
-		"require": "./umd.js"
-	},
 	"engines": {
-		"node": ">=10"
+		"node": ">=12"
 	},
 	"scripts": {
-		"build": "rollup index.js --format=umd --name=ky --file=umd.js",
-		"prepare": "npm run build",
-		"test": "xo && npm run build && nyc ava && tsd"
+		"test": "xo && nyc ava && tsd"
 	},
 	"files": [
 		"index.js",
-		"index.d.ts",
-		"umd.js",
-		"umd.d.ts"
+		"index.d.ts"
 	],
 	"keywords": [
 		"fetch",
@@ -58,12 +50,10 @@
 		"busboy": "^0.3.1",
 		"create-test-server": "2.1.1",
 		"delay": "^4.1.0",
-		"esm": "^3.2.22",
 		"form-data": "^3.0.0",
 		"node-fetch": "^2.5.0",
 		"nyc": "^15.0.0",
-		"puppeteer": "^5.1.0",
-		"rollup": "^2.10.2",
+		"puppeteer": "^5.5.0",
 		"tsd": "^0.13.1",
 		"xo": "^0.25.3"
 	},
@@ -83,7 +73,6 @@
 	},
 	"ava": {
 		"require": [
-			"esm",
 			"./test/_require"
 		],
 		"nonSemVerExperiments": {
@@ -93,7 +82,7 @@
 	"tsd": {
 		"compilerOptions": {
 			"lib": [
-				"es2018",
+				"es2019",
 				"dom"
 			]
 		}

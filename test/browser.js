@@ -8,6 +8,14 @@ import withPage from './helpers/with-page.js';
 const test = ava.serial;
 const pBody = util.promisify(body);
 
+const kyScript = {
+	type: 'module',
+	content: `
+		import ky from './index.js';
+		window.ky = ky;
+	`
+};
+
 test('prefixUrl option', withPage, async (t, page) => {
 	const server = await createTestServer();
 
@@ -19,7 +27,7 @@ test('prefixUrl option', withPage, async (t, page) => {
 	});
 
 	await page.goto(server.url);
-	await page.addScriptTag({path: './umd.js'});
+	await page.addScriptTag(kyScript);
 
 	await t.throwsAsync(
 		page.evaluate(() => {
@@ -56,7 +64,7 @@ test('aborting a request', withPage, async (t, page) => {
 	});
 
 	await page.goto(server.url);
-	await page.addScriptTag({path: './umd.js'});
+	await page.addScriptTag(kyScript);
 
 	const error = await page.evaluate(url => {
 		const controller = new AbortController();
@@ -88,7 +96,7 @@ test('aborting a request with onDonwloadProgress', withPage, async (t, page) => 
 	});
 
 	await page.goto(server.url);
-	await page.addScriptTag({path: './umd.js'});
+	await page.addScriptTag(kyScript);
 
 	const error = await page.evaluate(url => {
 		const controller = new AbortController();
@@ -117,7 +125,7 @@ test('throws TimeoutError even though it does not support AbortController', with
 
 	await page.goto(server.url);
 	await page.addScriptTag({path: './test/helpers/disable-abort-controller.js'});
-	await page.addScriptTag({path: './umd.js'});
+	await page.addScriptTag(kyScript);
 
 	const error = await page.evaluate(url => {
 		const request = window.ky(`${url}/slow`, {timeout: 500}).text();
@@ -149,7 +157,7 @@ test('onDownloadProgress works', withPage, async (t, page) => {
 	});
 
 	await page.goto(server.url);
-	await page.addScriptTag({path: './umd.js'});
+	await page.addScriptTag(kyScript);
 
 	const result = await page.evaluate(async url => {
 		// `new TextDecoder('utf-8').decode` hangs up?
@@ -184,7 +192,7 @@ test('throws if onDownloadProgress is not a function', withPage, async (t, page)
 	});
 
 	await page.goto(server.url);
-	await page.addScriptTag({path: './umd.js'});
+	await page.addScriptTag(kyScript);
 
 	const error = await page.evaluate(url => {
 		const request = window.ky(url, {onDownloadProgress: 1}).text();
@@ -204,7 +212,7 @@ test('throws if does not support ReadableStream', withPage, async (t, page) => {
 
 	await page.goto(server.url);
 	await page.addScriptTag({path: './test/helpers/disable-stream-support.js'});
-	await page.addScriptTag({path: './umd.js'});
+	await page.addScriptTag(kyScript);
 
 	const error = await page.evaluate(url => {
 		const request = window.ky(url, {onDownloadProgress: () => {}}).text();
@@ -234,7 +242,7 @@ test('FormData with searchParams', withPage, async (t, page) => {
 	});
 
 	await page.goto(server.url);
-	await page.addScriptTag({path: './umd.js'});
+	await page.addScriptTag(kyScript);
 	await page.evaluate(url => {
 		const formData = new window.FormData();
 		formData.append('file', new window.File(['bubblegum pie'], 'my-file'));
@@ -290,7 +298,7 @@ test('FormData with searchParams ("multipart/form-data" parser)', withPage, asyn
 	});
 
 	await page.goto(server.url);
-	await page.addScriptTag({path: './umd.js'});
+	await page.addScriptTag(kyScript);
 	await page.evaluate(url => {
 		const formData = new window.FormData();
 		formData.append('file', new window.File(['bubblegum pie'], 'my-file', {type: 'text/plain'}));
@@ -316,13 +324,15 @@ test('headers are preserved when input is a Request and there are searchParams i
 		response.end();
 	});
 
+	await page.setBypassCSP(true);
 	await page.goto(server.url);
-	await page.addScriptTag({path: './umd.js'});
+	await page.addScriptTag(kyScript);
 
 	await page.evaluate(url => {
 		const request = new window.Request(url + '/test', {
 			headers: {'content-type': 'text/css'}
 		});
+
 		return window.ky(request, {
 			searchParams: 'foo=1'
 		}).text();
@@ -347,7 +357,7 @@ test('retry with body', withPage, async (t, page) => {
 	});
 
 	await page.goto(server.url);
-	await page.addScriptTag({path: './umd.js'});
+	await page.addScriptTag(kyScript);
 
 	await t.throwsAsync(
 		page.evaluate(async url => {

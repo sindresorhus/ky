@@ -91,14 +91,6 @@ If you are using [Deno](https://github.com/denoland/deno), import Ky from a URL.
 import ky from 'https://unpkg.com/ky/index.js';
 ```
 
-In environments that do not support `import`, you can load `ky` in [UMD format](https://medium.freecodecamp.org/anatomy-of-js-module-systems-and-building-libraries-fadcd8dbd0e). For example, using `require()`:
-
-```js
-const ky = require('ky/umd');
-```
-
-With the UMD version, it's also easy to use `ky` [without a bundler](#how-do-i-use-this-without-a-bundler-like-webpack) or module system.
-
 ## API
 
 ### ky(input, options?)
@@ -576,20 +568,6 @@ Upload the [`index.js`](index.js) file in this repo somewhere, for example, to y
 <script type="module">
 import ky from 'https://cdn.jsdelivr.net/npm/ky@latest/index.js';
 
-(async () => {
-	const parsed = await ky('https://jsonplaceholder.typicode.com/todos/1').json();
-
-	console.log(parsed.title);
-	//=> 'delectus aut autem
-})();
-</script>
-```
-
-Alternatively, you can use the [`umd.js`](umd.js) file with a traditional `<script>` tag (without `type="module"`), in which case `ky` will be a global.
-
-```html
-<script src="https://cdn.jsdelivr.net/npm/ky@latest/umd.js"></script>
-<script>
 (async () => {
 	const parsed = await ky('https://jsonplaceholder.typicode.com/todos/1').json();
 
