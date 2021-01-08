@@ -491,10 +491,10 @@ import ky from 'ky';
 		}
 	};
 	
-	// Note that response will be undefined in case `ky.stop` is returned
+	// Note that response will be `undefined` in case `ky.stop` is returned.
 	const response = await ky.post('https://example.com', options);
 	
-	// Using .text() or other body methods is not suppported
+	// Using `.text()` or other body methods is not suppported.
 	const text = await ky('https://example.com', options).text();
 })();
 ```
