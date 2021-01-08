@@ -411,7 +411,7 @@ export interface ResponsePromise extends Promise<Response> {
 }
 
 /**
-The error has a response, request and options properties that contain `Response`, `Request` and `NormalizedOptions` objects respectively
+ Exposed for `instanceof` checks. The error has a `response` property with the `Response` object, `request` property with the `Request` object and `options` property with normalized options (either passed to `ky` when creating an instance with `ky.create()` or directly when performing the request).
 */
 declare class HTTPError extends Error {
 	constructor(response: Response, request: Request, options: NormalizedOptions);
