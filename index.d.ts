@@ -11,7 +11,7 @@ export type BeforeRequestHook = (
 	options: NormalizedOptions,
 ) => Request | Response | void | Promise<Request | Response | void>;
 
-export type BeforeRetryOptions = {
+export type BeforeRetryState = {
 	request: Request;
 	response: Response;
 	options: NormalizedOptions;
@@ -19,7 +19,7 @@ export type BeforeRetryOptions = {
 	retryCount: number;
 };
 export type BeforeRetryHook = (
-	options: BeforeRetryOptions
+	options: BeforeRetryState
 ) => typeof ky.stop | void | Promise<typeof ky.stop | void>;
 
 export type AfterResponseHook = (
