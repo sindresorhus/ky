@@ -414,11 +414,13 @@ export interface ResponsePromise extends Promise<Response> {
 }
 
 /**
-The error has a response property with the `Response` object.
+Exposed for `instanceof` checks. The error has a `response` property with the [`Response` object](https://developer.mozilla.org/en-US/docs/Web/API/Response), `request` property with the [`Request` object](https://developer.mozilla.org/en-US/docs/Web/API/Request), and `options` property with normalized options (either passed to `ky` when creating an instance with `ky.create()` or directly when performing the request).
 */
 declare class HTTPError extends Error {
-	constructor(response: Response);
+	constructor(response: Response, request: Request, options: NormalizedOptions);
 	response: Response;
+	request: Request;
+	options: NormalizedOptions;
 }
 
 /**
