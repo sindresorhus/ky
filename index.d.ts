@@ -520,11 +520,10 @@ declare const ky: {
 	
 	A valid use-case for `ky.stop` is to prevent retries when making requests for side effects, where the returned data is not important. For example, logging client activity to the server.
 	
-
 	@example
 	```
 	import ky from 'ky';
-	
+
 	(async () => {
 		const options = {
 			hooks: {
@@ -539,10 +538,10 @@ declare const ky: {
 			}
 		};
 		
-		// Note that response will be undefined in case `ky.stop` is returned
+		// Note that response will be `undefined` in case `ky.stop` is returned.
 		const response = await ky.post('https://example.com', options);
 		
-		// Using .text() or other body methods is not suppported
+		// Using `.text()` or other body methods is not suppported.
 		const text = await ky('https://example.com', options).text();
 	})();
 	```
