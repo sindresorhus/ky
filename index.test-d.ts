@@ -49,8 +49,8 @@ ky(url, {
 		],
 		beforeRetry: [
 			(beforeRetryOptions) => {
-				const {request, response, options, error, retryCount} = beforeRetryOptions
-				expectType<BeforeRetryState>(beforeRetryOptions)
+				const {request, response, options, error, retryCount} = beforeRetryOptions;
+				expectType<BeforeRetryState>(beforeRetryOptions);
 				expectType<Request>(request);
 				expectType<Response>(response);
 				expectType<NormalizedOptions>(options);
