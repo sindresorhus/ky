@@ -50,27 +50,25 @@ export interface Hooks {
 
 	/**
 	This hook enables you to modify the request right before retry. Ky will make no further changes to the request after this. The hook function receives an object with the normalized request and options, an error instance, and the retry count. You could, for example, modify `request.headers` here.
-	
+
 	If the request received a response, the error will be of type `HTTPError` and the `Response` object will be available at `error.response`. Be aware that some types of errors, such as network errors, inherently mean that a response was not received. In that case, the error will not be an instance of `HTTPError`.
-	
+
 	You can prevent Ky from retrying the request by throwing an error. Ky will not handle it in any way and the error will be propagated to the request initiator. The rest of the `beforeRetry` hooks will not be called in this case. Alternatively, you can return the [`ky.stop`](#ky.stop) symbol to do the same thing but without propagating an error (this has some limitations, see `ky.stop` docs for details).
 
 	@example
 	```
 	import ky from 'ky';
 
-	(async () => {
-		await ky('https://example.com', {
-			hooks: {
-				beforeRetry: [
-					async ({request, options, error, retryCount}) => {
-						const token = await ky('https://example.com/refresh-token');
-						options.headers.set('Authorization', `token ${token}`);
-					}
-				]
-			}
-		});
-	})();
+	const response = await ky('https://example.com', {
+		hooks: {
+			beforeRetry: [
+				async ({request, options, error, retryCount}) => {
+					const token = await ky('https://example.com/refresh-token');
+					options.headers.set('Authorization', `token ${token}`);
+				}
+			]
+		}
+	});
 	```
 
 	@default []
@@ -86,34 +84,32 @@ export interface Hooks {
 	```
 	import ky from 'ky';
 
-	(async () => {
-		await ky('https://example.com', {
-			hooks: {
-				afterResponse: [
-					(_input, _options, response) => {
-						// You could do something with the response, for example, logging.
-						log(response);
+	const response = await ky('https://example.com', {
+		hooks: {
+			afterResponse: [
+				(_input, _options, response) => {
+					// You could do something with the response, for example, logging.
+					log(response);
 
-						// Or return a `Response` instance to overwrite the response.
-						return new Response('A different response', {status: 200});
-					},
+					// Or return a `Response` instance to overwrite the response.
+					return new Response('A different response', {status: 200});
+				},
 
-					// Or retry with a fresh token on a 403 error
-					async (input, options, response) => {
-						if (response.status === 403) {
-							// Get a fresh token
-							const token = await ky('https://example.com/token').text();
+				// Or retry with a fresh token on a 403 error
+				async (input, options, response) => {
+					if (response.status === 403) {
+						// Get a fresh token
+						const token = await ky('https://example.com/token').text();
 
-							// Retry with the token
-							options.headers.set('Authorization', `token ${token}`);
+						// Retry with the token
+						options.headers.set('Authorization', `token ${token}`);
 
-							return ky(input, options);
-						}
+						return ky(input, options);
 					}
-				]
-			}
-		});
-	})();
+				}
+			]
+		}
+	});
 	```
 	*/
 	afterResponse?: AfterResponseHook[];
@@ -225,11 +221,9 @@ export interface Options extends Omit<RequestInit, 'headers'> {
 	import ky from 'ky';
 	import bourne from '@hapijs/bourne';
 
-	(async () => {
-		const parsed = await ky('https://example.com', {
-			parseJson: text => bourne(text)
-		}).json();
-	})();
+	const json = await ky('https://example.com', {
+		parseJson: text => bourne(text)
+	}).json();
 	```
 	*/
 	parseJson?: (text: string) => unknown
@@ -256,13 +250,11 @@ export interface Options extends Omit<RequestInit, 'headers'> {
 
 	// On https://example.com
 
-	(async () => {
-		await ky('unicorn', {prefixUrl: '/api'});
-		//=> 'https://example.com/api/unicorn'
+	const response = await ky('unicorn', {prefixUrl: '/api'});
+	//=> 'https://example.com/api/unicorn'
 
-		await ky('unicorn', {prefixUrl: 'https://cats.com'});
-		//=> 'https://cats.com/unicorn'
-	})();
+	const response = await ky('unicorn', {prefixUrl: 'https://cats.com'});
+	//=> 'https://cats.com/unicorn'
 	```
 	*/
 	prefixUrl?: URL | string;
@@ -280,15 +272,13 @@ export interface Options extends Omit<RequestInit, 'headers'> {
 	```
 	import ky from 'ky';
 
-	(async () => {
-		const parsed = await ky('https://example.com', {
-			retry: {
-				limit: 10,
-				methods: ['get'],
-				statusCodes: [413]
-			}
-		}).json();
-	})();
+	const json = await ky('https://example.com', {
+		retry: {
+			limit: 10,
+			methods: ['get'],
+			statusCodes: [413]
+		}
+	}).json();
 	```
 	*/
 	retry?: RetryOptions | number;
@@ -324,16 +314,14 @@ export interface Options extends Omit<RequestInit, 'headers'> {
 	```
 	import ky from 'ky';
 
-	(async () => {
-		await ky('https://example.com', {
-			onDownloadProgress: (progress, chunk) => {
-				// Example output:
-				// `0% - 0 of 1271 bytes`
-				// `100% - 1271 of 1271 bytes`
-				console.log(`${progress.percent * 100}% - ${progress.transferredBytes} of ${progress.totalBytes} bytes`);
-			}
-		});
-	})();
+	const response = await ky('https://example.com', {
+		onDownloadProgress: (progress, chunk) => {
+			// Example output:
+			// `0% - 0 of 1271 bytes`
+			// `100% - 1271 of 1271 bytes`
+			console.log(`${progress.percent * 100}% - ${progress.transferredBytes} of ${progress.totalBytes} bytes`);
+		}
+	});
 	```
 	*/
 	onDownloadProgress?: (progress: DownloadProgress, chunk: Uint8Array) => void;
@@ -353,11 +341,7 @@ export interface Options extends Omit<RequestInit, 'headers'> {
 	import ky from 'ky';
 	import fetch from 'isomorphic-unfetch';
 
-	(async () => {
-		const parsed = await ky('https://example.com', {
-			fetch
-		}).json();
-	})();
+	const json = await ky('https://example.com', {fetch}).json();
 	```
 	*/
 	fetch?: (input: RequestInfo, init?: RequestInit) => Promise<Response>;
@@ -396,7 +380,7 @@ export interface ResponsePromise extends Promise<Response> {
 	```
 	import ky from 'ky';
 
-	const parsed = await ky(…).json();
+	const json = await ky(…).json();
 	```
 
 	@example
@@ -444,12 +428,10 @@ declare const ky: {
 	```
 	import ky from 'ky';
 
-	(async () => {
-		const parsed = await ky('https://example.com', {json: {foo: true}}).json();
+	const json = await ky('https://example.com', {json: {foo: true}}).json();
 
-		console.log(parsed);
-		//=> `{data: '🦄'}`
-	})();
+	console.log(json);
+	//=> `{data: '🦄'}`
 	```
 	*/
 	(url: Input, options?: Options): ResponsePromise;
@@ -520,35 +502,33 @@ declare const ky: {
 
 	/**
 	A `Symbol` that can be returned by a `beforeRetry` hook to stop the retry. This will also short circuit the remaining `beforeRetry` hooks.
-	
+
 	Note: Returning this symbol makes Ky abort and return with an `undefined` response. Be sure to check for a response before accessing any properties on it or use [optional chaining](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Operators/Optional_chaining). It is also incompatible with body methods, such as `.json()` or `.text()`, because there is no response to parse. In general, we recommend throwing an error instead of returning this symbol, as that will cause Ky to abort and then throw, which avoids these limitations.
-	
+
 	A valid use-case for `ky.stop` is to prevent retries when making requests for side effects, where the returned data is not important. For example, logging client activity to the server.
-	
+
 	@example
 	```
 	import ky from 'ky';
 
-	(async () => {
-		const options = {
-			hooks: {
-				beforeRetry: [
-					async ({request, options, error, retryCount}) => {
-						const shouldStopRetry = await ky('https://example.com/api');
-						if (shouldStopRetry) {
-							return ky.stop;
-						}
+	const options = {
+		hooks: {
+			beforeRetry: [
+				async ({request, options, error, retryCount}) => {
+					const shouldStopRetry = await ky('https://example.com/api');
+					if (shouldStopRetry) {
+						return ky.stop;
 					}
-				]
-			}
-		};
-		
-		// Note that response will be `undefined` in case `ky.stop` is returned.
-		const response = await ky.post('https://example.com', options);
-		
-		// Using `.text()` or other body methods is not suppported.
-		const text = await ky('https://example.com', options).text();
-	})();
+				}
+			]
+		}
+	};
+
+	// Note that response will be `undefined` in case `ky.stop` is returned.
+	const response = await ky.post('https://example.com', options);
+
+	// Using `.text()` or other body methods is not suppported.
+	const text = await ky('https://example.com', options).text();
 	```
 	*/
 	readonly stop: unique symbol;

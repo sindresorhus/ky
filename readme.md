@@ -52,37 +52,33 @@ $ npm install ky
 ```js
 import ky from 'ky';
 
-(async () => {
-	const parsed = await ky.post('https://example.com', {json: {foo: true}}).json();
+const json = await ky.post('https://example.com', {json: {foo: true}}).json();
 
-	console.log(parsed);
-	//=> `{data: '🦄'}`
-})();
+console.log(json);
+//=> `{data: '🦄'}`
 ```
 
 With plain `fetch`, it would be:
 
 ```js
-(async () => {
-	class HTTPError extends Error {}
+class HTTPError extends Error {}
 
-	const response = await fetch('https://example.com', {
-		method: 'POST',
-		body: JSON.stringify({foo: true}),
-		headers: {
-			'content-type': 'application/json'
-		}
-	});
-
-	if (!response.ok) {
-		throw new HTTPError(`Fetch error: ${response.statusText}`);
+const response = await fetch('https://example.com', {
+	method: 'POST',
+	body: JSON.stringify({foo: true}),
+	headers: {
+		'content-type': 'application/json'
 	}
+});
 
-	const parsed = await response.json();
+if (!response.ok) {
+	throw new HTTPError(`Fetch error: ${response.statusText}`);
+}
 
-	console.log(parsed);
-	//=> `{data: '🦄'}`
-})();
+const json = await response.json();
+
+console.log(json);
+//=> `{data: '🦄'}`
 ```
 
 If you are using [Deno](https://github.com/denoland/deno), import Ky from a URL. For example, using a CDN:
@@ -154,13 +150,11 @@ import ky from 'ky';
 
 // On https://example.com
 
-(async () => {
-	await ky('unicorn', {prefixUrl: '/api'});
-	//=> 'https://example.com/api/unicorn'
+const response = await ky('unicorn', {prefixUrl: '/api'});
+//=> 'https://example.com/api/unicorn'
 
-	await ky('unicorn', {prefixUrl: 'https://cats.com'});
-	//=> 'https://cats.com/unicorn'
-})();
+const response2 = await ky('unicorn', {prefixUrl: 'https://cats.com'});
+//=> 'https://cats.com/unicorn'
 ```
 
 Notes:
@@ -187,15 +181,13 @@ Delays between retries is calculated with the function `0.3 * (2 ** (retry - 1))
 ```js
 import ky from 'ky';
 
-(async () => {
-	const parsed = await ky('https://example.com', {
-		retry: {
-			limit: 10,
-			methods: ['get'],
-			statusCodes: [413]
-		}
-	}).json();
-})();
+const json = await ky('https://example.com', {
+	retry: {
+		limit: 10,
+		methods: ['get'],
+		statusCodes: [413]
+	}
+}).json();
 ```
 
 ##### timeout
@@ -235,10 +227,7 @@ const api = ky.extend({
 	}
 });
 
-(async () => {
-	const users = await api.get('https://example.com/api/users');
-	// ...
-})();
+const response = await api.get('https://example.com/api/users');
 ```
 
 ###### hooks.beforeRetry
@@ -255,18 +244,16 @@ You can prevent Ky from retrying the request by throwing an error. Ky will not h
 ```js
 import ky from 'ky';
 
-(async () => {
-	await ky('https://example.com', {
-		hooks: {
-			beforeRetry: [
-				async ({request, options, error, retryCount}) => {
-					const token = await ky('https://example.com/refresh-token');
-					request.headers.set('Authorization', `token ${token}`);
-				}
-			]
-		}
-	});
-})();
+const response = await ky('https://example.com', {
+	hooks: {
+		beforeRetry: [
+			async ({request, options, error, retryCount}) => {
+				const token = await ky('https://example.com/refresh-token');
+				request.headers.set('Authorization', `token ${token}`);
+			}
+		]
+	}
+});
 ```
 
 ###### hooks.afterResponse
@@ -279,34 +266,32 @@ This hook enables you to read and optionally modify the response. The hook funct
 ```js
 import ky from 'ky';
 
-(async () => {
-	await ky('https://example.com', {
-		hooks: {
-			afterResponse: [
-				(_request, _options, response) => {
-					// You could do something with the response, for example, logging.
-					log(response);
+const response = await ky('https://example.com', {
+	hooks: {
+		afterResponse: [
+			(_request, _options, response) => {
+				// You could do something with the response, for example, logging.
+				log(response);
 
-					// Or return a `Response` instance to overwrite the response.
-					return new Response('A different response', {status: 200});
-				},
+				// Or return a `Response` instance to overwrite the response.
+				return new Response('A different response', {status: 200});
+			},
 
-				// Or retry with a fresh token on a 403 error
-				async (request, options, response) => {
-					if (response.status === 403) {
-						// Get a fresh token
-						const token = await ky('https://example.com/token').text();
+			// Or retry with a fresh token on a 403 error
+			async (request, options, response) => {
+				if (response.status === 403) {
+					// Get a fresh token
+					const token = await ky('https://example.com/token').text();
 
-						// Retry with the token
-						request.headers.set('Authorization', `token ${token}`);
+					// Retry with the token
+					request.headers.set('Authorization', `token ${token}`);
 
-						return ky(request);
-					}
+					return ky(request);
 				}
-			]
-		}
-	});
-})();
+			}
+		]
+	}
+});
 ```
 
 ##### throwHttpErrors
@@ -331,16 +316,14 @@ The function receives a `progress` and `chunk` argument:
 ```js
 import ky from 'ky';
 
-(async () => {
-	await ky('https://example.com', {
-		onDownloadProgress: (progress, chunk) => {
-			// Example output:
-			// `0% - 0 of 1271 bytes`
-			// `100% - 1271 of 1271 bytes`
-			console.log(`${progress.percent * 100}% - ${progress.transferredBytes} of ${progress.totalBytes} bytes`);
-		}
-	});
-})();
+const response = await ky('https://example.com', {
+	onDownloadProgress: (progress, chunk) => {
+		// Example output:
+		// `0% - 0 of 1271 bytes`
+		// `100% - 1271 of 1271 bytes`
+		console.log(`${progress.percent * 100}% - ${progress.transferredBytes} of ${progress.totalBytes} bytes`);
+	}
+});
 ```
 
 ##### parseJson
@@ -358,11 +341,9 @@ Use-cases:
 import ky from 'ky';
 import bourne from '@hapijs/bourne';
 
-(async () => {
-	const parsed = await ky('https://example.com', {
-		parseJson: text => bourne(text)
-	}).json();
-})();
+const json = await ky('https://example.com', {
+	parseJson: text => bourne(text)
+}).json();
 ```
 
 ##### fetch
@@ -381,11 +362,7 @@ Use-cases:
 import ky from 'ky';
 import fetch from 'isomorphic-unfetch';
 
-(async () => {
-	const parsed = await ky('https://example.com', {
-		fetch
-	}).json();
-})();
+const json = await ky('https://example.com', {fetch}).json();
 ```
 
 ### ky.extend(defaultOptions)
@@ -437,13 +414,11 @@ import ky from 'ky';
 
 const api = ky.create({prefixUrl: 'https://example.com/api'});
 
-(async () => {
-	await api.get('users/123');
-	//=> 'https://example.com/api/users/123'
+const response = await api.get('users/123');
+//=> 'https://example.com/api/users/123'
 
-	await api.get('/status', {prefixUrl: ''});
-	//=> 'https://my-site.com/status'
-})();
+const response = await api.get('/status', {prefixUrl: ''});
+//=> 'https://my-site.com/status'
 ```
 
 #### defaultOptions
@@ -469,26 +444,24 @@ A valid use-case for `ky.stop` is to prevent retries when making requests for si
 ```js
 import ky from 'ky';
 
-(async () => {
-	const options = {
-		hooks: {
-			beforeRetry: [
-				async ({request, options, error, retryCount}) => {
-					const shouldStopRetry = await ky('https://example.com/api');
-					if (shouldStopRetry) {
-						return ky.stop;
-					}
+const options = {
+	hooks: {
+		beforeRetry: [
+			async ({request, options, error, retryCount}) => {
+				const shouldStopRetry = await ky('https://example.com/api');
+				if (shouldStopRetry) {
+					return ky.stop;
 				}
-			]
-		}
-	};
-	
-	// Note that response will be `undefined` in case `ky.stop` is returned.
-	const response = await ky.post('https://example.com', options);
-	
-	// Using `.text()` or other body methods is not suppported.
-	const text = await ky('https://example.com', options).text();
-})();
+			}
+		]
+	}
+};
+
+// Note that response will be `undefined` in case `ky.stop` is returned.
+const response = await ky.post('https://example.com', options);
+
+// Using `.text()` or other body methods is not suppported.
+const text = await ky('https://example.com', options).text();
 ```
 
 ## Tips
@@ -500,16 +473,12 @@ Sending form data in Ky is identical to `fetch`. Just pass a [`FormData`](https:
 ```js
 import ky from 'ky';
 
-(async () => {
-	// `multipart/form-data`
-	const formData = new FormData();
-	formData.append('food', 'fries');
-	formData.append('drink', 'icetea');
+// `multipart/form-data`
+const formData = new FormData();
+formData.append('food', 'fries');
+formData.append('drink', 'icetea');
 
-	await ky.post(url, {
-		body: formData
-	});
-})();
+const response = await ky.post(url, {body: formData});
 ```
 
 If you want to send the data in `application/x-www-form-urlencoded` format, you will need to encode the data with [`URLSearchParams`](https://developer.mozilla.org/en-US/docs/Web/API/URLSearchParams).
@@ -517,16 +486,12 @@ If you want to send the data in `application/x-www-form-urlencoded` format, you 
 ```js
 import ky from 'ky';
 
-(async () => {
-	// `application/x-www-form-urlencoded`
-	const searchParams = new URLSearchParams();
-	searchParams.set('food', 'fries');
-	searchParams.set('drink', 'icetea');
+// `application/x-www-form-urlencoded`
+const searchParams = new URLSearchParams();
+searchParams.set('food', 'fries');
+searchParams.set('drink', 'icetea');
 
-	await ky.post(url, {
-		body: searchParams
-	});
-})();
+const response = await ky.post(url, {body: searchParams});
 ```
 
 ### Cancellation
@@ -545,17 +510,15 @@ setTimeout(() => {
 	controller.abort();
 }, 5000);
 
-(async () => {
-	try {
-		console.log(await ky(url, {signal}).text());
-	} catch (error) {
-		if (error.name === 'AbortError') {
-			console.log('Fetch aborted');
-		} else {
-			console.error('Fetch error:', error);
-		}
+try {
+	console.log(await ky(url, {signal}).text());
+} catch (error) {
+	if (error.name === 'AbortError') {
+		console.log('Fetch aborted');
+	} else {
+		console.error('Fetch error:', error);
 	}
-})();
+}
 ```
 
 ## FAQ
@@ -580,12 +543,10 @@ Upload the [`index.js`](index.js) file in this repo somewhere, for example, to y
 <script type="module">
 import ky from 'https://cdn.jsdelivr.net/npm/ky@latest/index.js';
 
-(async () => {
-	const parsed = await ky('https://jsonplaceholder.typicode.com/todos/1').json();
+const json = await ky('https://jsonplaceholder.typicode.com/todos/1').json();
 
-	console.log(parsed.title);
-	//=> 'delectus aut autem
-})();
+console.log(json.title);
+//=> 'delectus aut autem
 </script>
 ```
 
@@ -613,7 +574,7 @@ The latest version of Chrome, Firefox, and Safari.
 
 ## Node.js support
 
-Polyfill the needed browser global or just use [`ky-universal`](https://github.com/sindresorhus/ky-universal).
+Polyfill the needed browser globals or just use [`ky-universal`](https://github.com/sindresorhus/ky-universal).
 
 ## Related
 
