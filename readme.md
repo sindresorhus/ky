@@ -84,7 +84,7 @@ console.log(json);
 If you are using [Deno](https://github.com/denoland/deno), import Ky from a URL. For example, using a CDN:
 
 ```js
-import ky from 'https://unpkg.com/ky/index.js';
+import ky from 'https://cdn.skypack.dev/ky?dts';
 ```
 
 ## API
