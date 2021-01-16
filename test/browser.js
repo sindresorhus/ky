@@ -1,14 +1,10 @@
 import util from 'util';
 import fs from 'fs';
 import body from 'body';
-import ava from 'ava'; // eslint-disable-line ava/use-test
+import test from 'ava';
 import createTestServer from 'create-test-server';
 import Busboy from 'busboy';
 import withPage from './helpers/with-page.js';
-
-// FIXME: Skipping tests on CI as they're unreliable there for some reason.
-// It's serial as Puppeteer cannot handle full concurrency.
-const test = process.env.CI ? ava.skip : ava.serial;
 
 const pBody = util.promisify(body);
 
