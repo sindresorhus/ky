@@ -1,25 +1,6 @@
 /*! MIT License © Sindre Sorhus */
 
-const globals = {};
-
-const globalProperties = [
-	'Headers',
-	'Request',
-	'Response',
-	'ReadableStream',
-	'fetch',
-	'AbortController',
-	'FormData'
-];
-
-for (const property of globalProperties) {
-	Object.defineProperty(globals, property, {
-		get() {
-			const value = globalThis[property];
-			return typeof value === 'function' ? value.bind(globalThis) : value;
-		}
-	});
-}
+const globals = globalThis;
 
 const isObject = value => value !== null && typeof value === 'object';
 const supportsAbortController = typeof globals.AbortController === 'function';
@@ -220,7 +201,7 @@ class Ky {
 			retry: normalizeRetryOptions(options.retry),
 			throwHttpErrors: options.throwHttpErrors !== false,
 			timeout: typeof options.timeout === 'undefined' ? 10000 : options.timeout,
-			fetch: options.fetch || globals.fetch
+			fetch: options.fetch || globals.fetch.bind(globals)
 		};
 
 		if (typeof this._input !== 'string' && !(this._input instanceof URL || this._input instanceof globals.Request)) {
