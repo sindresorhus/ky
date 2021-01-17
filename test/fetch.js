@@ -2,8 +2,8 @@ import test from 'ava';
 import ky from '../index.js';
 
 test.serial('relative URLs are passed to fetch unresolved', async t => {
-	const originalFetch = global.fetch;
-	global.fetch = async input => {
+	const originalFetch = globalThis.fetch;
+	globalThis.fetch = async input => {
 		t.true(input.url.startsWith('/'));
 		return new Response(input.url);
 	};
@@ -14,7 +14,7 @@ test.serial('relative URLs are passed to fetch unresolved', async t => {
 	t.is(await ky('/unicorn?old', {searchParams: 'new'}).text(), '/unicorn?new=');
 	t.is(await ky('/unicorn?old#hash', {searchParams: 'new'}).text(), '/unicorn?new=#hash');
 	t.is(await ky('unicorn', {prefixUrl: '/api/'}).text(), '/api/unicorn');
-	global.fetch = originalFetch;
+	globalThis.fetch = originalFetch;
 });
 
 test('fetch option takes a custom fetch function', async t => {

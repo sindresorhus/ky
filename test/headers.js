@@ -18,7 +18,7 @@ test.serial('works with nullish headers even in old browsers', async t => {
 	// Some old browsers throw for new Headers(undefined) or new Headers(null)
 	// so we check that Ky never does that and passes an empty object instead.
 	// See: https://github.com/sindresorhus/ky/issues/260
-	global.Headers = class Headers extends OriginalHeaders {
+	globalThis.Headers = class Headers extends OriginalHeaders {
 		constructor(headersInit) {
 			t.deepEqual(headersInit, {});
 			super(headersInit);
@@ -32,7 +32,7 @@ test.serial('works with nullish headers even in old browsers', async t => {
 
 	await server.close();
 
-	global.Headers = OriginalHeaders;
+	globalThis.Headers = OriginalHeaders;
 });
 
 test('`user-agent`', async t => {

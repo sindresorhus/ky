@@ -425,7 +425,7 @@ test('beforeRetry hook is called even if the error has no response', async t => 
 				throw new Error('simulated network failure');
 			}
 
-			return global.fetch(request);
+			return globalThis.fetch(request);
 		},
 		hooks: {
 			beforeRetry: [
