@@ -54,7 +54,7 @@
 		"form-data": "^3.0.0",
 		"node-fetch": "^2.5.0",
 		"nyc": "^15.0.0",
-		"puppeteer": "^5.5.0",
+		"playwright-chromium": "^1.7.1",
 		"tsd": "^0.13.1",
 		"xo": "^0.25.3"
 	},
