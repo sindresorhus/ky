@@ -1,16 +1,14 @@
 /*! MIT License © Sindre Sorhus */
 
-const globals = globalThis;
-
 const isObject = value => value !== null && typeof value === 'object';
-const supportsAbortController = typeof globals.AbortController === 'function';
-const supportsStreams = typeof globals.ReadableStream === 'function';
-const supportsFormData = typeof globals.FormData === 'function';
+const supportsAbortController = typeof globalThis.AbortController === 'function';
+const supportsStreams = typeof globalThis.ReadableStream === 'function';
+const supportsFormData = typeof globalThis.FormData === 'function';
 
 const mergeHeaders = (source1, source2) => {
-	const result = new globals.Headers(source1 || {});
-	const isHeadersInstance = source2 instanceof globals.Headers;
-	const source = new globals.Headers(source2 || {});
+	const result = new globalThis.Headers(source1 || {});
+	const isHeadersInstance = source2 instanceof globalThis.Headers;
+	const source = new globalThis.Headers(source2 || {});
 
 	for (const [key, value] of source) {
 		if ((isHeadersInstance && value === 'undefined') || value === undefined) {
@@ -201,10 +199,10 @@ class Ky {
 			retry: normalizeRetryOptions(options.retry),
 			throwHttpErrors: options.throwHttpErrors !== false,
 			timeout: typeof options.timeout === 'undefined' ? 10000 : options.timeout,
-			fetch: options.fetch || globals.fetch.bind(globals)
+			fetch: options.fetch || globalThis.fetch.bind(globalThis)
 		};
 
-		if (typeof this._input !== 'string' && !(this._input instanceof URL || this._input instanceof globals.Request)) {
+		if (typeof this._input !== 'string' && !(this._input instanceof URL || this._input instanceof globalThis.Request)) {
 			throw new TypeError('`input` must be a string, URL, or Request');
 		}
 
@@ -221,7 +219,7 @@ class Ky {
 		}
 
 		if (supportsAbortController) {
-			this.abortController = new globals.AbortController();
+			this.abortController = new globalThis.AbortController();
 			if (this._options.signal) {
 				this._options.signal.addEventListener('abort', () => {
 					this.abortController.abort();
@@ -231,24 +229,24 @@ class Ky {
 			this._options.signal = this.abortController.signal;
 		}
 
-		this.request = new globals.Request(this._input, this._options);
+		this.request = new globalThis.Request(this._input, this._options);
 
 		if (this._options.searchParams) {
 			const searchParams = '?' + new URLSearchParams(this._options.searchParams).toString();
 			const url = this.request.url.replace(/(?:\?.*?)?(?=#|$)/, searchParams);
 
 			// To provide correct form boundary, Content-Type header should be deleted each time when new Request instantiated from another one
-			if (((supportsFormData && this._options.body instanceof globals.FormData) || this._options.body instanceof URLSearchParams) && !(this._options.headers && this._options.headers['content-type'])) {
+			if (((supportsFormData && this._options.body instanceof globalThis.FormData) || this._options.body instanceof URLSearchParams) && !(this._options.headers && this._options.headers['content-type'])) {
 				this.request.headers.delete('content-type');
 			}
 
-			this.request = new globals.Request(new globals.Request(url, this.request), this._options);
+			this.request = new globalThis.Request(new globalThis.Request(url, this.request), this._options);
 		}
 
 		if (this._options.json !== undefined) {
 			this._options.body = JSON.stringify(this._options.json);
 			this.request.headers.set('content-type', 'application/json');
-			this.request = new globals.Request(this.request, {body: this._options.body});
+			this.request = new globalThis.Request(this.request, {body: this._options.body});
 		}
 
 		const fn = async () => {
@@ -267,7 +265,7 @@ class Ky {
 					this._decorateResponse(response.clone())
 				);
 
-				if (modifiedResponse instanceof globals.Response) {
+				if (modifiedResponse instanceof globalThis.Response) {
 					response = modifiedResponse;
 				}
 			}
@@ -427,8 +425,8 @@ class Ky {
 		const totalBytes = Number(response.headers.get('content-length')) || 0;
 		let transferredBytes = 0;
 
-		return new globals.Response(
-			new globals.ReadableStream({
+		return new globalThis.Response(
+			new globalThis.ReadableStream({
 				async start(controller) {
 					const reader = response.body.getReader();
 
