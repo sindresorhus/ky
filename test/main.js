@@ -341,11 +341,13 @@ test('searchParams option', async t => {
 	};
 	const searchParameters = new URLSearchParams(arrayParameters);
 	const stringParameters = '?cats=meow&dogs=true&opossums=false';
+	const customStringParameters = '?cats&dogs[0]=true&dogs[1]=false';
 
 	t.is(await ky(server.url, {searchParams: arrayParameters}).text(), stringParameters);
 	t.is(await ky(server.url, {searchParams: objectParameters}).text(), stringParameters);
 	t.is(await ky(server.url, {searchParams: searchParameters}).text(), stringParameters);
 	t.is(await ky(server.url, {searchParams: stringParameters}).text(), stringParameters);
+	t.is(await ky(server.url, {searchParams: customStringParameters}).text(), customStringParameters);
 
 	await server.close();
 });
