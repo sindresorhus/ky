@@ -232,7 +232,10 @@ class Ky {
 		this.request = new globalThis.Request(this._input, this._options);
 
 		if (this._options.searchParams) {
-			const searchParams = '?' + new URLSearchParams(this._options.searchParams).toString();
+			const textSearchParams = typeof this._options.searchParams === 'string' ?
+				this._options.searchParams.replace(/^\?/, '') :
+				new URLSearchParams(this._options.searchParams).toString();
+			const searchParams = '?' + textSearchParams;
 			const url = this.request.url.replace(/(?:\?.*?)?(?=#|$)/, searchParams);
 
 			// To provide correct form boundary, Content-Type header should be deleted each time when new Request instantiated from another one
