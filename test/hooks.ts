@@ -1,38 +1,34 @@
-import util from 'util';
 import test from 'ava';
-import createTestServer from 'create-test-server';
-import body from 'body';
 import delay from 'delay';
-import ky from '../index.js';
-
-const pBody = util.promisify(body);
+import {HTTPError} from '../source/errors/HTTPError.js';
+import ky from '../source/index.js';
+import {createHttpTestServer} from './helpers/create-http-test-server.js';
 
 test('hooks can be async', async t => {
-	const server = await createTestServer();
+	const server = await createHttpTestServer();
 	server.post('/', async (request, response) => {
-		response.json(JSON.parse(await pBody(request)));
+		response.json(request.body);
 	});
 
 	const json = {
 		foo: true
 	};
 
-	const responseJson = await ky.post(
-		server.url,
-		{
+	const responseJson = await ky
+		.post(server.url, {
 			json,
 			hooks: {
 				beforeRequest: [
 					async (request, options) => {
 						await delay(100);
-						const bodyJson = JSON.parse(options.body);
+						const bodyJson = JSON.parse(options.body as string);
 						bodyJson.foo = false;
 						return new Request(request, {body: JSON.stringify(bodyJson)});
 					}
 				]
 			}
-		}
-	).json();
+		})
+		.json<typeof json>();
 
 	t.false(responseJson.foo);
 
@@ -41,9 +37,9 @@ test('hooks can be async', async t => {
 
 test('hooks can be empty object', async t => {
 	const expectedResponse = 'empty hook';
-	const server = await createTestServer();
+	const server = await createHttpTestServer();
 
-	server.get('/', (request, response) => {
+	server.get('/', (_request, response) => {
 		response.end(expectedResponse);
 	});
 
@@ -55,30 +51,29 @@ test('hooks can be empty object', async t => {
 });
 
 test('beforeRequest hook allows modifications', async t => {
-	const server = await createTestServer();
+	const server = await createHttpTestServer();
 	server.post('/', async (request, response) => {
-		response.json(JSON.parse(await pBody(request)));
+		response.json(request.body);
 	});
 
 	const json = {
 		foo: true
 	};
 
-	const responseJson = await ky.post(
-		server.url,
-		{
+	const responseJson = await ky
+		.post(server.url, {
 			json,
 			hooks: {
 				beforeRequest: [
 					(request, options) => {
-						const bodyJson = JSON.parse(options.body);
+						const bodyJson = JSON.parse(options.body as string);
 						bodyJson.foo = false;
 						return new Request(request, {body: JSON.stringify(bodyJson)});
 					}
 				]
 			}
-		}
-	).json();
+		})
+		.json<typeof json>();
 
 	t.false(responseJson.foo);
 
@@ -86,64 +81,66 @@ test('beforeRequest hook allows modifications', async t => {
 });
 
 test('afterResponse hook accept success response', async t => {
-	const server = await createTestServer();
+	const server = await createHttpTestServer();
 	server.post('/', async (request, response) => {
-		response.json(JSON.parse(await pBody(request)));
+		response.json(request.body);
 	});
 
 	const json = {
 		foo: true
 	};
 
-	await t.notThrowsAsync(ky.post(
-		server.url,
-		{
-			json,
-			hooks: {
-				afterResponse: [
-					async (_input, _options, response) => {
-						t.is(response.status, 200);
-						t.deepEqual(await response.json(), json);
-					}
-				]
-			}
-		}
-	).json());
+	await t.notThrowsAsync(
+		ky
+			.post(server.url, {
+				json,
+				hooks: {
+					afterResponse: [
+						async (_input, _options, response) => {
+							t.is(response.status, 200);
+							t.deepEqual(await response.json(), json);
+						}
+					]
+				}
+			})
+			.json()
+	);
 
 	await server.close();
 });
 
 test('afterResponse hook accept fail response', async t => {
-	const server = await createTestServer();
+	const server = await createHttpTestServer();
 	server.post('/', async (request, response) => {
-		response.status(500).send(JSON.parse(await pBody(request)));
+		response.status(500).send(request.body);
 	});
 
 	const json = {
 		foo: true
 	};
 
-	await t.throwsAsync(ky.post(
-		server.url,
-		{
-			json,
-			hooks: {
-				afterResponse: [
-					async (_input, _options, response) => {
-						t.is(response.status, 500);
-						t.deepEqual(await response.json(), json);
-					}
-				]
-			}
-		}
-	).json());
+	await t.throwsAsync(
+		ky
+			.post(server.url, {
+				json,
+				hooks: {
+					afterResponse: [
+						async (_input, _options, response) => {
+							t.is(response.status, 500);
+							t.deepEqual(await response.json(), json);
+						}
+					]
+				}
+			})
+			.json()
+	);
 
 	await server.close();
 });
 
 test('afterResponse hook can change response instance by sequence', async t => {
-	const server = await createTestServer();
-	server.post('/', (request, response) => {
+	const server = await createHttpTestServer();
+	server.post('/', (_request, response) => {
 		response.status(500).send();
 	});
 
@@ -153,14 +150,14 @@ test('afterResponse hook can change response instance by sequence', async t => {
 	const modifiedStatus2 = 200;
 
 	await t.notThrowsAsync(async () => {
-		const responseBody = await ky.post(
-			server.url,
-			{
+		const responseBody = await ky
+			.post(server.url, {
 				hooks: {
 					afterResponse: [
-						() => new Response(modifiedBody1, {
-							status: modifiedStatus1
-						}),
+						() =>
+							new Response(modifiedBody1, {
+								status: modifiedStatus1
+							}),
 						async (_input, _options, response) => {
 							t.is(response.status, modifiedStatus1);
 							t.is(await response.text(), modifiedBody1);
@@ -171,8 +168,8 @@ test('afterResponse hook can change response instance by sequence', async t => {
 						}
 					]
 				}
-			}
-		).text();
+			})
+			.text();
 
 		t.is(responseBody, modifiedBody2);
 	});
@@ -181,65 +178,71 @@ test('afterResponse hook can change response instance by sequence', async t => {
 });
 
 test('afterResponse hook can throw error to reject the request promise', async t => {
-	const server = await createTestServer();
-	server.get('/', (request, response) => {
+	const server = await createHttpTestServer();
+	server.get('/', (_request, response) => {
 		response.status(200).send();
 	});
 
 	const expectError = new Error('Error from `afterResponse` hook');
 
 	// Sync hook function
-	await t.throwsAsync(ky.get(
-		server.url,
+	await t.throwsAsync(
+		ky
+			.get(server.url, {
+				hooks: {
+					afterResponse: [
+						() => {
+							throw expectError;
+						}
+					]
+				}
+			})
+			.text(),
 		{
-			hooks: {
-				afterResponse: [
-					() => {
-						throw expectError;
-					}
-				]
-			}
+			is: expectError
 		}
-	).text(), {
-		is: expectError
-	});
+	);
 
 	// Async hook function
-	await t.throwsAsync(ky.get(
-		server.url,
+	await t.throwsAsync(
+		ky
+			.get(server.url, {
+				hooks: {
+					afterResponse: [
+						async () => {
+							throw expectError;
+						}
+					]
+				}
+			})
+			.text(),
 		{
-			hooks: {
-				afterResponse: [
-					async () => {
-						throw expectError;
-					}
-				]
-			}
+			is: expectError
 		}
-	).text(), {
-		is: expectError
-	});
+	);
 
 	await server.close();
 });
 
 test('`afterResponse` hook gets called even if using body shortcuts', async t => {
-	const server = await createTestServer();
-	server.get('/', (request, response) => {
+	const server = await createHttpTestServer();
+	server.get('/', (_request, response) => {
 		response.json({});
 	});
 
 	let called = false;
-	await ky.get(server.url, {
-		hooks: {
-			afterResponse: [
-				(_input, _options, response) => {
-					called = true;
-					return response;
-				}
-			]
-		}
-	}).json();
+	await ky
+		.get(server.url, {
+			hooks: {
+				afterResponse: [
+					(_input, _options, response) => {
+						called = true;
+						return response;
+					}
+				]
+			}
+		})
+		.json();
 
 	t.true(called);
 
@@ -247,10 +250,9 @@ test('`afterResponse` hook gets called even if using body shortcuts', async t =>
 });
 
 test('`afterResponse` hook is called with request, normalized options, and response which can be used to retry', async t => {
-	const server = await createTestServer();
+	const server = await createHttpTestServer();
 	server.post('/', async (request, response) => {
-		const body = await pBody(request);
-		const json = JSON.parse(body);
+		const json = request.body;
 		if (json.token === 'valid:token') {
 			response.json(json);
 		} else {
@@ -263,31 +265,35 @@ test('`afterResponse` hook is called with request, normalized options, and respo
 		token: 'invalid:token'
 	};
 
-	t.deepEqual(await ky.post(
-		server.url,
-		{
-			json,
-			hooks: {
-				afterResponse: [
-					async (request, options, response) => {
-						if (response.status === 403) {
-							// Retry request with valid token
-							return ky(request, {
-								...options,
-								json: {
-									...options.json,
-									token: 'valid:token'
-								}
-							});
+	t.deepEqual(
+		await ky
+			.post(server.url, {
+				json,
+				hooks: {
+					afterResponse: [
+						// @ts-expect-error
+						async (request, options, response) => {
+							if (response.status === 403) {
+								// Retry request with valid token
+								return ky(request, {
+									...options,
+									json: {
+										// @ts-expect-error @TODO
+										...options.json,
+										token: 'valid:token'
+									}
+								});
+							}
 						}
-					}
-				]
-			}
+					]
+				}
+			})
+			.json(),
+		{
+			foo: true,
+			token: 'valid:token'
 		}
-	).json(), {
-		foo: true,
-		token: 'valid:token'
-	});
+	);
 
 	await server.close();
 });
@@ -295,25 +301,27 @@ test('`afterResponse` hook is called with request, normalized options, and respo
 test('afterResponse hook with parseJson and response.json()', async t => {
 	t.plan(5);
 
-	const server = await createTestServer();
-	server.get('/', async (request, response) => {
+	const server = await createHttpTestServer();
+	server.get('/', async (_request, response) => {
 		response.end('text');
 	});
 
-	const json = await ky.get(server.url, {
-		parseJson(text) {
-			t.is(text, 'text');
-			return {awesome: true};
-		},
-		hooks: {
-			afterResponse: [
-				async (request, options, response) => {
-					t.true(response instanceof Response);
-					t.deepEqual(await response.json(), {awesome: true});
-				}
-			]
-		}
-	}).json();
+	const json = await ky
+		.get(server.url, {
+			parseJson(text) {
+				t.is(text, 'text');
+				return {awesome: true};
+			},
+			hooks: {
+				afterResponse: [
+					async (_request, _options, response) => {
+						t.true(response instanceof Response);
+						t.deepEqual(await response.json(), {awesome: true});
+					}
+				]
+			}
+		})
+		.json();
 
 	t.deepEqual(json, {awesome: true});
 
@@ -322,9 +330,9 @@ test('afterResponse hook with parseJson and response.json()', async t => {
 
 test('beforeRetry hook is never called for the initial request', async t => {
 	const fixture = 'fixture';
-	const server = await createTestServer();
+	const server = await createHttpTestServer();
 	server.get('/', async (request, response) => {
-		response.end(request.headers.unicorn);
+		response.end(request.headers['unicorn']);
 	});
 
 	t.not(
@@ -333,7 +341,8 @@ test('beforeRetry hook is never called for the initial request', async t => {
 				hooks: {
 					beforeRetry: [
 						({options}) => {
-							options.headers.set('unicorn', fixture);
+							// @ts-expect-error @TODO
+							options.headers!.set('unicorn', fixture);
 						}
 					]
 				}
@@ -349,12 +358,12 @@ test('beforeRetry hook allows modifications of non initial requests', async t =>
 	let requestCount = 0;
 
 	const fixture = 'fixture';
-	const server = await createTestServer();
+	const server = await createHttpTestServer();
 	server.get('/', async (request, response) => {
 		requestCount++;
 
 		if (requestCount > 1) {
-			response.end(request.headers.unicorn);
+			response.end(request.headers['unicorn']);
 		} else {
 			response.sendStatus(408);
 		}
@@ -381,12 +390,12 @@ test('beforeRetry hook allows modifications of non initial requests', async t =>
 test('beforeRetry hook is called with error and retryCount', async t => {
 	let requestCount = 0;
 
-	const server = await createTestServer();
+	const server = await createHttpTestServer();
 	server.get('/', async (request, response) => {
 		requestCount++;
 
 		if (requestCount > 1) {
-			response.end(request.headers.unicorn);
+			response.end(request.headers['unicorn']);
 		} else {
 			response.sendStatus(408);
 		}
@@ -411,33 +420,36 @@ test('beforeRetry hook is called even if the error has no response', async t => 
 
 	let requestCount = 0;
 
-	const server = await createTestServer();
-	server.get('/', async (request, response) => {
+	const server = await createHttpTestServer();
+	server.get('/', async (_request, response) => {
 		requestCount++;
 		response.end('unicorn');
 	});
 
-	const text = await ky.get(server.url, {
-		retry: 2,
-		async fetch(request) {
-			if (requestCount === 0) {
-				requestCount++;
-				throw new Error('simulated network failure');
-			}
-
-			return globalThis.fetch(request);
-		},
-		hooks: {
-			beforeRetry: [
-				({error, retryCount}) => {
-					t.is(error.message, 'simulated network failure');
-					t.is(error.response, undefined);
-					t.is(retryCount, 1);
-					t.is(requestCount, 1);
+	const text = await ky
+		.get(server.url, {
+			retry: 2,
+			async fetch(request) {
+				if (requestCount === 0) {
+					requestCount++;
+					throw new Error('simulated network failure');
 				}
-			]
-		}
-	}).text();
+
+				return globalThis.fetch(request);
+			},
+			hooks: {
+				beforeRetry: [
+					({error, retryCount}) => {
+						t.is(error.message, 'simulated network failure');
+						// @ts-expect-error
+						t.is(error.response, undefined);
+						t.is(retryCount, 1);
+						t.is(requestCount, 1);
+					}
+				]
+			}
+		})
+		.text();
 
 	t.is(text, 'unicorn');
 	t.is(requestCount, 2);
@@ -450,8 +462,8 @@ test('beforeRetry hook with parseJson and error.response.json()', async t => {
 
 	let requestCount = 0;
 
-	const server = await createTestServer();
-	server.get('/', async (request, response) => {
+	const server = await createHttpTestServer();
+	server.get('/', async (_request, response) => {
 		requestCount++;
 		if (requestCount === 1) {
 			response.status(502).end('text');
@@ -460,25 +472,27 @@ test('beforeRetry hook with parseJson and error.response.json()', async t => {
 		}
 	});
 
-	const json = await ky.get(server.url, {
-		retry: 2,
-		parseJson(text) {
-			t.is(text, 'text');
-			return {awesome: true};
-		},
-		hooks: {
-			beforeRetry: [
-				async ({error, retryCount}) => {
-					t.true(error instanceof ky.HTTPError);
-					t.is(error.message, 'Bad Gateway');
-					t.true(error.response instanceof Response);
-					t.deepEqual(await error.response.json(), {awesome: true});
-					t.is(retryCount, 1);
-					t.is(requestCount, 1);
-				}
-			]
-		}
-	}).json();
+	const json = await ky
+		.get(server.url, {
+			retry: 2,
+			parseJson(text) {
+				t.is(text, 'text');
+				return {awesome: true};
+			},
+			hooks: {
+				beforeRetry: [
+					async ({error, retryCount}) => {
+						t.true(error instanceof ky.HTTPError);
+						t.is(error.message, 'Bad Gateway');
+						t.true((error as HTTPError).response instanceof Response);
+						t.deepEqual(await (error as HTTPError).response.json(), {awesome: true});
+						t.is(retryCount, 1);
+						t.is(requestCount, 1);
+					}
+				]
+			}
+		})
+		.json();
 
 	t.deepEqual(json, {awesome: true});
 	t.is(requestCount, 2);
@@ -489,12 +503,12 @@ test('beforeRetry hook with parseJson and error.response.json()', async t => {
 test('beforeRetry hook can cancel retries by returning `stop`', async t => {
 	let requestCount = 0;
 
-	const server = await createTestServer();
+	const server = await createHttpTestServer();
 	server.get('/', async (request, response) => {
 		requestCount++;
 
 		if (requestCount > 2) {
-			response.end(request.headers.unicorn);
+			response.end(request.headers['unicorn']);
 		} else {
 			response.sendStatus(408);
 		}
@@ -521,12 +535,12 @@ test('beforeRetry hook can cancel retries by returning `stop`', async t => {
 test('catches beforeRetry thrown errors', async t => {
 	let requestCount = 0;
 
-	const server = await createTestServer();
+	const server = await createHttpTestServer();
 	server.get('/', async (request, response) => {
 		requestCount++;
 
 		if (requestCount > 1) {
-			response.end(request.headers.unicorn);
+			response.end(request.headers['unicorn']);
 		} else {
 			response.sendStatus(408);
 		}
@@ -538,9 +552,11 @@ test('catches beforeRetry thrown errors', async t => {
 	await t.throwsAsync(
 		ky.get(server.url, {
 			hooks: {
-				beforeRetry: [() => {
-					throw error;
-				}]
+				beforeRetry: [
+					() => {
+						throw error;
+					}
+				]
 			}
 		}),
 		{message: errorString}
@@ -550,12 +566,12 @@ test('catches beforeRetry thrown errors', async t => {
 test('catches beforeRetry promise rejections', async t => {
 	let requestCount = 0;
 
-	const server = await createTestServer();
+	const server = await createHttpTestServer();
 	server.get('/', async (request, response) => {
 		requestCount++;
 
 		if (requestCount > 1) {
-			response.end(request.headers.unicorn);
+			response.end(request.headers['unicorn']);
 		} else {
 			response.sendStatus(408);
 		}
@@ -567,7 +583,7 @@ test('catches beforeRetry promise rejections', async t => {
 	await t.throwsAsync(
 		ky.get(server.url, {
 			hooks: {
-				beforeRetry: [() => Promise.reject(error)]
+				beforeRetry: [async () => Promise.reject(error)]
 			}
 		}),
 		{message: errorString}
@@ -577,11 +593,13 @@ test('catches beforeRetry promise rejections', async t => {
 test('hooks beforeRequest returning Response skips HTTP Request', async t => {
 	const expectedResponse = 'empty hook';
 
-	const response = await ky.get('server.url', {hooks: {
-		beforeRequest: [
-			() => new Response(expectedResponse, {status: 200, statusText: 'OK'})
-		]
-	}}).text();
+	const response = await ky
+		.get('server.url', {
+			hooks: {
+				beforeRequest: [() => new Response(expectedResponse, {status: 200, statusText: 'OK'})]
+			}
+		})
+		.text();
 
 	t.is(response, expectedResponse);
 });
