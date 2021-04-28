@@ -13,17 +13,17 @@ declare global {
 	}
 }
 
-const LIB_DIR = new URL('../lib', import.meta.url).toString();
+const DIST_DIR = new URL('../distribution', import.meta.url).toString();
 const createEsmTestServer = async (options?: HttpServerOptions) => {
 	const server = await createHttpTestServer(options);
-	server.use('/lib', express.static(LIB_DIR.replace(/^file:\/\//, '')));
+	server.use('/distribution', express.static(DIST_DIR.replace(/^file:\/\//, '')));
 	return server;
 };
 
 const KY_SCRIPT = {
 	type: 'module',
 	content: `
-		import ky from '/lib/index.js';
+		import ky from '/distribution/index.js';
 		globalThis.ky = ky;
 	`
 };
