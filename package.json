@@ -20,7 +20,7 @@
 		"test": "xo && npm run build && ava",
 		"debug": "PWDEBUG=1 ava --timeout=2m",
 		"release": "np",
-		"build": "del-cli distribution/ && tsc --project tsconfig.dist.json",
+		"build": "del-cli distribution && tsc --project tsconfig.dist.json",
 		"prepare": "npm run build"
 	},
 	"files": [

@@ -14,6 +14,7 @@ export class Ky {
 	protected _retryCount = 0;
 	protected _input: Input;
 	protected _options: InternalOptions;
+
 	// eslint-disable-next-line complexity
 	constructor(input: Input, options: Options = {}) {
 		this._input = input;
