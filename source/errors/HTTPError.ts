@@ -6,12 +6,12 @@ export class HTTPError extends Error {
 	public options: NormalizedOptions;
 
 	constructor(response: Response, request: Request, options: NormalizedOptions) {
-		// Set the message to the status text, such as Unauthorized,
-		// with some fallbacks. This message should never be undefined.
-		super(
-			response.statusText ||
-				String(response.status === 0 || response.status ? response.status : 'Unknown response error')
-		);
+		const code = (response.status || response.status === 0) ? response.status : '';
+		const title = response.statusText || '';
+		const status = `${code} ${title}`.trim();
+		const reason = status ? `status code ${status}` : 'an unknown error';
+
+		super(`Request failed with ${reason}`);
 
 		this.name = 'HTTPError';
 		this.response = response;
