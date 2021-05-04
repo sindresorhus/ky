@@ -149,10 +149,9 @@ export class Ky {
 		};
 
 		const isRetriableMethod = ky._options.retry.methods.includes(ky.request.method.toLowerCase());
-		const result = isRetriableMethod ? ky._retry(fn) : fn();
+		const result = (isRetriableMethod ? ky._retry(fn) : fn()) as ResponsePromise;
 
 		for (const [type, mimeType] of Object.entries(responseTypes) as ObjectEntries<typeof responseTypes>) {
-			// @ts-expect-error not sure how to properly type this!
 			result[type] = async () => {
 				// eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing
 				ky.request.headers.set('accept', ky.request.headers.get('accept') || mimeType);
@@ -173,7 +172,7 @@ export class Ky {
 			};
 		}
 
-		return result as ResponsePromise;
+		return result;
 	}
 
 	protected _calculateRetryDelay(error: Error) {
