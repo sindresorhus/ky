@@ -474,6 +474,18 @@ test('ky.create() with deep array', async t => {
 	await server.close();
 });
 
+test('ky.create() does not mangle search params', async t => {
+	const server = await createHttpTestServer();
+	server.get('/', (request, response) => {
+		response.end(request.url);
+	});
+
+	const instance = ky.create({searchParams: {}});
+	t.is(await instance.get(server.url, {searchParams: {}}).text(), '/?');
+
+	await server.close();
+});
+
 test('ky.extend()', async t => {
 	const server = await createHttpTestServer();
 	server.get('/', (_request, response) => {
