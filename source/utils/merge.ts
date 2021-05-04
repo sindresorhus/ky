@@ -52,7 +52,6 @@ export const deepMerge = <T>(...sources: Array<Partial<T> | undefined>): T => {
 				returnValue.headers = headers;
 			}
 		}
-
 	}
 
 	return returnValue;
