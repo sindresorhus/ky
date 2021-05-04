@@ -1,6 +1,7 @@
 import test from 'ava';
 import delay from 'delay';
 import ky, {HTTPError} from '../source/index.js';
+import { Options } from '../source/types/options.js';
 import {createHttpTestServer} from './helpers/create-http-test-server.js';
 
 test('hooks can be async', async t => {
@@ -270,19 +271,19 @@ test('`afterResponse` hook is called with request, normalized options, and respo
 				json,
 				hooks: {
 					afterResponse: [
-						// @ts-expect-error
 						async (request, options, response) => {
 							if (response.status === 403) {
 								// Retry request with valid token
 								return ky(request, {
 									...options,
 									json: {
-										// @ts-expect-error @TODO
-										...options.json,
+										...(options as Options).json,
 										token: 'valid:token'
 									}
 								});
 							}
+
+							return undefined;
 						}
 					]
 				}
