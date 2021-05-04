@@ -230,7 +230,6 @@ export class Ky {
 				await delay(ms);
 
 				for (const hook of this._options.hooks.beforeRetry) {
-					// @ts-expect-error TODO missing response?
 					// eslint-disable-next-line no-await-in-loop
 					const hookResult = await hook({
 						request: this.request,
