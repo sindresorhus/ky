@@ -4,9 +4,11 @@ import ky from '../source/index.js';
 test.serial('relative URLs are passed to fetch unresolved', async t => {
 	const originalFetch = globalThis.fetch;
 	globalThis.fetch = async input => {
-		// @ts-expect-error @TODO
+		if (typeof input !== 'object') {
+			throw new Error('Expect to have an object request');
+		}
+
 		t.true(input.url.startsWith('/'));
-		// @ts-expect-error @TODO
 		return new Response(input.url);
 	};
 
@@ -23,8 +25,9 @@ test('fetch option takes a custom fetch function', async t => {
 	t.plan(12);
 
 	const customFetch: typeof fetch = async input => {
-		t.true(input instanceof Request);
-		// @ts-expect-error @TODO
+		if (!(input instanceof Request)) {
+			throw new Error('Expected to have input as request');
+		}
 		return new Response(input.url);
 	};
 
