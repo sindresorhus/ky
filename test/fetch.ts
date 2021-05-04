@@ -5,7 +5,7 @@ test.serial('relative URLs are passed to fetch unresolved', async t => {
 	const originalFetch = globalThis.fetch;
 	globalThis.fetch = async input => {
 		if (typeof input !== 'object') {
-			throw new Error('Expect to have an object request');
+			throw new TypeError('Expect to have an object request');
 		}
 
 		t.true(input.url.startsWith('/'));
@@ -26,8 +26,9 @@ test('fetch option takes a custom fetch function', async t => {
 
 	const customFetch: typeof fetch = async input => {
 		if (!(input instanceof Request)) {
-			throw new Error('Expected to have input as request');
+			throw new TypeError('Expected to have input as request');
 		}
+
 		return new Response(input.url);
 	};
 

@@ -9,8 +9,8 @@ import {delay, timeout, TimeoutOptions} from '../utils/time.js';
 import {maxSafeTimeout, responseTypes, stop, supportsAbortController, supportsFormData, supportsStreams} from './constants.js';
 
 type ObjectEntries<T> = T extends ArrayLike<infer U>
-	? [string, U][]
-	: { [K in keyof T]: [K, T[K]] }[keyof T][];
+	? Array<[string, U]>
+	: Array<{[K in keyof T]: [K, T[K]]}[keyof T]>;
 
 export class Ky {
 	public request: Request;
@@ -156,6 +156,7 @@ export class Ky {
 				// eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing
 				ky.request.headers.set('accept', ky.request.headers.get('accept') || mimeType);
 
+				// eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion, @typescript-eslint/non-nullable-type-assertion-style
 				const response = ((await result) as Response).clone();
 
 				if (type === 'json') {

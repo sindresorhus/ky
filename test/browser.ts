@@ -157,9 +157,11 @@ test(
 				};
 			});
 		}, server.url);
+
 		if (typeof error !== 'object') {
-			throw new Error('Expected to have an object error');
+			throw new TypeError('Expected to have an object error');
 		}
+
 		t.is(error.message, 'TimeoutError: Request timed out');
 		t.is(error.request.url, `${server.url}/slow`);
 
