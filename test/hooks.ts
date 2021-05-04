@@ -341,8 +341,7 @@ test('beforeRetry hook is never called for the initial request', async t => {
 				hooks: {
 					beforeRetry: [
 						({options}) => {
-							// @ts-expect-error @TODO
-							options.headers!.set('unicorn', fixture);
+							(options.headers as Partial<Headers> | undefined)?.set?.('unicorn', fixture);
 						}
 					]
 				}
