@@ -1,18 +1,18 @@
 import test from 'ava';
 import {HTTPError} from '../source/index.js';
 
+type Mutable<T> = {
+	-readonly[P in keyof T]: T[P]
+};
+
 function createFakeResponse({status, statusText}: {status?: number; statusText?: string}): Response {
 	// Start with a realistic fetch Response.
-	const response = {...new Response()};
+	const response: Partial<Mutable<Response>> = {...new Response()};
 
-	// Assign these values because the Response() constructor doesn't
-	// support setting them to undefined.
-	// @ts-expect-error
 	response.status = status;
-	// @ts-expect-error
 	response.statusText = statusText;
 
-	return response;
+	return response as Response;
 }
 
 test('HTTPError handles undefined response.statusText', t => {
