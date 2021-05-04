@@ -1,6 +1,6 @@
 import test from 'ava';
 import delay from 'delay';
-import ky from '../source/index.js';
+import ky, {TimeoutError} from '../source/index.js';
 import {createHttpTestServer} from './helpers/create-http-test-server.js';
 import {parseRawBody} from './helpers/parse-body.js';
 
@@ -277,7 +277,7 @@ test('timeout option', async t => {
 	});
 
 	await t.throwsAsync(ky(server.url, {timeout: 1000}).text(), {
-		instanceOf: ky.TimeoutError
+		instanceOf: TimeoutError
 	});
 
 	t.is(requestCount, 1);
@@ -405,7 +405,7 @@ test('throwHttpErrors:false does not suppress timeout errors', async t => {
 
 	await t.throwsAsync(
 		ky(server.url, {throwHttpErrors: false, timeout: 500}).text(),
-		{instanceOf: ky.TimeoutError}
+		{instanceOf: TimeoutError}
 	);
 
 	t.is(requestCount, 1);

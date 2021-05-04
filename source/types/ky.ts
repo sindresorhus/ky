@@ -1,6 +1,4 @@
 import {stop} from '../core/constants.js';
-import type {HTTPError} from '../errors/HTTPError.js';
-import type {TimeoutError} from '../errors/TimeoutError.js';
 import type {Input, Options} from './options.js';
 import type {ResponsePromise} from './response.js';
 
@@ -101,8 +99,6 @@ export interface ky {
 	```
 	*/
 	readonly stop: typeof stop;
-	readonly TimeoutError: typeof TimeoutError;
-	readonly HTTPError: typeof HTTPError;
 
 	/**
 	Fetch the given `url`.

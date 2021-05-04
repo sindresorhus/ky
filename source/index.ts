@@ -2,8 +2,6 @@
 
 import {Ky} from './core/Ky.js';
 import {requestMethods, stop} from './core/constants.js';
-import {HTTPError} from './errors/HTTPError.js';
-import {TimeoutError} from './errors/TimeoutError.js';
 import type {ky as KyInterface} from './types/ky.js';
 import type {Input, Options} from './types/options.js';
 import {validateAndMerge} from './utils/merge.js';
@@ -18,8 +16,6 @@ const createInstance = (defaults?: Partial<Options>): KyInterface => {
 		ky[method] = (input: Input, options: Options) => Ky.create(input, validateAndMerge(defaults, options, {method}));
 	}
 
-	ky.HTTPError = HTTPError;
-	ky.TimeoutError = TimeoutError;
 	ky.create = (newDefaults?: Partial<Options>) => createInstance(validateAndMerge(newDefaults));
 	ky.extend = (newDefaults?: Partial<Options>) => createInstance(validateAndMerge(defaults, newDefaults));
 	ky.stop = stop;
@@ -30,3 +26,6 @@ const createInstance = (defaults?: Partial<Options>): KyInterface => {
 const ky = createInstance();
 
 export default ky;
+
+export {HTTPError} from './errors/HTTPError.js';
+export {TimeoutError} from './errors/TimeoutError.js';

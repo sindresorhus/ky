@@ -425,14 +425,6 @@ const response = await api.get('/status', {prefixUrl: ''});
 
 Type: `object`
 
-### ky.HTTPError
-
-Exposed for `instanceof` checks. The error has a `response` property with the [`Response` object](https://developer.mozilla.org/en-US/docs/Web/API/Response), `request` property with the [`Request` object](https://developer.mozilla.org/en-US/docs/Web/API/Request), and `options` property with normalized options (either passed to `ky` when creating an instance with `ky.create()` or directly when performing the request).
-
-### ky.TimeoutError
-
-The error thrown when the request times out. It has a `request` property with the [`Request` object](https://developer.mozilla.org/en-US/docs/Web/API/Request).
-
 ### ky.stop
 
 A `Symbol` that can be returned by a `beforeRetry` hook to stop the retry. This will also short circuit the remaining `beforeRetry` hooks.
@@ -463,6 +455,14 @@ const response = await ky.post('https://example.com', options);
 // Using `.text()` or other body methods is not suppported.
 const text = await ky('https://example.com', options).text();
 ```
+
+### HTTPError
+
+Exposed for `instanceof` checks. The error has a `response` property with the [`Response` object](https://developer.mozilla.org/en-US/docs/Web/API/Response), `request` property with the [`Request` object](https://developer.mozilla.org/en-US/docs/Web/API/Request), and `options` property with normalized options (either passed to `ky` when creating an instance with `ky.create()` or directly when performing the request).
+
+### TimeoutError
+
+The error thrown when the request times out. It has a `request` property with the [`Request` object](https://developer.mozilla.org/en-US/docs/Web/API/Request).
 
 ## Tips
 
