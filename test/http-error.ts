@@ -25,7 +25,7 @@ test('HTTPError handles undefined response.statusText', t => {
 		createFakeResponse({statusText: undefined, status})
 	);
 
-	t.is(error.message, 'Request failed with status code 502');
+	t.is(error.message, 'Request failed with status code 500');
 });
 
 test('HTTPError handles undefined response.status', t => {
