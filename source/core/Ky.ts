@@ -248,9 +248,7 @@ export class Ky {
 				return this._retry(fn);
 			}
 
-			if (this._options.throwHttpErrors) {
-				throw error;
-			}
+			throw error;
 		}
 	}
 
