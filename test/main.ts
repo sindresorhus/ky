@@ -393,6 +393,26 @@ test('throwHttpErrors option with POST', async t => {
 	await server.close();
 });
 
+test('throwHttpErrors:false does not suppress timeout errors', async t => {
+	let requestCount = 0;
+
+	const server = await createHttpTestServer();
+	server.get('/', async (_request, response) => {
+		requestCount++;
+		await delay(1000);
+		response.sendStatus(500);
+	});
+
+	await t.throwsAsync(
+		ky(server.url, {throwHttpErrors: false, timeout: 500}).text(),
+		{instanceOf: ky.TimeoutError}
+	);
+
+	t.is(requestCount, 1);
+
+	await server.close();
+});
+
 test('ky.create()', async t => {
 	const server = await createHttpTestServer();
 	server.get('/', (request, response) => {
