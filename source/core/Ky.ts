@@ -8,6 +8,10 @@ import {normalizeRequestMethod, normalizeRetryOptions} from '../utils/normalize.
 import {delay, timeout, TimeoutOptions} from '../utils/time.js';
 import {maxSafeTimeout, responseTypes, stop, supportsAbortController, supportsFormData, supportsStreams} from './constants.js';
 
+type ObjectEntries<T> = T extends ArrayLike<infer U>
+	? [string, U][]
+	: { [K in keyof T]: [K, T[K]] }[keyof T][];
+
 export class Ky {
 	public request: Request;
 	protected abortController?: AbortController;
@@ -147,7 +151,7 @@ export class Ky {
 		const isRetriableMethod = ky._options.retry.methods.includes(ky.request.method.toLowerCase());
 		const result = isRetriableMethod ? ky._retry(fn) : fn();
 
-		for (const [type, mimeType] of Object.entries(responseTypes)) {
+		for (const [type, mimeType] of Object.entries(responseTypes) as ObjectEntries<typeof responseTypes>) {
 			// @ts-expect-error not sure how to properly type this!
 			result[type] = async () => {
 				// eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing
@@ -165,7 +169,6 @@ export class Ky {
 					}
 				}
 
-				// @ts-expect-error not sure how to properly type this!
 				return response[type]();
 			};
 		}

@@ -12,7 +12,7 @@ export const responseTypes = {
 	formData: 'multipart/form-data',
 	arrayBuffer: '*/*',
 	blob: '*/*'
-};
+} as const;
 
 // The maximum value of a 32bit int (see issue #117)
 export const maxSafeTimeout = 2147483647;
