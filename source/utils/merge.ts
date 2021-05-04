@@ -49,10 +49,9 @@ export const deepMerge = <T>(...sources: Array<Partial<T> | undefined>): T => {
 
 			if (isObject((source as any).headers)) {
 				headers = mergeHeaders(headers, (source as any).headers);
+				returnValue.headers = headers;
 			}
 		}
-
-		returnValue.headers = headers;
 	}
 
 	return returnValue;
