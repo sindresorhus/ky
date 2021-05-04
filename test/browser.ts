@@ -405,7 +405,7 @@ test('retry with body', withPage, async (t: ExecutionContext, page: Page) => {
 				retry: 2
 			});
 		}, server.url),
-		{message: /HTTPError: Bad Gateway/}
+		{message: /HTTPError: Request failed with status code 502 Bad Gateway/}
 	);
 
 	t.is(requestCount, 2);
