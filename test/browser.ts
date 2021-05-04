@@ -157,9 +157,10 @@ test(
 				};
 			});
 		}, server.url);
-		// @ts-expect-error
+		if (typeof error !== 'object') {
+			throw new Error('Expected to have an object error');
+		}
 		t.is(error.message, 'TimeoutError: Request timed out');
-		// @ts-expect-error
 		t.is(error.request.url, `${server.url}/slow`);
 
 		await server.close();
