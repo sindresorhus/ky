@@ -1,9 +1,6 @@
 import test from 'ava';
 import {HTTPError} from '../source/index.js';
-
-type Mutable<T> = {
-	-readonly[P in keyof T]: T[P]
-};
+import {Mutable} from '../source/utils/Mutable.js';
 
 function createFakeResponse({status, statusText}: {status?: number; statusText?: string}): Response {
 	// Start with a realistic fetch Response.
