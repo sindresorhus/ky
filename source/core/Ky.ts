@@ -6,11 +6,8 @@ import {ResponsePromise} from '../types/response.js';
 import {deepMerge, mergeHeaders} from '../utils/merge.js';
 import {normalizeRequestMethod, normalizeRetryOptions} from '../utils/normalize.js';
 import {delay, timeout, TimeoutOptions} from '../utils/time.js';
+import {ObjectEntries} from '../utils/types.js';
 import {maxSafeTimeout, responseTypes, stop, supportsAbortController, supportsFormData, supportsStreams} from './constants.js';
-
-type ObjectEntries<T> = T extends ArrayLike<infer U>
-	? Array<[string, U]>
-	: Array<{[K in keyof T]: [K, T[K]]}[keyof T]>;
 
 export class Ky {
 	public request: Request;
