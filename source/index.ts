@@ -27,5 +27,7 @@ const ky = createInstance();
 
 export default ky;
 
+export {Options};
+
 export {HTTPError} from './errors/HTTPError.js';
 export {TimeoutError} from './errors/TimeoutError.js';
