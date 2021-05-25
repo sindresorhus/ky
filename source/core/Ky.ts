@@ -105,43 +105,54 @@ export class Ky {
 				throw new RangeError(`The \`timeout\` option cannot be greater than ${maxSafeTimeout}`);
 			}
 
-			await delay(1);
-			let response = await ky._fetch();
+			return new Promise<Response>((resolve, reject) => {
+				// Fix #345: We must keep setTimeout() here instead of using delay(), because new relic cannot handle parallel promise correctly.
+				setTimeout(async () => {
+					try {
+						let response = await ky._fetch();
+						for (const hook of ky._options.hooks.afterResponse) {
+						// eslint-disable-next-line no-await-in-loop
+							const modifiedResponse = await hook(
+								ky.request,
+								ky._options as NormalizedOptions,
+								ky._decorateResponse(response.clone())
+							);
 
-			for (const hook of ky._options.hooks.afterResponse) {
-				// eslint-disable-next-line no-await-in-loop
-				const modifiedResponse = await hook(
-					ky.request,
-					ky._options as NormalizedOptions,
-					ky._decorateResponse(response.clone())
-				);
+							if (modifiedResponse instanceof globalThis.Response) {
+								response = modifiedResponse;
+							}
+						}
 
-				if (modifiedResponse instanceof globalThis.Response) {
-					response = modifiedResponse;
-				}
-			}
+						ky._decorateResponse(response);
 
-			ky._decorateResponse(response);
+						if (!response.ok && ky._options.throwHttpErrors) {
+							reject(new HTTPError(response, ky.request, (ky._options as unknown) as NormalizedOptions));
+							return;
+						}
 
-			if (!response.ok && ky._options.throwHttpErrors) {
-				throw new HTTPError(response, ky.request, (ky._options as unknown) as NormalizedOptions);
-			}
+						// If `onDownloadProgress` is passed, it uses the stream API internally
+						/* istanbul ignore next */
+						if (ky._options.onDownloadProgress) {
+							if (typeof ky._options.onDownloadProgress !== 'function') {
+								reject(new TypeError('The `onDownloadProgress` option must be a function'));
+								return;
+							}
 
-			// If `onDownloadProgress` is passed, it uses the stream API internally
-			/* istanbul ignore next */
-			if (ky._options.onDownloadProgress) {
-				if (typeof ky._options.onDownloadProgress !== 'function') {
-					throw new TypeError('The `onDownloadProgress` option must be a function');
-				}
+							if (!supportsStreams) {
+								reject(new Error('Streams are not supported in your environment. `ReadableStream` is missing.'));
+								return;
+							}
 
-				if (!supportsStreams) {
-					throw new Error('Streams are not supported in your environment. `ReadableStream` is missing.');
-				}
+							resolve(ky._stream(response.clone(), ky._options.onDownloadProgress));
+							return;
+						}
 
-				return ky._stream(response.clone(), ky._options.onDownloadProgress);
-			}
-
-			return response;
+						resolve(response);
+					} catch (error: unknown) {
+						reject(error);
+					}
+				}, 1);
+			});
 		};
 
 		const isRetriableMethod = ky._options.retry.methods.includes(ky.request.method.toLowerCase());
