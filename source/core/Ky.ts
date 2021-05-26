@@ -153,8 +153,7 @@ export class Ky {
 				// eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing
 				ky.request.headers.set('accept', ky.request.headers.get('accept') || mimeType);
 
-				// eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion, @typescript-eslint/non-nullable-type-assertion-style
-				const response = ((await result) as Response).clone();
+				const response = (await result).clone();
 
 				if (type === 'json') {
 					if (response.status === 204) {
