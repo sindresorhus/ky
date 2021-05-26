@@ -105,6 +105,7 @@ export class Ky {
 				throw new RangeError(`The \`timeout\` option cannot be greater than ${maxSafeTimeout}`);
 			}
 
+			// Delay the fetch so that body method shortcuts can set the Accept header
 			await Promise.resolve();
 			let response = await ky._fetch();
 
