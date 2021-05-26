@@ -105,54 +105,43 @@ export class Ky {
 				throw new RangeError(`The \`timeout\` option cannot be greater than ${maxSafeTimeout}`);
 			}
 
-			return new Promise<Response>((resolve, reject) => {
-				// Fix #345: We must keep setTimeout() here instead of using delay(), because new relic cannot handle parallel promise correctly.
-				setTimeout(async () => {
-					try {
-						let response = await ky._fetch();
-						for (const hook of ky._options.hooks.afterResponse) {
-						// eslint-disable-next-line no-await-in-loop
-							const modifiedResponse = await hook(
-								ky.request,
-								ky._options as NormalizedOptions,
-								ky._decorateResponse(response.clone())
-							);
+			await Promise.resolve();
+			let response = await ky._fetch();
 
-							if (modifiedResponse instanceof globalThis.Response) {
-								response = modifiedResponse;
-							}
-						}
+			for (const hook of ky._options.hooks.afterResponse) {
+				// eslint-disable-next-line no-await-in-loop
+				const modifiedResponse = await hook(
+					ky.request,
+					ky._options as NormalizedOptions,
+					ky._decorateResponse(response.clone())
+				);
 
-						ky._decorateResponse(response);
+				if (modifiedResponse instanceof globalThis.Response) {
+					response = modifiedResponse;
+				}
+			}
 
-						if (!response.ok && ky._options.throwHttpErrors) {
-							reject(new HTTPError(response, ky.request, (ky._options as unknown) as NormalizedOptions));
-							return;
-						}
+			ky._decorateResponse(response);
 
-						// If `onDownloadProgress` is passed, it uses the stream API internally
-						/* istanbul ignore next */
-						if (ky._options.onDownloadProgress) {
-							if (typeof ky._options.onDownloadProgress !== 'function') {
-								reject(new TypeError('The `onDownloadProgress` option must be a function'));
-								return;
-							}
+			if (!response.ok && ky._options.throwHttpErrors) {
+				throw new HTTPError(response, ky.request, (ky._options as unknown) as NormalizedOptions);
+			}
 
-							if (!supportsStreams) {
-								reject(new Error('Streams are not supported in your environment. `ReadableStream` is missing.'));
-								return;
-							}
+			// If `onDownloadProgress` is passed, it uses the stream API internally
+			/* istanbul ignore next */
+			if (ky._options.onDownloadProgress) {
+				if (typeof ky._options.onDownloadProgress !== 'function') {
+					throw new TypeError('The `onDownloadProgress` option must be a function');
+				}
 
-							resolve(ky._stream(response.clone(), ky._options.onDownloadProgress));
-							return;
-						}
+				if (!supportsStreams) {
+					throw new Error('Streams are not supported in your environment. `ReadableStream` is missing.');
+				}
 
-						resolve(response);
-					} catch (error: unknown) {
-						reject(error);
-					}
-				}, 1);
-			});
+				return ky._stream(response.clone(), ky._options.onDownloadProgress);
+			}
+
+			return response;
 		};
 
 		const isRetriableMethod = ky._options.retry.methods.includes(ky.request.method.toLowerCase());
