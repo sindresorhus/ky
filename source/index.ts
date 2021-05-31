@@ -29,5 +29,7 @@ export default ky;
 
 export {Options};
 
+export {AfterResponseHook, BeforeRequestHook, BeforeRetryHook} from './types/hooks';
+
 export {HTTPError} from './errors/HTTPError.js';
 export {TimeoutError} from './errors/TimeoutError.js';
