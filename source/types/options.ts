@@ -242,3 +242,5 @@ export interface NormalizedOptions extends RequestInit {
 	prefixUrl: string;
 	onDownloadProgress: Options['onDownloadProgress'];
 }
+
+export {RetryOptions};
