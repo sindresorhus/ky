@@ -689,3 +689,31 @@ test('parseJson option with promise.json() shortcut', async t => {
 
 	await server.close();
 });
+
+test.failing('large responses get stuck if cloned', async t => {
+	const server = await createHttpTestServer();
+	server.get('/', async (_request, response) => {
+		response.end('a'.repeat(50 * 1024 * 1024));
+	});
+
+	t.timeout(1000);
+	await t.notThrowsAsync(
+		ky(server.url, {hooks: {afterResponse: [() => undefined]}}).text()
+	);
+
+	await server.close();
+});
+
+test('avoidCloningResponse fixes fetching large responses', async t => {
+	const server = await createHttpTestServer();
+	server.get('/', async (_request, response) => {
+		response.end('a'.repeat(50 * 1024 * 1024));
+	});
+
+	t.timeout(1000);
+	await t.notThrowsAsync(
+		ky(server.url, {avoidCloningResponse: true, hooks: {afterResponse: [() => undefined]}}).text()
+	);
+
+	await server.close();
+});
