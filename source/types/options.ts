@@ -178,6 +178,15 @@ export interface Options extends Omit<RequestInit, 'headers'> {
 	throwHttpErrors?: boolean;
 
 	/**
+	Don't clone response before `hooks.afterResponse`, `onDownloadProgress`, and method shortcuts.
+
+	Useful to reduce browser memory consumption when fetching large responses. And in NodeJS, node-fetch doesn't get stuck if response is larger than highWaterMark.
+
+	@default false
+	*/
+	avoidCloningResponse?: boolean;
+
+	/**
 	Download progress event handler.
 
 	@param chunk - Note: It's empty for the first call.

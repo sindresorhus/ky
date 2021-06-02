@@ -36,6 +36,7 @@ export class Ky {
 			prefixUrl: String(options.prefixUrl || ''),
 			retry: normalizeRetryOptions(options.retry),
 			throwHttpErrors: options.throwHttpErrors !== false,
+			avoidCloningResponse: options.avoidCloningResponse ?? false,
 			timeout: typeof options.timeout === 'undefined' ? 10000 : options.timeout,
 			fetch: options.fetch ?? globalThis.fetch.bind(globalThis)
 		};
@@ -114,7 +115,7 @@ export class Ky {
 				const modifiedResponse = await hook(
 					ky.request,
 					ky._options as NormalizedOptions,
-					ky._decorateResponse(response.clone())
+					ky._options.avoidCloningResponse ? response : ky._decorateResponse(response.clone())
 				);
 
 				if (modifiedResponse instanceof globalThis.Response) {
@@ -139,14 +140,17 @@ export class Ky {
 					throw new Error('Streams are not supported in your environment. `ReadableStream` is missing.');
 				}
 
-				return ky._stream(response.clone(), ky._options.onDownloadProgress);
+				return ky._stream(
+					ky._options.avoidCloningResponse ? response : response.clone(),
+					ky._options.onDownloadProgress
+				);
 			}
 
 			return response;
 		};
 
 		const isRetriableMethod = ky._options.retry.methods.includes(ky.request.method.toLowerCase());
-		const result = isRetriableMethod ? ky._retry(fn) : fn();
+		const result = (isRetriableMethod ? ky._retry(fn) : fn()) as ResponsePromise;
 
 		for (const [type, mimeType] of Object.entries(responseTypes)) {
 			// @ts-expect-error not sure how to properly type this!
@@ -154,7 +158,7 @@ export class Ky {
 				// eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing
 				ky.request.headers.set('accept', ky.request.headers.get('accept') || mimeType);
 
-				const response = ((await result) as Response).clone();
+				const response = ky._options.avoidCloningResponse ? await result : (await result).clone();
 
 				if (type === 'json') {
 					if (response.status === 204) {
@@ -171,7 +175,7 @@ export class Ky {
 			};
 		}
 
-		return result as ResponsePromise;
+		return result;
 	}
 
 	protected _calculateRetryDelay(error: Error) {

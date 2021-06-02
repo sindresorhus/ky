@@ -303,6 +303,17 @@ Throw an `HTTPError` when, after following redirects, the response has a non-2xx
 
 Setting this to `false` may be useful if you are checking for resource availability and are expecting error responses.
 
+
+##### avoidCloningResponse
+
+Type: `boolean`\
+Default: `false`
+
+Don't clone response before `hooks.afterResponse`, `onDownloadProgress`, and method shortcuts.
+
+Useful to reduce browser memory consumption when fetching large responses. And in NodeJS, node-fetch doesn't get stuck if response is larger than highWaterMark.
+
+
 ##### onDownloadProgress
 
 Type: `Function`
