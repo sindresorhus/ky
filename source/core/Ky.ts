@@ -146,15 +146,16 @@ export class Ky {
 		};
 
 		const isRetriableMethod = ky._options.retry.methods.includes(ky.request.method.toLowerCase());
-		const result = isRetriableMethod ? ky._retry(fn) : fn();
+		const result = (isRetriableMethod ? ky._retry(fn) : fn()) as ResponsePromise;
 
-		for (const [type, mimeType] of Object.entries(responseTypes)) {
-			// @ts-expect-error not sure how to properly type this!
+		for (const entry of Object.entries(responseTypes)) {
+			const [type, mimeType] = entry as [keyof typeof responseTypes, string];
+
 			result[type] = async () => {
 				// eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing
 				ky.request.headers.set('accept', ky.request.headers.get('accept') || mimeType);
 
-				const response = ((await result) as Response).clone();
+				const response = (await result).clone();
 
 				if (type === 'json') {
 					if (response.status === 204) {
@@ -166,12 +167,11 @@ export class Ky {
 					}
 				}
 
-				// @ts-expect-error not sure how to properly type this!
 				return response[type]();
 			};
 		}
 
-		return result as ResponsePromise;
+		return result;
 	}
 
 	protected _calculateRetryDelay(error: Error) {
