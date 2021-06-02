@@ -4,6 +4,24 @@ import type {ResponsePromise} from './response.js';
 
 export interface ky {
 	/**
+	Fetch the given `url`.
+
+	@param url - `Request` object, `URL` object, or URL string.
+	@returns A promise with `Body` method added.
+
+	@example
+	```
+	import ky from 'ky';
+
+	const json = await ky('https://example.com', {json: {foo: true}}).json();
+
+	console.log(json);
+	//=> `{data: '🦄'}`
+	```
+	*/
+	(url: Input, options?: Options): ResponsePromise;
+
+	/**
 	Fetch the given `url` using the option `{method: 'get'}`.
 
 	@param url - `Request` object, `URL` object, or URL string.
@@ -99,22 +117,4 @@ export interface ky {
 	```
 	*/
 	readonly stop: typeof stop;
-
-	/**
-	Fetch the given `url`.
-
-	@param url - `Request` object, `URL` object, or URL string.
-	@returns A promise with `Body` method added.
-
-	@example
-	```
-	import ky from 'ky';
-
-	const json = await ky('https://example.com', {json: {foo: true}}).json();
-
-	console.log(json);
-	//=> `{data: '🦄'}`
-	```
-	*/
-	(url: Input, options?: Options): ResponsePromise;
 }
