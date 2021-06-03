@@ -270,7 +270,6 @@ test('`afterResponse` hook is called with request, normalized options, and respo
 				json,
 				hooks: {
 					afterResponse: [
-						// @ts-expect-error
 						async (request, options, response) => {
 							if (response.status === 403) {
 								// Retry request with valid token
@@ -283,6 +282,8 @@ test('`afterResponse` hook is called with request, normalized options, and respo
 									}
 								});
 							}
+
+							return undefined;
 						}
 					]
 				}
