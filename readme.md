@@ -537,7 +537,7 @@ Either use a test runner that can run in the browser, like Mocha, or use [AVA](h
 
 #### How do I use this without a bundler like Webpack?
 
-Make sure your code is running as an ES module, for example by using a `<script type="module">` tag in your HTML document. Then Ky can be imported directly by that module without a bundler or other tools.
+Make sure your code is running as a JavaScript module (ESM), for example by using a `<script type="module">` tag in your HTML document. Then Ky can be imported directly by that module without a bundler or other tools.
 
 ```html
 <script type="module">
