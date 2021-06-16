@@ -1,7 +1,7 @@
 import {HTTPError} from '../errors/HTTPError.js';
 import {TimeoutError} from '../errors/TimeoutError.js';
 import type {Hooks} from '../types/hooks.js';
-import type {Input, InternalOptions, NormalizedOptions, Options} from '../types/options.js';
+import type {Input, InternalOptions, NormalizedOptions, Options, SearchParamsInit} from '../types/options.js';
 import {ResponsePromise} from '../types/response.js';
 import {deepMerge, mergeHeaders} from '../utils/merge.js';
 import {normalizeRequestMethod, normalizeRetryOptions} from '../utils/normalize.js';
@@ -74,7 +74,7 @@ export class Ky {
 			// eslint-disable-next-line unicorn/prevent-abbreviations
 			const textSearchParams = typeof this._options.searchParams === 'string' ?
 				this._options.searchParams.replace(/^\?/, '') :
-				new URLSearchParams(this._options.searchParams).toString();
+				new URLSearchParams(this._options.searchParams as unknown as SearchParamsInit).toString();
 			// eslint-disable-next-line unicorn/prevent-abbreviations
 			const searchParams = '?' + textSearchParams;
 			const url = this.request.url.replace(/(?:\?.*?)?(?=#|$)/, searchParams);
@@ -106,7 +106,8 @@ export class Ky {
 				throw new RangeError(`The \`timeout\` option cannot be greater than ${maxSafeTimeout}`);
 			}
 
-			await delay(1);
+			// Delay the fetch so that body method shortcuts can set the Accept header
+			await Promise.resolve();
 			let response = await ky._fetch();
 
 			for (const hook of ky._options.hooks.afterResponse) {

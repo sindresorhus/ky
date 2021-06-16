@@ -2,6 +2,12 @@ import type {LiteralUnion, Required} from './common.js';
 import type {Hooks} from './hooks.js';
 import type {RetryOptions} from './retry.js';
 
+// eslint-disable-next-line unicorn/prevent-abbreviations
+export type SearchParamsInit = string | string[][] | Record<string, string> | URLSearchParams | undefined;
+
+// eslint-disable-next-line unicorn/prevent-abbreviations
+export type SearchParamsOption = SearchParamsInit | Record<string, string | number | boolean> | Array<Array<string | number | boolean>>;
+
 export type HTTPMethod = 'get' | 'post' | 'put' | 'patch' | 'head' | 'delete';
 
 export type Input = string | URL | Request;
@@ -99,7 +105,7 @@ export interface Options extends Omit<RequestInit, 'headers'> {
 
 	Accepts any value supported by [`URLSearchParams()`](https://developer.mozilla.org/en-US/docs/Web/API/URLSearchParams/URLSearchParams).
 	*/
-	searchParams?: string[][] | Record<string, string> | string | URLSearchParams;
+	searchParams?: SearchParamsOption;
 
 	/**
 	A prefix to prepend to the `input` URL when making the request. It can be any valid URL, either relative or absolute. A trailing slash `/` is optional and will be added automatically, if needed, when it is joined with `input`. Only takes effect when `input` is a string. The `input` argument cannot start with a slash `/` when using this option.
@@ -236,3 +242,5 @@ export interface NormalizedOptions extends RequestInit {
 	prefixUrl: string;
 	onDownloadProgress: Options['onDownloadProgress'];
 }
+
+export {RetryOptions};
