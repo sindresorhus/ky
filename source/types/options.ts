@@ -77,7 +77,7 @@ export interface Options extends Omit<RequestInit, 'headers'> {
 
 	Accepts any plain object or value, which will be `JSON.stringify()`'d and sent in the body with the correct header set.
 	*/
-	json?: Record<string, unknown>;
+	json?: unknown;
 
 	/**
 	User-defined JSON-parsing function.
