@@ -277,7 +277,7 @@ test('`afterResponse` hook is called with request, normalized options, and respo
 								return ky(request, {
 									...options,
 									json: {
-										...(options as Options).json,
+										...(options as Options).json as Record<string, unknown>,
 										token: 'valid:token'
 									}
 								});
