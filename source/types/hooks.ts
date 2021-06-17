@@ -8,7 +8,6 @@ export type BeforeRequestHook = (
 
 export type BeforeRetryState = {
 	request: Request;
-	response: Response;
 	options: NormalizedOptions;
 	error: Error;
 	retryCount: number;

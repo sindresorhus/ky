@@ -1,6 +1,7 @@
 import test from 'ava';
 import delay from 'delay';
 import ky, {HTTPError} from '../source/index.js';
+import {Options} from '../source/types/options.js';
 import {createHttpTestServer} from './helpers/create-http-test-server.js';
 
 test('hooks can be async', async t => {
@@ -276,8 +277,7 @@ test('`afterResponse` hook is called with request, normalized options, and respo
 								return ky(request, {
 									...options,
 									json: {
-										// @ts-expect-error @TODO
-										...options.json,
+										...(options as Options).json as Record<string, unknown>,
 										token: 'valid:token'
 									}
 								});
@@ -341,8 +341,7 @@ test('beforeRetry hook is never called for the initial request', async t => {
 				hooks: {
 					beforeRetry: [
 						({options}) => {
-							// @ts-expect-error @TODO
-							options.headers!.set('unicorn', fixture);
+							(options.headers as Headers | undefined)?.set('unicorn', fixture);
 						}
 					]
 				}

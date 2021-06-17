@@ -6,6 +6,7 @@ import {ResponsePromise} from '../types/response.js';
 import {deepMerge, mergeHeaders} from '../utils/merge.js';
 import {normalizeRequestMethod, normalizeRetryOptions} from '../utils/normalize.js';
 import {delay, timeout, TimeoutOptions} from '../utils/time.js';
+import {ObjectEntries} from '../utils/types.js';
 import {maxSafeTimeout, responseTypes, stop, supportsAbortController, supportsFormData, supportsStreams} from './constants.js';
 
 export class Ky {
@@ -148,9 +149,7 @@ export class Ky {
 		const isRetriableMethod = ky._options.retry.methods.includes(ky.request.method.toLowerCase());
 		const result = (isRetriableMethod ? ky._retry(fn) : fn()) as ResponsePromise;
 
-		for (const entry of Object.entries(responseTypes)) {
-			const [type, mimeType] = entry as [keyof typeof responseTypes, string];
-
+		for (const [type, mimeType] of Object.entries(responseTypes) as ObjectEntries<typeof responseTypes>) {
 			result[type] = async () => {
 				// eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing
 				ky.request.headers.set('accept', ky.request.headers.get('accept') || mimeType);
@@ -231,7 +230,6 @@ export class Ky {
 				await delay(ms);
 
 				for (const hook of this._options.hooks.beforeRetry) {
-					// @ts-expect-error TODO missing response?
 					// eslint-disable-next-line no-await-in-loop
 					const hookResult = await hook({
 						request: this.request,
