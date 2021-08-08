@@ -303,7 +303,7 @@ Throw an `HTTPError` when, after following redirects, the response has a non-2xx
 
 Setting this to `false` may be useful if you are checking for resource availability and are expecting error responses.
 
-Note: Setting this to `false` will skip the retry functionality for non-2xx status codes because the response is considered successful, therefore no need to retry.
+Note: If `false`, error responses are considered successful, therefore no retry will have place.
 
 ##### onDownloadProgress
 
