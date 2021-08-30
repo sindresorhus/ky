@@ -1,13 +1,13 @@
 <div align="center">
-	<br>
-	<div>
-		<img width="600" height="600" src="media/logo.svg" alt="ky">
-	</div>
-	<p align="center">Huge thanks to <a href="https://lunanode.com"><img src="https://sindresorhus.com/assets/thanks/lunanode-logo.svg" width="170"></a> for sponsoring me!</p>
-	<br>
-	<br>
-	<br>
-	<br>
+  <br>
+  <div>
+    <img width="600" height="600" src="media/logo.svg" alt="ky">
+  </div>
+  <p align="center">Huge thanks to <a href="https://lunanode.com"><img src="https://sindresorhus.com/assets/thanks/lunanode-logo.svg" width="170"></a> for sponsoring me!</p>
+  <br>
+  <br>
+  <br>
+  <br>
 </div>
 
 > Ky is a tiny and elegant HTTP client based on the browser [Fetch API](https://developer.mozilla.org/en-US/docs/Web/API/WindowOrWorkerGlobalScope/fetch)
@@ -52,7 +52,9 @@ $ npm install ky
 ```js
 import ky from 'ky';
 
-const json = await ky.post('https://example.com', {json: {foo: true}}).json();
+const json = await ky
+  .post('https://example.com', { json: { foo: true } })
+  .json();
 
 console.log(json);
 //=> `{data: '🦄'}`
@@ -64,15 +66,15 @@ With plain `fetch`, it would be:
 class HTTPError extends Error {}
 
 const response = await fetch('https://example.com', {
-	method: 'POST',
-	body: JSON.stringify({foo: true}),
-	headers: {
-		'content-type': 'application/json'
-	}
+  method: 'POST',
+  body: JSON.stringify({ foo: true }),
+  headers: {
+    'content-type': 'application/json'
+  }
 });
 
 if (!response.ok) {
-	throw new HTTPError(`Fetch error: ${response.statusText}`);
+  throw new HTTPError(`Fetch error: ${response.statusText}`);
 }
 
 const json = await response.json();
@@ -150,10 +152,10 @@ import ky from 'ky';
 
 // On https://example.com
 
-const response = await ky('unicorn', {prefixUrl: '/api'});
+const response = await ky('unicorn', { prefixUrl: '/api' });
 //=> 'https://example.com/api/unicorn'
 
-const response2 = await ky('unicorn', {prefixUrl: 'https://cats.com'});
+const response2 = await ky('unicorn', { prefixUrl: 'https://cats.com' });
 //=> 'https://cats.com/unicorn'
 ```
 
@@ -182,11 +184,11 @@ Delays between retries is calculated with the function `0.3 * (2 ** (retry - 1))
 import ky from 'ky';
 
 const json = await ky('https://example.com', {
-	retry: {
-		limit: 10,
-		methods: ['get'],
-		statusCodes: [413]
-	}
+  retry: {
+    limit: 10,
+    methods: ['get'],
+    statusCodes: [413]
+  }
 }).json();
 ```
 
@@ -218,13 +220,13 @@ The hook can return a [`Request`](https://developer.mozilla.org/en-US/docs/Web/A
 import ky from 'ky';
 
 const api = ky.extend({
-	hooks: {
-		beforeRequest: [
-			request => {
-				request.headers.set('X-Requested-With', 'ky');
-			}
-		]
-	}
+  hooks: {
+    beforeRequest: [
+      request => {
+        request.headers.set('X-Requested-With', 'ky');
+      }
+    ]
+  }
 });
 
 const response = await api.get('https://example.com/api/users');
@@ -245,14 +247,14 @@ You can prevent Ky from retrying the request by throwing an error. Ky will not h
 import ky from 'ky';
 
 const response = await ky('https://example.com', {
-	hooks: {
-		beforeRetry: [
-			async ({request, options, error, retryCount}) => {
-				const token = await ky('https://example.com/refresh-token');
-				request.headers.set('Authorization', `token ${token}`);
-			}
-		]
-	}
+  hooks: {
+    beforeRetry: [
+      async ({ request, options, error, retryCount }) => {
+        const token = await ky('https://example.com/refresh-token');
+        request.headers.set('Authorization', `token ${token}`);
+      }
+    ]
+  }
 });
 ```
 
@@ -267,30 +269,30 @@ This hook enables you to read and optionally modify the response. The hook funct
 import ky from 'ky';
 
 const response = await ky('https://example.com', {
-	hooks: {
-		afterResponse: [
-			(_request, _options, response) => {
-				// You could do something with the response, for example, logging.
-				log(response);
+  hooks: {
+    afterResponse: [
+      (_request, _options, response) => {
+        // You could do something with the response, for example, logging.
+        log(response);
 
-				// Or return a `Response` instance to overwrite the response.
-				return new Response('A different response', {status: 200});
-			},
+        // Or return a `Response` instance to overwrite the response.
+        return new Response('A different response', { status: 200 });
+      },
 
-			// Or retry with a fresh token on a 403 error
-			async (request, options, response) => {
-				if (response.status === 403) {
-					// Get a fresh token
-					const token = await ky('https://example.com/token').text();
+      // Or retry with a fresh token on a 401 error
+      async (request, options, response) => {
+        if (response.status === 401) {
+          // Get a fresh token
+          const token = await ky('https://example.com/token').text();
 
-					// Retry with the token
-					request.headers.set('Authorization', `token ${token}`);
+          // Retry with the token
+          request.headers.set('Authorization', `token ${token}`);
 
-					return ky(request);
-				}
-			}
-		]
-	}
+          return ky(request);
+        }
+      }
+    ]
+  }
 });
 ```
 
@@ -317,12 +319,12 @@ The function receives a `progress` and `chunk` argument:
 import ky from 'ky';
 
 const response = await ky('https://example.com', {
-	onDownloadProgress: (progress, chunk) => {
-		// Example output:
-		// `0% - 0 of 1271 bytes`
-		// `100% - 1271 of 1271 bytes`
-		console.log(`${progress.percent * 100}% - ${progress.transferredBytes} of ${progress.totalBytes} bytes`);
-	}
+  onDownloadProgress: (progress, chunk) => {
+    // Example output:
+    // `0% - 0 of 1271 bytes`
+    // `100% - 1271 of 1271 bytes`
+    console.log(`${progress.percent * 100}% - ${progress.transferredBytes} of ${progress.totalBytes} bytes`);
+  }
 });
 ```
 
@@ -342,7 +344,7 @@ import ky from 'ky';
 import bourne from '@hapijs/bourne';
 
 const json = await ky('https://example.com', {
-	parseJson: text => bourne(text)
+  parseJson: text => bourne(text)
 }).json();
 ```
 
@@ -362,7 +364,7 @@ Use-cases:
 import ky from 'ky';
 import fetch from 'isomorphic-unfetch';
 
-const json = await ky('https://example.com', {fetch}).json();
+const json = await ky('https://example.com', { fetch }).json();
 ```
 
 ### ky.extend(defaultOptions)
@@ -382,16 +384,16 @@ import ky from 'ky';
 const url = 'https://sindresorhus.com';
 
 const original = ky.create({
-	headers: {
-		rainbow: 'rainbow',
-		unicorn: 'unicorn'
-	}
+  headers: {
+    rainbow: 'rainbow',
+    unicorn: 'unicorn'
+  }
 });
 
 const extended = original.extend({
-	headers: {
-		rainbow: undefined
-	}
+  headers: {
+    rainbow: undefined
+  }
 });
 
 const response = await extended(url).json();
@@ -412,7 +414,7 @@ import ky from 'ky';
 
 // On https://my-site.com
 
-const api = ky.create({prefixUrl: 'https://example.com/api'});
+const api = ky.create({ prefixUrl: 'https://example.com/api' });
 
 const response = await api.get('users/123');
 //=> 'https://example.com/api/users/123'
@@ -437,16 +439,16 @@ A valid use-case for `ky.stop` is to prevent retries when making requests for si
 import ky from 'ky';
 
 const options = {
-	hooks: {
-		beforeRetry: [
-			async ({request, options, error, retryCount}) => {
-				const shouldStopRetry = await ky('https://example.com/api');
-				if (shouldStopRetry) {
-					return ky.stop;
-				}
-			}
-		]
-	}
+  hooks: {
+    beforeRetry: [
+      async ({request, options, error, retryCount}) => {
+        const shouldStopRetry = await ky('https://example.com/api');
+        if (shouldStopRetry) {
+          return ky.stop;
+        }
+      }
+    ]
+  }
 };
 
 // Note that response will be `undefined` in case `ky.stop` is returned.
@@ -478,7 +480,7 @@ const formData = new FormData();
 formData.append('food', 'fries');
 formData.append('drink', 'icetea');
 
-const response = await ky.post(url, {body: formData});
+const response = await ky.post(url, { body: formData });
 ```
 
 If you want to send the data in `application/x-www-form-urlencoded` format, you will need to encode the data with [`URLSearchParams`](https://developer.mozilla.org/en-US/docs/Web/API/URLSearchParams).
@@ -507,17 +509,17 @@ const controller = new AbortController();
 const {signal} = controller;
 
 setTimeout(() => {
-	controller.abort();
+  controller.abort();
 }, 5000);
 
 try {
-	console.log(await ky(url, {signal}).text());
+  console.log(await ky(url, {signal}).text());
 } catch (error) {
-	if (error.name === 'AbortError') {
-		console.log('Fetch aborted');
-	} else {
-		console.error('Fetch error:', error);
-	}
+  if (error.name === 'AbortError') {
+    console.log('Fetch aborted');
+  } else {
+    console.error('Fetch error:', error);
+  }
 }
 ```
 
