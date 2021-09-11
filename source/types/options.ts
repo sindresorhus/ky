@@ -173,7 +173,7 @@ export interface Options extends Omit<RequestInit, 'headers'> {
 
 	Setting this to `false` may be useful if you are checking for resource availability and are expecting error responses.
 	
-	Note: If `false`, error responses are considered successful, therefore no retry will have place.	
+	Note: If `false`, error responses are considered successful and the request will not be retried.	
 
 	@default true
 	*/
