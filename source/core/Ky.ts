@@ -92,8 +92,10 @@ export class Ky {
 
 		if (this._options.json !== undefined) {
 			this._options.body = JSON.stringify(this._options.json);
-			this.request.headers.set('content-type', 'application/json');
 			this.request = new globalThis.Request(this.request, {body: this._options.body});
+			if (this._options.headers === undefined) {
+				this.request.headers.set('content-type', 'application/json');
+			}
 		}
 	}
 
