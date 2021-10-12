@@ -27,6 +27,8 @@ const ky = createInstance();
 
 export default ky;
 
+export type {KyInterface};
+
 export {
 	Options,
 	NormalizedOptions,
