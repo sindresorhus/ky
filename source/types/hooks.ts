@@ -9,7 +9,7 @@ export type BeforeRequestHook = (
 export type BeforeRetryState = {
 	request: Request;
 	options: NormalizedOptions;
-	error: unknown;
+	error: Error;
 	retryCount: number;
 };
 export type BeforeRetryHook = (options: BeforeRetryState) => typeof stop | void | Promise<typeof stop | void>;
