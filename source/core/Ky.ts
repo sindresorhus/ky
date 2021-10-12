@@ -173,7 +173,7 @@ export class Ky {
 		return result;
 	}
 
-	protected _calculateRetryDelay(error: Error) {
+	protected _calculateRetryDelay(error: unknown) {
 		this._retryCount++;
 
 		if (this._retryCount < this._options.retry.limit && !(error instanceof TimeoutError)) {
