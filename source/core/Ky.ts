@@ -173,7 +173,7 @@ export class Ky {
 		return result;
 	}
 
-	protected _calculateRetryDelay(error: Error) {
+	protected _calculateRetryDelay(error: unknown) {
 		this._retryCount++;
 
 		if (this._retryCount < this._options.retry.limit && !(error instanceof TimeoutError)) {
@@ -234,7 +234,7 @@ export class Ky {
 					const hookResult = await hook({
 						request: this.request,
 						options: (this._options as unknown) as NormalizedOptions,
-						error,
+						error: error as Error,
 						retryCount: this._retryCount
 					});
 
