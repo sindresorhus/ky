@@ -10,93 +10,6 @@ import {ObjectEntries} from '../utils/types.js';
 import {maxSafeTimeout, responseTypes, stop, supportsAbortController, supportsFormData, supportsStreams} from './constants.js';
 
 export class Ky {
-	public request: Request;
-	protected abortController?: AbortController;
-	protected _retryCount = 0;
-	protected _input: Input;
-	protected _options: InternalOptions;
-
-	// eslint-disable-next-line complexity
-	constructor(input: Input, options: Options = {}) {
-		this._input = input;
-		this._options = {
-			// TODO: credentials can be removed when the spec change is implemented in all browsers. Context: https://www.chromestatus.com/feature/4539473312350208
-			credentials: (this._input as Request).credentials || 'same-origin',
-			...options,
-			headers: mergeHeaders((this._input as Request).headers, options.headers),
-			hooks: deepMerge<Required<Hooks>>(
-				{
-					beforeRequest: [],
-					beforeRetry: [],
-					afterResponse: []
-				},
-				options.hooks
-			),
-			method: normalizeRequestMethod(options.method ?? (this._input as Request).method),
-			// eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing
-			prefixUrl: String(options.prefixUrl || ''),
-			retry: normalizeRetryOptions(options.retry),
-			throwHttpErrors: options.throwHttpErrors !== false,
-			timeout: typeof options.timeout === 'undefined' ? 10000 : options.timeout,
-			fetch: options.fetch ?? globalThis.fetch.bind(globalThis)
-		};
-
-		if (typeof this._input !== 'string' && !(this._input instanceof URL || this._input instanceof globalThis.Request)) {
-			throw new TypeError('`input` must be a string, URL, or Request');
-		}
-
-		if (this._options.prefixUrl && typeof this._input === 'string') {
-			if (this._input.startsWith('/')) {
-				throw new Error('`input` must not begin with a slash when using `prefixUrl`');
-			}
-
-			if (!this._options.prefixUrl.endsWith('/')) {
-				this._options.prefixUrl += '/';
-			}
-
-			this._input = this._options.prefixUrl + this._input;
-		}
-
-		if (supportsAbortController) {
-			this.abortController = new globalThis.AbortController();
-			if (this._options.signal) {
-				this._options.signal.addEventListener('abort', () => {
-					this.abortController!.abort();
-				});
-			}
-
-			this._options.signal = this.abortController.signal;
-		}
-
-		this.request = new globalThis.Request(this._input as RequestInfo, this._options as RequestInit);
-
-		if (this._options.searchParams) {
-			// eslint-disable-next-line unicorn/prevent-abbreviations
-			const textSearchParams = typeof this._options.searchParams === 'string' ?
-				this._options.searchParams.replace(/^\?/, '') :
-				new URLSearchParams(this._options.searchParams as unknown as SearchParamsInit).toString();
-			// eslint-disable-next-line unicorn/prevent-abbreviations
-			const searchParams = '?' + textSearchParams;
-			const url = this.request.url.replace(/(?:\?.*?)?(?=#|$)/, searchParams);
-
-			// To provide correct form boundary, Content-Type header should be deleted each time when new Request instantiated from another one
-			if (
-				((supportsFormData && this._options.body instanceof globalThis.FormData) ||
-				this._options.body instanceof URLSearchParams) && !(this._options.headers && (this._options.headers as Record<string, string>)['content-type'])
-			) {
-				this.request.headers.delete('content-type');
-			}
-
-			this.request = new globalThis.Request(new globalThis.Request(url, this.request), this._options as RequestInit);
-		}
-
-		if (this._options.json !== undefined) {
-			this._options.body = JSON.stringify(this._options.json);
-			this.request.headers.set('content-type', 'application/json');
-			this.request = new globalThis.Request(this.request, {body: this._options.body});
-		}
-	}
-
 	// eslint-disable-next-line @typescript-eslint/promise-function-async
 	static create(input: Input, options: Options): ResponsePromise {
 		const ky = new Ky(input, options);
@@ -115,7 +28,7 @@ export class Ky {
 				const modifiedResponse = await hook(
 					ky.request,
 					ky._options as NormalizedOptions,
-					ky._decorateResponse(response.clone())
+					ky._decorateResponse(response.clone()),
 				);
 
 				if (modifiedResponse instanceof globalThis.Response) {
@@ -173,6 +86,93 @@ export class Ky {
 		return result;
 	}
 
+	public request: Request;
+	protected abortController?: AbortController;
+	protected _retryCount = 0;
+	protected _input: Input;
+	protected _options: InternalOptions;
+
+	// eslint-disable-next-line complexity
+	constructor(input: Input, options: Options = {}) {
+		this._input = input;
+		this._options = {
+			// TODO: credentials can be removed when the spec change is implemented in all browsers. Context: https://www.chromestatus.com/feature/4539473312350208
+			credentials: (this._input as Request).credentials || 'same-origin',
+			...options,
+			headers: mergeHeaders((this._input as Request).headers, options.headers),
+			hooks: deepMerge<Required<Hooks>>(
+				{
+					beforeRequest: [],
+					beforeRetry: [],
+					afterResponse: [],
+				},
+				options.hooks,
+			),
+			method: normalizeRequestMethod(options.method ?? (this._input as Request).method),
+			// eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing
+			prefixUrl: String(options.prefixUrl || ''),
+			retry: normalizeRetryOptions(options.retry),
+			throwHttpErrors: options.throwHttpErrors !== false,
+			timeout: typeof options.timeout === 'undefined' ? 10_000 : options.timeout,
+			fetch: options.fetch ?? globalThis.fetch.bind(globalThis),
+		};
+
+		if (typeof this._input !== 'string' && !(this._input instanceof URL || this._input instanceof globalThis.Request)) {
+			throw new TypeError('`input` must be a string, URL, or Request');
+		}
+
+		if (this._options.prefixUrl && typeof this._input === 'string') {
+			if (this._input.startsWith('/')) {
+				throw new Error('`input` must not begin with a slash when using `prefixUrl`');
+			}
+
+			if (!this._options.prefixUrl.endsWith('/')) {
+				this._options.prefixUrl += '/';
+			}
+
+			this._input = this._options.prefixUrl + this._input;
+		}
+
+		if (supportsAbortController) {
+			this.abortController = new globalThis.AbortController();
+			if (this._options.signal) {
+				this._options.signal.addEventListener('abort', () => {
+					this.abortController!.abort();
+				});
+			}
+
+			this._options.signal = this.abortController.signal;
+		}
+
+		this.request = new globalThis.Request(this._input as RequestInfo, this._options as RequestInit);
+
+		if (this._options.searchParams) {
+			// eslint-disable-next-line unicorn/prevent-abbreviations
+			const textSearchParams = typeof this._options.searchParams === 'string'
+				? this._options.searchParams.replace(/^\?/, '')
+				: new URLSearchParams(this._options.searchParams as unknown as SearchParamsInit).toString();
+			// eslint-disable-next-line unicorn/prevent-abbreviations
+			const searchParams = '?' + textSearchParams;
+			const url = this.request.url.replace(/(?:\?.*?)?(?=#|$)/, searchParams);
+
+			// To provide correct form boundary, Content-Type header should be deleted each time when new Request instantiated from another one
+			if (
+				((supportsFormData && this._options.body instanceof globalThis.FormData)
+				|| this._options.body instanceof URLSearchParams) && !(this._options.headers && (this._options.headers as Record<string, string>)['content-type'])
+			) {
+				this.request.headers.delete('content-type');
+			}
+
+			this.request = new globalThis.Request(new globalThis.Request(url, this.request), this._options as RequestInit);
+		}
+
+		if (this._options.json !== undefined) {
+			this._options.body = JSON.stringify(this._options.json);
+			this.request.headers.set('content-type', 'application/json');
+			this.request = new globalThis.Request(this.request, {body: this._options.body});
+		}
+	}
+
 	protected _calculateRetryDelay(error: unknown) {
 		this._retryCount++;
 
@@ -212,9 +212,7 @@ export class Ky {
 
 	protected _decorateResponse(response: Response): Response {
 		if (this._options.parseJson) {
-			response.json = async () => {
-				return this._options.parseJson!(await response.text());
-			};
+			response.json = async () => this._options.parseJson!(await response.text());
 		}
 
 		return response;
@@ -235,7 +233,7 @@ export class Ky {
 						request: this.request,
 						options: (this._options as unknown) as NormalizedOptions,
 						error: error as Error,
-						retryCount: this._retryCount
+						retryCount: this._retryCount,
 					});
 
 					// If `stop` is returned from the hook, the retry process is stopped
@@ -305,8 +303,8 @@ export class Ky {
 					}
 
 					await read();
-				}
-			})
+				},
+			}),
 		);
 	}
 }

@@ -36,30 +36,30 @@ test('fetch option takes a custom fetch function', async t => {
 	t.is(
 		await ky('/unicorn', {
 			fetch: customFetch,
-			searchParams: {foo: 'bar'}
+			searchParams: {foo: 'bar'},
 		}).text(),
-		'/unicorn?foo=bar'
+		'/unicorn?foo=bar',
 	);
 	t.is(
 		await ky('/unicorn#hash', {
 			fetch: customFetch,
-			searchParams: 'foo'
+			searchParams: 'foo',
 		}).text(),
-		'/unicorn?foo#hash'
+		'/unicorn?foo#hash',
 	);
 	t.is(
 		await ky('/unicorn?old', {
 			fetch: customFetch,
-			searchParams: 'new'
+			searchParams: 'new',
 		}).text(),
-		'/unicorn?new'
+		'/unicorn?new',
 	);
 	t.is(
 		await ky('/unicorn?old#hash', {
 			fetch: customFetch,
-			searchParams: 'new'
+			searchParams: 'new',
 		}).text(),
-		'/unicorn?new#hash'
+		'/unicorn?new#hash',
 	);
 	t.is(await ky('unicorn', {fetch: customFetch, prefixUrl: '/api/'}).text(), '/api/unicorn');
 });

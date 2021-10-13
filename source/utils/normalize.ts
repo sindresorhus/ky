@@ -1,9 +1,9 @@
 import {requestMethods} from '../core/constants.js';
-import type {HTTPMethod} from '../types/options.js';
+import type {HttpMethod} from '../types/options.js';
 import type {RetryOptions} from '../types/retry.js';
 
 export const normalizeRequestMethod = (input: string): string =>
-	requestMethods.includes(input as HTTPMethod) ? input.toUpperCase() : input;
+	requestMethods.includes(input as HttpMethod) ? input.toUpperCase() : input;
 
 const retryMethods = ['get', 'put', 'head', 'delete', 'options', 'trace'];
 
@@ -16,14 +16,14 @@ const defaultRetryOptions: Required<RetryOptions> = {
 	methods: retryMethods,
 	statusCodes: retryStatusCodes,
 	afterStatusCodes: retryAfterStatusCodes,
-	maxRetryAfter: Number.POSITIVE_INFINITY
+	maxRetryAfter: Number.POSITIVE_INFINITY,
 };
 
 export const normalizeRetryOptions = (retry: number | RetryOptions = {}): Required<RetryOptions> => {
 	if (typeof retry === 'number') {
 		return {
 			...defaultRetryOptions,
-			limit: retry
+			limit: retry,
 		};
 	}
 
@@ -38,6 +38,6 @@ export const normalizeRetryOptions = (retry: number | RetryOptions = {}): Requir
 	return {
 		...defaultRetryOptions,
 		...retry,
-		afterStatusCodes: retryAfterStatusCodes
+		afterStatusCodes: retryAfterStatusCodes,
 	};
 };

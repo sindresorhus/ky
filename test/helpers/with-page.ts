@@ -1,3 +1,4 @@
+import process from 'node:process';
 // eslint-disable-next-line ava/use-test
 import type {ExecutionContext, UntitledMacro} from 'ava';
 import {chromium, Page} from 'playwright-chromium';
@@ -8,7 +9,7 @@ const PWDEBUG = Boolean(process.env['PWDEBUG']);
 
 export const withPage: UntitledMacro<any[]> = async (t: ExecutionContext, run: Run): Promise<void> => {
 	const browser = await chromium.launch({
-		devtools: PWDEBUG
+		devtools: PWDEBUG,
 	});
 	const page = await browser.newPage();
 	try {

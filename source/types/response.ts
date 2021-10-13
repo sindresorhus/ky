@@ -31,7 +31,7 @@ export interface ResponsePromise extends Promise<Response> {
 	const result = await ky(…).json<Result>();
 	```
 	*/
-	json: <T>() => Promise<T>;
+	json: <T = unknown>() => Promise<T>;
 
 	text: () => Promise<string>;
 }

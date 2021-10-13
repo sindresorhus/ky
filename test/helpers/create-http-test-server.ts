@@ -1,5 +1,5 @@
-import http from 'http';
-import net from 'net';
+import http from 'node:http';
+import net from 'node:net';
 import express from 'express';
 import pify from 'pify';
 import bodyParser from 'body-parser';
@@ -27,30 +27,30 @@ export const createHttpTestServer = async (options: HttpServerOptions = {}): Pro
 			bodyParser.json({
 				limit: '1mb',
 				type: 'application/json',
-				...options.bodyParser
-			})
+				...options.bodyParser,
+			}),
 		);
 		server.use(
 			bodyParser.text({
 				limit: '1mb',
 				type: 'text/plain',
-				...options.bodyParser
-			})
+				...options.bodyParser,
+			}),
 		);
 		server.use(
 			bodyParser.urlencoded({
 				limit: '1mb',
 				type: 'application/x-www-form-urlencoded',
 				extended: true,
-				...options.bodyParser
-			})
+				...options.bodyParser,
+			}),
 		);
 		server.use(
 			bodyParser.raw({
 				limit: '1mb',
 				type: 'application/octet-stream',
-				...options.bodyParser
-			})
+				...options.bodyParser,
+			}),
 		);
 	}
 

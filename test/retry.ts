@@ -17,7 +17,7 @@ test('network error', async t => {
 		if (requestCount === defaultRetryCount) {
 			response.end(fixture);
 		} else {
-			response.status(99999).end();
+			response.status(99_999).end();
 		}
 	});
 
@@ -79,7 +79,7 @@ test('not on POST', async t => {
 	});
 
 	await t.throwsAsync(ky.post(server.url).text(), {
-		message: /Internal Server Error/
+		message: /Internal Server Error/,
 	});
 
 	await server.close();
@@ -96,7 +96,7 @@ test('respect 413 Retry-After', async t => {
 			response.end((Date.now() - lastTried413access).toString());
 		} else {
 			response.writeHead(413, {
-				'Retry-After': retryAfterOn413
+				'Retry-After': retryAfterOn413,
 			});
 			response.end('');
 		}
@@ -120,7 +120,7 @@ test('respect 413 Retry-After with timestamp', async t => {
 			// @NOTE we need to round up to the next second due to http-date resolution
 			const date = new Date(Date.now() + ((retryAfterOn413 + 1) * 1000)).toUTCString();
 			response.writeHead(413, {
-				'Retry-After': date
+				'Retry-After': date,
 			});
 			response.end('');
 		}
@@ -162,12 +162,12 @@ test('respect number of retries', async t => {
 	await t.throwsAsync(
 		ky(server.url, {
 			retry: {
-				limit: 3
-			}
+				limit: 3,
+			},
 		}).text(),
 		{
-			message: /Request Timeout/
-		}
+			message: /Request Timeout/,
+		},
 	);
 	t.is(requestCount, 3);
 
@@ -193,12 +193,12 @@ test('respect retry methods', async t => {
 			method: 'post',
 			retry: {
 				limit: 3,
-				methods: ['get']
-			}
+				methods: ['get'],
+			},
 		}).text(),
 		{
-			message: /Request Timeout/
-		}
+			message: /Request Timeout/,
+		},
 	);
 	t.is(requestCount, 1);
 
@@ -207,12 +207,12 @@ test('respect retry methods', async t => {
 		ky(server.url, {
 			retry: {
 				limit: 3,
-				methods: ['get']
-			}
+				methods: ['get'],
+			},
 		}).text(),
 		{
-			message: /Request Timeout/
-		}
+			message: /Request Timeout/,
+		},
 	);
 	t.is(requestCount, 3);
 
@@ -227,7 +227,7 @@ test('respect maxRetryAfter', async t => {
 		requestCount++;
 
 		response.writeHead(413, {
-			'Retry-After': 1
+			'Retry-After': 1,
 		});
 
 		response.end('');
@@ -237,12 +237,12 @@ test('respect maxRetryAfter', async t => {
 		ky(server.url, {
 			retry: {
 				limit: 5,
-				maxRetryAfter: 100
-			}
+				maxRetryAfter: 100,
+			},
 		}).text(),
 		{
-			message: /Payload Too Large/
-		}
+			message: /Payload Too Large/,
+		},
 	);
 	t.is(requestCount, 1);
 
@@ -251,12 +251,12 @@ test('respect maxRetryAfter', async t => {
 		ky(server.url, {
 			retry: {
 				limit: 5,
-				maxRetryAfter: 2000
-			}
+				maxRetryAfter: 2000,
+			},
 		}).text(),
 		{
-			message: /Payload Too Large/
-		}
+			message: /Payload Too Large/,
+		},
 	);
 	t.is(requestCount, 5);
 
@@ -273,7 +273,7 @@ test('retry - can provide retry as number', async t => {
 	});
 
 	await t.throwsAsync(ky(server.url, {retry: 5}).text(), {
-		message: /Request Timeout/
+		message: /Request Timeout/,
 	});
 	t.is(requestCount, 5);
 
@@ -295,12 +295,12 @@ test('doesn\'t retry on 413 with empty statusCodes and methods', async t => {
 			retry: {
 				limit: 10,
 				statusCodes: [],
-				methods: []
-			}
+				methods: [],
+			},
 		}).text(),
 		{
-			message: /Payload Too Large/
-		}
+			message: /Payload Too Large/,
+		},
 	);
 
 	t.is(requestCount, 1);
@@ -321,12 +321,12 @@ test('doesn\'t retry on 413 with empty methods', async t => {
 		ky(server.url, {
 			retry: {
 				limit: 10,
-				methods: []
-			}
+				methods: [],
+			},
 		}).text(),
 		{
-			message: /Payload Too Large/
-		}
+			message: /Payload Too Large/,
+		},
 	);
 
 	t.is(requestCount, 1);
@@ -347,12 +347,12 @@ test('does retry on 408 with methods provided as array', async t => {
 		ky(server.url, {
 			retry: {
 				limit: 4,
-				methods: ['get']
-			}
+				methods: ['get'],
+			},
 		}).text(),
 		{
-			message: /Request Timeout/
-		}
+			message: /Request Timeout/,
+		},
 	);
 
 	t.is(requestCount, 4);
@@ -373,12 +373,12 @@ test('does retry on 408 with statusCodes provided as array', async t => {
 		ky(server.url, {
 			retry: {
 				limit: 4,
-				statusCodes: [408]
-			}
+				statusCodes: [408],
+			},
 		}).text(),
 		{
-			message: /Request Timeout/
-		}
+			message: /Request Timeout/,
+		},
 	);
 
 	t.is(requestCount, 4);
@@ -398,12 +398,12 @@ test('doesn\'t retry when retry.limit is set to 0', async t => {
 	await t.throwsAsync(
 		ky(server.url, {
 			retry: {
-				limit: 0
-			}
+				limit: 0,
+			},
 		}).text(),
 		{
-			message: /Request Timeout/
-		}
+			message: /Request Timeout/,
+		},
 	);
 
 	t.is(requestCount, 1);
@@ -418,8 +418,8 @@ test('throws when retry.methods is not an array', async t => {
 		void ky(server.url, {
 			retry: {
 				// @ts-expect-error
-				methods: 'get'
-			}
+				methods: 'get',
+			},
 		});
 	});
 
@@ -433,8 +433,8 @@ test('throws when retry.statusCodes is not an array', async t => {
 		void ky(server.url, {
 			retry: {
 				// @ts-expect-error
-				statusCodes: 403
-			}
+				statusCodes: 403,
+			},
 		});
 	});
 

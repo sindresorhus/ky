@@ -14,7 +14,7 @@ test('prefixUrl option', async t => {
 	t.is(
 		// @ts-expect-error {prefixUrl: boolean} isn't officially supported
 		await ky(`${server.url}/api/unicorn`, {prefixUrl: false}).text(),
-		'rainbow'
+		'rainbow',
 	);
 	t.is(await ky(`${server.url}/api/unicorn`, {prefixUrl: ''}).text(), 'rainbow');
 	t.is(await ky(new URL(`${server.url}/api/unicorn`), {prefixUrl: ''}).text(), 'rainbow');
@@ -32,8 +32,8 @@ test('prefixUrl option', async t => {
 			void ky('/unicorn', {prefixUrl: `${server.url}/api`});
 		},
 		{
-			message: '`input` must not begin with a slash when using `prefixUrl`'
-		}
+			message: '`input` must not begin with a slash when using `prefixUrl`',
+		},
 	);
 
 	await server.close();

@@ -1,5 +1,5 @@
 import type {Expect, Equal} from '@type-challenges/utils';
-import {HTTPMethod} from '../types/options.js';
+import {HttpMethod} from '../types/options.js';
 
 export const supportsAbortController = typeof globalThis.AbortController === 'function';
 export const supportsStreams = typeof globalThis.ReadableStream === 'function';
@@ -9,7 +9,7 @@ export const requestMethods = ['get', 'post', 'put', 'patch', 'head', 'delete'] 
 
 const validate = <T extends Array<true>>() => undefined as unknown as T;
 validate<[
-	Expect<Equal<typeof requestMethods[number], HTTPMethod>>
+	Expect<Equal<typeof requestMethods[number], HttpMethod>>,
 ]>();
 
 export const responseTypes = {
@@ -17,10 +17,10 @@ export const responseTypes = {
 	text: 'text/*',
 	formData: 'multipart/form-data',
 	arrayBuffer: '*/*',
-	blob: '*/*'
+	blob: '*/*',
 } as const;
 
 // The maximum value of a 32bit int (see issue #117)
-export const maxSafeTimeout = 2147483647;
+export const maxSafeTimeout = 2_147_483_647;
 
 export const stop = Symbol('stop');

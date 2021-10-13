@@ -27,6 +27,7 @@ export const mergeHeaders = (source1: KyHeadersInit = {}, source2: KyHeadersInit
 	return result;
 };
 
+// TODO: Make this strongly-typed (no `any`).
 export const deepMerge = <T>(...sources: Array<Partial<T> | undefined>): T => {
 	let returnValue: any = {};
 	let headers = {};

@@ -8,7 +8,7 @@ export type SearchParamsInit = string | string[][] | Record<string, string> | UR
 // eslint-disable-next-line unicorn/prevent-abbreviations
 export type SearchParamsOption = SearchParamsInit | Record<string, string | number | boolean> | Array<Array<string | number | boolean>>;
 
-export type HTTPMethod = 'get' | 'post' | 'put' | 'patch' | 'head' | 'delete';
+export type HttpMethod = 'get' | 'post' | 'put' | 'patch' | 'head' | 'delete';
 
 export type Input = string | URL | Request;
 
@@ -33,7 +33,7 @@ export interface Options extends Omit<RequestInit, 'headers'> {
 
 	Internally, the standard methods (`GET`, `POST`, `PUT`, `PATCH`, `HEAD` and `DELETE`) are uppercased in order to avoid server errors due to case sensitivity.
 	*/
-	method?: LiteralUnion<HTTPMethod, string>;
+	method?: LiteralUnion<HttpMethod, string>;
 
 	/**
 	HTTP headers used to make the request.

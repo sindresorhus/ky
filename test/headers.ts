@@ -1,7 +1,8 @@
+import {Buffer} from 'node:buffer';
+import type {IncomingHttpHeaders} from 'node:http';
 import test from 'ava';
 import type {RequestHandler} from 'express';
 import FormData from 'form-data';
-import type {IncomingHttpHeaders} from 'http';
 import ky from '../source/index.js';
 import {createHttpTestServer} from './helpers/create-http-test-server.js';
 
@@ -60,8 +61,8 @@ test('does not override provided `accept-encoding`', async t => {
 	const headers = await ky
 		.get(server.url, {
 			headers: {
-				'accept-encoding': 'gzip'
-			}
+				'accept-encoding': 'gzip',
+			},
 		})
 		.json<IncomingHttpHeaders>();
 	t.is(headers['accept-encoding'], 'gzip');
@@ -74,8 +75,8 @@ test('does not remove user headers from `url` object argument', async t => {
 	const headers = await ky
 		.get(server.url, {
 			headers: {
-				'X-Request-Id': 'value'
-			}
+				'X-Request-Id': 'value',
+			},
 		})
 		.json<IncomingHttpHeaders>();
 
@@ -95,8 +96,8 @@ test('`accept` header with `json` option', async t => {
 	headers = await ky
 		.get(server.url, {
 			headers: {
-				accept: ''
-			}
+				accept: '',
+			},
 		})
 		.json<IncomingHttpHeaders>();
 
@@ -117,8 +118,8 @@ test('transforms names to lowercase', async t => {
 
 	const headers = await ky(server.url, {
 		headers: {
-			'ACCEPT-ENCODING': 'identity'
-		}
+			'ACCEPT-ENCODING': 'identity',
+		},
 	}).json<IncomingHttpHeaders>();
 	t.is(headers['accept-encoding'], 'identity');
 });
@@ -130,9 +131,9 @@ test('setting `content-length` to 0', async t => {
 	const headers = await ky
 		.post(server.url, {
 			headers: {
-				'content-length': '0'
+				'content-length': '0',
 			},
-			body: 'sup'
+			body: 'sup',
 		})
 		.json<IncomingHttpHeaders>();
 
@@ -157,10 +158,10 @@ test('form-data manual `content-type` header', async t => {
 	const headers = await ky
 		.post(server.url, {
 			headers: {
-				'content-type': 'custom'
+				'content-type': 'custom',
 			},
 			// @ts-expect-error FormData type mismatch
-			body: form
+			body: form,
 		})
 		.json<IncomingHttpHeaders>();
 
@@ -176,7 +177,7 @@ test('form-data automatic `content-type` header', async t => {
 	const headers = await ky
 		.post(server.url, {
 			// @ts-expect-error FormData type mismatch
-			body: form
+			body: form,
 		})
 		.json<IncomingHttpHeaders>();
 
@@ -193,10 +194,10 @@ test('form-data manual `content-type` header with search params', async t => {
 		.post(server.url, {
 			searchParams: 'foo=1',
 			headers: {
-				'content-type': 'custom'
+				'content-type': 'custom',
 			},
 			// @ts-expect-error FormData type mismatch
-			body: form
+			body: form,
 		})
 		.json<IncomingHttpHeaders>();
 
@@ -213,7 +214,7 @@ test('form-data automatic `content-type` header with search params', async t => 
 		.post(server.url, {
 			searchParams: 'foo=1',
 			// @ts-expect-error FormData type mismatch
-			body: form
+			body: form,
 		})
 		.json<IncomingHttpHeaders>();
 
@@ -239,7 +240,7 @@ test('buffer as `options.body` sets `content-length` header', async t => {
 	const buffer = Buffer.from('unicorn');
 	const headers = await ky
 		.post(server.url, {
-			body: buffer
+			body: buffer,
 		})
 		.json<IncomingHttpHeaders>();
 
@@ -255,8 +256,8 @@ test.failing('removes undefined value headers', async t => {
 		.get(server.url, {
 			headers: {
 				'user-agent': undefined,
-				unicorn: 'unicorn'
-			}
+				unicorn: 'unicorn',
+			},
 		})
 		.json<IncomingHttpHeaders>();
 
@@ -272,8 +273,8 @@ test('non-existent headers set to undefined are omitted', async t => {
 		.get(server.url, {
 			headers: {
 				blah: undefined,
-				rainbow: 'unicorn'
-			}
+				rainbow: 'unicorn',
+			},
 		})
 		.json<IncomingHttpHeaders>();
 
@@ -316,14 +317,14 @@ test('remove custom header by extending instance (plain objects)', async t => {
 	const original = ky.create({
 		headers: {
 			rainbow: 'rainbow',
-			unicorn: 'unicorn'
-		}
+			unicorn: 'unicorn',
+		},
 	});
 
 	const extended = original.extend({
 		headers: {
-			rainbow: undefined
-		}
+			rainbow: undefined,
+		},
 	});
 
 	const response = await extended(server.url).json<IncomingHttpHeaders>();
@@ -341,15 +342,15 @@ test('remove header by extending instance (Headers instance)', async t => {
 	const original = ky.create({
 		headers: new Headers({
 			rainbow: 'rainbow',
-			unicorn: 'unicorn'
-		})
+			unicorn: 'unicorn',
+		}),
 	});
 
 	const extended = original.extend({
 		// @ts-expect-error Headers does not support undefined values
 		headers: new Headers({
-			rainbow: undefined
-		})
+			rainbow: undefined,
+		}),
 	});
 
 	const response = await extended(server.url).json<IncomingHttpHeaders>();
@@ -367,14 +368,14 @@ test('remove header by extending instance (Headers instance and plain object)', 
 	const original = ky.create({
 		headers: new Headers({
 			rainbow: 'rainbow',
-			unicorn: 'unicorn'
-		})
+			unicorn: 'unicorn',
+		}),
 	});
 
 	const extended = original.extend({
 		headers: {
-			rainbow: undefined
-		}
+			rainbow: undefined,
+		},
 	});
 
 	const response = await extended(server.url).json<IncomingHttpHeaders>();
@@ -392,15 +393,15 @@ test('remove header by extending instance (plain object and Headers instance)', 
 	const original = ky.create({
 		headers: {
 			rainbow: 'rainbow',
-			unicorn: 'unicorn'
-		}
+			unicorn: 'unicorn',
+		},
 	});
 
 	const extended = original.extend({
 		// @ts-expect-error Headers does not support undefined values
 		headers: new Headers({
-			rainbow: undefined
-		})
+			rainbow: undefined,
+		}),
 	});
 
 	const response = await extended(server.url).json<IncomingHttpHeaders>();

@@ -1,3 +1,4 @@
+import {Buffer} from 'node:buffer';
 import test from 'ava';
 import delay from 'delay';
 import ky, {TimeoutError} from '../source/index.js';
@@ -96,7 +97,7 @@ test('POST JSON', async t => {
 	});
 
 	const json = {
-		foo: true
+		foo: true,
 	};
 
 	const responseJson = await ky.post(server.url, {json}).json();
@@ -112,8 +113,8 @@ test('cannot use `body` option with GET or HEAD method', t => {
 			void ky.get('https://example.com', {body: 'foobar'});
 		},
 		{
-			message: 'Request with GET/HEAD method cannot have body'
-		}
+			message: 'Request with GET/HEAD method cannot have body',
+		},
 	);
 
 	t.throws(
@@ -121,8 +122,8 @@ test('cannot use `body` option with GET or HEAD method', t => {
 			void ky.head('https://example.com', {body: 'foobar'});
 		},
 		{
-			message: 'Request with GET/HEAD method cannot have body'
-		}
+			message: 'Request with GET/HEAD method cannot have body',
+		},
 	);
 });
 
@@ -132,8 +133,8 @@ test('cannot use `json` option with GET or HEAD method', t => {
 			void ky.get('https://example.com', {json: {}});
 		},
 		{
-			message: 'Request with GET/HEAD method cannot have body'
-		}
+			message: 'Request with GET/HEAD method cannot have body',
+		},
 	);
 
 	t.throws(
@@ -141,8 +142,8 @@ test('cannot use `json` option with GET or HEAD method', t => {
 			void ky.head('https://example.com', {json: {}});
 		},
 		{
-			message: 'Request with GET/HEAD method cannot have body'
-		}
+			message: 'Request with GET/HEAD method cannot have body',
+		},
 	);
 });
 
@@ -156,13 +157,13 @@ test('`json` option overrides the `body` option', async t => {
 	});
 
 	const json = {
-		foo: 'bar'
+		foo: 'bar',
 	};
 
 	const responseJson = await ky
 		.post(server.url, {
 			body: 'hello',
-			json
+			json,
 		})
 		.json();
 
@@ -180,10 +181,10 @@ test('custom headers', async t => {
 	t.is(
 		await ky(server.url, {
 			headers: {
-				unicorn: fixture
-			}
+				unicorn: fixture,
+			},
 		}).text(),
-		fixture
+		fixture,
 	);
 
 	await server.close();
@@ -200,13 +201,13 @@ test('JSON with custom Headers instance', async t => {
 	});
 
 	const json = {
-		foo: true
+		foo: true,
 	};
 
 	const responseJson = await ky
 		.post(server.url, {
 			headers: new Headers({unicorn: 'rainbow'}),
-			json
+			json,
 		})
 		.json();
 
@@ -225,7 +226,7 @@ test('.json() with custom accept header', async t => {
 	});
 
 	const responseJson = await ky(server.url, {
-		headers: {accept: 'foo/bar'}
+		headers: {accept: 'foo/bar'},
 	}).json();
 
 	t.deepEqual(responseJson, {});
@@ -243,7 +244,7 @@ test('.json() with 200 response and empty body', async t => {
 	});
 
 	await t.throwsAsync(ky(server.url).json(), {
-		message: /Unexpected end of JSON input/
+		message: /Unexpected end of JSON input/,
 	});
 
 	await server.close();
@@ -277,7 +278,7 @@ test('timeout option', async t => {
 	});
 
 	await t.throwsAsync(ky(server.url, {timeout: 1000}).text(), {
-		instanceOf: TimeoutError
+		instanceOf: TimeoutError,
 	});
 
 	t.is(requestCount, 1);
@@ -313,9 +314,9 @@ test('invalid timeout option', async t => {
 		response.end(fixture);
 	});
 
-	await t.throwsAsync(ky(server.url, {timeout: 21474836470}).text(), {
+	await t.throwsAsync(ky(server.url, {timeout: 21_474_836_470}).text(), {
 		instanceOf: RangeError,
-		message: 'The `timeout` option cannot be greater than 2147483647'
+		message: 'The `timeout` option cannot be greater than 2147483647',
 	});
 
 	t.is(requestCount, 0);
@@ -351,12 +352,12 @@ test('searchParams option', async t => {
 	const arrayParameters = [
 		['cats', 'meow'],
 		['dogs', 'true'],
-		['opossums', 'false']
+		['opossums', 'false'],
 	];
 	const objectParameters = {
 		cats: 'meow',
 		dogs: 'true',
-		opossums: 'false'
+		opossums: 'false',
 	};
 	const searchParameters = new URLSearchParams(arrayParameters);
 	const stringParameters = '?cats=meow&dogs=true&opossums=false';
@@ -405,7 +406,7 @@ test('throwHttpErrors:false does not suppress timeout errors', async t => {
 
 	await t.throwsAsync(
 		ky(server.url, {throwHttpErrors: false, timeout: 500}).text(),
-		{instanceOf: TimeoutError}
+		{instanceOf: TimeoutError},
 	);
 
 	t.is(requestCount, 1);
@@ -422,17 +423,17 @@ test('ky.create()', async t => {
 
 	const extended = ky.create({
 		headers: {
-			rainbow: 'rainbow'
-		}
+			rainbow: 'rainbow',
+		},
 	});
 
 	t.is(
 		await extended(server.url, {
 			headers: {
-				unicorn: 'unicorn'
-			}
+				unicorn: 'unicorn',
+			},
 		}).text(),
-		'unicorn - rainbow'
+		'unicorn - rainbow',
 	);
 
 	t.true((await extended.head(server.url)).ok);
@@ -452,8 +453,8 @@ test('ky.create() throws when given non-object argument', t => {
 			},
 			{
 				instanceOf: TypeError,
-				message: 'The `options` argument must be an object'
-			}
+				message: 'The `options` argument must be an object',
+			},
 		);
 	}
 });
@@ -472,9 +473,9 @@ test('ky.create() with deep array', async t => {
 			beforeRequest: [
 				() => {
 					isOriginBeforeRequestTrigged = true;
-				}
-			]
-		}
+				},
+			],
+		},
 	});
 
 	await extended(server.url, {
@@ -482,9 +483,9 @@ test('ky.create() with deep array', async t => {
 			beforeRequest: [
 				() => {
 					isExtendBeforeRequestTrigged = true;
-				}
-			]
-		}
+				},
+			],
+		},
 	});
 
 	t.is(isOriginBeforeRequestTrigged, true);
@@ -521,18 +522,18 @@ test('ky.extend()', async t => {
 				beforeRequest: [
 					() => {
 						isOriginBeforeRequestTrigged = true;
-					}
-				]
-			}
+					},
+				],
+			},
 		})
 		.extend({
 			hooks: {
 				beforeRequest: [
 					() => {
 						isExtendBeforeRequestTrigged = true;
-					}
-				]
-			}
+					},
+				],
+			},
 		});
 
 	await extended(server.url);
@@ -577,8 +578,8 @@ test('throws when input is not a string, URL, or Request', t => {
 			void ky.get(0);
 		},
 		{
-			message: '`input` must be a string, URL, or Request'
-		}
+			message: '`input` must be a string, URL, or Request',
+		},
 	);
 });
 
@@ -603,7 +604,7 @@ test('options override Request instance body', async t => {
 
 	const inputRequest = new Request(server.url, {
 		method: 'POST',
-		body: requestBody
+		body: requestBody,
 	});
 
 	server.post('/', (request, response) => {
@@ -652,14 +653,14 @@ test('parseJson option with response.json()', async t => {
 	const response = await ky.get(server.url, {
 		parseJson: text => ({
 			...JSON.parse(text),
-			extra: 'extraValue'
-		})
+			extra: 'extraValue',
+		}),
 	});
 	const responseJson = await response.json();
 
 	t.deepEqual(responseJson, {
 		...json,
-		extra: 'extraValue'
+		extra: 'extraValue',
 	});
 
 	await server.close();
@@ -677,14 +678,14 @@ test('parseJson option with promise.json() shortcut', async t => {
 		.get(server.url, {
 			parseJson: text => ({
 				...JSON.parse(text),
-				extra: 'extraValue'
-			})
+				extra: 'extraValue',
+			}),
 		})
 		.json();
 
 	t.deepEqual(responseJson, {
 		...json,
-		extra: 'extraValue'
+		extra: 'extraValue',
 	});
 
 	await server.close();

@@ -15,10 +15,10 @@ test('common method is normalized', async t => {
 				beforeRequest: [
 					(_input, options) => {
 						t.is(options.method, 'GET');
-					}
-				]
-			}
-		})
+					},
+				],
+			},
+		}),
 	);
 
 	await server.close();
@@ -37,10 +37,10 @@ test('custom method remains identical', async t => {
 				beforeRequest: [
 					(_input, options) => {
 						t.is(options.method, 'report');
-					}
-				]
-			}
-		})
+					},
+				],
+			},
+		}),
 	);
 
 	await server.close();

@@ -9,10 +9,10 @@ export type TimeoutOptions = {
 export const timeout = async (
 	request: Request,
 	abortController: AbortController | undefined,
-	options: TimeoutOptions
+	options: TimeoutOptions,
 ): Promise<Response> =>
 	new Promise((resolve, reject) => {
-		const timeoutID = setTimeout(() => {
+		const timeoutId = setTimeout(() => {
 			if (abortController) {
 				abortController.abort();
 			}
@@ -26,7 +26,7 @@ export const timeout = async (
 			.then(resolve)
 			.catch(reject)
 			.then(() => {
-				clearTimeout(timeoutID);
+				clearTimeout(timeoutId);
 			});
 		/* eslint-enable promise/prefer-await-to-then */
 	});

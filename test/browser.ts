@@ -2,14 +2,14 @@ import test, {ExecutionContext} from 'ava';
 import Busboy from 'busboy';
 import express from 'express';
 import {Page} from 'playwright-chromium';
-import type {ky as kyInterface} from '../source/types/ky.js';
+import ky from '../source/index.js';
 import {createHttpTestServer, HttpServerOptions} from './helpers/create-http-test-server.js';
 import {parseRawBody} from './helpers/parse-body.js';
 import {withPage} from './helpers/with-page.js';
 
 declare global {
 	interface Window {
-		ky: kyInterface;
+		ky: typeof ky;
 	}
 }
 
@@ -25,7 +25,7 @@ const KY_SCRIPT = {
 	content: `
 		import ky from '/distribution/index.js';
 		globalThis.ky = ky;
-	`
+	`,
 };
 const addKyScriptToPage = async (page: Page) => {
 	await page.addScriptTag(KY_SCRIPT);
@@ -44,21 +44,17 @@ test('prefixUrl option', withPage, async (t: ExecutionContext, page: Page) => {
 	await addKyScriptToPage(page);
 
 	await t.throwsAsync(
-		page.evaluate(async () => {
-			return window.ky('/foo', {prefixUrl: '/'});
-		}),
-		{message: /`input` must not begin with a slash when using `prefixUrl`/}
+		page.evaluate(async () => window.ky('/foo', {prefixUrl: '/'})),
+		{message: /`input` must not begin with a slash when using `prefixUrl`/},
 	);
 
-	const results = await page.evaluate(async url => {
-		return Promise.all([
-			window.ky(`${url}/api/unicorn`).text(),
-			// @ts-expect-error unsupported {prefixUrl: null} type
-			window.ky(`${url}/api/unicorn`, {prefixUrl: null}).text(),
-			window.ky('api/unicorn', {prefixUrl: url}).text(),
-			window.ky('api/unicorn', {prefixUrl: `${url}/`}).text()
-		]);
-	}, server.url);
+	const results = await page.evaluate(async url => Promise.all([
+		window.ky(`${url}/api/unicorn`).text(),
+		// @ts-expect-error unsupported {prefixUrl: null} type
+		window.ky(`${url}/api/unicorn`, {prefixUrl: null}).text(),
+		window.ky('api/unicorn', {prefixUrl: url}).text(),
+		window.ky('api/unicorn', {prefixUrl: `${url}/`}).text(),
+	]), server.url);
 
 	t.deepEqual(results, ['rainbow', 'rainbow', 'rainbow', 'rainbow']);
 
@@ -101,7 +97,7 @@ test('aborting a request with onDonwloadProgress', withPage, async (t: Execution
 
 	server.get('/test', (_request, response) => {
 		response.writeHead(200, {
-			'content-length': '4'
+			'content-length': '4',
 		});
 
 		response.write('me');
@@ -150,12 +146,10 @@ test(
 
 		const error = await page.evaluate(async url => {
 			const request = window.ky(`${url}/slow`, {timeout: 500}).text();
-			return request.catch(error_ => {
-				return {
-					message: error_.toString(),
-					request: {url: error_.request.url}
-				};
-			});
+			return request.catch(error_ => ({
+				message: error_.toString(),
+				request: {url: error_.request.url},
+			}));
 		}, server.url);
 
 		if (typeof error !== 'object') {
@@ -166,7 +160,7 @@ test(
 		t.is(error.request.url, `${server.url}/slow`);
 
 		await server.close();
-	}
+	},
 );
 
 test('onDownloadProgress works', withPage, async (t: ExecutionContext, page: Page) => {
@@ -174,7 +168,7 @@ test('onDownloadProgress works', withPage, async (t: ExecutionContext, page: Pag
 
 	server.get('/', (_request, response) => {
 		response.writeHead(200, {
-			'content-length': '4'
+			'content-length': '4',
 		});
 
 		response.write('me');
@@ -188,15 +182,15 @@ test('onDownloadProgress works', withPage, async (t: ExecutionContext, page: Pag
 
 	const result = await page.evaluate(async url => {
 		// `new TextDecoder('utf-8').decode` hangs up?
-		const decodeUTF8 = (array: Uint8Array) => String.fromCharCode(...array);
+		const decodeUtf8 = (array: Uint8Array) => String.fromCharCode(...array);
 
 		const data: any[] = [];
 		const text = await window
 			.ky(url, {
 				onDownloadProgress: (progress, chunk) => {
-					const stringifiedChunk = decodeUTF8(chunk);
+					const stringifiedChunk = decodeUtf8(chunk);
 					data.push([progress, stringifiedChunk]);
-				}
+				},
 			})
 			.text();
 
@@ -206,7 +200,7 @@ test('onDownloadProgress works', withPage, async (t: ExecutionContext, page: Pag
 	t.deepEqual(result.data, [
 		[{percent: 0, transferredBytes: 0, totalBytes: 4}, ''],
 		[{percent: 0.5, transferredBytes: 2, totalBytes: 4}, 'me'],
-		[{percent: 1, transferredBytes: 4, totalBytes: 4}, 'ow']
+		[{percent: 1, transferredBytes: 4, totalBytes: 4}, 'ow'],
 	]);
 	t.is(result.text, 'meow');
 
@@ -280,7 +274,7 @@ test('FormData with searchParams', withPage, async (t: ExecutionContext, page: P
 		return window.ky(url, {
 			method: 'post',
 			searchParams: 'foo=1',
-			body: formData
+			body: formData,
 		});
 	}, server.url);
 
@@ -329,7 +323,7 @@ test('FormData with searchParams ("multipart/form-data" parser)', withPage, asyn
 			filename: 'my-file',
 			encoding: '7bit',
 			mimetype: 'text/plain',
-			fileContent: 'bubblegum pie'
+			fileContent: 'bubblegum pie',
 		});
 	});
 
@@ -341,7 +335,7 @@ test('FormData with searchParams ("multipart/form-data" parser)', withPage, asyn
 		return window.ky(url, {
 			method: 'post',
 			searchParams: 'foo=1',
-			body: formData
+			body: formData,
 		});
 	}, server.url);
 	await server.close();
@@ -368,18 +362,18 @@ test(
 
 		await page.evaluate(async url => {
 			const request = new window.Request(url + '/test', {
-				headers: {'content-type': 'text/css'}
+				headers: {'content-type': 'text/css'},
 			});
 
 			return window
 				.ky(request, {
-					searchParams: 'foo=1'
+					searchParams: 'foo=1',
 				})
 				.text();
 		}, server.url);
 
 		await server.close();
-	}
+	},
 );
 
 test('retry with body', withPage, async (t: ExecutionContext, page: Page) => {
@@ -401,14 +395,12 @@ test('retry with body', withPage, async (t: ExecutionContext, page: Page) => {
 	await addKyScriptToPage(page);
 
 	await t.throwsAsync(
-		page.evaluate(async url => {
-			return window.ky(url + '/test', {
-				body: 'foo',
-				method: 'PUT',
-				retry: 2
-			});
-		}, server.url),
-		{message: /HTTPError: Request failed with status code 502 Bad Gateway/}
+		page.evaluate(async url => window.ky(url + '/test', {
+			body: 'foo',
+			method: 'PUT',
+			retry: 2,
+		}), server.url),
+		{message: /HTTPError: Request failed with status code 502 Bad Gateway/},
 	);
 
 	t.is(requestCount, 2);

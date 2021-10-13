@@ -11,7 +11,7 @@ test('hooks can be async', async t => {
 	});
 
 	const json = {
-		foo: true
+		foo: true,
 	};
 
 	const responseJson = await ky
@@ -24,9 +24,9 @@ test('hooks can be async', async t => {
 						const bodyJson = JSON.parse(options.body as string);
 						bodyJson.foo = false;
 						return new Request(request, {body: JSON.stringify(bodyJson)});
-					}
-				]
-			}
+					},
+				],
+			},
 		})
 		.json<typeof json>();
 
@@ -57,7 +57,7 @@ test('beforeRequest hook allows modifications', async t => {
 	});
 
 	const json = {
-		foo: true
+		foo: true,
 	};
 
 	const responseJson = await ky
@@ -69,9 +69,9 @@ test('beforeRequest hook allows modifications', async t => {
 						const bodyJson = JSON.parse(options.body as string);
 						bodyJson.foo = false;
 						return new Request(request, {body: JSON.stringify(bodyJson)});
-					}
-				]
-			}
+					},
+				],
+			},
 		})
 		.json<typeof json>();
 
@@ -87,7 +87,7 @@ test('afterResponse hook accept success response', async t => {
 	});
 
 	const json = {
-		foo: true
+		foo: true,
 	};
 
 	await t.notThrowsAsync(
@@ -99,11 +99,11 @@ test('afterResponse hook accept success response', async t => {
 						async (_input, _options, response) => {
 							t.is(response.status, 200);
 							t.deepEqual(await response.json(), json);
-						}
-					]
-				}
+						},
+					],
+				},
 			})
-			.json()
+			.json(),
 	);
 
 	await server.close();
@@ -116,7 +116,7 @@ test('afterResponse hook accept fail response', async t => {
 	});
 
 	const json = {
-		foo: true
+		foo: true,
 	};
 
 	await t.throwsAsync(
@@ -128,11 +128,11 @@ test('afterResponse hook accept fail response', async t => {
 						async (_input, _options, response) => {
 							t.is(response.status, 500);
 							t.deepEqual(await response.json(), json);
-						}
-					]
-				}
+						},
+					],
+				},
 			})
-			.json()
+			.json(),
 	);
 
 	await server.close();
@@ -156,18 +156,18 @@ test('afterResponse hook can change response instance by sequence', async t => {
 					afterResponse: [
 						() =>
 							new Response(modifiedBody1, {
-								status: modifiedStatus1
+								status: modifiedStatus1,
 							}),
 						async (_input, _options, response) => {
 							t.is(response.status, modifiedStatus1);
 							t.is(await response.text(), modifiedBody1);
 
 							return new Response(modifiedBody2, {
-								status: modifiedStatus2
+								status: modifiedStatus2,
 							});
-						}
-					]
-				}
+						},
+					],
+				},
 			})
 			.text();
 
@@ -193,14 +193,14 @@ test('afterResponse hook can throw error to reject the request promise', async t
 					afterResponse: [
 						() => {
 							throw expectError;
-						}
-					]
-				}
+						},
+					],
+				},
 			})
 			.text(),
 		{
-			is: expectError
-		}
+			is: expectError,
+		},
 	);
 
 	// Async hook function
@@ -211,14 +211,14 @@ test('afterResponse hook can throw error to reject the request promise', async t
 					afterResponse: [
 						async () => {
 							throw expectError;
-						}
-					]
-				}
+						},
+					],
+				},
 			})
 			.text(),
 		{
-			is: expectError
-		}
+			is: expectError,
+		},
 	);
 
 	await server.close();
@@ -238,9 +238,9 @@ test('`afterResponse` hook gets called even if using body shortcuts', async t =>
 					(_input, _options, response) => {
 						called = true;
 						return response;
-					}
-				]
-			}
+					},
+				],
+			},
 		})
 		.json();
 
@@ -262,7 +262,7 @@ test('`afterResponse` hook is called with request, normalized options, and respo
 
 	const json = {
 		foo: true,
-		token: 'invalid:token'
+		token: 'invalid:token',
 	};
 
 	t.deepEqual(
@@ -278,21 +278,21 @@ test('`afterResponse` hook is called with request, normalized options, and respo
 									...options,
 									json: {
 										...(options as Options).json as Record<string, unknown>,
-										token: 'valid:token'
-									}
+										token: 'valid:token',
+									},
 								});
 							}
 
 							return undefined;
-						}
-					]
-				}
+						},
+					],
+				},
 			})
 			.json(),
 		{
 			foo: true,
-			token: 'valid:token'
-		}
+			token: 'valid:token',
+		},
 	);
 
 	await server.close();
@@ -317,9 +317,9 @@ test('afterResponse hook with parseJson and response.json()', async t => {
 					async (_request, _options, response) => {
 						t.true(response instanceof Response);
 						t.deepEqual(await response.json(), {awesome: true});
-					}
-				]
-			}
+					},
+				],
+			},
 		})
 		.json();
 
@@ -342,12 +342,12 @@ test('beforeRetry hook is never called for the initial request', async t => {
 					beforeRetry: [
 						({options}) => {
 							(options.headers as Headers | undefined)?.set('unicorn', fixture);
-						}
-					]
-				}
+						},
+					],
+				},
 			})
 			.text(),
-		fixture
+		fixture,
 	);
 
 	await server.close();
@@ -375,12 +375,12 @@ test('beforeRetry hook allows modifications of non initial requests', async t =>
 					beforeRetry: [
 						({request}) => {
 							request.headers.set('unicorn', fixture);
-						}
-					]
-				}
+						},
+					],
+				},
 			})
 			.text(),
-		fixture
+		fixture,
 	);
 
 	await server.close();
@@ -406,9 +406,9 @@ test('beforeRetry hook is called with error and retryCount', async t => {
 				({error, retryCount}) => {
 					t.true(error instanceof HTTPError);
 					t.true(retryCount >= 1);
-				}
-			]
-		}
+				},
+			],
+		},
 	});
 
 	await server.close();
@@ -444,9 +444,9 @@ test('beforeRetry hook is called even if the error has no response', async t => 
 						t.is(error.response, undefined);
 						t.is(retryCount, 1);
 						t.is(requestCount, 1);
-					}
-				]
-			}
+					},
+				],
+			},
 		})
 		.text();
 
@@ -487,9 +487,9 @@ test('beforeRetry hook with parseJson and error.response.json()', async t => {
 						t.deepEqual(await (error as HTTPError).response.json(), {awesome: true});
 						t.is(retryCount, 1);
 						t.is(requestCount, 1);
-					}
-				]
-			}
+					},
+				],
+			},
 		})
 		.json();
 
@@ -521,9 +521,9 @@ test('beforeRetry hook can cancel retries by returning `stop`', async t => {
 					t.is(retryCount, 1);
 
 					return ky.stop;
-				}
-			]
-		}
+				},
+			],
+		},
 	});
 
 	t.is(requestCount, 1);
@@ -554,11 +554,11 @@ test('catches beforeRetry thrown errors', async t => {
 				beforeRetry: [
 					() => {
 						throw error;
-					}
-				]
-			}
+					},
+				],
+			},
 		}),
-		{message: errorString}
+		{message: errorString},
 	);
 });
 
@@ -582,10 +582,10 @@ test('catches beforeRetry promise rejections', async t => {
 	await t.throwsAsync(
 		ky.get(server.url, {
 			hooks: {
-				beforeRetry: [async () => Promise.reject(error)]
-			}
+				beforeRetry: [async () => Promise.reject(error)],
+			},
 		}),
-		{message: errorString}
+		{message: errorString},
 	);
 });
 
@@ -595,8 +595,8 @@ test('hooks beforeRequest returning Response skips HTTP Request', async t => {
 	const response = await ky
 		.get('server.url', {
 			hooks: {
-				beforeRequest: [() => new Response(expectedResponse, {status: 200, statusText: 'OK'})]
-			}
+				beforeRequest: [() => new Response(expectedResponse, {status: 200, statusText: 'OK'})],
+			},
 		})
 		.text();
 

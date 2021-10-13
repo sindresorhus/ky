@@ -2,7 +2,7 @@ import {stop} from '../core/constants.js';
 import type {Input, Options} from './options.js';
 import type {ResponsePromise} from './response.js';
 
-export interface ky {
+export interface KyInstance {
 	/**
 	Fetch the given `url`.
 
@@ -74,7 +74,7 @@ export interface ky {
 
 	@returns A new Ky instance.
 	*/
-	create: (defaultOptions: Options) => ky;
+	create: (defaultOptions: Options) => KyInstance;
 
 	/**
 	Create a new Ky instance with some defaults overridden with your own.
@@ -83,7 +83,7 @@ export interface ky {
 
 	@returns A new Ky instance.
 	*/
-	extend: (defaultOptions: Options) => ky;
+	extend: (defaultOptions: Options) => KyInstance;
 
 	/**
 	A `Symbol` that can be returned by a `beforeRetry` hook to stop the retry. This will also short circuit the remaining `beforeRetry` hooks.
