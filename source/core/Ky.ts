@@ -1,4 +1,4 @@
-import {HTTPError} from '../errors/HTTPError.js';
+import {HTTPError, ResponseError} from '../errors/HTTPError.js';
 import {TimeoutError} from '../errors/TimeoutError.js';
 import type {Hooks} from '../types/hooks.js';
 import type {Input, InternalOptions, NormalizedOptions, Options, SearchParamsInit} from '../types/options.js';
@@ -70,6 +70,17 @@ export class Ky {
 				const response = (await result).clone();
 
 				if (type === 'json') {
+					if (!response.ok) {
+						// eslint-disable-next-line @typescript-eslint/no-throw-literal
+						throw new ResponseError({
+							ok: response.ok,
+							response: await response.json(),
+							stackTrace: response,
+							status: response.status,
+							statusText: response.statusText,
+						});
+					}
+
 					if (response.status === 204) {
 						return '';
 					}

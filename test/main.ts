@@ -1,7 +1,7 @@
 import {Buffer} from 'node:buffer';
 import test from 'ava';
 import delay from 'delay';
-import ky, {TimeoutError} from '../source/index.js';
+import ky, {TimeoutError, ResponseError} from '../source/index.js';
 import {createHttpTestServer} from './helpers/create-http-test-server.js';
 import {parseRawBody} from './helpers/parse-body.js';
 
@@ -687,6 +687,46 @@ test('parseJson option with promise.json() shortcut', async t => {
 		...json,
 		extra: 'extraValue',
 	});
+
+	await server.close();
+});
+
+test('throwing error with ky.json() method when extends with ky instance with options throwHttpErrors: false', async t => {
+	const server = await createHttpTestServer();
+
+	server.get('/', async (_request, response) => {
+		response.status(500);
+		response.json({message: 'error'});
+	});
+
+	const kyExtendsThrowError = ky.extend({throwHttpErrors: false});
+
+	await t.throwsAsync(async () => {
+		try {
+			await kyExtendsThrowError.get(server.url).json()
+		} catch (error) {
+			throw new TypeError('throwing')
+		}	
+	}, {instanceOf: TypeError, message: 'throwing'})
+
+	await server.close();
+});
+
+test('throwing error with ky.json() and Error object instaceOf ResponseError', async t => {
+	const server = await createHttpTestServer();
+
+	server.get('/', async (_request, response) => {
+		response.status(500);
+		response.json({message: 'error'});
+	});
+
+	const kyExtendsThrowError = ky.extend({throwHttpErrors: false});
+
+	try {
+		await kyExtendsThrowError.get(server.url).json();
+	} catch (error) {
+		t.is(error instanceof ResponseError, true)
+	}
 
 	await server.close();
 });

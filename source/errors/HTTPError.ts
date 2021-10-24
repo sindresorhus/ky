@@ -20,3 +20,19 @@ export class HTTPError extends Error {
 		this.options = options;
 	}
 }
+
+export class ResponseError  {
+	public ok: boolean;
+	public response: Record<string, unknown>;
+	public stackTrace: Response;
+	public status: number;
+	public statusText: string;
+
+	constructor(errorsParameter: ResponseError) {
+		this.ok = errorsParameter.ok;
+		this.response = errorsParameter.response;
+		this.stackTrace = errorsParameter.stackTrace;
+		this.status = errorsParameter.status;
+		this.statusText = errorsParameter.statusText;
+	}
+}
