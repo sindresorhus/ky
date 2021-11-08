@@ -289,6 +289,7 @@ test('FormData with searchParams ("multipart/form-data" parser)', withPage, asyn
 	});
 	server.post('/', async (request, response) => {
 		const [body, error] = await new Promise(resolve => {
+			// @ts-expect-error
 			const busboy = new Busboy({headers: request.headers});
 			busboy.on('error', (error: Error) => {
 				resolve([null, error]);
