@@ -178,6 +178,8 @@ If `maxRetryAfter` is set to `undefined`, it will use `options.timeout`. If [`Re
 
 Delays between retries is calculated with the function `0.3 * (2 ** (retry - 1)) * 1000`, where `retry` is the attempt number (starts from 1).
 
+Retries are not triggered following a [timeout](#timeout).
+
 ```js
 import ky from 'ky';
 
@@ -197,6 +199,8 @@ Default: `10000`
 
 Timeout in milliseconds for getting a response. Can not be greater than 2147483647.
 If set to `false`, there will be no timeout.
+
+Timeout specifies the time to wait for the request to succeed, including any retries.
 
 ##### hooks
 
