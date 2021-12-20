@@ -197,10 +197,8 @@ const json = await ky('https://example.com', {
 Type: `number | false`\
 Default: `10000`
 
-Timeout in milliseconds for getting a response. Can not be greater than 2147483647.
+Timeout in milliseconds for getting a response, including any retries. Can not be greater than 2147483647.
 If set to `false`, there will be no timeout.
-
-Timeout specifies the time to wait for the request to succeed, including any retries.
 
 ##### hooks
 
