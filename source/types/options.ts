@@ -140,6 +140,8 @@ export interface Options extends Omit<RequestInit, 'headers'> {
 
 	Delays between retries is calculated with the function `0.3 * (2 ** (retry - 1)) * 1000`, where `retry` is the attempt number (starts from 1).
 
+	Retries are not triggered following a timeout.
+
 	@example
 	```
 	import ky from 'ky';
@@ -156,7 +158,7 @@ export interface Options extends Omit<RequestInit, 'headers'> {
 	retry?: RetryOptions | number;
 
 	/**
-	Timeout in milliseconds for getting a response. Can not be greater than 2147483647.
+	Timeout in milliseconds for getting a response, including any retries. Can not be greater than 2147483647.
 	If set to `false`, there will be no timeout.
 
 	@default 10000
