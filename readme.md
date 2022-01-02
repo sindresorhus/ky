@@ -19,6 +19,23 @@ Ky targets [modern browsers](#browser-support) and [Deno](https://github.com/den
 
 It's just a tiny file with no dependencies.
 
+## Table of Contents
+- [Benefits over plain `fetch`](#benefits-over-plain-fetch)
+- [Install](#install)
+- [Usage](#usage)
+- [API](#api)
+  - [ky](#kyinput-options)
+  - [ky.extend(defaultOptions)](#kyextenddefaultoptions)
+  - [ky.create(defaultOptions)](#kycreatedefaultoptions)
+  - [ky.stop](#kystop)
+  - [HTTPError](#httperror)
+  - [TimeoutError](#timeouterror)
+- [Tips](#tips)
+  - [Sending form data](#sending-form-data)
+  - [Cancellation](#cancellation)
+- [FAQ](#faq)
+- [Browser and Node.js support](#browser-support)
+
 ## Benefits over plain `fetch`
 
 - Simpler API
