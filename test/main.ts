@@ -266,6 +266,22 @@ test('.json() with 204 response and empty body', async t => {
 	await server.close();
 });
 
+test('.json() with 202 response and empty body', async t => {
+	t.plan(2);
+
+	const server = await createHttpTestServer();
+	server.get('/', async (request, response) => {
+		t.is(request.headers.accept, 'application/json');
+		response.status(202).end();
+	});
+
+	const responseJson = await ky(server.url).json();
+
+	t.is(responseJson, '');
+
+	await server.close();
+});
+
 test('timeout option', async t => {
 	t.plan(2);
 	let requestCount = 0;

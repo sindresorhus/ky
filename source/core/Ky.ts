@@ -70,7 +70,7 @@ export class Ky {
 				const response = (await result).clone();
 
 				if (type === 'json') {
-					if (response.status === 204) {
+					if (response.status === 202 || response.status === 204) {
 						return '';
 					}
 
