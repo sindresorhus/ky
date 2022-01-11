@@ -39,7 +39,17 @@ export class Ky {
 			ky._decorateResponse(response);
 
 			if (!response.ok && ky._options.throwHttpErrors) {
-				throw new HTTPError(response, ky.request, (ky._options as unknown) as NormalizedOptions);
+				let error = new HTTPError(response, ky.request, (ky._options as unknown) as NormalizedOptions);
+
+				try {
+					for (const hook of ky._options.hooks.beforeError) {
+						error = await hook(error);
+					}
+				} catch (error_: any) {
+					throw error_;
+				}
+
+				throw error;
 			}
 
 			// If `onDownloadProgress` is passed, it uses the stream API internally
@@ -104,6 +114,7 @@ export class Ky {
 				{
 					beforeRequest: [],
 					beforeRetry: [],
+					beforeError: [],
 					afterResponse: [],
 				},
 				options.hooks,
