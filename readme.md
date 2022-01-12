@@ -258,9 +258,6 @@ const response = await ky('https://example.com', {
 });
 ```
 
-
-
-
 ###### hooks.beforeError
 
 Type: `Function[]`\
