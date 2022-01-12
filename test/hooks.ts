@@ -616,28 +616,28 @@ test('runs beforeError before throwing HTTPError', async t => {
 					(error: HTTPError) => {
 						const {response} = error;
 
-						if (response && response.body) {
+						if (response?.body) {
 							error.name = 'GitHubError';
 							error.message = `${response.statusText} --- (${response.status})`.trim();
 						}
 
 						return error;
-					}
+					},
 				],
 			},
 		}),
 		{
 			name: 'GitHubError',
-			message: `Internal Server Error --- (500)`
+			message: 'Internal Server Error --- (500)',
 		},
 	);
 
 	await server.close();
-})
+});
 
 test('beforeError can return promise which resolves to HTTPError', async t => {
 	const server = await createHttpTestServer();
-	const responseBody = { reason: "github down" }
+	const responseBody = {reason: 'github down'};
 	server.post('/', (_request, response) => {
 		response.status(500).send(responseBody);
 	});
@@ -648,23 +648,23 @@ test('beforeError can return promise which resolves to HTTPError', async t => {
 				beforeError: [
 					async (error: HTTPError) => {
 						const {response} = error;
-						const body = await response.json()
+						const body = await response.json() as {reason: string};
 
-						if (response && response.body) {
+						if (response?.body) {
 							error.name = 'GitHubError';
 							error.message = `${body.reason} --- (${response.status})`.trim();
 						}
 
 						return error;
-					}
+					},
 				],
 			},
 		}),
 		{
 			name: 'GitHubError',
-			message: `${responseBody.reason} --- (500)`
+			message: `${responseBody.reason} --- (500)`,
 		},
 	);
 
 	await server.close();
-})
+});

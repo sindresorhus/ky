@@ -1,5 +1,5 @@
 import {stop} from '../core/constants.js';
-import { HTTPError } from '../index.js';
+import {HTTPError} from '../index.js';
 import type {NormalizedOptions} from './options.js';
 
 export type BeforeRequestHook = (
@@ -21,7 +21,7 @@ export type AfterResponseHook = (
 	response: Response
 ) => Response | void | Promise<Response | void>;
 
-export type BeforeErrorHook = (error: HTTPError) => HTTPError | Promise<HTTPError>
+export type BeforeErrorHook = (error: HTTPError) => HTTPError | Promise<HTTPError>;
 
 export interface Hooks {
 	/**
@@ -102,13 +102,13 @@ export interface Hooks {
 	/**
 	Called with a `Error` or `HTTPError` instance. The error is passed to the hook right before it's thrown.
 	This is especially useful when you want to have more detailed errors.
-	
+
 	@default []
-	
+
 	@example
 	```
 	import ky from 'ky';
-	
+
 	await ky('https://example.com', {
 		hooks: {
 			beforeError: [
@@ -118,7 +118,7 @@ export interface Hooks {
 						error.name = 'GitHubError';
 						error.message = `${response.body.message} (${response.statusCode})`;
 					}
-	
+
 					return error;
 				}
 			]

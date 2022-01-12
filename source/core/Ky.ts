@@ -41,12 +41,9 @@ export class Ky {
 			if (!response.ok && ky._options.throwHttpErrors) {
 				let error = new HTTPError(response, ky.request, (ky._options as unknown) as NormalizedOptions);
 
-				try {
-					for (const hook of ky._options.hooks.beforeError) {
-						error = await hook(error);
-					}
-				} catch (error_: any) {
-					throw error_;
+				for (const hook of ky._options.hooks.beforeError) {
+					// eslint-disable-next-line no-await-in-loop
+					error = await hook(error);
 				}
 
 				throw error;
