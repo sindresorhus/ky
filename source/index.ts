@@ -45,3 +45,4 @@ export {
 export {ResponsePromise} from './types/response.js';
 export {HTTPError} from './errors/HTTPError.js';
 export {TimeoutError} from './errors/TimeoutError.js';
+export type {KyInstance} from './types/ky.js';
