@@ -263,7 +263,7 @@ const response = await ky('https://example.com', {
 Type: `Function[]`\
 Default: `[]`
 
-This hook enables you to modify the HTTPError right before it is thrown. The hook function receives `HTTPError` as argument and should return instance of HTTPError.
+This hook enables you to modify the `HTTPError` right before it is thrown. The hook function receives `HTTPError` as argument and should return instance of `HTTPError`.
 
 ```js
 import ky from 'ky';
@@ -271,7 +271,7 @@ import ky from 'ky';
 await ky('https://example.com', {
 	hooks: {
 		beforeError: [
-			(error) => {
+			error => {
 				const {response} = error;
 				if (response && response.body) {
 					error.name = 'GitHubError';

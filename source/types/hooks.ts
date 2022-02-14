@@ -100,8 +100,7 @@ export interface Hooks {
 	afterResponse?: AfterResponseHook[];
 
 	/**
-	Called with `HTTPError` instance. The error is passed to the hook right before it's thrown.
-	This is especially useful when you want to have more detailed errors.
+	This hook enables you to modify the `HTTPError` right before it is thrown. The hook function receives `HTTPError` as argument and should return instance of `HTTPError`.
 
 	@default []
 
@@ -112,7 +111,7 @@ export interface Hooks {
 	await ky('https://example.com', {
 		hooks: {
 			beforeError: [
-				(error: HTTPError) => {
+				error => {
 					const {response} = error;
 					if (response && response.body) {
 						error.name = 'GitHubError';
