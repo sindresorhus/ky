@@ -100,7 +100,7 @@ export interface Hooks {
 	afterResponse?: AfterResponseHook[];
 
 	/**
-	This hook enables you to modify the `HTTPError` right before it is thrown. The hook function receives `HTTPError` as argument and should return instance of `HTTPError`.
+	This hook enables you to modify the `HTTPError` right before it is thrown. The hook function receives a `HTTPError` as an argument and should return an instance of `HTTPError`.
 
 	@default []
 
