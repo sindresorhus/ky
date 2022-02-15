@@ -1,5 +1,4 @@
 import process from 'node:process';
-// eslint-disable-next-line ava/use-test
 import type {ExecutionContext, UntitledMacro} from 'ava';
 import {chromium, Page} from 'playwright-chromium';
 

@@ -39,7 +39,14 @@ export class Ky {
 			ky._decorateResponse(response);
 
 			if (!response.ok && ky._options.throwHttpErrors) {
-				throw new HTTPError(response, ky.request, (ky._options as unknown) as NormalizedOptions);
+				let error = new HTTPError(response, ky.request, (ky._options as unknown) as NormalizedOptions);
+
+				for (const hook of ky._options.hooks.beforeError) {
+					// eslint-disable-next-line no-await-in-loop
+					error = await hook(error);
+				}
+
+				throw error;
 			}
 
 			// If `onDownloadProgress` is passed, it uses the stream API internally
@@ -104,6 +111,7 @@ export class Ky {
 				{
 					beforeRequest: [],
 					beforeRetry: [],
+					beforeError: [],
 					afterResponse: [],
 				},
 				options.hooks,

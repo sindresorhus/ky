@@ -1,4 +1,5 @@
 import {stop} from '../core/constants.js';
+import {HTTPError} from '../index.js';
 import type {NormalizedOptions} from './options.js';
 
 export type BeforeRequestHook = (
@@ -19,6 +20,8 @@ export type AfterResponseHook = (
 	options: NormalizedOptions,
 	response: Response
 ) => Response | void | Promise<Response | void>;
+
+export type BeforeErrorHook = (error: HTTPError) => HTTPError | Promise<HTTPError>;
 
 export interface Hooks {
 	/**
@@ -95,4 +98,32 @@ export interface Hooks {
 	```
 	*/
 	afterResponse?: AfterResponseHook[];
+
+	/**
+	This hook enables you to modify the `HTTPError` right before it is thrown. The hook function receives a `HTTPError` as an argument and should return an instance of `HTTPError`.
+
+	@default []
+
+	@example
+	```
+	import ky from 'ky';
+
+	await ky('https://example.com', {
+		hooks: {
+			beforeError: [
+				error => {
+					const {response} = error;
+					if (response && response.body) {
+						error.name = 'GitHubError';
+						error.message = `${response.body.message} (${response.statusCode})`;
+					}
+
+					return error;
+				}
+			]
+		}
+	});
+	```
+	*/
+	beforeError?: BeforeErrorHook[];
 }
