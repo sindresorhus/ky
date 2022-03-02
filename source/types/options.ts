@@ -228,6 +228,7 @@ export type InternalOptions = Required<
 Omit<Options, 'hooks' | 'retry'>,
 'credentials' | 'fetch' | 'prefixUrl' | 'timeout'
 > & {
+	headers: Required<Headers>;
 	hooks: Required<Hooks>;
 	retry: Required<RetryOptions>;
 	prefixUrl: string;
