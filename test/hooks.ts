@@ -582,7 +582,11 @@ test('catches beforeRetry promise rejections', async t => {
 	await t.throwsAsync(
 		ky.get(server.url, {
 			hooks: {
-				beforeRetry: [async () => Promise.reject(error)],
+				beforeRetry: [
+					async () => {
+						throw error;
+					},
+				],
 			},
 		}),
 		{message: errorString},

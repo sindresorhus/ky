@@ -34,12 +34,15 @@ const addKyScriptToPage = async (page: Page) => {
 
 test('prefixUrl option', withPage, async (t: ExecutionContext, page: Page) => {
 	const server = await createEsmTestServer();
+
 	server.get('/', (_request, response) => {
 		response.end('zebra');
 	});
+
 	server.get('/api/unicorn', (_request, response) => {
 		response.end('rainbow');
 	});
+
 	await page.goto(server.url);
 	await addKyScriptToPage(page);
 
@@ -112,7 +115,7 @@ test('aborting a request with onDonwloadProgress', withPage, async (t: Execution
 	const error = await page.evaluate(async url => {
 		const controller = new AbortController();
 		// eslint-disable-next-line @typescript-eslint/no-empty-function
-		const request = window.ky(`${url}/test`, {signal: controller.signal, onDownloadProgress: () => {}}).text();
+		const request = window.ky(`${url}/test`, {signal: controller.signal, onDownloadProgress() {}}).text();
 		setTimeout(() => {
 			controller.abort();
 		}, 500);
@@ -182,12 +185,12 @@ test('onDownloadProgress works', withPage, async (t: ExecutionContext, page: Pag
 
 	const result = await page.evaluate(async url => {
 		// `new TextDecoder('utf-8').decode` hangs up?
-		const decodeUtf8 = (array: Uint8Array) => String.fromCharCode(...array);
+		const decodeUtf8 = (array: Uint8Array) => String.fromCodePoint(...array);
 
 		const data: any[] = [];
 		const text = await window
 			.ky(url, {
-				onDownloadProgress: (progress, chunk) => {
+				onDownloadProgress(progress, chunk) {
 					const stringifiedChunk = decodeUtf8(chunk);
 					data.push([progress, stringifiedChunk]);
 				},
@@ -240,7 +243,7 @@ test('throws if does not support ReadableStream', withPage, async (t: ExecutionC
 
 	const error = await page.evaluate(async url => {
 		// eslint-disable-next-line @typescript-eslint/no-empty-function
-		const request = window.ky(url, {onDownloadProgress: () => {}}).text();
+		const request = window.ky(url, {onDownloadProgress() {}}).text();
 		return request.catch(error_ => error_.toString());
 	}, server.url);
 	t.is(error, 'Error: Streams are not supported in your environment. `ReadableStream` is missing.');
@@ -252,9 +255,11 @@ test('FormData with searchParams', withPage, async (t: ExecutionContext, page: P
 	t.plan(3);
 
 	const server = await createEsmTestServer({bodyParser: false});
+
 	server.get('/', (_request, response) => {
 		response.end();
 	});
+
 	server.post('/', async (request, response) => {
 		const requestBody = await parseRawBody(request);
 		const contentType = request.headers['content-type'];
@@ -268,6 +273,7 @@ test('FormData with searchParams', withPage, async (t: ExecutionContext, page: P
 
 	await page.goto(server.url);
 	await addKyScriptToPage(page);
+
 	await page.evaluate(async url => {
 		const formData = new window.FormData();
 		formData.append('file', new window.File(['bubblegum pie'], 'my-file'));
@@ -283,23 +289,28 @@ test('FormData with searchParams', withPage, async (t: ExecutionContext, page: P
 
 test('FormData with searchParams ("multipart/form-data" parser)', withPage, async (t: ExecutionContext, page: Page) => {
 	t.plan(3);
+
 	const server = await createEsmTestServer();
+
 	server.get('/', (_request, response) => {
 		response.end();
 	});
+
 	server.post('/', async (request, response) => {
 		const [body, error] = await new Promise(resolve => {
 			// @ts-expect-error
 			const busboy = new Busboy({headers: request.headers});
+
 			busboy.on('error', (error: Error) => {
 				resolve([null, error]);
 			});
+
 			// eslint-disable-next-line max-params
 			busboy.on('file', async (fieldname, file, filename, encoding, mimetype) => {
 				let fileContent = '';
 				try {
 					for await (const chunk of file) {
-						fileContent += chunk;
+						fileContent += chunk; // eslint-disable-line @typescript-eslint/restrict-plus-operands
 					}
 
 					resolve([{fieldname, filename, encoding, mimetype, fileContent}, undefined]);
@@ -307,13 +318,16 @@ test('FormData with searchParams ("multipart/form-data" parser)', withPage, asyn
 					resolve([null, error_]);
 				}
 			});
+
 			busboy.on('finish', () => {
 				response.writeHead(303, {Connection: 'close', Location: '/'});
 				response.end();
 			});
+
 			setTimeout(() => {
 				resolve([null, new Error('Timeout')]);
 			}, 3000);
+
 			request.pipe(busboy);
 		});
 
@@ -330,15 +344,19 @@ test('FormData with searchParams ("multipart/form-data" parser)', withPage, asyn
 
 	await page.goto(server.url);
 	await addKyScriptToPage(page);
+
 	await page.evaluate(async url => {
 		const formData = new window.FormData();
+
 		formData.append('file', new window.File(['bubblegum pie'], 'my-file', {type: 'text/plain'}));
+
 		return window.ky(url, {
 			method: 'post',
 			searchParams: 'foo=1',
 			body: formData,
 		});
 	}, server.url);
+
 	await server.close();
 });
 
@@ -349,9 +367,11 @@ test(
 		t.plan(2);
 
 		const server = await createEsmTestServer();
+
 		server.get('/', (_request, response) => {
 			response.end();
 		});
+
 		server.get('/test', (request, response) => {
 			t.is(request.headers['content-type'], 'text/css');
 			t.deepEqual(request.query, {foo: '1'});
@@ -383,9 +403,11 @@ test('retry with body', withPage, async (t: ExecutionContext, page: Page) => {
 	let requestCount = 0;
 
 	const server = await createEsmTestServer();
+
 	server.get('/', (_request, response) => {
 		response.end('zebra');
 	});
+
 	server.put('/test', async (request, response) => {
 		requestCount++;
 		t.is(request.body, 'foo');

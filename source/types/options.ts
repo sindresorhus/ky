@@ -224,7 +224,6 @@ export interface Options extends Omit<RequestInit, 'headers'> {
 }
 
 export type InternalOptions = Required<
-// eslint-disable-next-line @typescript-eslint/ban-types
 Omit<Options, 'hooks' | 'retry'>,
 'credentials' | 'fetch' | 'prefixUrl' | 'timeout'
 > & {
@@ -248,4 +247,4 @@ export interface NormalizedOptions extends RequestInit {
 	onDownloadProgress: Options['onDownloadProgress'];
 }
 
-export {RetryOptions};
+export type {RetryOptions} from './retry.js';

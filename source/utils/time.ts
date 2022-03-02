@@ -20,7 +20,6 @@ export const timeout = async (
 			reject(new TimeoutError(request));
 		}, options.timeout);
 
-		/* eslint-disable promise/prefer-await-to-then */
 		void options
 			.fetch(request)
 			.then(resolve)
@@ -28,7 +27,6 @@ export const timeout = async (
 			.then(() => {
 				clearTimeout(timeoutId);
 			});
-		/* eslint-enable promise/prefer-await-to-then */
 	});
 
 export const delay = async (ms: number) => new Promise(resolve => {

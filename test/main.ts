@@ -13,7 +13,8 @@ test('ky()', async t => {
 		response.end();
 	});
 
-	t.true((await ky(server.url)).ok);
+	const {ok} = await ky(server.url);
+	t.true(ok);
 
 	await server.close();
 });
@@ -436,7 +437,8 @@ test('ky.create()', async t => {
 		'unicorn - rainbow',
 	);
 
-	t.true((await extended.head(server.url)).ok);
+	const {ok} = await extended.head(server.url);
+	t.true(ok);
 
 	await server.close();
 });
@@ -490,7 +492,9 @@ test('ky.create() with deep array', async t => {
 
 	t.is(isOriginBeforeRequestTrigged, true);
 	t.is(isExtendBeforeRequestTrigged, true);
-	t.true((await extended.head(server.url)).ok);
+
+	const {ok} = await extended.head(server.url);
+	t.true(ok);
 
 	await server.close();
 });
@@ -540,7 +544,9 @@ test('ky.extend()', async t => {
 
 	t.is(isOriginBeforeRequestTrigged, true);
 	t.is(isExtendBeforeRequestTrigged, true);
-	t.true((await extended.head(server.url)).ok);
+
+	const {ok} = await extended.head(server.url);
+	t.true(ok);
 
 	await server.close();
 });
