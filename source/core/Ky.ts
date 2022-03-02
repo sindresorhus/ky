@@ -301,12 +301,12 @@ export class Ky {
 						}
 
 						if (onDownloadProgress) {
-							transferredBytes += value!.byteLength;
+							transferredBytes += value.byteLength;
 							const percent = totalBytes === 0 ? 0 : transferredBytes / totalBytes;
-							onDownloadProgress({percent, transferredBytes, totalBytes}, value!);
+							onDownloadProgress({percent, transferredBytes, totalBytes}, value);
 						}
 
-						controller.enqueue(value!);
+						controller.enqueue(value);
 						await read();
 					}
 
