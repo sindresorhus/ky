@@ -176,7 +176,7 @@ export class Ky {
 
 		if (this._options.json !== undefined) {
 			this._options.body = JSON.stringify(this._options.json);
-			this.request.headers.set('content-type', 'application/json');
+			this.request.headers.set('content-type', this._options.headers.get('content-type') ?? 'application/json');
 			this.request = new globalThis.Request(this.request, {body: this._options.body});
 		}
 	}
@@ -301,12 +301,12 @@ export class Ky {
 						}
 
 						if (onDownloadProgress) {
-							transferredBytes += value!.byteLength;
+							transferredBytes += value.byteLength;
 							const percent = totalBytes === 0 ? 0 : transferredBytes / totalBytes;
-							onDownloadProgress({percent, transferredBytes, totalBytes}, value!);
+							onDownloadProgress({percent, transferredBytes, totalBytes}, value);
 						}
 
-						controller.enqueue(value!);
+						controller.enqueue(value);
 						await read();
 					}
 

@@ -525,6 +525,26 @@ searchParams.set('drink', 'icetea');
 const response = await ky.post(url, {body: searchParams});
 ```
 
+### Setting a custom `Content-Type`
+
+Ky automatically sets an appropriate [`Content-Type`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Type) header for each request based on the data in the request body. However, some APIs require custom, non-standard content types, such as `application/x-amz-json-1.1`. Using the `headers` option, you can manually override the content type.
+
+```js
+import ky from 'ky';
+
+const json = await ky.post('https://example.com', {
+	headers: {
+		'content-type': 'application/json'
+	}
+	json: {
+		foo: true
+	},
+}).json();
+
+console.log(json);
+//=> `{data: '🦄'}`
+```
+
 ### Cancellation
 
 Fetch (and hence Ky) has built-in support for request cancellation through the [`AbortController` API](https://developer.mozilla.org/en-US/docs/Web/API/AbortController). [Read more.](https://developers.google.com/web/updates/2017/09/abortable-fetch)

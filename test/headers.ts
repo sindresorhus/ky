@@ -149,6 +149,24 @@ test('sets `content-length` to `0` when requesting PUT with empty body', async t
 	t.is(headers['content-length'], '0');
 });
 
+test('json manual `content-type` header', async t => {
+	const server = await createHttpTestServer();
+	server.post('/', echoHeaders);
+
+	const headers = await ky
+		.post(server.url, {
+			headers: {
+				'content-type': 'custom',
+			},
+			json: {
+				foo: true,
+			},
+		})
+		.json<IncomingHttpHeaders>();
+
+	t.is(headers['content-type'], 'custom');
+});
+
 test('form-data manual `content-type` header', async t => {
 	const server = await createHttpTestServer();
 	server.post('/', echoHeaders);
