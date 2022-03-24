@@ -5,7 +5,8 @@ import type {Input, InternalOptions, NormalizedOptions, Options, SearchParamsIni
 import {ResponsePromise} from '../types/response.js';
 import {deepMerge, mergeHeaders} from '../utils/merge.js';
 import {normalizeRequestMethod, normalizeRetryOptions} from '../utils/normalize.js';
-import {delay, timeout, TimeoutOptions} from '../utils/time.js';
+import timeout, {TimeoutOptions} from '../utils/timeout.js';
+import delay from '../utils/delay.js';
 import {ObjectEntries} from '../utils/types.js';
 import {maxSafeTimeout, responseTypes, stop, supportsAbortController, supportsFormData, supportsStreams} from './constants.js';
 
@@ -234,7 +235,8 @@ export class Ky {
 		} catch (error) {
 			const ms = Math.min(this._calculateRetryDelay(error), maxSafeTimeout);
 			if (ms !== 0 && this._retryCount > 0) {
-				await delay(ms);
+				// The type definitions for `AbortController` are typed to allow for `.signal` to be `null` which doesn't seem to be possible in a regular environment so it has been casted
+				await delay(ms, {signal: this._options.signal as AbortSignal | undefined});
 
 				for (const hook of this._options.hooks.beforeRetry) {
 					// eslint-disable-next-line no-await-in-loop
