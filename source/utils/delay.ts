@@ -1,15 +1,10 @@
 // https://github.com/sindresorhus/delay/tree/ab98ae8dfcb38e1593286c94d934e70d14a4e111
 
 import pDefer from './p-defer.js';
+import {composeAbortError} from '../errors/DOMException.js';
 
 export interface DelayOptions {
 	signal?: AbortSignal;
-}
-
-function createAbortError() {
-	const error = new Error('Delay aborted');
-	error.name = 'AbortError';
-	return error;
 }
 
 export default async function delay(
@@ -18,7 +13,7 @@ export default async function delay(
 ): Promise<void> {
 	if (signal) {
 		if (signal.aborted) {
-			throw createAbortError();
+			throw composeAbortError(signal);
 		}
 
 		signal.addEventListener('abort', handleAbort, {once: true});
@@ -27,7 +22,7 @@ export default async function delay(
 	const {promise, resolve, reject} = pDefer<void>();
 
 	function handleAbort() {
-		reject(createAbortError());
+		reject(composeAbortError(signal));
 		clearTimeout(timeoutId);
 	}
 
