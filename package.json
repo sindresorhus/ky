@@ -58,7 +58,7 @@
 		"@types/node-fetch": "^2.5.10",
 		"@types/pify": "^5.0.1",
 		"abort-controller": "^3.0.0",
-		"ava": "4.0.0-alpha.2",
+		"ava": "4.1.0",
 		"body-parser": "^1.19.0",
 		"busboy": "^0.3.1",
 		"del-cli": "^4.0.1",
