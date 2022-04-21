@@ -8,6 +8,7 @@ export interface DeferredPromise<ValueType> {
 
 	/**
 	Resolves the promise with a value or the result of another promise.
+
 	@param value - The value to resolve the promise with.
 	*/
 	resolve(value?: ValueType | PromiseLike<ValueType>): void;
