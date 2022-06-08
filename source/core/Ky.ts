@@ -167,7 +167,7 @@ export class Ky {
 			// To provide correct form boundary, Content-Type header should be deleted each time when new Request instantiated from another one
 			if (
 				((supportsFormData && this._options.body instanceof globalThis.FormData)
-				|| this._options.body instanceof URLSearchParams) && !(this._options.headers && (this._options.headers as Record<string, string>)['content-type'])
+					|| this._options.body instanceof URLSearchParams) && !(this._options.headers && (this._options.headers as Record<string, string>)['content-type'])
 			) {
 				this.request.headers.delete('content-type');
 			}
@@ -314,6 +314,11 @@ export class Ky {
 					await read();
 				},
 			}),
+			{
+				status: response.status,
+				statusText: response.statusText,
+				headers: response.headers,
+			},
 		);
 	}
 }
