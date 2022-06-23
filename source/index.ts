@@ -39,6 +39,7 @@ export {
 	Hooks,
 	BeforeRequestHook,
 	BeforeRetryHook,
+	BeforeRetryState,
 	BeforeErrorHook,
 	AfterResponseHook,
 } from './types/hooks.js';
