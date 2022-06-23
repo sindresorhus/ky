@@ -44,6 +44,7 @@ export {
 	AfterResponseHook,
 } from './types/hooks.js';
 
-export {ResponsePromise} from './types/response.js';
+export {ResponsePromise} from './types/ResponsePromise.js';
+export {KyResponse} from './types/response.js';
 export {HTTPError} from './errors/HTTPError.js';
 export {TimeoutError} from './errors/TimeoutError.js';

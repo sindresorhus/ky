@@ -71,7 +71,8 @@
 		"raw-body": "^2.5.1",
 		"ts-node": "^10.6.0",
 		"typescript": "~4.6.2",
-		"xo": "^0.48.0"
+		"xo": "^0.48.0",
+		"expect-type": "^0.13.0"
 	},
 	"sideEffects": false,
 	"xo": {
