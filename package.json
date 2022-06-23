@@ -15,7 +15,7 @@
 	"exports": "./distribution/index.js",
 	"types": "./distribution/index.d.ts",
 	"engines": {
-		"node": ">=12"
+		"node": ">=14.16"
 	},
 	"scripts": {
 		"test": "xo && npm run build && ava",
@@ -50,28 +50,28 @@
 		"node-fetch"
 	],
 	"devDependencies": {
-		"@sindresorhus/tsconfig": "^2.0.0",
+		"@sindresorhus/tsconfig": "^3.0.1",
 		"@type-challenges/utils": "^0.1.1",
-		"@types/body-parser": "^1.19.1",
+		"@types/body-parser": "^1.19.2",
 		"@types/busboy": "^0.3.1",
 		"@types/express": "^4.17.13",
-		"@types/node-fetch": "^2.5.10",
+		"@types/node-fetch": "^2.6.2",
 		"@types/pify": "^5.0.1",
 		"abort-controller": "^3.0.0",
-		"ava": "4.0.0-alpha.2",
-		"body-parser": "^1.19.0",
+		"ava": "4.3.0",
+		"body-parser": "^1.20.0",
 		"busboy": "^0.3.1",
 		"del-cli": "^4.0.1",
 		"delay": "^5.0.0",
-		"express": "^4.17.1",
+		"express": "^4.18.1",
 		"form-data": "^4.0.0",
 		"node-fetch": "^2.6.1",
-		"pify": "^5.0.0",
-		"playwright-chromium": "^1.19.2",
+		"pify": "^6.0.0",
+		"playwright-chromium": "^1.22.2",
 		"raw-body": "^2.5.1",
-		"ts-node": "^10.6.0",
-		"typescript": "~4.6.2",
-		"xo": "^0.48.0",
+		"ts-node": "^10.8.1",
+		"typescript": "~4.7.4",
+		"xo": "^0.50.0",
 		"expect-type": "^0.13.0"
 	},
 	"sideEffects": false,
