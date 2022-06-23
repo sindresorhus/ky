@@ -91,6 +91,43 @@ test('aborting a request', withPage, async (t: ExecutionContext, page: Page) => 
 	await server.close();
 });
 
+test('should copy origin response info when use onDownloadProgress', withPage, async (t: ExecutionContext, page: Page) => {
+	const json = {hello: 'world'};
+	const status = 202;
+	const statusText = 'Accepted';
+	const server = await createEsmTestServer();
+	server.get('/', (_request, response) => {
+		response.end('meow');
+	});
+
+	server.get('/test', (_request, response) => {
+		setTimeout(() => {
+			response.statusMessage = statusText;
+			response.status(status).header('X-ky-Header', 'ky').json(json);
+		}, 500);
+	});
+	await page.goto(server.url);
+	await addKyScriptToPage(page);
+	const data = await page.evaluate(async url => {
+		// eslint-disable-next-line @typescript-eslint/no-empty-function
+		const request = window.ky.get(`${url}/test`, {onDownloadProgress() {}}).then(async v => ({
+			headers: v.headers.get('X-ky-Header'),
+			status: v.status,
+			statusText: v.statusText,
+			data: await v.json(),
+		}));
+		return request;
+	}, server.url);
+
+	t.deepEqual(data, {
+		status,
+		headers: 'ky',
+		statusText,
+		data: json,
+	});
+	await server.close();
+});
+
 test('aborting a request with onDonwloadProgress', withPage, async (t: ExecutionContext, page: Page) => {
 	const server = await createEsmTestServer();
 
