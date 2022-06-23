@@ -2,7 +2,7 @@ import {HTTPError} from '../errors/HTTPError.js';
 import {TimeoutError} from '../errors/TimeoutError.js';
 import type {Hooks} from '../types/hooks.js';
 import type {Input, InternalOptions, NormalizedOptions, Options, SearchParamsInit} from '../types/options.js';
-import {ResponsePromise} from '../types/responsePromise.js';
+import {ResponsePromise} from '../types/ResponsePromise.js';
 import {deepMerge, mergeHeaders} from '../utils/merge.js';
 import {normalizeRequestMethod, normalizeRetryOptions} from '../utils/normalize.js';
 import {delay, timeout, TimeoutOptions} from '../utils/time.js';
