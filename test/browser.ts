@@ -91,7 +91,7 @@ test('aborting a request', withPage, async (t: ExecutionContext, page: Page) => 
 	await server.close();
 });
 
-test('should copy origin response info when use onDownloadProgress', withPage, async (t: ExecutionContext, page: Page) => {
+test('should copy origin response info when using `onDownloadProgress`', withPage, async (t: ExecutionContext, page: Page) => {
 	const json = {hello: 'world'};
 	const status = 202;
 	const statusText = 'Accepted';
@@ -128,7 +128,7 @@ test('should copy origin response info when use onDownloadProgress', withPage, a
 	await server.close();
 });
 
-test('should not copy response body with 204 status code when use onDownloadProgress ', withPage, async (t: ExecutionContext, page: Page) => {
+test('should not copy response body with 204 status code when using `onDownloadProgress` ', withPage, async (t: ExecutionContext, page: Page) => {
 	const status = 204;
 	const statusText = 'No content';
 	const server = await createEsmTestServer();
