@@ -284,6 +284,7 @@ export class Ky {
 	protected _stream(response: Response, onDownloadProgress: Options['onDownloadProgress']) {
 		const totalBytes = Number(response.headers.get('content-length')) || 0;
 		let transferredBytes = 0;
+
 		if (response.status === 204) {
 			if (onDownloadProgress) {
 				onDownloadProgress({percent: 1, totalBytes, transferredBytes}, new Uint8Array());
