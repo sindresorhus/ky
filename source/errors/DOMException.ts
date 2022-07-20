@@ -4,6 +4,5 @@ export default DOMException;
 
 // When targeting Node.js 18, use `signal.throwIfAborted()` (https://developer.mozilla.org/en-US/docs/Web/API/AbortSignal/throwIfAborted)
 export function composeAbortError(signal?: AbortSignal) {
-	// @ts-expect-error `.reason` is a valid property but is not yet added to the dom typings
 	return new DOMException(signal?.reason ?? 'The operation was aborted.');
 }
