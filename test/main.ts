@@ -1,6 +1,7 @@
 import {Buffer} from 'node:buffer';
 import test from 'ava';
 import delay from 'delay';
+import {expectTypeOf} from 'expect-type';
 import ky, {TimeoutError} from '../source/index.js';
 import {createHttpTestServer} from './helpers/create-http-test-server.js';
 import {parseRawBody} from './helpers/parse-body.js';
@@ -663,7 +664,10 @@ test('parseJson option with response.json()', async t => {
 			extra: 'extraValue',
 		}),
 	});
-	const responseJson = await response.json();
+
+	const responseJson = await response.json<{hello: string; extra: string}>();
+
+	expectTypeOf(responseJson).toMatchTypeOf({hello: 'world', extra: 'extraValue'});
 
 	t.deepEqual(responseJson, {
 		...json,

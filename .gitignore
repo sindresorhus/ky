@@ -1,4 +1,4 @@
-distribution/
 node_modules/
-package-lock.json
 yarn.lock
+distribution/
+package-lock.json

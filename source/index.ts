@@ -27,7 +27,7 @@ const ky = createInstance();
 
 export default ky;
 
-export {
+export type {
 	Options,
 	NormalizedOptions,
 	RetryOptions,
@@ -35,14 +35,16 @@ export {
 	DownloadProgress,
 } from './types/options.js';
 
-export {
+export type {
 	Hooks,
 	BeforeRequestHook,
 	BeforeRetryHook,
+	BeforeRetryState,
 	BeforeErrorHook,
 	AfterResponseHook,
 } from './types/hooks.js';
 
-export {ResponsePromise} from './types/response.js';
+export type {ResponsePromise} from './types/ResponsePromise.js';
+export type {KyResponse} from './types/response.js';
 export {HTTPError} from './errors/HTTPError.js';
 export {TimeoutError} from './errors/TimeoutError.js';

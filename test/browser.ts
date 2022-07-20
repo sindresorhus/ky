@@ -1,5 +1,5 @@
 import test, {ExecutionContext} from 'ava';
-import Busboy from 'busboy';
+import busboy from 'busboy';
 import express from 'express';
 import {Page} from 'playwright-chromium';
 import ky from '../source/index.js';
@@ -51,7 +51,7 @@ test('prefixUrl option', withPage, async (t: ExecutionContext, page: Page) => {
 		{message: /`input` must not begin with a slash when using `prefixUrl`/},
 	);
 
-	const results = await page.evaluate(async url => Promise.all([
+	const results = await page.evaluate(async (url: string) => Promise.all([
 		window.ky(`${url}/api/unicorn`).text(),
 		// @ts-expect-error unsupported {prefixUrl: null} type
 		window.ky(`${url}/api/unicorn`, {prefixUrl: null}).text(),
@@ -80,7 +80,7 @@ test('aborting a request', withPage, async (t: ExecutionContext, page: Page) => 
 	await page.goto(server.url);
 	await addKyScriptToPage(page);
 
-	const error = await page.evaluate(async url => {
+	const error = await page.evaluate(async (url: string) => {
 		const controller = new AbortController();
 		const request = window.ky(`${url}/test`, {signal: controller.signal}).text();
 		controller.abort();
@@ -88,6 +88,43 @@ test('aborting a request', withPage, async (t: ExecutionContext, page: Page) => 
 	}, server.url);
 	t.is(error, 'AbortError: Failed to execute \'fetch\' on \'Window\': The user aborted a request.');
 
+	await server.close();
+});
+
+test('should copy origin response info when use onDownloadProgress', withPage, async (t: ExecutionContext, page: Page) => {
+	const json = {hello: 'world'};
+	const status = 202;
+	const statusText = 'Accepted';
+	const server = await createEsmTestServer();
+	server.get('/', (_request, response) => {
+		response.end('meow');
+	});
+
+	server.get('/test', (_request, response) => {
+		setTimeout(() => {
+			response.statusMessage = statusText;
+			response.status(status).header('X-ky-Header', 'ky').json(json);
+		}, 500);
+	});
+	await page.goto(server.url);
+	await addKyScriptToPage(page);
+	const data = await page.evaluate(async (url: string) => {
+		// eslint-disable-next-line @typescript-eslint/no-empty-function
+		const request = window.ky.get(`${url}/test`, {onDownloadProgress() {}}).then(async v => ({
+			headers: v.headers.get('X-ky-Header'),
+			status: v.status,
+			statusText: v.statusText,
+			data: await v.json(),
+		}));
+		return request;
+	}, server.url);
+
+	t.deepEqual(data, {
+		status,
+		headers: 'ky',
+		statusText,
+		data: json,
+	});
 	await server.close();
 });
 
@@ -112,7 +149,7 @@ test('aborting a request with onDonwloadProgress', withPage, async (t: Execution
 	await page.goto(server.url);
 	await addKyScriptToPage(page);
 
-	const error = await page.evaluate(async url => {
+	const error = await page.evaluate(async (url: string) => {
 		const controller = new AbortController();
 		// eslint-disable-next-line @typescript-eslint/no-empty-function
 		const request = window.ky(`${url}/test`, {signal: controller.signal, onDownloadProgress() {}}).text();
@@ -147,7 +184,7 @@ test(
 		await page.addScriptTag({content: 'window.AbortController = undefined;\n'});
 		await addKyScriptToPage(page);
 
-		const error = await page.evaluate(async url => {
+		const error = await page.evaluate(async (url: string) => {
 			const request = window.ky(`${url}/slow`, {timeout: 500}).text();
 			return request.catch(error_ => ({
 				message: error_.toString(),
@@ -183,7 +220,7 @@ test('onDownloadProgress works', withPage, async (t: ExecutionContext, page: Pag
 	await page.goto(server.url);
 	await addKyScriptToPage(page);
 
-	const result = await page.evaluate(async url => {
+	const result = await page.evaluate(async (url: string) => {
 		// `new TextDecoder('utf-8').decode` hangs up?
 		const decodeUtf8 = (array: Uint8Array) => String.fromCodePoint(...array);
 
@@ -220,7 +257,7 @@ test('throws if onDownloadProgress is not a function', withPage, async (t: Execu
 	await page.goto(server.url);
 	await addKyScriptToPage(page);
 
-	const error = await page.evaluate(async url => {
+	const error = await page.evaluate(async (url: string) => {
 		// @ts-expect-error
 		const request = window.ky(url, {onDownloadProgress: 1}).text();
 		return request.catch(error_ => error_.toString());
@@ -241,7 +278,7 @@ test('throws if does not support ReadableStream', withPage, async (t: ExecutionC
 	await page.addScriptTag({content: 'window.ReadableStream = undefined;\n'});
 	await addKyScriptToPage(page);
 
-	const error = await page.evaluate(async url => {
+	const error = await page.evaluate(async (url: string) => {
 		// eslint-disable-next-line @typescript-eslint/no-empty-function
 		const request = window.ky(url, {onDownloadProgress() {}}).text();
 		return request.catch(error_ => error_.toString());
@@ -274,7 +311,7 @@ test('FormData with searchParams', withPage, async (t: ExecutionContext, page: P
 	await page.goto(server.url);
 	await addKyScriptToPage(page);
 
-	await page.evaluate(async url => {
+	await page.evaluate(async (url: string) => {
 		const formData = new window.FormData();
 		formData.append('file', new window.File(['bubblegum pie'], 'my-file'));
 		return window.ky(url, {
@@ -299,14 +336,14 @@ test('FormData with searchParams ("multipart/form-data" parser)', withPage, asyn
 	server.post('/', async (request, response) => {
 		const [body, error] = await new Promise(resolve => {
 			// @ts-expect-error
-			const busboy = new Busboy({headers: request.headers});
+			const busboyInstance = busboy({headers: request.headers});
 
-			busboy.on('error', (error: Error) => {
+			busboyInstance.on('error', (error: Error) => {
 				resolve([null, error]);
 			});
 
 			// eslint-disable-next-line max-params
-			busboy.on('file', async (fieldname, file, filename, encoding, mimetype) => {
+			busboyInstance.on('file', async (fieldname, file, filename, encoding, mimetype) => {
 				let fileContent = '';
 				try {
 					for await (const chunk of file) {
@@ -319,7 +356,7 @@ test('FormData with searchParams ("multipart/form-data" parser)', withPage, asyn
 				}
 			});
 
-			busboy.on('finish', () => {
+			busboyInstance.on('finish', () => {
 				response.writeHead(303, {Connection: 'close', Location: '/'});
 				response.end();
 			});
@@ -328,7 +365,7 @@ test('FormData with searchParams ("multipart/form-data" parser)', withPage, asyn
 				resolve([null, new Error('Timeout')]);
 			}, 3000);
 
-			request.pipe(busboy);
+			request.pipe(busboyInstance);
 		});
 
 		t.falsy(error);
@@ -381,8 +418,8 @@ test(
 		await page.goto(server.url);
 		await addKyScriptToPage(page);
 
-		await page.evaluate(async url => {
-			const request = new window.Request(url + '/test', {
+		await page.evaluate(async (url: string) => {
+			const request = new window.Request(`${url}/test`, {
 				headers: {'content-type': 'text/css'},
 			});
 
@@ -418,7 +455,7 @@ test('retry with body', withPage, async (t: ExecutionContext, page: Page) => {
 	await addKyScriptToPage(page);
 
 	await t.throwsAsync(
-		page.evaluate(async url => window.ky(url + '/test', {
+		page.evaluate(async (url: string) => window.ky(`${url}/test`, {
 			body: 'foo',
 			method: 'PUT',
 			retry: 2,
