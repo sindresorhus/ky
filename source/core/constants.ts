@@ -1,8 +1,26 @@
 import type {Expect, Equal} from '@type-challenges/utils';
 import {HttpMethod} from '../types/options.js';
 
+export const supportsStreams = (() => {
+	let duplexAccessed = false;
+	let hasContentType = false;
+	const supportsReadableStream = typeof globalThis.ReadableStream === 'function';
+
+	if (supportsReadableStream) {
+		hasContentType = new globalThis.Request('', {
+			body: new globalThis.ReadableStream(),
+			method: 'POST',
+			get duplex() {
+				duplexAccessed = true;
+				return 'half';
+			},
+		}).headers.has('Content-Type');
+	}
+
+	return duplexAccessed && !hasContentType;
+})();
+
 export const supportsAbortController = typeof globalThis.AbortController === 'function';
-export const supportsStreams = typeof globalThis.ReadableStream === 'function';
 export const supportsFormData = typeof globalThis.FormData === 'function';
 
 export const requestMethods = ['get', 'post', 'put', 'patch', 'head', 'delete'] as const;
