@@ -10,6 +10,7 @@ export const supportsStreams = (() => {
 		hasContentType = new globalThis.Request('', {
 			body: new globalThis.ReadableStream(),
 			method: 'POST',
+			// @ts-expect-error - Types are outdated.
 			get duplex() {
 				duplexAccessed = true;
 				return 'half';
