@@ -156,6 +156,7 @@ export class Ky {
 		this.request = new globalThis.Request(this._input as RequestInfo, this._options as RequestInit);
 
 		if (supportsStreams) {
+			// @ts-expect-error - Types are outdated.
 			this.request.duplex = 'half';
 		}
 
