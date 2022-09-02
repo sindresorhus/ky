@@ -155,6 +155,11 @@ export class Ky {
 
 		this.request = new globalThis.Request(this._input as RequestInfo, this._options as RequestInit);
 
+		if (supportsStreams) {
+			// @ts-expect-error - Types are outdated.
+			this.request.duplex = 'half';
+		}
+
 		if (this._options.searchParams) {
 			// eslint-disable-next-line unicorn/prevent-abbreviations
 			const textSearchParams = typeof this._options.searchParams === 'string'
