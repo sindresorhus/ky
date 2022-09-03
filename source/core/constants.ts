@@ -7,7 +7,7 @@ export const supportsStreams = (() => {
 	const supportsReadableStream = typeof globalThis.ReadableStream === 'function';
 
 	if (supportsReadableStream) {
-		hasContentType = new globalThis.Request('', {
+		hasContentType = new globalThis.Request('https://a.com', {
 			body: new globalThis.ReadableStream(),
 			method: 'POST',
 			// @ts-expect-error - Types are outdated.
