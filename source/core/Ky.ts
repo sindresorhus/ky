@@ -226,7 +226,7 @@ export class Ky {
 			}
 
 			const BACKOFF_FACTOR = 0.3;
-			return BACKOFF_FACTOR * (2 ** (this._retryCount - 1)) * 1000;
+			return Math.min(this._options.retry.backoffLimit, BACKOFF_FACTOR * (2 ** (this._retryCount - 1)) * 1000);
 		}
 
 		return 0;

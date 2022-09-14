@@ -17,6 +17,7 @@ const defaultRetryOptions: Required<RetryOptions> = {
 	statusCodes: retryStatusCodes,
 	afterStatusCodes: retryAfterStatusCodes,
 	maxRetryAfter: Number.POSITIVE_INFINITY,
+	backoffLimit: Number.POSITIVE_INFINITY,
 };
 
 export const normalizeRetryOptions = (retry: number | RetryOptions = {}): Required<RetryOptions> => {
