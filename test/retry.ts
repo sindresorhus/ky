@@ -440,3 +440,50 @@ test('throws when retry.statusCodes is not an array', async t => {
 
 	await server.close();
 });
+
+test('respect maximum backoff', async t => {
+	const retryCount = 6;
+	let requestCount = 0;
+
+	const server = await createHttpTestServer();
+	server.get('/', (_request, response) => {
+		requestCount++;
+
+		if (requestCount === retryCount) {
+			response.end(fixture);
+		} else {
+			response.sendStatus(500);
+		}
+	});
+
+	performance.mark('start');
+	t.is(await ky(server.url, {
+		retry: retryCount,
+	}).text(), fixture);
+	performance.mark('end');
+
+	performance.mark('start-custom');
+	requestCount = 0;
+	t.is(await ky(server.url, {
+		retry: {
+			limit: retryCount,
+			backoffLimit: 1000,
+		},
+	}).text(), fixture);
+	performance.mark('end-custom');
+
+	performance.measure('default', 'start', 'end');
+	performance.measure('custom', 'start-custom', 'end-custom');
+
+	const measurements = performance.getEntriesByType('measure');
+
+	const duration = measurements.at(0)?.duration ?? Number.NaN;
+	const expectedDuration = 300 + 600 + 1200 + 2400 + 4800;
+	t.true(Math.abs(duration - expectedDuration) < 100, `Duration of ${duration} is not close to expected duration ${expectedDuration}`); // Allow for 100ms difference
+
+	const customDuration = measurements.at(1)?.duration ?? Number.NaN;
+	const expectedCustomDuration = 300 + 600 + 1000 + 1000 + 1000;
+	t.true(Math.abs(customDuration - expectedCustomDuration) < 100, `Duration of ${customDuration}ms is not close to expected duration ${expectedCustomDuration}ms`); // Allow for 100ms difference
+
+	await server.close();
+});
