@@ -479,11 +479,11 @@ test('respect maximum backoff', async t => {
 
 	const duration = measurements.at(0)?.duration ?? Number.NaN;
 	const expectedDuration = 300 + 600 + 1200 + 2400 + 4800;
-	t.true(Math.abs(duration - expectedDuration) < 100, `Duration of ${duration} is not close to expected duration ${expectedDuration}`); // Allow for 100ms difference
+	t.true(Math.abs(duration - expectedDuration) < 300, `Duration of ${duration} is not close to expected duration ${expectedDuration}`); // Allow for 300ms difference
 
 	const customDuration = measurements.at(1)?.duration ?? Number.NaN;
 	const expectedCustomDuration = 300 + 600 + 1000 + 1000 + 1000;
-	t.true(Math.abs(customDuration - expectedCustomDuration) < 100, `Duration of ${customDuration}ms is not close to expected duration ${expectedCustomDuration}ms`); // Allow for 100ms difference
+	t.true(Math.abs(customDuration - expectedCustomDuration) < 300, `Duration of ${customDuration}ms is not close to expected duration ${expectedCustomDuration}ms`); // Allow for 300ms difference
 
 	await server.close();
 });
