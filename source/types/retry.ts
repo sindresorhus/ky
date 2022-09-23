@@ -35,14 +35,14 @@ export interface RetryOptions {
 	maxRetryAfter?: number;
 
 	/**
-	The upper limit of the `computedValue`.
+	The upper limit of the delay per retry in ms.
 
-	By default, the computedValue is calculated in the following way:
+	By default, the delay is calculated in the following way:
 
 	0.3 * (2 ** (attemptCount - 1)) * 1000
 
 	The delay increases exponentially.
 	In order to prevent this, you can set this value to a fixed value, such as 1000.
-	 */
+	*/
 	backoffLimit?: number;
 }
