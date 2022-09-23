@@ -1,4 +1,5 @@
 import test from 'ava';
+import {performance} from 'perf_hooks';
 import ky from '../source/index.js';
 import {createHttpTestServer} from './helpers/create-http-test-server.js';
 
