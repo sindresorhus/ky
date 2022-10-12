@@ -169,6 +169,7 @@ Default:
 - `methods`: `get` `put` `head` `delete` `options` `trace`
 - `statusCodes`: [`408`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/408) [`413`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/413) [`429`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/429) [`500`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/500) [`502`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/502) [`503`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/503) [`504`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/504)
 - `maxRetryAfter`: `undefined`
+- `backoffLimit`: `undefined`
 
 An object representing `limit`, `methods`, `statusCodes` and `maxRetryAfter` fields for maximum retry count, allowed methods, allowed status codes and maximum [`Retry-After`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Retry-After) time.
 
@@ -176,7 +177,7 @@ If `retry` is a number, it will be used as `limit` and other defaults will remai
 
 If `maxRetryAfter` is set to `undefined`, it will use `options.timeout`. If [`Retry-After`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Retry-After) header is greater than `maxRetryAfter`, it will cancel the request.
 
-Delays between retries is calculated with the function `0.3 * (2 ** (retry - 1)) * 1000`, where `retry` is the attempt number (starts from 1).
+Delays between retries is calculated with the function `0.3 * (2 ** (retry - 1)) * 1000`, where `retry` is the attempt number (starts from 1). If `backoffLimit` is set, it will maximize the delay to that number so that it won't increase further after many retries.
 
 Retries are not triggered following a [timeout](#timeout).
 
@@ -187,7 +188,8 @@ const json = await ky('https://example.com', {
 	retry: {
 		limit: 10,
 		methods: ['get'],
-		statusCodes: [413]
+		statusCodes: [413],
+		backoffLimit: 3000
 	}
 }).json();
 ```
