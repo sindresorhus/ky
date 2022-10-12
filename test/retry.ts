@@ -1,4 +1,5 @@
 import {performance} from 'node:perf_hooks';
+import process from 'node:process';
 import test from 'ava';
 import ky from '../source/index.js';
 import {createHttpTestServer} from './helpers/create-http-test-server.js';
@@ -471,6 +472,10 @@ test('respect maximum backoff', async t => {
 			backoffLimit: 1000,
 		},
 	}).text(), fixture);
+
+	// We allow the test to take more time on CI than locally, to reduce flakiness
+	const allowedOffset = process.env.CI ? 1000 : 300;
+
 	performance.mark('end-custom');
 
 	performance.measure('default', 'start', 'end');
@@ -480,11 +485,11 @@ test('respect maximum backoff', async t => {
 
 	const duration = measurements.at(0)?.duration ?? Number.NaN;
 	const expectedDuration = 300 + 600 + 1200 + 2400 + 4800;
-	t.true(Math.abs(duration - expectedDuration) < 300, `Duration of ${duration} is not close to expected duration ${expectedDuration}`); // Allow for 300ms difference
+	t.true(Math.abs(duration - expectedDuration) < allowedOffset, `Duration of ${duration} is not close to expected duration ${expectedDuration}`); // Allow for 300ms difference
 
 	const customDuration = measurements.at(1)?.duration ?? Number.NaN;
 	const expectedCustomDuration = 300 + 600 + 1000 + 1000 + 1000;
-	t.true(Math.abs(customDuration - expectedCustomDuration) < 300, `Duration of ${customDuration}ms is not close to expected duration ${expectedCustomDuration}ms`); // Allow for 300ms difference
+	t.true(Math.abs(customDuration - expectedCustomDuration) < allowedOffset, `Duration of ${customDuration}ms is not close to expected duration ${expectedCustomDuration}ms`); // Allow for 300ms difference
 
 	await server.close();
 });
