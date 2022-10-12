@@ -90,6 +90,11 @@ export class Ky {
 						return '';
 					}
 
+					const contentLength = response.headers.get('Content-Length');
+					if (contentLength === null || contentLength === '0') {
+						return '';
+					}
+
 					if (options.parseJson) {
 						return options.parseJson(await response.text());
 					}
