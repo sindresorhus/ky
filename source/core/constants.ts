@@ -1,7 +1,7 @@
 import type {Expect, Equal} from '@type-challenges/utils';
 import {HttpMethod} from '../types/options.js';
 
-export const supportsStreams = (() => {
+export const supportsRequestStreams = (() => {
 	let duplexAccessed = false;
 	let hasContentType = false;
 	const supportsReadableStream = typeof globalThis.ReadableStream === 'function';
@@ -22,6 +22,7 @@ export const supportsStreams = (() => {
 })();
 
 export const supportsAbortController = typeof globalThis.AbortController === 'function';
+export const supportsResponseStreams = typeof globalThis.ReadableStream === 'function';
 export const supportsFormData = typeof globalThis.FormData === 'function';
 
 export const requestMethods = ['get', 'post', 'put', 'patch', 'head', 'delete'] as const;

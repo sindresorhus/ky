@@ -7,7 +7,15 @@ import {deepMerge, mergeHeaders} from '../utils/merge.js';
 import {normalizeRequestMethod, normalizeRetryOptions} from '../utils/normalize.js';
 import {delay, timeout, TimeoutOptions} from '../utils/time.js';
 import {ObjectEntries} from '../utils/types.js';
-import {maxSafeTimeout, responseTypes, stop, supportsAbortController, supportsFormData, supportsStreams} from './constants.js';
+import {
+	maxSafeTimeout,
+	responseTypes,
+	stop,
+	supportsAbortController,
+	supportsFormData,
+	supportsResponseStreams,
+	supportsRequestStreams,
+} from './constants.js';
 
 export class Ky {
 	// eslint-disable-next-line @typescript-eslint/promise-function-async
@@ -56,7 +64,7 @@ export class Ky {
 					throw new TypeError('The `onDownloadProgress` option must be a function');
 				}
 
-				if (!supportsStreams) {
+				if (!supportsResponseStreams) {
 					throw new Error('Streams are not supported in your environment. `ReadableStream` is missing.');
 				}
 
@@ -155,7 +163,7 @@ export class Ky {
 
 		this.request = new globalThis.Request(this._input as RequestInfo, this._options as RequestInit);
 
-		if (supportsStreams) {
+		if (supportsRequestStreams) {
 			// @ts-expect-error - Types are outdated.
 			this.request.duplex = 'half';
 		}
