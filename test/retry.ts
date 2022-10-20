@@ -1,4 +1,4 @@
-import {performance} from 'node:perf_hooks';
+import {performance, PerformanceObserver} from 'node:perf_hooks';
 import process from 'node:process';
 import test from 'ava';
 import ky from '../source/index.js';
@@ -458,6 +458,21 @@ test('respect maximum backoff', async t => {
 		}
 	});
 
+	// We allow the test to take more time on CI than locally, to reduce flakiness
+	const allowedOffset = process.env.CI ? 1000 : 300;
+
+	// Register observer that asserts on duration when a measurement is performed
+	const obs = new PerformanceObserver(items => {
+		const measurements = items.getEntries();
+
+		const duration = measurements[0].duration ?? Number.NaN;
+		const expectedDuration = {default: 300 + 600 + 1200 + 2400 + 4800, custom: 300 + 600 + 1000 + 1000 + 1000}[measurements[0].name] ?? Number.NaN;
+
+		t.true(Math.abs(duration - expectedDuration) < allowedOffset, `Duration of ${duration}ms is not close to expected duration ${expectedDuration}ms`); // Allow for 300ms difference
+	});
+	obs.observe({entryTypes: ['measure']});
+
+	// Start measuring
 	performance.mark('start');
 	t.is(await ky(server.url, {
 		retry: retryCount,
@@ -473,23 +488,10 @@ test('respect maximum backoff', async t => {
 		},
 	}).text(), fixture);
 
-	// We allow the test to take more time on CI than locally, to reduce flakiness
-	const allowedOffset = process.env.CI ? 1000 : 300;
-
 	performance.mark('end-custom');
 
 	performance.measure('default', 'start', 'end');
 	performance.measure('custom', 'start-custom', 'end-custom');
-
-	const measurements = performance.getEntriesByType('measure');
-
-	const duration = measurements.at(0)?.duration ?? Number.NaN;
-	const expectedDuration = 300 + 600 + 1200 + 2400 + 4800;
-	t.true(Math.abs(duration - expectedDuration) < allowedOffset, `Duration of ${duration} is not close to expected duration ${expectedDuration}`); // Allow for 300ms difference
-
-	const customDuration = measurements.at(1)?.duration ?? Number.NaN;
-	const expectedCustomDuration = 300 + 600 + 1000 + 1000 + 1000;
-	t.true(Math.abs(customDuration - expectedCustomDuration) < allowedOffset, `Duration of ${customDuration}ms is not close to expected duration ${expectedCustomDuration}ms`); // Allow for 300ms difference
 
 	await server.close();
 });
