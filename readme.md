@@ -177,7 +177,8 @@ If `retry` is a number, it will be used as `limit` and other defaults will remai
 
 If `maxRetryAfter` is set to `undefined`, it will use `options.timeout`. If [`Retry-After`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Retry-After) header is greater than `maxRetryAfter`, it will cancel the request.
 
-Delays between retries is calculated with the function `0.3 * (2 ** (retry - 1)) * 1000`, where `retry` is the attempt number (starts from 1). If `backoffLimit` is set, it will maximize the delay to that number so that it won't increase further after many retries.
+By default, the delay is calculated with `0.3 * (2 ** (attemptCount - 1)) * 1000`. The delay increases exponentially.
+To clamp the delay, set `backoffLimit` to 1000, for example.
 
 Retries are not triggered following a [timeout](#timeout).
 

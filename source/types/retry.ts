@@ -45,7 +45,7 @@ export interface RetryOptions {
 
 	The delay increases exponentially.
 
-	In order to prevent this, you can set this value to a fixed value, such as 1000.
+  To clamp the delay, set `backoffLimit` to 1000, for example.
 	*/
 	backoffLimit?: number;
 }
