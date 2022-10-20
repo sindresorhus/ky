@@ -444,7 +444,7 @@ test('throws when retry.statusCodes is not an array', async t => {
 });
 
 test('respect maximum backoff', async t => {
-	const retryCount = 6;
+	const retryCount = 5;
 	let requestCount = 0;
 
 	const server = await createHttpTestServer();
@@ -466,11 +466,11 @@ test('respect maximum backoff', async t => {
 		const measurements = items.getEntries();
 
 		const duration = measurements[0].duration ?? Number.NaN;
-		const expectedDuration = {default: 300 + 600 + 1200 + 2400 + 4800, custom: 300 + 600 + 1000 + 1000 + 1000}[measurements[0].name] ?? Number.NaN;
+		const expectedDuration = {default: 300 + 600 + 1200 + 2400, custom: 300 + 600 + 1000 + 1000}[measurements[0].name] ?? Number.NaN;
 
 		t.true(Math.abs(duration - expectedDuration) < allowedOffset, `Duration of ${duration}ms is not close to expected duration ${expectedDuration}ms`); // Allow for 300ms difference
 
-		if(measurements[0].name === 'custom') {
+		if (measurements[0].name === 'custom') {
 			obs.disconnect();
 		}
 	});
