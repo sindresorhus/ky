@@ -469,6 +469,10 @@ test('respect maximum backoff', async t => {
 		const expectedDuration = {default: 300 + 600 + 1200 + 2400 + 4800, custom: 300 + 600 + 1000 + 1000 + 1000}[measurements[0].name] ?? Number.NaN;
 
 		t.true(Math.abs(duration - expectedDuration) < allowedOffset, `Duration of ${duration}ms is not close to expected duration ${expectedDuration}ms`); // Allow for 300ms difference
+
+		if(measurements[0].name === 'custom') {
+			obs.disconnect();
+		}
 	});
 	obs.observe({entryTypes: ['measure']});
 
