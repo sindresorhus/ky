@@ -275,7 +275,7 @@ await ky('https://example.com', {
 				const {response} = error;
 				if (response && response.body) {
 					error.name = 'GitHubError';
-					error.message = `${response.body.message} (${response.statusCode})`;
+					error.message = `${response.body.message} (${response.status})`;
 				}
 
 				return error;
@@ -490,6 +490,18 @@ const text = await ky('https://example.com', options).text();
 ### HTTPError
 
 Exposed for `instanceof` checks. The error has a `response` property with the [`Response` object](https://developer.mozilla.org/en-US/docs/Web/API/Response), `request` property with the [`Request` object](https://developer.mozilla.org/en-US/docs/Web/API/Request), and `options` property with normalized options (either passed to `ky` when creating an instance with `ky.create()` or directly when performing the request).
+
+If you need to read the actual response when an `HTTPError` has occurred, call the respective parser method on the response object. For example:
+
+```js
+try {
+  await ky('https://example.com').json();
+} catch (error) {
+  if (error.name === 'HTTPError') {
+    const errorJson = await error?.response?.json?.();
+  }
+}
+```
 
 ### TimeoutError
 
