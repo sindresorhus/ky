@@ -235,7 +235,7 @@ export class Ky {
 		} catch (error) {
 			const ms = Math.min(this._calculateRetryDelay(error), maxSafeTimeout);
 			if (ms !== 0 && this._retryCount > 0) {
-				// The type definitions for `AbortController` are typed to allow for `.signal` to be `null` which doesn't seem to be possible in a regular environment so it has been casted
+				// The type definitions for `AbortController` are typed to allow for `.signal` to be `null` which doesn't seem to be possible in a regular environment so it has been casted.
 				await delay(ms, {signal: this._options.signal as AbortSignal | undefined});
 
 				for (const hook of this._options.hooks.beforeRetry) {
