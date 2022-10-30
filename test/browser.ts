@@ -88,7 +88,7 @@ test('aborting a request', withPage, async (t: ExecutionContext, page: Page) => 
 	}, server.url);
 
 	// TODO: When targeting Node.js 18, also assert that the error is a DOMException
-	t.is(error.message, 'There is an abortion Among Us');
+	t.is(error.split(': ')[1], 'There is an abortion Among Us');
 
 	await server.close();
 });
