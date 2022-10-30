@@ -5,7 +5,8 @@ import type {Input, InternalOptions, NormalizedOptions, Options, SearchParamsIni
 import {ResponsePromise} from '../types/ResponsePromise.js';
 import {deepMerge, mergeHeaders} from '../utils/merge.js';
 import {normalizeRequestMethod, normalizeRetryOptions} from '../utils/normalize.js';
-import {delay, timeout, TimeoutOptions} from '../utils/time.js';
+import timeout, {TimeoutOptions} from '../utils/timeout.js';
+import delay from '../utils/delay.js';
 import {ObjectEntries} from '../utils/types.js';
 import {
 	maxSafeTimeout,
@@ -153,8 +154,10 @@ export class Ky {
 		if (supportsAbortController) {
 			this.abortController = new globalThis.AbortController();
 			if (this._options.signal) {
+				const originalSignal = this._options.signal;
+
 				this._options.signal.addEventListener('abort', () => {
-					this.abortController!.abort();
+					this.abortController!.abort(originalSignal.reason);
 				});
 			}
 
@@ -247,7 +250,7 @@ export class Ky {
 		} catch (error) {
 			const ms = Math.min(this._calculateRetryDelay(error), maxSafeTimeout);
 			if (ms !== 0 && this._retryCount > 0) {
-				await delay(ms);
+				await delay(ms, {signal: this._options.signal});
 
 				for (const hook of this._options.hooks.beforeRetry) {
 					// eslint-disable-next-line no-await-in-loop

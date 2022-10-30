@@ -552,7 +552,7 @@ test('ky.extend()', async t => {
 	await server.close();
 });
 
-test('throws AbortError when aborted by user', async t => {
+test('throws DOMException when aborted by user', async t => {
 	const server = await createHttpTestServer();
 	// eslint-disable-next-line @typescript-eslint/no-empty-function
 	server.get('/', () => {});
@@ -562,7 +562,8 @@ test('throws AbortError when aborted by user', async t => {
 	const response = ky(server.url, {signal});
 	abortController.abort();
 
-	await t.throwsAsync(response, {name: 'AbortError'});
+	const {name} = (await t.throwsAsync(response))!;
+	t.true(['DOMException', 'Error'].includes(name), `Expected DOMException or Error, got ${name}`);
 });
 
 test('supports Request instance as input', async t => {

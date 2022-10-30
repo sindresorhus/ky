@@ -83,10 +83,12 @@ test('aborting a request', withPage, async (t: ExecutionContext, page: Page) => 
 	const error = await page.evaluate(async (url: string) => {
 		const controller = new AbortController();
 		const request = window.ky(`${url}/test`, {signal: controller.signal}).text();
-		controller.abort();
+		controller.abort('🦄');
 		return request.catch(error_ => error_.toString());
 	}, server.url);
-	t.is(error, 'AbortError: Failed to execute \'fetch\' on \'Window\': The user aborted a request.');
+
+	// TODO: When targeting Node.js 18, also assert that the error is a DOMException
+	t.is(error.split(': ')[1], '🦄');
 
 	await server.close();
 });

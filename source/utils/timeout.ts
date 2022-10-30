@@ -6,12 +6,12 @@ export type TimeoutOptions = {
 };
 
 // `Promise.race()` workaround (#91)
-export const timeout = async (
+export default async function timeout(
 	request: Request,
 	abortController: AbortController | undefined,
 	options: TimeoutOptions,
-): Promise<Response> =>
-	new Promise((resolve, reject) => {
+): Promise<Response> {
+	return new Promise((resolve, reject) => {
 		const timeoutId = setTimeout(() => {
 			if (abortController) {
 				abortController.abort();
@@ -28,7 +28,4 @@ export const timeout = async (
 				clearTimeout(timeoutId);
 			});
 	});
-
-export const delay = async (ms: number) => new Promise(resolve => {
-	setTimeout(resolve, ms);
-});
+}
