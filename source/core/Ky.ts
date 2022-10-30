@@ -154,8 +154,10 @@ export class Ky {
 		if (supportsAbortController) {
 			this.abortController = new globalThis.AbortController();
 			if (this._options.signal) {
+				const originalSignal = this._options.signal;
+
 				this._options.signal.addEventListener('abort', () => {
-					this.abortController!.abort(this._options.signal?.reason);
+					this.abortController!.abort(originalSignal.reason);
 				});
 			}
 
