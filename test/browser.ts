@@ -86,7 +86,8 @@ test('aborting a request', withPage, async (t: ExecutionContext, page: Page) => 
 		controller.abort('There is an abortion Among Us');
 		return request.catch(error_ => error_.toString());
 	}, server.url);
-	t.is(error, 'AbortError: There is an abortion Among Us');
+
+	t.is(error.split(': ')[1], 'There is an abortion Among Us');
 
 	await server.close();
 });
