@@ -91,7 +91,7 @@ test('aborting a request', withPage, async (t: ExecutionContext, page: Page) => 
 	await server.close();
 });
 
-test('should copy origin response info when use onDownloadProgress', withPage, async (t: ExecutionContext, page: Page) => {
+test('should copy origin response info when using `onDownloadProgress`', withPage, async (t: ExecutionContext, page: Page) => {
 	const json = {hello: 'world'};
 	const status = 202;
 	const statusText = 'Accepted';
@@ -125,6 +125,58 @@ test('should copy origin response info when use onDownloadProgress', withPage, a
 		statusText,
 		data: json,
 	});
+	await server.close();
+});
+
+test('should not copy response body with 204 status code when using `onDownloadProgress` ', withPage, async (t: ExecutionContext, page: Page) => {
+	const status = 204;
+	const statusText = 'No content';
+	const server = await createEsmTestServer();
+	server.get('/', (_request, response) => {
+		response.end('meow');
+	});
+
+	server.get('/test', (_request, response) => {
+		setTimeout(() => {
+			response.statusMessage = statusText;
+			response.status(status).header('X-ky-Header', 'ky').end(null);
+		}, 500);
+	});
+	await page.goto(server.url);
+	await addKyScriptToPage(page);
+	const data = await page.evaluate(async (url: string) => {
+		const progress: any = [];
+		let totalBytes = 0;
+		const response = await window.ky.get(`${url}/test`, {
+			onDownloadProgress(progressEvent) {
+				progress.push(progressEvent);
+			},
+		}).then(async v => {
+			totalBytes = Number(v.headers.get('content-length')) || 0;
+			return ({
+				headers: v.headers.get('X-ky-Header'),
+				status: v.status,
+				statusText: v.statusText,
+			});
+		});
+		return {
+			response,
+			progress,
+			totalBytes,
+		};
+	}, server.url);
+
+	t.deepEqual(data.response, {
+		status,
+		headers: 'ky',
+		statusText,
+	});
+	t.deepEqual(data.progress, [{
+		percent: 1,
+		totalBytes: data.totalBytes,
+		transferredBytes: 0,
+	}]);
+
 	await server.close();
 });
 
