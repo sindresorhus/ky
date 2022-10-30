@@ -155,7 +155,7 @@ export class Ky {
 			this.abortController = new globalThis.AbortController();
 			if (this._options.signal) {
 				this._options.signal.addEventListener('abort', () => {
-					this.abortController!.abort();
+					this.abortController!.abort(this._options.signal?.reason);
 				});
 			}
 
