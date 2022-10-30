@@ -1,5 +1,4 @@
 import {TimeoutError} from '../errors/TimeoutError.js';
-import pDefer from './p-defer.js';
 
 export type TimeoutOptions = {
 	timeout: number;
@@ -12,23 +11,21 @@ export default async function timeout(
 	abortController: AbortController | undefined,
 	options: TimeoutOptions,
 ): Promise<Response> {
-	const {promise, resolve, reject} = pDefer<Response>();
+	return new Promise((resolve, reject) => {
+		const timeoutId = setTimeout(() => {
+			if (abortController) {
+				abortController.abort();
+			}
 
-	const timeoutId = setTimeout(() => {
-		if (abortController) {
-			abortController.abort();
-		}
+			reject(new TimeoutError(request));
+		}, options.timeout);
 
-		reject(new TimeoutError(request));
-	}, options.timeout);
-
-	try {
-		resolve(await options.fetch(request));
-	} catch (error: unknown) {
-		reject(error);
-	} finally {
-		clearTimeout(timeoutId);
-	}
-
-	return promise;
+		void options
+			.fetch(request)
+			.then(resolve)
+			.catch(reject)
+			.then(() => {
+				clearTimeout(timeoutId);
+			});
+	});
 }

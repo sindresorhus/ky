@@ -83,10 +83,10 @@ test('aborting a request', withPage, async (t: ExecutionContext, page: Page) => 
 	const error = await page.evaluate(async (url: string) => {
 		const controller = new AbortController();
 		const request = window.ky(`${url}/test`, {signal: controller.signal}).text();
-		controller.abort();
+		controller.abort('There is an abortion Among Us');
 		return request.catch(error_ => error_.toString());
 	}, server.url);
-	t.is(error, 'AbortError: Failed to execute \'fetch\' on \'Window\': The user aborted a request.');
+	t.is(error, 'AbortError: There is an abortion Among Us');
 
 	await server.close();
 });

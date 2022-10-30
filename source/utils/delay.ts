@@ -1,35 +1,34 @@
 // https://github.com/sindresorhus/delay/tree/ab98ae8dfcb38e1593286c94d934e70d14a4e111
 
 import {composeAbortError} from '../errors/DOMException.js';
-import pDefer from './p-defer.js';
+import {InternalOptions} from '../types/options.js';
 
 export interface DelayOptions {
-	signal?: AbortSignal;
+	signal?: InternalOptions['signal'];
 }
 
 export default async function delay(
 	ms: number,
 	{signal}: DelayOptions,
 ): Promise<void> {
-	if (signal) {
-		if (signal.aborted) {
-			throw composeAbortError(signal);
+	return new Promise((resolve, reject) => {
+		if (signal) {
+			if (signal.aborted) {
+				reject(composeAbortError(signal));
+				return;
+			}
+
+			signal.addEventListener('abort', handleAbort, {once: true});
 		}
 
-		signal.addEventListener('abort', handleAbort, {once: true});
-	}
+		function handleAbort() {
+			reject(composeAbortError(signal!));
+			clearTimeout(timeoutId);
+		}
 
-	const {promise, resolve, reject} = pDefer<void>();
-
-	function handleAbort() {
-		reject(composeAbortError(signal));
-		clearTimeout(timeoutId);
-	}
-
-	const timeoutId = setTimeout(() => {
-		signal?.removeEventListener('abort', handleAbort);
-		resolve();
-	}, ms);
-
-	return promise;
+		const timeoutId = setTimeout(() => {
+			signal?.removeEventListener('abort', handleAbort);
+			resolve();
+		}, ms);
+	});
 }
