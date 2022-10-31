@@ -6,6 +6,8 @@ import FormData from 'form-data';
 import ky from '../source/index.js';
 import {createHttpTestServer} from './helpers/create-http-test-server.js';
 
+const timeout = 60_000;
+
 const echoHeaders: RequestHandler = (request, response) => {
 	request.resume();
 	response.end(JSON.stringify(request.headers));
@@ -309,22 +311,22 @@ test('preserve port in host header if non-standard port', async t => {
 });
 
 test('strip port in host header if explicit standard port (:80) & protocol (HTTP)', async t => {
-	const body = await ky.get('http://httpbin.org:80/headers').json<{headers: IncomingHttpHeaders}>();
+	const body = await ky.get('http://httpbin.org:80/headers', {timeout}).json<{headers: IncomingHttpHeaders}>();
 	t.is(body.headers['Host'], 'httpbin.org');
 });
 
 test('strip port in host header if explicit standard port (:443) & protocol (HTTPS)', async t => {
-	const body = await ky.get('https://httpbin.org:443/headers').json<{headers: IncomingHttpHeaders}>();
+	const body = await ky.get('https://httpbin.org:443/headers', {timeout}).json<{headers: IncomingHttpHeaders}>();
 	t.is(body.headers['Host'], 'httpbin.org');
 });
 
 test('strip port in host header if implicit standard port & protocol (HTTP)', async t => {
-	const body = await ky.get('http://httpbin.org/headers').json<{headers: IncomingHttpHeaders}>();
+	const body = await ky.get('http://httpbin.org/headers', {timeout}).json<{headers: IncomingHttpHeaders}>();
 	t.is(body.headers['Host'], 'httpbin.org');
 });
 
 test('strip port in host header if implicit standard port & protocol (HTTPS)', async t => {
-	const body = await ky.get('https://httpbin.org/headers').json<{headers: IncomingHttpHeaders}>();
+	const body = await ky.get('https://httpbin.org/headers', {timeout}).json<{headers: IncomingHttpHeaders}>();
 	t.is(body.headers['Host'], 'httpbin.org');
 });
 
