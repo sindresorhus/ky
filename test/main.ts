@@ -236,18 +236,32 @@ test('.json() with custom accept header', async t => {
 	await server.close();
 });
 
-test('.json() with 200 response and empty body', async t => {
+test('.json() with invalid JSON body', async t => {
+	const server = await createHttpTestServer();
+	server.get('/', async (request, response) => {
+		t.is(request.headers.accept, 'application/json');
+		response.end('not json');
+	});
+
+	await t.throwsAsync(ky.get(server.url).json(), {
+		message: /Unexpected token/,
+	});
+
+	await server.close();
+});
+
+test('.json() with empty body', async t => {
 	t.plan(2);
 
 	const server = await createHttpTestServer();
 	server.get('/', async (request, response) => {
 		t.is(request.headers.accept, 'application/json');
-		response.status(200).end();
+		response.end();
 	});
 
-	await t.throwsAsync(ky(server.url).json(), {
-		message: /Unexpected end of JSON input/,
-	});
+	const responseJson = await ky.get(server.url).json();
+
+	t.is(responseJson, '');
 
 	await server.close();
 });
