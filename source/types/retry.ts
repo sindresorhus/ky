@@ -36,6 +36,7 @@ export interface RetryOptions {
 
 	/**
 	The upper limit of the delay per retry in milliseconds.
+	To clamp the delay, set `backoffLimit` to 1000, for example.
 
 	By default, the delay is calculated in the following way:
 
@@ -45,7 +46,7 @@ export interface RetryOptions {
 
 	The delay increases exponentially.
 
-  To clamp the delay, set `backoffLimit` to 1000, for example.
+	@default Infinity
 	*/
 	backoffLimit?: number;
 }
