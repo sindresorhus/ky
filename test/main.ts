@@ -1,4 +1,5 @@
 import {Buffer} from 'node:buffer';
+import zlib from 'node:zlib';
 import test from 'ava';
 import delay from 'delay';
 import {expectTypeOf} from 'expect-type';
@@ -248,6 +249,25 @@ test('.json() when response is chunked', async t => {
 	const responseJson = await ky.get(server.url).json();
 
 	t.deepEqual(responseJson, ['one', 'two']);
+
+	await server.close();
+});
+
+test('.json() when response has no Content-Length or Transfer-Encoding', async t => {
+	const server = await createHttpTestServer();
+	server.get('/', async (request, response) => {
+		response.setHeader('Content-Encoding', 'br');
+		response.setHeader('Connection', 'close');
+		response.removeHeader('Transfer-Encoding');
+		response.removeHeader('Content-Length');
+		zlib.brotliCompress('["hi", "there"]', (error, data) => {
+			response.end(data);
+		});
+	});
+
+	const responseJson = await ky.get(server.url).json();
+
+	t.deepEqual(responseJson, ['hi', 'there']);
 
 	await server.close();
 });
