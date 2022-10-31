@@ -92,7 +92,8 @@ export class Ky {
 					}
 
 					const contentLength = response.headers.get('Content-Length');
-					if (contentLength === null || contentLength === '0') {
+					const transferEncoding = response.headers.get('Transfer-Encoding');
+					if ((contentLength === null || contentLength === '0') && transferEncoding !== 'chunked') {
 						return '';
 					}
 

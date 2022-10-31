@@ -236,6 +236,22 @@ test('.json() with custom accept header', async t => {
 	await server.close();
 });
 
+test('.json() when response is chunked', async t => {
+	const server = await createHttpTestServer();
+	server.get('/', async (request, response) => {
+		response.write('[');
+		response.write('"one",');
+		response.write('"two"');
+		response.end(']');
+	});
+
+	const responseJson = await ky.get(server.url).json();
+
+	t.deepEqual(responseJson, ['one', 'two']);
+
+	await server.close();
+});
+
 test('.json() with invalid JSON body', async t => {
 	const server = await createHttpTestServer();
 	server.get('/', async (request, response) => {
