@@ -495,11 +495,11 @@ If you need to read the actual response when an `HTTPError` has occurred, call t
 
 ```js
 try {
-  await ky('https://example.com').json();
+	await ky('https://example.com').json();
 } catch (error) {
-  if (error.name === 'HTTPError') {
-    const errorJson = await error?.response?.json?.();
-  }
+	if (error.name === 'HTTPError') {
+		const errorJson = await error.response.json();
+	}
 }
 ```
 
