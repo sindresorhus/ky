@@ -46,6 +46,7 @@ npm install ky
 
 - [jsdelivr](https://www.jsdelivr.com/package/npm/ky)
 - [unpkg](https://unpkg.com/ky)
+- [esm.sh](https://esm.sh/ky)
 
 ## Usage
 
@@ -84,7 +85,7 @@ console.log(json);
 If you are using [Deno](https://github.com/denoland/deno), import Ky from a URL. For example, using a CDN:
 
 ```js
-import ky from 'https://cdn.skypack.dev/ky?dts';
+import ky from 'https://esm.sh/ky';
 ```
 
 ## API
