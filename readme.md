@@ -548,7 +548,7 @@ import ky from 'ky';
 const json = await ky.post('https://example.com', {
 	headers: {
 		'content-type': 'application/json'
-	}
+	},
 	json: {
 		foo: true
 	},
