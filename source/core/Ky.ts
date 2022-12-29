@@ -170,12 +170,12 @@ export class Ky {
 			this._options.signal = this.abortController.signal;
 		}
 
-		this.request = new globalThis.Request(this._input as RequestInfo, this._options as RequestInit);
-
 		if (supportsRequestStreams) {
 			// @ts-expect-error - Types are outdated.
-			this.request.duplex = 'half';
+			this._options.duplex = 'half';
 		}
+
+		this.request = new globalThis.Request(this._input as RequestInfo, this._options as RequestInit);
 
 		if (this._options.searchParams) {
 			// eslint-disable-next-line unicorn/prevent-abbreviations
@@ -194,7 +194,8 @@ export class Ky {
 				this.request.headers.delete('content-type');
 			}
 
-			this.request = new globalThis.Request(new globalThis.Request(url, this.request), this._options as RequestInit);
+			// The spread of `this.request` is required as otherwise it misses the `duplex` option for some reason and throws.
+			this.request = new globalThis.Request(new globalThis.Request(url, {...this.request}), this._options as RequestInit);
 		}
 
 		if (this._options.json !== undefined) {
