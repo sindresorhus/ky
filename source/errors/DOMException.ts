@@ -1,6 +1,6 @@
 // DomException is supported on most modern browsers, and Node >= 17.
 // @see https://developer.mozilla.org/en-US/docs/Web/API/DOMException#browser_compatibility
-const domExceptionSupported = Boolean(globalThis.DOMException);
+const isDomExceptionSupported = Boolean(globalThis.DOMException);
 
 // TODO: When targeting Node.js 18, use `signal.throwIfAborted()` (https://developer.mozilla.org/en-US/docs/Web/API/AbortSignal/throwIfAborted)
 export function composeAbortError(signal?: AbortSignal) {
