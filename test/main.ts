@@ -595,7 +595,7 @@ test('throws DOMException/Error with name AbortError when aborted by user', asyn
 	const error = (await t.throwsAsync(response))!;
 
 	t.true(['DomException', 'Error'].includes(error.constructor.name), `Expected DOMException or Error, got ${error.constructor.name}`);
-	t.true(error.name === 'AbortError', `Expected AbortError, got ${error.name}`);
+	t.is(error.name, 'AbortError', `Expected AbortError, got ${error.name}`);
 });
 
 test('supports Request instance as input', async t => {
