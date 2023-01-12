@@ -5,9 +5,9 @@ const domExceptionSupported = Boolean(globalThis.DOMException);
 // TODO: When targeting Node.js 18, use `signal.throwIfAborted()` (https://developer.mozilla.org/en-US/docs/Web/API/AbortSignal/throwIfAborted)
 export function composeAbortError(signal?: AbortSignal) {
 	/*
-		NOTE: Use DomException with AbortError name as specified in MDN docs (https://developer.mozilla.org/en-US/docs/Web/API/AbortController/abort)
-		> When abort() is called, the fetch() promise rejects with an Error of type DOMException, with name AbortError.
-	 */
+	NOTE: Use DomException with AbortError name as specified in MDN docs (https://developer.mozilla.org/en-US/docs/Web/API/AbortController/abort)
+	> When abort() is called, the fetch() promise rejects with an Error of type DOMException, with name AbortError.
+	*/
 	if (domExceptionSupported) {
 		return new DOMException(signal?.reason ?? 'The operation was aborted.', 'AbortError');
 	}
