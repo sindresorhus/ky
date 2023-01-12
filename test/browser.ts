@@ -17,6 +17,10 @@ const DIST_DIR = new URL('../distribution', import.meta.url).toString();
 const createEsmTestServer = async (options?: HttpServerOptions) => {
 	const server = await createHttpTestServer(options);
 	server.use('/distribution', express.static(DIST_DIR.replace(/^file:\/\//, '')));
+	server.use((_, response, next) => {
+		response.set('Connection', 'close');
+		next();
+	});
 	return server;
 };
 
@@ -35,10 +39,6 @@ const addKyScriptToPage = async (page: Page) => {
 let server: ExtendedHttpTestServer;
 test.beforeEach(async () => {
 	server = await createEsmTestServer();
-	server.use((_, response, next) => {
-		response.set('Connection', 'close');
-		next();
-	});
 });
 
 test.afterEach(async () => {
