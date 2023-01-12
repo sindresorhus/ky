@@ -582,7 +582,7 @@ test('ky.extend()', async t => {
 	await server.close();
 });
 
-test('throws DomException/Error with name AbortError when aborted by user', async t => {
+test('throws DOMException/Error with name AbortError when aborted by user', async t => {
 	const server = await createHttpTestServer();
 	// eslint-disable-next-line @typescript-eslint/no-empty-function
 	server.get('/', () => {});
