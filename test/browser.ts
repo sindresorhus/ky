@@ -32,11 +32,11 @@ const addKyScriptToPage = async (page: Page) => {
 	await page.waitForFunction(() => typeof window.ky === 'function');
 };
 
-let server:ExtendedHttpTestServer;
+let server: ExtendedHttpTestServer;
 test.beforeEach(async () => {
 	server = await createEsmTestServer();
-	server.use((_, res, next) => {
-		res.set("Connection", "close");
+	server.use((_, response, next) => {
+		response.set('Connection', 'close');
 		next();
 	});
 });
