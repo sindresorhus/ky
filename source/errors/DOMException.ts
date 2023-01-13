@@ -1,4 +1,4 @@
-// DomException is supported on most modern browsers, and Node >= 17.
+// DOMException is supported on most modern browsers and Node.js 18+.
 // @see https://developer.mozilla.org/en-US/docs/Web/API/DOMException#browser_compatibility
 const isDomExceptionSupported = Boolean(globalThis.DOMException);
 
@@ -12,7 +12,7 @@ export function composeAbortError(signal?: AbortSignal) {
 		return new DOMException(signal?.reason ?? 'The operation was aborted.', 'AbortError');
 	}
 
-	// DomException not supported fallback to use of error and override name
+	// DOMException not supported. Fall back to use of error and override name.
 	const error = new Error(signal?.reason ?? 'The operation was aborted.');
 	error.name = 'AbortError';
 
