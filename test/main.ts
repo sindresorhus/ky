@@ -594,7 +594,7 @@ test('throws DOMException/Error with name AbortError when aborted by user', asyn
 
 	const error = (await t.throwsAsync(response))!;
 
-	t.true(['DomException', 'Error'].includes(error.constructor.name), `Expected DOMException or Error, got ${error.constructor.name}`);
+	t.true(['DOMException', 'Error'].includes(error.constructor.name), `Expected DOMException or Error, got ${error.constructor.name}`);
 	t.is(error.name, 'AbortError', `Expected AbortError, got ${error.name}`);
 });
 
