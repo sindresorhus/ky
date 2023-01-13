@@ -3,7 +3,7 @@ import busboy from 'busboy';
 import express from 'express';
 import {Page} from 'playwright-chromium';
 import ky from '../source/index.js';
-import {createHttpTestServer, HttpServerOptions} from './helpers/create-http-test-server.js';
+import {createHttpTestServer, ExtendedHttpTestServer, HttpServerOptions} from './helpers/create-http-test-server.js';
 import {parseRawBody} from './helpers/parse-body.js';
 import {withPage} from './helpers/with-page.js';
 
@@ -17,6 +17,10 @@ const DIST_DIR = new URL('../distribution', import.meta.url).toString();
 const createEsmTestServer = async (options?: HttpServerOptions) => {
 	const server = await createHttpTestServer(options);
 	server.use('/distribution', express.static(DIST_DIR.replace(/^file:\/\//, '')));
+	server.use((_, response, next) => {
+		response.set('Connection', 'close');
+		next();
+	});
 	return server;
 };
 
@@ -32,9 +36,16 @@ const addKyScriptToPage = async (page: Page) => {
 	await page.waitForFunction(() => typeof window.ky === 'function');
 };
 
-test('prefixUrl option', withPage, async (t: ExecutionContext, page: Page) => {
-	const server = await createEsmTestServer();
+let server: ExtendedHttpTestServer;
+test.beforeEach(async () => {
+	server = await createEsmTestServer();
+});
 
+test.afterEach(async () => {
+	await server.close();
+});
+
+test.serial('prefixUrl option', withPage, async (t: ExecutionContext, page: Page) => {
 	server.get('/', (_request, response) => {
 		response.end('zebra');
 	});
@@ -60,13 +71,9 @@ test('prefixUrl option', withPage, async (t: ExecutionContext, page: Page) => {
 	]), server.url);
 
 	t.deepEqual(results, ['rainbow', 'rainbow', 'rainbow', 'rainbow']);
-
-	await server.close();
 });
 
-test('aborting a request', withPage, async (t: ExecutionContext, page: Page) => {
-	const server = await createEsmTestServer();
-
+test.serial('aborting a request', withPage, async (t: ExecutionContext, page: Page) => {
 	server.get('/', (_request, response) => {
 		response.end('meow');
 	});
@@ -89,15 +96,12 @@ test('aborting a request', withPage, async (t: ExecutionContext, page: Page) => 
 
 	// TODO: When targeting Node.js 18, also assert that the error is a DOMException
 	t.is(error.split(': ')[1], '🦄');
-
-	await server.close();
 });
 
-test('should copy origin response info when using `onDownloadProgress`', withPage, async (t: ExecutionContext, page: Page) => {
+test.serial('should copy origin response info when using `onDownloadProgress`', withPage, async (t: ExecutionContext, page: Page) => {
 	const json = {hello: 'world'};
 	const status = 202;
 	const statusText = 'Accepted';
-	const server = await createEsmTestServer();
 	server.get('/', (_request, response) => {
 		response.end('meow');
 	});
@@ -127,13 +131,11 @@ test('should copy origin response info when using `onDownloadProgress`', withPag
 		statusText,
 		data: json,
 	});
-	await server.close();
 });
 
-test('should not copy response body with 204 status code when using `onDownloadProgress` ', withPage, async (t: ExecutionContext, page: Page) => {
+test.serial('should not copy response body with 204 status code when using `onDownloadProgress` ', withPage, async (t: ExecutionContext, page: Page) => {
 	const status = 204;
 	const statusText = 'No content';
-	const server = await createEsmTestServer();
 	server.get('/', (_request, response) => {
 		response.end('meow');
 	});
@@ -178,13 +180,9 @@ test('should not copy response body with 204 status code when using `onDownloadP
 		totalBytes: data.totalBytes,
 		transferredBytes: 0,
 	}]);
-
-	await server.close();
 });
 
-test('aborting a request with onDonwloadProgress', withPage, async (t: ExecutionContext, page: Page) => {
-	const server = await createEsmTestServer();
-
+test.serial('aborting a request with onDonwloadProgress', withPage, async (t: ExecutionContext, page: Page) => {
 	server.get('/', (_request, response) => {
 		response.end('meow');
 	});
@@ -214,16 +212,12 @@ test('aborting a request with onDonwloadProgress', withPage, async (t: Execution
 	}, server.url);
 	// This should be an AbortError like in the 'aborting a request' test, but there is a bug in Chromium
 	t.is(error, 'TypeError: Failed to fetch');
-
-	await server.close();
 });
 
-test(
+test.serial(
 	'throws TimeoutError even though it does not support AbortController',
 	withPage,
 	async (t: ExecutionContext, page: Page) => {
-		const server = await createEsmTestServer();
-
 		server.get('/', (_request, response) => {
 			response.end();
 		});
@@ -252,14 +246,10 @@ test(
 
 		t.is(error.message, 'TimeoutError: Request timed out');
 		t.is(error.request.url, `${server.url}/slow`);
-
-		await server.close();
 	},
 );
 
-test('onDownloadProgress works', withPage, async (t: ExecutionContext, page: Page) => {
-	const server = await createEsmTestServer();
-
+test.serial('onDownloadProgress works', withPage, async (t: ExecutionContext, page: Page) => {
 	server.get('/', (_request, response) => {
 		response.writeHead(200, {
 			'content-length': '4',
@@ -297,13 +287,9 @@ test('onDownloadProgress works', withPage, async (t: ExecutionContext, page: Pag
 		[{percent: 1, transferredBytes: 4, totalBytes: 4}, 'ow'],
 	]);
 	t.is(result.text, 'meow');
-
-	await server.close();
 });
 
-test('throws if onDownloadProgress is not a function', withPage, async (t: ExecutionContext, page: Page) => {
-	const server = await createEsmTestServer();
-
+test.serial('throws if onDownloadProgress is not a function', withPage, async (t: ExecutionContext, page: Page) => {
 	server.get('/', (_request, response) => {
 		response.end();
 	});
@@ -317,13 +303,9 @@ test('throws if onDownloadProgress is not a function', withPage, async (t: Execu
 		return request.catch(error_ => error_.toString());
 	}, server.url);
 	t.is(error, 'TypeError: The `onDownloadProgress` option must be a function');
-
-	await server.close();
 });
 
-test('throws if does not support ReadableStream', withPage, async (t: ExecutionContext, page: Page) => {
-	const server = await createEsmTestServer();
-
+test.serial('throws if does not support ReadableStream', withPage, async (t: ExecutionContext, page: Page) => {
 	server.get('/', (_request, response) => {
 		response.end();
 	});
@@ -338,14 +320,10 @@ test('throws if does not support ReadableStream', withPage, async (t: ExecutionC
 		return request.catch(error_ => error_.toString());
 	}, server.url);
 	t.is(error, 'Error: Streams are not supported in your environment. `ReadableStream` is missing.');
-
-	await server.close();
 });
 
-test('FormData with searchParams', withPage, async (t: ExecutionContext, page: Page) => {
+test.serial('FormData with searchParams', withPage, async (t: ExecutionContext, page: Page) => {
 	t.plan(3);
-
-	const server = await createEsmTestServer({bodyParser: false});
 
 	server.get('/', (_request, response) => {
 		response.end();
@@ -374,14 +352,10 @@ test('FormData with searchParams', withPage, async (t: ExecutionContext, page: P
 			body: formData,
 		});
 	}, server.url);
-
-	await server.close();
 });
 
-test('FormData with searchParams ("multipart/form-data" parser)', withPage, async (t: ExecutionContext, page: Page) => {
+test.serial('FormData with searchParams ("multipart/form-data" parser)', withPage, async (t: ExecutionContext, page: Page) => {
 	t.plan(3);
-
-	const server = await createEsmTestServer();
 
 	server.get('/', (_request, response) => {
 		response.end();
@@ -447,17 +421,13 @@ test('FormData with searchParams ("multipart/form-data" parser)', withPage, asyn
 			body: formData,
 		});
 	}, server.url);
-
-	await server.close();
 });
 
-test(
+test.serial(
 	'headers are preserved when input is a Request and there are searchParams in the options',
 	withPage,
 	async (t: ExecutionContext, page: Page) => {
 		t.plan(2);
-
-		const server = await createEsmTestServer();
 
 		server.get('/', (_request, response) => {
 			response.end();
@@ -483,17 +453,13 @@ test(
 				})
 				.text();
 		}, server.url);
-
-		await server.close();
 	},
 );
 
-test('retry with body', withPage, async (t: ExecutionContext, page: Page) => {
+test.serial('retry with body', withPage, async (t: ExecutionContext, page: Page) => {
 	t.plan(4);
 
 	let requestCount = 0;
-
-	const server = await createEsmTestServer();
 
 	server.get('/', (_request, response) => {
 		response.end('zebra');
@@ -518,6 +484,4 @@ test('retry with body', withPage, async (t: ExecutionContext, page: Page) => {
 	);
 
 	t.is(requestCount, 2);
-
-	await server.close();
 });
