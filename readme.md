@@ -3,7 +3,32 @@
 	<div>
 		<img width="600" height="600" src="media/logo.svg" alt="ky">
 	</div>
-	<p align="center">Huge thanks to <a href="https://lunanode.com"><img src="https://sindresorhus.com/assets/thanks/lunanode-logo.svg" width="170"></a> for sponsoring me!</p>
+	<br>
+	<br>
+	<p>
+		<p>
+			<sup>
+				Sindre's open source work is supported by the community.<br>Special thanks to:
+			</sup>
+		</p>
+		<br>
+		<a href="https://serpapi.com#gh-light-mode-only">
+			<div>
+				<img src="https://sindresorhus.com/assets/thanks/serpapi-logo-light.svg" width="130" alt="SerpApi">
+			</div>
+			<b>API to get search engine results with ease.</b>
+		</a>
+		<a href="https://serpapi.com#gh-dark-mode-only">
+			<div>
+				<img src="https://sindresorhus.com/assets/thanks/serpapi-logo-dark.svg" width="120" alt="SerpApi">
+			</div>
+			<b>API to get search engine results with ease.</b>
+		</a>
+	</p>
+	<br>
+	<br>
+	<br>
+	<br>
 	<br>
 	<br>
 	<br>
