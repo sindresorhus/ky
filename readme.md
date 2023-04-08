@@ -110,7 +110,7 @@ console.log(json);
 If you are using [Deno](https://github.com/denoland/deno), import Ky from a URL. For example, using a CDN:
 
 ```js
-import ky from 'https://esm.sh/ky';
+import ky from "https://deno.land/x/ky/source/index.ts";
 ```
 
 ## API
