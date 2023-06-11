@@ -84,25 +84,26 @@ export class Ky {
 				ky.request.headers.set('accept', ky.request.headers.get('accept') || mimeType);
 
 				const awaitedResult = await result;
-				const response = awaitedResult.clone();
 
 				if (type === 'json') {
+					const response = awaitedResult.clone();
+
 					if (response.status === 204) {
 						return '';
 					}
 
-					const arrayBuffer = await response.clone().arrayBuffer();
+					const arrayBuffer = await response.arrayBuffer();
 					const responseSize = arrayBuffer.byteLength;
 					if (responseSize === 0) {
 						return '';
 					}
 
 					if (options.parseJson) {
-						return options.parseJson(await response.text());
+						return options.parseJson(await awaitedResult.text());
 					}
 				}
 
-				return response[type]();
+				return (awaitedResult as Response)[type]();
 			};
 		}
 
