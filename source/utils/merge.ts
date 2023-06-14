@@ -3,7 +3,7 @@ import {isObject} from './is.js';
 
 export const validateAndMerge = (...sources: Array<Partial<Options> | undefined>): Partial<Options> => {
 	for (const source of sources) {
-		if ((!isObject(source) || Array.isArray(source)) && typeof source !== 'undefined') {
+		if ((!isObject(source) || Array.isArray(source)) && source !== undefined) {
 			throw new TypeError('The `options` argument must be an object');
 		}
 	}

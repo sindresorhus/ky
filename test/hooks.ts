@@ -1,7 +1,7 @@
 import test from 'ava';
 import delay from 'delay';
 import ky, {HTTPError} from '../source/index.js';
-import {Options} from '../source/types/options.js';
+import {type Options} from '../source/types/options.js';
 import {createHttpTestServer} from './helpers/create-http-test-server.js';
 
 test('hooks can be async', async t => {

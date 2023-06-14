@@ -2,12 +2,12 @@ import {HTTPError} from '../errors/HTTPError.js';
 import {TimeoutError} from '../errors/TimeoutError.js';
 import type {Hooks} from '../types/hooks.js';
 import type {Input, InternalOptions, NormalizedOptions, Options, SearchParamsInit} from '../types/options.js';
-import {ResponsePromise} from '../types/ResponsePromise.js';
+import {type ResponsePromise} from '../types/ResponsePromise.js';
 import {deepMerge, mergeHeaders} from '../utils/merge.js';
 import {normalizeRequestMethod, normalizeRetryOptions} from '../utils/normalize.js';
-import timeout, {TimeoutOptions} from '../utils/timeout.js';
+import timeout, {type TimeoutOptions} from '../utils/timeout.js';
 import delay from '../utils/delay.js';
-import {ObjectEntries} from '../utils/types.js';
+import {type ObjectEntries} from '../utils/types.js';
 import {
 	maxSafeTimeout,
 	responseTypes,
@@ -19,12 +19,11 @@ import {
 } from './constants.js';
 
 export class Ky {
-	// eslint-disable-next-line @typescript-eslint/promise-function-async
 	static create(input: Input, options: Options): ResponsePromise {
 		const ky = new Ky(input, options);
 
 		const fn = async (): Promise<Response> => {
-			if (ky._options.timeout > maxSafeTimeout) {
+			if (typeof ky._options.timeout === 'number' && ky._options.timeout > maxSafeTimeout) {
 				throw new RangeError(`The \`timeout\` option cannot be greater than ${maxSafeTimeout}`);
 			}
 
@@ -137,7 +136,7 @@ export class Ky {
 			prefixUrl: String(options.prefixUrl || ''),
 			retry: normalizeRetryOptions(options.retry),
 			throwHttpErrors: options.throwHttpErrors !== false,
-			timeout: typeof options.timeout === 'undefined' ? 10_000 : options.timeout,
+			timeout: options.timeout ?? 10_000,
 			fetch: options.fetch ?? globalThis.fetch.bind(globalThis),
 		};
 
@@ -223,7 +222,7 @@ export class Ky {
 						after *= 1000;
 					}
 
-					if (typeof this._options.retry.maxRetryAfter !== 'undefined' && after > this._options.retry.maxRetryAfter) {
+					if (this._options.retry.maxRetryAfter !== undefined && after > this._options.retry.maxRetryAfter) {
 						return 0;
 					}
 
@@ -253,7 +252,6 @@ export class Ky {
 	protected async _retry<T extends (...args: any) => Promise<any>>(fn: T): Promise<ReturnType<T> | void> {
 		try {
 			return await fn();
-			// eslint-disable-next-line @typescript-eslint/no-implicit-any-catch
 		} catch (error) {
 			const ms = Math.min(this._calculateRetryDelay(error), maxSafeTimeout);
 			if (ms !== 0 && this._retryCount > 0) {

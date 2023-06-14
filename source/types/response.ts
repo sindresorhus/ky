@@ -1,3 +1,3 @@
-export interface KyResponse extends Response {
+export type KyResponse = {
 	json: <T = unknown>() => Promise<T>;
-}
+} & Response;

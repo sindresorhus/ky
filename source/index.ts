@@ -5,7 +5,7 @@ import {requestMethods, stop} from './core/constants.js';
 import type {KyInstance} from './types/ky.js';
 import type {Input, Options} from './types/options.js';
 import {validateAndMerge} from './utils/merge.js';
-import {Mutable} from './utils/types.js';
+import {type Mutable} from './utils/types.js';
 
 const createInstance = (defaults?: Partial<Options>): KyInstance => {
 	// eslint-disable-next-line @typescript-eslint/promise-function-async

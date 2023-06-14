@@ -1,6 +1,6 @@
 import process from 'node:process';
 import type {ExecutionContext, Implementation} from 'ava';
-import {chromium, Page} from 'playwright-chromium';
+import {chromium, type Page} from 'playwright-chromium';
 
 type Run = (t: ExecutionContext, page: Page) => Promise<void>;
 

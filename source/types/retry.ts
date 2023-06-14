@@ -1,4 +1,4 @@
-export interface RetryOptions {
+export type RetryOptions = {
 	/**
 	The number of times to retry failed requests.
 
@@ -49,4 +49,4 @@ export interface RetryOptions {
 	@default Infinity
 	*/
 	backoffLimit?: number;
-}
+};
