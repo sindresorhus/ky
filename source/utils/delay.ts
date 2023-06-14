@@ -1,11 +1,11 @@
 // https://github.com/sindresorhus/delay/tree/ab98ae8dfcb38e1593286c94d934e70d14a4e111
 
 import {composeAbortError} from '../errors/DOMException.js';
-import {InternalOptions} from '../types/options.js';
+import {type InternalOptions} from '../types/options.js';
 
-export interface DelayOptions {
+export type DelayOptions = {
 	signal?: InternalOptions['signal'];
-}
+};
 
 export default async function delay(
 	ms: number,

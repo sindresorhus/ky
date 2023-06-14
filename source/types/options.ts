@@ -12,7 +12,7 @@ export type HttpMethod = 'get' | 'post' | 'put' | 'patch' | 'head' | 'delete';
 
 export type Input = string | URL | Request;
 
-export interface DownloadProgress {
+export type DownloadProgress = {
 	percent: number;
 	transferredBytes: number;
 
@@ -20,14 +20,14 @@ export interface DownloadProgress {
 	Note: If it's not possible to retrieve the body size, it will be `0`.
 	*/
 	totalBytes: number;
-}
+};
 
 export type KyHeadersInit = HeadersInit | Record<string, string | undefined>;
 
 /**
 Options are the same as `window.fetch`, with some exceptions.
 */
-export interface Options extends Omit<RequestInit, 'headers'> {
+export type Options = {
 	/**
 	HTTP method used to make the request.
 
@@ -221,7 +221,7 @@ export interface Options extends Omit<RequestInit, 'headers'> {
 	```
 	*/
 	fetch?: (input: RequestInfo, init?: RequestInit) => Promise<Response>;
-}
+} & Omit<RequestInit, 'headers'>;
 
 export type InternalOptions = Required<
 Omit<Options, 'hooks' | 'retry'>,
@@ -236,7 +236,7 @@ Omit<Options, 'hooks' | 'retry'>,
 /**
 Normalized options passed to the `fetch` call and the `beforeRequest` hooks.
 */
-export interface NormalizedOptions extends RequestInit {
+export type NormalizedOptions = {
 	// Extended from `RequestInit`, but ensured to be set (not optional).
 	method: RequestInit['method'];
 	credentials: RequestInit['credentials'];
@@ -245,6 +245,6 @@ export interface NormalizedOptions extends RequestInit {
 	retry: RetryOptions;
 	prefixUrl: string;
 	onDownloadProgress: Options['onDownloadProgress'];
-}
+} & RequestInit;
 
 export type {RetryOptions} from './retry.js';

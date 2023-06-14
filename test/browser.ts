@@ -1,13 +1,14 @@
-import test, {ExecutionContext} from 'ava';
+import test, {type ExecutionContext} from 'ava';
 import busboy from 'busboy';
 import express from 'express';
-import {Page} from 'playwright-chromium';
-import ky from '../source/index.js';
-import {createHttpTestServer, ExtendedHttpTestServer, HttpServerOptions} from './helpers/create-http-test-server.js';
+import {type Page} from 'playwright-chromium';
+import type ky from '../source/index.js';
+import {createHttpTestServer, type ExtendedHttpTestServer, type HttpServerOptions} from './helpers/create-http-test-server.js';
 import {parseRawBody} from './helpers/parse-body.js';
 import {withPage} from './helpers/with-page.js';
 
 declare global {
+	// eslint-disable-next-line @typescript-eslint/consistent-type-definitions
 	interface Window {
 		ky: typeof ky;
 	}

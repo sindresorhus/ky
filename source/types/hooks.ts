@@ -1,5 +1,5 @@
-import {stop} from '../core/constants.js';
-import {HTTPError} from '../index.js';
+import {type stop} from '../core/constants.js';
+import {type HTTPError} from '../index.js';
 import type {NormalizedOptions} from './options.js';
 
 export type BeforeRequestHook = (
@@ -23,7 +23,7 @@ export type AfterResponseHook = (
 
 export type BeforeErrorHook = (error: HTTPError) => HTTPError | Promise<HTTPError>;
 
-export interface Hooks {
+export type Hooks = {
 	/**
 	This hook enables you to modify the request right before it is sent. Ky will make no further changes to the request after this. The hook function receives normalized input and options as arguments. You could, forf example, modiy `options.headers` here.
 
@@ -126,4 +126,4 @@ export interface Hooks {
 	```
 	*/
 	beforeError?: BeforeErrorHook[];
-}
+};

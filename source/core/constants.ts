@@ -1,5 +1,5 @@
 import type {Expect, Equal} from '@type-challenges/utils';
-import {HttpMethod} from '../types/options.js';
+import {type HttpMethod} from '../types/options.js';
 
 export const supportsRequestStreams = (() => {
 	let duplexAccessed = false;
