@@ -115,7 +115,7 @@ test('cannot use `body` option with GET or HEAD method', t => {
 			void ky.get('https://example.com', {body: 'foobar'});
 		},
 		{
-			message: 'Request with GET/HEAD method cannot have body',
+			message: 'Request with GET/HEAD method cannot have body.',
 		},
 	);
 
@@ -124,7 +124,7 @@ test('cannot use `body` option with GET or HEAD method', t => {
 			void ky.head('https://example.com', {body: 'foobar'});
 		},
 		{
-			message: 'Request with GET/HEAD method cannot have body',
+			message: 'Request with GET/HEAD method cannot have body.',
 		},
 	);
 });
@@ -135,7 +135,7 @@ test('cannot use `json` option with GET or HEAD method', t => {
 			void ky.get('https://example.com', {json: {}});
 		},
 		{
-			message: 'Request with GET/HEAD method cannot have body',
+			message: 'Request with GET/HEAD method cannot have body.',
 		},
 	);
 
@@ -144,7 +144,7 @@ test('cannot use `json` option with GET or HEAD method', t => {
 			void ky.head('https://example.com', {json: {}});
 		},
 		{
-			message: 'Request with GET/HEAD method cannot have body',
+			message: 'Request with GET/HEAD method cannot have body.',
 		},
 	);
 });
@@ -537,7 +537,7 @@ test('ky.create() does not mangle search params', async t => {
 	});
 
 	const instance = ky.create({searchParams: {}});
-	t.is(await instance.get(server.url, {searchParams: {}}).text(), '/?');
+	t.is(await instance.get(server.url, {searchParams: {}}).text(), '/');
 
 	await server.close();
 });

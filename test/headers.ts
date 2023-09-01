@@ -2,7 +2,6 @@ import {Buffer} from 'node:buffer';
 import type {IncomingHttpHeaders} from 'node:http';
 import test from 'ava';
 import type {RequestHandler} from 'express';
-import FormData from 'form-data';
 import ky from '../source/index.js';
 import {createHttpTestServer} from './helpers/create-http-test-server.js';
 
@@ -44,7 +43,7 @@ test('`user-agent`', async t => {
 	server.get('/', echoHeaders);
 
 	const headers = await ky.get(server.url).json<IncomingHttpHeaders>();
-	t.is(headers['user-agent'], 'node-fetch/1.0 (+https://github.com/bitinn/node-fetch)');
+	t.is(headers['user-agent'], 'undici');
 });
 
 test('`accept-encoding`', async t => {
@@ -53,7 +52,7 @@ test('`accept-encoding`', async t => {
 
 	const headers = await ky.get(server.url).json<IncomingHttpHeaders>();
 
-	t.is(headers['accept-encoding'], 'gzip,deflate');
+	t.is(headers['accept-encoding'], 'gzip, deflate');
 });
 
 test('does not override provided `accept-encoding`', async t => {
@@ -83,8 +82,8 @@ test('does not remove user headers from `url` object argument', async t => {
 		.json<IncomingHttpHeaders>();
 
 	t.is(headers.accept, 'application/json');
-	t.is(headers['user-agent'], 'node-fetch/1.0 (+https://github.com/bitinn/node-fetch)');
-	t.is(headers['accept-encoding'], 'gzip,deflate');
+	t.is(headers['user-agent'], 'undici');
+	t.is(headers['accept-encoding'], 'gzip, deflate');
 	t.is(headers['x-request-id'], 'value');
 });
 
@@ -130,7 +129,7 @@ test('setting `content-length` to 0', async t => {
 	const server = await createHttpTestServer();
 	server.post('/', echoHeaders);
 
-	const headers = await ky
+	const request = ky
 		.post(server.url, {
 			headers: {
 				'content-length': '0',
@@ -139,7 +138,9 @@ test('setting `content-length` to 0', async t => {
 		})
 		.json<IncomingHttpHeaders>();
 
-	t.is(headers['content-length'], '3');
+	const error = await t.throwsAsync(request);
+
+	t.is(error.cause?.code, 'UND_ERR_REQ_CONTENT_LENGTH_MISMATCH');
 });
 
 test('sets `content-length` to `0` when requesting PUT with empty body', async t => {
@@ -201,7 +202,8 @@ test('form-data automatic `content-type` header', async t => {
 		})
 		.json<IncomingHttpHeaders>();
 
-	t.is(headers['content-type'], `multipart/form-data;boundary=${form.getBoundary()}`);
+	// eslint-disable-next-line ava/assertion-arguments
+	t.true(headers['content-type'].startsWith('multipart/form-data; boundary='), headers['content-type']);
 });
 
 test('form-data manual `content-type` header with search params', async t => {
@@ -238,7 +240,8 @@ test('form-data automatic `content-type` header with search params', async t => 
 		})
 		.json<IncomingHttpHeaders>();
 
-	t.is(headers['content-type'], `multipart/form-data;boundary=${form.getBoundary()}`);
+	// eslint-disable-next-line ava/assertion-arguments
+	t.true(headers['content-type'].startsWith('multipart/form-data; boundary='), headers['content-type']);
 });
 
 test('form-data sets `content-length` header', async t => {
@@ -247,10 +250,11 @@ test('form-data sets `content-length` header', async t => {
 
 	const form = new FormData();
 	form.append('a', 'b');
+
 	// @ts-expect-error FormData type mismatch
 	const headers = await ky.post(server.url, {body: form}).json<IncomingHttpHeaders>();
 
-	t.is(headers['content-length'], '157');
+	t.is(headers['content-length'], '119');
 });
 
 test('buffer as `options.body` sets `content-length` header', async t => {
@@ -267,7 +271,6 @@ test('buffer as `options.body` sets `content-length` header', async t => {
 	t.is(Number(headers['content-length']), buffer.length);
 });
 
-// TODO: Enable this when node-fetch allows for removal of default headers. Context: https://github.com/node-fetch/node-fetch/issues/591
 test.failing('removes undefined value headers', async t => {
 	const server = await createHttpTestServer();
 	server.get('/', echoHeaders);

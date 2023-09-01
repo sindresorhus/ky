@@ -1,25 +1,7 @@
 import test from 'ava';
 import ky from '../source/index.js';
 
-test.serial('relative URLs are passed to fetch unresolved', async t => {
-	const originalFetch = globalThis.fetch;
-	globalThis.fetch = async input => {
-		if (typeof input !== 'object') {
-			throw new TypeError('Expect to have an object request');
-		}
-
-		t.true(input.url.startsWith('/'));
-		return new Response(input.url);
-	};
-
-	t.is(await ky('/unicorn').text(), '/unicorn');
-	t.is(await ky('/unicorn', {searchParams: {foo: 'bar'}}).text(), '/unicorn?foo=bar');
-	t.is(await ky('/unicorn#hash', {searchParams: 'foo'}).text(), '/unicorn?foo#hash');
-	t.is(await ky('/unicorn?old', {searchParams: 'new'}).text(), '/unicorn?new');
-	t.is(await ky('/unicorn?old#hash', {searchParams: 'new'}).text(), '/unicorn?new#hash');
-	t.is(await ky('unicorn', {prefixUrl: '/api/'}).text(), '/api/unicorn');
-	globalThis.fetch = originalFetch;
-});
+const fixture = 'https://example.com/unicorn';
 
 test('fetch option takes a custom fetch function', async t => {
 	t.plan(6);
@@ -32,34 +14,34 @@ test('fetch option takes a custom fetch function', async t => {
 		return new Response(input.url);
 	};
 
-	t.is(await ky('/unicorn', {fetch: customFetch}).text(), '/unicorn');
+	t.is(await ky(fixture, {fetch: customFetch}).text(), fixture);
 	t.is(
-		await ky('/unicorn', {
+		await ky(fixture, {
 			fetch: customFetch,
 			searchParams: {foo: 'bar'},
 		}).text(),
-		'/unicorn?foo=bar',
+		`${fixture}?foo=bar`,
 	);
 	t.is(
-		await ky('/unicorn#hash', {
+		await ky(`${fixture}#hash`, {
 			fetch: customFetch,
 			searchParams: 'foo',
 		}).text(),
-		'/unicorn?foo#hash',
+		`${fixture}?foo#hash`,
 	);
 	t.is(
-		await ky('/unicorn?old', {
+		await ky(`${fixture}?old`, {
 			fetch: customFetch,
 			searchParams: 'new',
 		}).text(),
-		'/unicorn?new',
+		`${fixture}?new`,
 	);
 	t.is(
-		await ky('/unicorn?old#hash', {
+		await ky(`${fixture}?old#hash`, {
 			fetch: customFetch,
 			searchParams: 'new',
 		}).text(),
-		'/unicorn?new#hash',
+		`${fixture}?new#hash`,
 	);
-	t.is(await ky('unicorn', {fetch: customFetch, prefixUrl: '/api/'}).text(), '/api/unicorn');
+	t.is(await ky('unicorn', {fetch: customFetch, prefixUrl: `${fixture}/api/`}).text(), `${fixture}/api/unicorn`);
 });

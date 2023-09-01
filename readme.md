@@ -40,7 +40,7 @@
 [![Coverage Status](https://codecov.io/gh/sindresorhus/ky/branch/main/graph/badge.svg)](https://codecov.io/gh/sindresorhus/ky)
 [![](https://badgen.net/bundlephobia/minzip/ky)](https://bundlephobia.com/result?p=ky)
 
-Ky targets [modern browsers](#browser-support) and [Deno](https://github.com/denoland/deno). For older browsers, you will need to transpile and use a [`fetch` polyfill](https://github.com/github/fetch) and [`globalThis` polyfill](https://github.com/es-shims/globalThis). For isomorphic needs (Node.js + browser, like SSR), check out [`ky-universal`](https://github.com/sindresorhus/ky-universal).
+Ky targets [modern browsers](#browser-support), Node.js, and Deno.
 
 It's just a tiny file with no dependencies.
 
@@ -618,11 +618,11 @@ try {
 
 #### How do I use this in Node.js?
 
-Check out [`ky-universal`](https://github.com/sindresorhus/ky-universal#faq).
+Node.js 18 and later supports `fetch` natively, so you can just use this package directly.
 
 #### How do I use this with a web app (React, Vue.js, etc.) that uses server-side rendering (SSR)?
 
-Check out [`ky-universal`](https://github.com/sindresorhus/ky-universal#faq).
+Same as above.
 
 #### How do I test a browser library that uses this?
 
@@ -667,11 +667,10 @@ The latest version of Chrome, Firefox, and Safari.
 
 ## Node.js support
 
-Polyfill the needed browser globals or just use [`ky-universal`](https://github.com/sindresorhus/ky-universal).
+Node.js 18 and later.
 
 ## Related
 
-- [ky-universal](https://github.com/sindresorhus/ky-universal) - Use Ky in both Node.js and browsers
 - [got](https://github.com/sindresorhus/got) - Simplified HTTP requests for Node.js
 - [ky-hooks-change-case](https://github.com/alice-health/ky-hooks-change-case) - Ky hooks to modify cases on requests and responses of objects
 

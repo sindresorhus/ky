@@ -88,15 +88,14 @@ test.serial('aborting a request', withPage, async (t: ExecutionContext, page: Pa
 	await page.goto(server.url);
 	await addKyScriptToPage(page);
 
-	const error = await page.evaluate(async (url: string) => {
+	const errorName = await page.evaluate(async (url: string) => {
 		const controller = new AbortController();
 		const request = window.ky(`${url}/test`, {signal: controller.signal}).text();
-		controller.abort('🦄');
-		return request.catch(error_ => error_.toString());
+		controller.abort();
+		return request.catch(error_ => error_.name);
 	}, server.url);
 
-	// TODO: When targeting Node.js 18, also assert that the error is a DOMException
-	t.is(error.split(': ')[1], '🦄');
+	t.is(errorName, 'AbortError');
 });
 
 test.serial('should copy origin response info when using `onDownloadProgress`', withPage, async (t: ExecutionContext, page: Page) => {
@@ -379,7 +378,7 @@ test.serial('FormData with searchParams ("multipart/form-data" parser)', withPag
 						fileContent += chunk; // eslint-disable-line @typescript-eslint/restrict-plus-operands
 					}
 
-					resolve([{fieldname, filename, encoding, mimetype, fileContent}, undefined]);
+					resolve([{fieldname, filename, fileContent}, undefined]);
 				} catch (error_: unknown) {
 					resolve([null, error_]);
 				}
@@ -399,11 +398,14 @@ test.serial('FormData with searchParams ("multipart/form-data" parser)', withPag
 
 		t.falsy(error);
 		t.deepEqual(request.query, {foo: '1'});
+
 		t.deepEqual(body, {
 			fieldname: 'file',
-			filename: 'my-file',
-			encoding: '7bit',
-			mimetype: 'text/plain',
+			filename: {
+				filename: 'my-file',
+				encoding: '7bit',
+				mimeType: 'text/plain',
+			},
 			fileContent: 'bubblegum pie',
 		});
 	});

@@ -597,7 +597,7 @@ test('hooks beforeRequest returning Response skips HTTP Request', async t => {
 	const expectedResponse = 'empty hook';
 
 	const response = await ky
-		.get('server.url', {
+		.get('https://example.com', {
 			hooks: {
 				beforeRequest: [() => new Response(expectedResponse, {status: 200, statusText: 'OK'})],
 			},
