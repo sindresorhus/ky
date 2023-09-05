@@ -44,6 +44,7 @@ export type {
 	AfterResponseHook,
 } from './types/hooks.js';
 
+export type { KyInstance } from "./types/ky.js";
 export type {ResponsePromise} from './types/ResponsePromise.js';
 export type {KyResponse} from './types/response.js';
 export {HTTPError} from './errors/HTTPError.js';
