@@ -27,7 +27,7 @@ export type KyHeadersInit = HeadersInit | Record<string, string | undefined>;
 /**
 Options are the same as `window.fetch`, with some exceptions.
 */
-export type Options = {
+export interface Options extends Omit<RequestInit, 'headers'> { // eslint-disable-line @typescript-eslint/consistent-type-definitions -- This must stay an interface so that it can be extended outside of Ky for use in `ky.create`.
 	/**
 	HTTP method used to make the request.
 
@@ -221,7 +221,7 @@ export type Options = {
 	```
 	*/
 	fetch?: (input: RequestInfo, init?: RequestInit) => Promise<Response>;
-} & Omit<RequestInit, 'headers'>;
+}
 
 export type InternalOptions = Required<
 Omit<Options, 'hooks' | 'retry'>,
@@ -236,7 +236,7 @@ Omit<Options, 'hooks' | 'retry'>,
 /**
 Normalized options passed to the `fetch` call and the `beforeRequest` hooks.
 */
-export type NormalizedOptions = {
+export interface NormalizedOptions extends RequestInit { // eslint-disable-line @typescript-eslint/consistent-type-definitions -- This must stay an interface so that it can be extended outside of Ky for use in `ky.create`.
 	// Extended from `RequestInit`, but ensured to be set (not optional).
 	method: RequestInit['method'];
 	credentials: RequestInit['credentials'];
@@ -245,6 +245,6 @@ export type NormalizedOptions = {
 	retry: RetryOptions;
 	prefixUrl: string;
 	onDownloadProgress: Options['onDownloadProgress'];
-} & RequestInit;
+}
 
 export type {RetryOptions} from './retry.js';
