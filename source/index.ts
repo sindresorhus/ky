@@ -27,6 +27,7 @@ const ky = createInstance();
 
 export default ky;
 
+export type {KyInstance} from './types/ky.js';
 export type {
 	Options,
 	NormalizedOptions,
