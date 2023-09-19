@@ -48,3 +48,4 @@ export type {ResponsePromise} from './types/ResponsePromise.js';
 export type {KyResponse} from './types/response.js';
 export {HTTPError} from './errors/HTTPError.js';
 export {TimeoutError} from './errors/TimeoutError.js';
+export type {KyInstance};
