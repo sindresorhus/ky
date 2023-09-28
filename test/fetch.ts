@@ -45,3 +45,22 @@ test('fetch option takes a custom fetch function', async t => {
 	);
 	t.is(await ky('unicorn', {fetch: customFetch, prefixUrl: `${fixture}/api/`}).text(), `${fixture}/api/unicorn`);
 });
+
+test('options are correctly passed to Fetch #1', async t => {
+	t.plan(1);
+
+	const cache = 'no-store';
+
+	const customFetch: typeof fetch = async request => {
+		t.is(request.cache, cache);
+		return new Response(request.url);
+	};
+
+	await ky(fixture, {cache, fetch: customFetch}).text();
+});
+
+test('options are correctly passed to Fetch #2', async t => {
+	const fixture = {x: true};
+	const json = await ky.post('https://httpbin.org/anything', {json: fixture}).json();
+	t.deepEqual(json.json, fixture);
+});
