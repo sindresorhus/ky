@@ -138,7 +138,7 @@ export interface Options extends Omit<RequestInit, 'headers'> { // eslint-disabl
 
 	If `maxRetryAfter` is set to `undefined`, it will use `options.timeout`. If [`Retry-After`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Retry-After) header is greater than `maxRetryAfter`, it will cancel the request.
 
-	Delays between retries is calculated with the function `0.3 * (2 ** (retry - 1)) * 1000`, where `retry` is the attempt number (starts from 1).
+	By default delays between retries are calculated with the function `0.3 * (2 ** (retry - 1)) * 1000`, where `retry` is the attempt number (starts from 1), however this can be changed by passing a `delay` function.
 
 	Retries are not triggered following a timeout.
 

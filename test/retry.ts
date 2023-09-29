@@ -8,6 +8,8 @@ const fixture = 'fixture';
 const defaultRetryCount = 2;
 const retryAfterOn413 = 2;
 const lastTried413access = Date.now();
+// We allow the tests to take more time on CI than locally, to reduce flakiness
+const allowedOffset = process.env.CI ? 1000 : 300;
 
 test('network error', async t => {
 	let requestCount = 0;
@@ -458,9 +460,6 @@ test('respect maximum backoff', async t => {
 		}
 	});
 
-	// We allow the test to take more time on CI than locally, to reduce flakiness
-	const allowedOffset = process.env.CI ? 1000 : 300;
-
 	// Register observer that asserts on duration when a measurement is performed
 	const obs = new PerformanceObserver(items => {
 		const measurements = items.getEntries();
@@ -496,6 +495,49 @@ test('respect maximum backoff', async t => {
 
 	performance.measure('default', 'start', 'end');
 	performance.measure('custom', 'start-custom', 'end-custom');
+
+	await server.close();
+});
+
+test('respect custom retry.delay', async t => {
+	const retryCount = 5;
+	let requestCount = 0;
+
+	const server = await createHttpTestServer();
+	server.get('/', (_request, response) => {
+		requestCount++;
+
+		if (requestCount === retryCount) {
+			response.end(fixture);
+		} else {
+			response.sendStatus(500);
+		}
+	});
+
+	// Register observer that asserts on duration when a measurement is performed
+	const obs = new PerformanceObserver(items => {
+		const measurements = items.getEntries();
+
+		const duration = measurements[0].duration ?? Number.NaN;
+		const expectedDuration = 200 + 300 + 400 + 500;
+
+		t.true(Math.abs(duration - expectedDuration) < allowedOffset, `Duration of ${duration}ms is not close to expected duration ${expectedDuration}ms`);
+
+		obs.disconnect();
+	});
+	obs.observe({entryTypes: ['measure']});
+
+	// Start measuring
+	performance.mark('start');
+	t.is(await ky(server.url, {
+		retry: {
+			limit: retryCount,
+			delay: n => 100 * (n + 1),
+		},
+	}).text(), fixture);
+	performance.mark('end');
+
+	performance.measure('linear', 'start', 'end');
 
 	await server.close();
 });
