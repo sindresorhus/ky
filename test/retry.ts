@@ -1,16 +1,12 @@
-import {performance, PerformanceObserver} from 'node:perf_hooks';
-import process from 'node:process';
 import test from 'ava';
 import ky from '../source/index.js';
 import {createHttpTestServer} from './helpers/create-http-test-server.js';
+import {withPerformanceObserver} from './helpers/with-performance-observer.js';
 
 const fixture = 'fixture';
 const defaultRetryCount = 2;
 const retryAfterOn413 = 2;
 const lastTried413access = Date.now();
-
-// We allow the tests to take more time on CI than locally, to reduce flakiness
-const allowedOffset = process.env.CI ? 1000 : 300;
 
 test('network error', async t => {
 	let requestCount = 0;
@@ -461,41 +457,31 @@ test('respect maximum backoff', async t => {
 		}
 	});
 
-	// Register observer that asserts on duration when a measurement is performed
-	const obs = new PerformanceObserver(items => {
-		const measurements = items.getEntries();
-
-		const duration = measurements[0].duration ?? Number.NaN;
-		const expectedDuration = {default: 300 + 600 + 1200 + 2400, custom: 300 + 600 + 1000 + 1000}[measurements[0].name] ?? Number.NaN;
-
-		t.true(Math.abs(duration - expectedDuration) < allowedOffset, `Duration of ${duration}ms is not close to expected duration ${expectedDuration}ms`); // Allow for 300ms difference
-
-		if (measurements[0].name === 'custom') {
-			obs.disconnect();
-		}
-	});
-	obs.observe({entryTypes: ['measure']});
-
-	// Start measuring
-	performance.mark('start');
-	t.is(await ky(server.url, {
-		retry: retryCount,
-	}).text(), fixture);
-	performance.mark('end');
-
-	performance.mark('start-custom');
-	requestCount = 0;
-	t.is(await ky(server.url, {
-		retry: {
-			limit: retryCount,
-			backoffLimit: 1000,
+	await withPerformanceObserver({
+		t,
+		name: 'default',
+		expectedDuration: 300 + 600 + 1200 + 2400,
+		async test() {
+			t.is(await ky(server.url, {
+				retry: retryCount,
+			}).text(), fixture);
 		},
-	}).text(), fixture);
+	});
 
-	performance.mark('end-custom');
-
-	performance.measure('default', 'start', 'end');
-	performance.measure('custom', 'start-custom', 'end-custom');
+	requestCount = 0;
+	await withPerformanceObserver({
+		t,
+		name: 'custom',
+		expectedDuration: 300 + 600 + 1000 + 1000,
+		async test() {
+			t.is(await ky(server.url, {
+				retry: {
+					limit: retryCount,
+					backoffLimit: 1000,
+				},
+			}).text(), fixture);
+		},
+	});
 
 	await server.close();
 });
@@ -515,30 +501,19 @@ test('respect custom retry.delay', async t => {
 		}
 	});
 
-	// Register observer that asserts on duration when a measurement is performed
-	const obs = new PerformanceObserver(items => {
-		const measurements = items.getEntries();
-
-		const duration = measurements[0].duration ?? Number.NaN;
-		const expectedDuration = 200 + 300 + 400 + 500;
-
-		t.true(Math.abs(duration - expectedDuration) < allowedOffset, `Duration of ${duration}ms is not close to expected duration ${expectedDuration}ms`);
-
-		obs.disconnect();
-	});
-	obs.observe({entryTypes: ['measure']});
-
-	// Start measuring
-	performance.mark('start');
-	t.is(await ky(server.url, {
-		retry: {
-			limit: retryCount,
-			delay: n => 100 * (n + 1),
+	await withPerformanceObserver({
+		t,
+		name: 'linear',
+		expectedDuration: 200 + 300 + 400 + 500,
+		async test() {
+			t.is(await ky(server.url, {
+				retry: {
+					limit: retryCount,
+					delay: n => 100 * (n + 1),
+				},
+			}).text(), fixture);
 		},
-	}).text(), fixture);
-	performance.mark('end');
-
-	performance.measure('linear', 'start', 'end');
+	});
 
 	await server.close();
 });
