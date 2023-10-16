@@ -208,8 +208,7 @@ The `backoffLimit` option is the upper limit of the delay per retry in milliseco
 To clamp the delay, set `backoffLimit` to 1000, for example.
 By default, the delay is calculated with `0.3 * (2 ** (attemptCount - 1)) * 1000`. The delay increases exponentially.
 
-The `delay` option can be used to change how the delay between retries is calculated. The function receives one parameter,
-the attempt count, starting at `1`.
+The `delay` option can be used to change how the delay between retries is calculated. The function receives one parameter, the attempt count, starting at `1`.
 
 Retries are not triggered following a [timeout](#timeout).
 
