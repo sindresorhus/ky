@@ -8,6 +8,7 @@ import {normalizeRequestMethod, normalizeRetryOptions} from '../utils/normalize.
 import timeout, {type TimeoutOptions} from '../utils/timeout.js';
 import delay from '../utils/delay.js';
 import {type ObjectEntries} from '../utils/types.js';
+import {findUnknownOptions} from '../utils/options.js';
 import {
 	maxSafeTimeout,
 	responseTypes,
@@ -294,11 +295,13 @@ export class Ky {
 			}
 		}
 
+		const nonRequestOptions = findUnknownOptions(this.request, this._options);
+
 		if (this._options.timeout === false) {
-			return this._options.fetch(this.request.clone());
+			return this._options.fetch(this.request.clone(), nonRequestOptions);
 		}
 
-		return timeout(this.request.clone(), this.abortController, this._options as TimeoutOptions);
+		return timeout(this.request.clone(), nonRequestOptions, this.abortController, this._options as TimeoutOptions);
 	}
 
 	/* istanbul ignore next */

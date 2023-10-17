@@ -64,3 +64,16 @@ test('options are correctly passed to Fetch #2', async t => {
 	const json = await ky.post('https://httpbin.org/anything', {json: fixture}).json();
 	t.deepEqual(json.json, fixture);
 });
+
+test('unknown options are passed to fetch', async t => {
+	t.plan(1);
+
+	const options = {next: {revalidate: 3600}};
+
+	const customFetch: typeof fetch = async (request, init) => {
+		t.is(init.next, options.next);
+		return new Response(request.url);
+	};
+
+	await ky(fixture, {...options, fetch: customFetch}).text();
+});
