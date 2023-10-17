@@ -49,4 +49,11 @@ export type RetryOptions = {
 	@default Infinity
 	*/
 	backoffLimit?: number;
+
+	/**
+	A function to calculate the delay between retries given `attemptCount` (starts from 1).
+
+	@default attemptCount => 0.3 * (2 ** (attemptCount - 1)) * 1000
+	*/
+	delay?: (attemptCount: number) => number;
 };

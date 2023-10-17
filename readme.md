@@ -196,6 +196,7 @@ Default:
 - `statusCodes`: [`408`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/408) [`413`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/413) [`429`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/429) [`500`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/500) [`502`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/502) [`503`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/503) [`504`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/504)
 - `maxRetryAfter`: `undefined`
 - `backoffLimit`: `undefined`
+- `delay`: `attemptCount => 0.3 * (2 ** (attemptCount - 1)) * 1000`
 
 An object representing `limit`, `methods`, `statusCodes` and `maxRetryAfter` fields for maximum retry count, allowed methods, allowed status codes and maximum [`Retry-After`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Retry-After) time.
 
@@ -206,6 +207,8 @@ If `maxRetryAfter` is set to `undefined`, it will use `options.timeout`. If [`Re
 The `backoffLimit` option is the upper limit of the delay per retry in milliseconds.
 To clamp the delay, set `backoffLimit` to 1000, for example.
 By default, the delay is calculated with `0.3 * (2 ** (attemptCount - 1)) * 1000`. The delay increases exponentially.
+
+The `delay` option can be used to change how the delay between retries is calculated. The function receives one parameter, the attempt count, starting at `1`.
 
 Retries are not triggered following a [timeout](#timeout).
 
