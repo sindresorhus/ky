@@ -181,9 +181,10 @@ export type KyOptions = {
 };
 
 /**
- * Each key from KyOptions is present and set to `true`.
- * This type is used for identifying and working with the known keys in KyOptions.
- */
+Each key from KyOptions is present and set to `true`.
+
+This type is used for identifying and working with the known keys in KyOptions.
+*/
 export type KyOptionsRegistry = {[K in keyof KyOptions]-?: true};
 
 /**
