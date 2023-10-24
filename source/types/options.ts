@@ -25,53 +25,10 @@ export type DownloadProgress = {
 export type KyHeadersInit = HeadersInit | Record<string, string | undefined>;
 
 /**
-Options are the same as `window.fetch`, with some exceptions.
+Custom Ky options
 */
-export interface Options extends Omit<RequestInit, 'headers'> { // eslint-disable-line @typescript-eslint/consistent-type-definitions -- This must stay an interface so that it can be extended outside of Ky for use in `ky.create`.
-	/**
-	HTTP method used to make the request.
 
-	Internally, the standard methods (`GET`, `POST`, `PUT`, `PATCH`, `HEAD` and `DELETE`) are uppercased in order to avoid server errors due to case sensitivity.
-	*/
-	method?: LiteralUnion<HttpMethod, string>;
-
-	/**
-	HTTP headers used to make the request.
-
-	You can pass a `Headers` instance or a plain object.
-
-	You can remove a header with `.extend()` by passing the header with an `undefined` value.
-
-	@example
-	```
-	import ky from 'ky';
-
-	const url = 'https://sindresorhus.com';
-
-	const original = ky.create({
-		headers: {
-			rainbow: 'rainbow',
-			unicorn: 'unicorn'
-		}
-	});
-
-	const extended = original.extend({
-		headers: {
-			rainbow: undefined
-		}
-	});
-
-	const response = await extended(url).json();
-
-	console.log('rainbow' in response);
-	//=> false
-
-	console.log('unicorn' in response);
-	//=> true
-	```
-	*/
-	headers?: KyHeadersInit;
-
+export type KyOptions = {
 	/**
 	Shortcut for sending JSON. Use this instead of the `body` option.
 
@@ -221,6 +178,62 @@ export interface Options extends Omit<RequestInit, 'headers'> { // eslint-disabl
 	```
 	*/
 	fetch?: (input: RequestInfo, init?: RequestInit) => Promise<Response>;
+};
+
+/**
+Each key from KyOptions is present and set to `true`.
+
+This type is used for identifying and working with the known keys in KyOptions.
+*/
+export type KyOptionsRegistry = {[K in keyof KyOptions]-?: true};
+
+/**
+Options are the same as `window.fetch`, except for the KyOptions
+*/
+export interface Options extends KyOptions, Omit<RequestInit, 'headers'> { // eslint-disable-line @typescript-eslint/consistent-type-definitions -- This must stay an interface so that it can be extended outside of Ky for use in `ky.create`.
+	/**
+	HTTP method used to make the request.
+
+	Internally, the standard methods (`GET`, `POST`, `PUT`, `PATCH`, `HEAD` and `DELETE`) are uppercased in order to avoid server errors due to case sensitivity.
+	*/
+	method?: LiteralUnion<HttpMethod, string>;
+
+	/**
+	HTTP headers used to make the request.
+
+	You can pass a `Headers` instance or a plain object.
+
+	You can remove a header with `.extend()` by passing the header with an `undefined` value.
+
+	@example
+	```
+	import ky from 'ky';
+
+	const url = 'https://sindresorhus.com';
+
+	const original = ky.create({
+		headers: {
+			rainbow: 'rainbow',
+			unicorn: 'unicorn'
+		}
+	});
+
+	const extended = original.extend({
+		headers: {
+			rainbow: undefined
+		}
+	});
+
+	const response = await extended(url).json();
+
+	console.log('rainbow' in response);
+	//=> false
+
+	console.log('unicorn' in response);
+	//=> true
+	```
+	*/
+	headers?: KyHeadersInit;
 }
 
 export type InternalOptions = Required<

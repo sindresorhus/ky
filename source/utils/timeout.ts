@@ -8,6 +8,7 @@ export type TimeoutOptions = {
 // `Promise.race()` workaround (#91)
 export default async function timeout(
 	request: Request,
+	init: RequestInit,
 	abortController: AbortController | undefined,
 	options: TimeoutOptions,
 ): Promise<Response> {
@@ -21,7 +22,7 @@ export default async function timeout(
 		}, options.timeout);
 
 		void options
-			.fetch(request)
+			.fetch(request, init)
 			.then(resolve)
 			.catch(reject)
 			.then(() => {
