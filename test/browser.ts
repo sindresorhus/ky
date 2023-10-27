@@ -1,11 +1,11 @@
 import test, {type ExecutionContext} from 'ava';
 import busboy from 'busboy';
 import express from 'express';
-import {type Page} from 'playwright-chromium';
+import {chromium, webkit, type Page} from 'playwright';
 import type ky from '../source/index.js';
 import {createHttpTestServer, type ExtendedHttpTestServer, type HttpServerOptions} from './helpers/create-http-test-server.js';
 import {parseRawBody} from './helpers/parse-body.js';
-import {withPage} from './helpers/with-page.js';
+import {browserTest, defaultBrowsersTest} from './helpers/with-page.js';
 
 declare global {
 	// eslint-disable-next-line @typescript-eslint/consistent-type-definitions
@@ -46,7 +46,7 @@ test.afterEach(async () => {
 	await server.close();
 });
 
-test.serial('prefixUrl option', withPage, async (t: ExecutionContext, page: Page) => {
+defaultBrowsersTest('prefixUrl option', async (t: ExecutionContext, page: Page) => {
 	server.get('/', (_request, response) => {
 		response.end('zebra');
 	});
@@ -74,7 +74,7 @@ test.serial('prefixUrl option', withPage, async (t: ExecutionContext, page: Page
 	t.deepEqual(results, ['rainbow', 'rainbow', 'rainbow', 'rainbow']);
 });
 
-test.serial('aborting a request', withPage, async (t: ExecutionContext, page: Page) => {
+defaultBrowsersTest('aborting a request', async (t: ExecutionContext, page: Page) => {
 	server.get('/', (_request, response) => {
 		response.end('meow');
 	});
@@ -98,7 +98,7 @@ test.serial('aborting a request', withPage, async (t: ExecutionContext, page: Pa
 	t.is(errorName, 'AbortError');
 });
 
-test.serial('should copy origin response info when using `onDownloadProgress`', withPage, async (t: ExecutionContext, page: Page) => {
+defaultBrowsersTest('should copy origin response info when using `onDownloadProgress`', async (t: ExecutionContext, page: Page) => {
 	const json = {hello: 'world'};
 	const status = 202;
 	const statusText = 'Accepted';
@@ -133,7 +133,7 @@ test.serial('should copy origin response info when using `onDownloadProgress`', 
 	});
 });
 
-test.serial('should not copy response body with 204 status code when using `onDownloadProgress` ', withPage, async (t: ExecutionContext, page: Page) => {
+defaultBrowsersTest('should not copy response body with 204 status code when using `onDownloadProgress` ', async (t: ExecutionContext, page: Page) => {
 	const status = 204;
 	const statusText = 'No content';
 	server.get('/', (_request, response) => {
@@ -182,7 +182,7 @@ test.serial('should not copy response body with 204 status code when using `onDo
 	}]);
 });
 
-test.serial('aborting a request with onDonwloadProgress', withPage, async (t: ExecutionContext, page: Page) => {
+browserTest('aborting a request with onDownloadProgress', [chromium], async (t: ExecutionContext, page: Page) => {
 	server.get('/', (_request, response) => {
 		response.end('meow');
 	});
@@ -214,9 +214,8 @@ test.serial('aborting a request with onDonwloadProgress', withPage, async (t: Ex
 	t.is(error, 'TypeError: Failed to fetch');
 });
 
-test.serial(
+defaultBrowsersTest(
 	'throws TimeoutError even though it does not support AbortController',
-	withPage,
 	async (t: ExecutionContext, page: Page) => {
 		server.get('/', (_request, response) => {
 			response.end();
@@ -249,7 +248,7 @@ test.serial(
 	},
 );
 
-test.serial('onDownloadProgress works', withPage, async (t: ExecutionContext, page: Page) => {
+browserTest('onDownloadProgress works', [chromium, webkit], async (t: ExecutionContext, page: Page) => {
 	server.get('/', (_request, response) => {
 		response.writeHead(200, {
 			'content-length': '4',
@@ -289,7 +288,7 @@ test.serial('onDownloadProgress works', withPage, async (t: ExecutionContext, pa
 	t.is(result.text, 'meow');
 });
 
-test.serial('throws if onDownloadProgress is not a function', withPage, async (t: ExecutionContext, page: Page) => {
+defaultBrowsersTest('throws if onDownloadProgress is not a function', async (t: ExecutionContext, page: Page) => {
 	server.get('/', (_request, response) => {
 		response.end();
 	});
@@ -305,7 +304,7 @@ test.serial('throws if onDownloadProgress is not a function', withPage, async (t
 	t.is(error, 'TypeError: The `onDownloadProgress` option must be a function');
 });
 
-test.serial('throws if does not support ReadableStream', withPage, async (t: ExecutionContext, page: Page) => {
+defaultBrowsersTest('throws if does not support ReadableStream', async (t: ExecutionContext, page: Page) => {
 	server.get('/', (_request, response) => {
 		response.end();
 	});
@@ -322,7 +321,7 @@ test.serial('throws if does not support ReadableStream', withPage, async (t: Exe
 	t.is(error, 'Error: Streams are not supported in your environment. `ReadableStream` is missing.');
 });
 
-test.serial('FormData with searchParams', withPage, async (t: ExecutionContext, page: Page) => {
+defaultBrowsersTest('FormData with searchParams', async (t: ExecutionContext, page: Page) => {
 	t.plan(3);
 
 	server.get('/', (_request, response) => {
@@ -354,7 +353,7 @@ test.serial('FormData with searchParams', withPage, async (t: ExecutionContext, 
 	}, server.url);
 });
 
-test.serial('FormData with searchParams ("multipart/form-data" parser)', withPage, async (t: ExecutionContext, page: Page) => {
+defaultBrowsersTest('FormData with searchParams ("multipart/form-data" parser)', async (t: ExecutionContext, page: Page) => {
 	t.plan(3);
 
 	server.get('/', (_request, response) => {
@@ -426,9 +425,8 @@ test.serial('FormData with searchParams ("multipart/form-data" parser)', withPag
 	}, server.url);
 });
 
-test.serial(
+defaultBrowsersTest(
 	'headers are preserved when input is a Request and there are searchParams in the options',
-	withPage,
 	async (t: ExecutionContext, page: Page) => {
 		t.plan(2);
 
@@ -459,7 +457,7 @@ test.serial(
 	},
 );
 
-test.serial('retry with body', withPage, async (t: ExecutionContext, page: Page) => {
+browserTest('retry with body', [chromium, webkit], async (t: ExecutionContext, page: Page) => {
 	t.plan(4);
 
 	let requestCount = 0;
