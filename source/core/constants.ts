@@ -58,3 +58,20 @@ export const kyOptionKeys: KyOptionsRegistry = {
 	onDownloadProgress: true,
 	fetch: true,
 };
+
+export const requestOptions = new Set([
+	'options',
+	'method',
+	'headers',
+	'body',
+	'mode',
+	'credentials',
+	'cache',
+	'redirect',
+	'referrer',
+	'referrerPolicy',
+	'integrity',
+	'keepalive',
+	'signal',
+	'priority',
+]);
