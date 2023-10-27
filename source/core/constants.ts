@@ -1,5 +1,6 @@
 import type {Expect, Equal} from '@type-challenges/utils';
 import {type HttpMethod, type KyOptionsRegistry} from '../types/options.js';
+import {type RequestInitRegistry} from '../types/request.js';
 
 export const supportsRequestStreams = (() => {
 	let duplexAccessed = false;
@@ -59,19 +60,20 @@ export const kyOptionKeys: KyOptionsRegistry = {
 	fetch: true,
 };
 
-export const requestOptions = new Set([
-	'options',
-	'method',
-	'headers',
-	'body',
-	'mode',
-	'credentials',
-	'cache',
-	'redirect',
-	'referrer',
-	'referrerPolicy',
-	'integrity',
-	'keepalive',
-	'signal',
-	'priority',
-]);
+export const requestOptionsRegistry: RequestInitRegistry = {
+	method: true,
+	headers: true,
+	body: true,
+	mode: true,
+	credentials: true,
+	cache: true,
+	redirect: true,
+	referrer: true,
+	referrerPolicy: true,
+	integrity: true,
+	keepalive: true,
+	signal: true,
+	window: true,
+	dispatcher: true,
+	duplex: true,
+};
