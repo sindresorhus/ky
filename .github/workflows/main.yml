@@ -17,6 +17,8 @@ jobs:
         with:
           node-version: ${{ matrix.node-version }}
       - run: npm install
+      - name: Install Playwright Browsers
+        run: npx playwright install --with-deps
       - run: npm test
       # TODO: Enable again when https://github.com/istanbuljs/nyc/issues/1287 is fixed.
       # - uses: codecov/codecov-action@v1
