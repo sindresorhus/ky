@@ -295,7 +295,7 @@ export class Ky {
 			}
 		}
 
-		const nonRequestOptions = findUnknownOptions(this.request, this._options);
+		const nonRequestOptions = findUnknownOptions(this._options);
 
 		if (this._options.timeout === false) {
 			return this._options.fetch(this.request.clone(), nonRequestOptions);
