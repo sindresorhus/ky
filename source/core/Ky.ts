@@ -175,7 +175,7 @@ export class Ky {
 			this._options.duplex = 'half';
 		}
 
-		this.request = new globalThis.Request(this._input as RequestInfo, this._options as RequestInit);
+		this.request = new globalThis.Request(this._input, this._options);
 
 		if (this._options.searchParams) {
 			// eslint-disable-next-line unicorn/prevent-abbreviations

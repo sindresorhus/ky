@@ -12,9 +12,9 @@ export const validateAndMerge = (...sources: Array<Partial<Options> | undefined>
 };
 
 export const mergeHeaders = (source1: KyHeadersInit = {}, source2: KyHeadersInit = {}) => {
-	const result = new globalThis.Headers(source1 as HeadersInit);
+	const result = new globalThis.Headers(source1 as RequestInit['headers']);
 	const isHeadersInstance = source2 instanceof globalThis.Headers;
-	const source = new globalThis.Headers(source2 as HeadersInit);
+	const source = new globalThis.Headers(source2 as RequestInit['headers']);
 
 	for (const [key, value] of source.entries()) {
 		if ((isHeadersInstance && value === 'undefined') || value === undefined) {
