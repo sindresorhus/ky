@@ -43,7 +43,7 @@ test('`user-agent`', async t => {
 	server.get('/', echoHeaders);
 
 	const headers = await ky.get(server.url).json<IncomingHttpHeaders>();
-	t.is(headers['user-agent'], 'undici');
+	t.is(headers['user-agent'], 'node');
 });
 
 test('`accept-encoding`', async t => {
@@ -82,7 +82,7 @@ test('does not remove user headers from `url` object argument', async t => {
 		.json<IncomingHttpHeaders>();
 
 	t.is(headers.accept, 'application/json');
-	t.is(headers['user-agent'], 'undici');
+	t.is(headers['user-agent'], 'node');
 	t.is(headers['accept-encoding'], 'gzip, deflate');
 	t.is(headers['x-request-id'], 'value');
 });

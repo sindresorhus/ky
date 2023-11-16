@@ -2,7 +2,7 @@ import {performance, PerformanceObserver} from 'node:perf_hooks';
 import process from 'node:process';
 import type {ExecutionContext} from 'ava';
 
-type Arg = {
+type Argument = {
 	name: string;
 	expectedDuration: number;
 	t: ExecutionContext;
@@ -17,7 +17,7 @@ export async function withPerformanceObserver({
 	expectedDuration,
 	t,
 	test,
-}: Arg) {
+}: Argument) {
 	// Register observer that asserts on duration when a measurement is performed
 	const obs = new PerformanceObserver(items => {
 		const measurements = items.getEntries();

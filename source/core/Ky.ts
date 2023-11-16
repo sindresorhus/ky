@@ -23,7 +23,7 @@ export class Ky {
 	static create(input: Input, options: Options): ResponsePromise {
 		const ky = new Ky(input, options);
 
-		const fn = async (): Promise<Response> => {
+		const function_ = async (): Promise<Response> => {
 			if (typeof ky._options.timeout === 'number' && ky._options.timeout > maxSafeTimeout) {
 				throw new RangeError(`The \`timeout\` option cannot be greater than ${maxSafeTimeout}`);
 			}
@@ -76,7 +76,7 @@ export class Ky {
 		};
 
 		const isRetriableMethod = ky._options.retry.methods.includes(ky.request.method.toLowerCase());
-		const result = (isRetriableMethod ? ky._retry(fn) : fn()) as ResponsePromise;
+		const result = (isRetriableMethod ? ky._retry(function_) : function_()) as ResponsePromise;
 
 		for (const [type, mimeType] of Object.entries(responseTypes) as ObjectEntries<typeof responseTypes>) {
 			result[type] = async () => {
@@ -250,9 +250,9 @@ export class Ky {
 		return response;
 	}
 
-	protected async _retry<T extends (...args: any) => Promise<any>>(fn: T): Promise<ReturnType<T> | void> {
+	protected async _retry<T extends (...arguments_: any) => Promise<any>>(function_: T): Promise<ReturnType<T> | void> {
 		try {
-			return await fn();
+			return await function_();
 		} catch (error) {
 			const ms = Math.min(this._calculateRetryDelay(error), maxSafeTimeout);
 			if (ms !== 0 && this._retryCount > 0) {
@@ -273,7 +273,7 @@ export class Ky {
 					}
 				}
 
-				return this._retry(fn);
+				return this._retry(function_);
 			}
 
 			throw error;

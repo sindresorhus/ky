@@ -2,10 +2,5 @@
 	"extends": "@sindresorhus/tsconfig",
 	"include": [
 		"source"
-	],
-	"ts-node": {
-		"transpileOnly": true,
-		"files": true,
-		"experimentalResolver": true
-	}
+	]
 }

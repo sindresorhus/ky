@@ -1,8 +1,6 @@
-/* eslint-disable ava/no-ignored-test-files */
 import process from 'node:process';
-import test from 'ava';
+import test, {type ExecutionContext} from 'ava';
 import {chromium, firefox, webkit, type BrowserType, type Page} from 'playwright';
-import type {ExecutionContext} from 'ava';
 
 type Run = (t: ExecutionContext, page: Page) => Promise<void>;
 
