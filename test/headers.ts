@@ -23,7 +23,7 @@ test.serial('works with nullish headers even in old browsers', async t => {
 	// so we check that Ky never does that and passes an empty object instead.
 	// See: https://github.com/sindresorhus/ky/issues/260
 	globalThis.Headers = class Headers extends OriginalHeaders {
-		constructor(headersInit?: HeadersInit | undefined) {
+		constructor(headersInit?: RequestInit['headers']) {
 			t.deepEqual(headersInit, {});
 			super(headersInit);
 		}

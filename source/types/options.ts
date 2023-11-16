@@ -22,7 +22,8 @@ export type DownloadProgress = {
 	totalBytes: number;
 };
 
-export type KyHeadersInit = HeadersInit | Record<string, string | undefined>;
+// Not HeadersInit directly because @types/node doesn't export it
+export type KyHeadersInit = NonNullable<RequestInit['headers']> | Record<string, string | undefined>;
 
 /**
 Custom Ky options
@@ -177,7 +178,7 @@ export type KyOptions = {
 	const json = await ky('https://example.com', {fetch}).json();
 	```
 	*/
-	fetch?: (input: RequestInfo, init?: RequestInit) => Promise<Response>;
+	fetch?: (input: Input, init?: RequestInit) => Promise<Response>;
 };
 
 /**
@@ -251,8 +252,8 @@ Normalized options passed to the `fetch` call and the `beforeRequest` hooks.
 */
 export interface NormalizedOptions extends RequestInit { // eslint-disable-line @typescript-eslint/consistent-type-definitions -- This must stay an interface so that it can be extended outside of Ky for use in `ky.create`.
 	// Extended from `RequestInit`, but ensured to be set (not optional).
-	method: RequestInit['method'];
-	credentials: RequestInit['credentials'];
+	method: NonNullable<RequestInit['method']>;
+	credentials: NonNullable<RequestInit['credentials']>;
 
 	// Extended from custom `KyOptions`, but ensured to be set (not optional).
 	retry: RetryOptions;
