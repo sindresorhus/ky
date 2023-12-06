@@ -15,7 +15,7 @@ test('network error', async t => {
 	server.get('/', (_request, response) => {
 		requestCount++;
 
-		if (requestCount === defaultRetryCount) {
+		if (requestCount === defaultRetryCount + 1) {
 			response.end(fixture);
 		} else {
 			response.status(99_999).end();
@@ -34,7 +34,7 @@ test('status code 500', async t => {
 	server.get('/', (_request, response) => {
 		requestCount++;
 
-		if (requestCount === defaultRetryCount) {
+		if (requestCount === defaultRetryCount + 1) {
 			response.end(fixture);
 		} else {
 			response.sendStatus(500);
@@ -53,7 +53,7 @@ test('only on defined status codes', async t => {
 	server.get('/', (_request, response) => {
 		requestCount++;
 
-		if (requestCount === defaultRetryCount) {
+		if (requestCount === defaultRetryCount + 1) {
 			response.end(fixture);
 		} else {
 			response.sendStatus(400);
@@ -72,7 +72,7 @@ test('not on POST', async t => {
 	server.post('/', (_request, response) => {
 		requestCount++;
 
-		if (requestCount === defaultRetryCount) {
+		if (requestCount === defaultRetryCount + 1) {
 			response.end(fixture);
 		} else {
 			response.sendStatus(500);
@@ -93,7 +93,7 @@ test('respect 413 Retry-After', async t => {
 	server.get('/', (_request, response) => {
 		requestCount++;
 
-		if (requestCount === defaultRetryCount) {
+		if (requestCount === defaultRetryCount + 1) {
 			response.end((Date.now() - lastTried413access).toString());
 		} else {
 			response.writeHead(413, {
@@ -115,7 +115,7 @@ test('respect 413 Retry-After with timestamp', async t => {
 	const server = await createHttpTestServer({bodyParser: false});
 	server.get('/', (_request, response) => {
 		requestCount++;
-		if (requestCount === defaultRetryCount) {
+		if (requestCount === defaultRetryCount + 1) {
 			response.end((Date.now() - lastTried413access).toString());
 		} else {
 			// @NOTE we need to round up to the next second due to http-date resolution
@@ -129,7 +129,7 @@ test('respect 413 Retry-After with timestamp', async t => {
 
 	const result = await ky(server.url).text();
 	t.true(Number(result) >= retryAfterOn413 * 1000);
-	t.is(requestCount, 2);
+	t.is(requestCount, 3);
 
 	await server.close();
 });
@@ -151,7 +151,7 @@ test('doesn\'t retry on 413 without Retry-After header', async t => {
 	await server.close();
 });
 
-test.failing('respect number of retries', async t => {
+test('respect number of retries', async t => {
 	let requestCount = 0;
 
 	const server = await createHttpTestServer();
@@ -207,7 +207,7 @@ test('respect retry methods', async t => {
 	await t.throwsAsync(
 		ky(server.url, {
 			retry: {
-				limit: 3,
+				limit: 2,
 				methods: ['get'],
 			},
 		}).text(),
@@ -251,7 +251,7 @@ test('respect maxRetryAfter', async t => {
 	await t.throwsAsync(
 		ky(server.url, {
 			retry: {
-				limit: 5,
+				limit: 4,
 				maxRetryAfter: 2000,
 			},
 		}).text(),
@@ -273,7 +273,7 @@ test('retry - can provide retry as number', async t => {
 		response.sendStatus(408);
 	});
 
-	await t.throwsAsync(ky(server.url, {retry: 5}).text(), {
+	await t.throwsAsync(ky(server.url, {retry: 4}).text(), {
 		message: /Request Timeout/,
 	});
 	t.is(requestCount, 5);
@@ -347,7 +347,7 @@ test('does retry on 408 with methods provided as array', async t => {
 	await t.throwsAsync(
 		ky(server.url, {
 			retry: {
-				limit: 4,
+				limit: 3,
 				methods: ['get'],
 			},
 		}).text(),
@@ -373,7 +373,7 @@ test('does retry on 408 with statusCodes provided as array', async t => {
 	await t.throwsAsync(
 		ky(server.url, {
 			retry: {
-				limit: 4,
+				limit: 3,
 				statusCodes: [408],
 			},
 		}).text(),
@@ -443,14 +443,14 @@ test('throws when retry.statusCodes is not an array', async t => {
 });
 
 test('respect maximum backoff', async t => {
-	const retryCount = 5;
+	const retryCount = 4;
 	let requestCount = 0;
 
 	const server = await createHttpTestServer();
 	server.get('/', (_request, response) => {
 		requestCount++;
 
-		if (requestCount === retryCount) {
+		if (requestCount === retryCount + 1) {
 			response.end(fixture);
 		} else {
 			response.sendStatus(500);
