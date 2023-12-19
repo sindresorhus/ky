@@ -30,6 +30,7 @@ export default ky;
 export type {KyInstance} from './types/ky.js';
 
 export type {
+	Input,
 	Options,
 	NormalizedOptions,
 	RetryOptions,
