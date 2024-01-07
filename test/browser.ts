@@ -480,7 +480,7 @@ browserTest('retry with body', [chromium, webkit], async (t: ExecutionContext, p
 		page.evaluate(async (url: string) => window.ky(`${url}/test`, {
 			body: 'foo',
 			method: 'PUT',
-			retry: 2,
+			retry: 1,
 		}), server.url),
 		{message: /HTTPError: Request failed with status code 502 Bad Gateway/},
 	);

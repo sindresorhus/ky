@@ -208,7 +208,7 @@ export class Ky {
 	protected _calculateRetryDelay(error: unknown) {
 		this._retryCount++;
 
-		if (this._retryCount < this._options.retry.limit && !(error instanceof TimeoutError)) {
+		if (this._retryCount <= this._options.retry.limit && !(error instanceof TimeoutError)) {
 			if (error instanceof HTTPError) {
 				if (!this._options.retry.statusCodes.includes(error.response.status)) {
 					return 0;

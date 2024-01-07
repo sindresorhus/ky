@@ -427,7 +427,7 @@ test('beforeRetry hook is called even if the error has no response', async t => 
 
 	const text = await ky
 		.get(server.url, {
-			retry: 2,
+			retry: 1,
 			async fetch(request) {
 				if (requestCount === 0) {
 					requestCount++;
@@ -473,7 +473,7 @@ test('beforeRetry hook with parseJson and error.response.json()', async t => {
 
 	const json = await ky
 		.get(server.url, {
-			retry: 2,
+			retry: 1,
 			parseJson(text) {
 				t.is(text, 'text');
 				return {awesome: true};
