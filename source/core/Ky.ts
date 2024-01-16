@@ -103,9 +103,9 @@ export class Ky {
 
 					// If error causes when call JSON.parse
 					try {
-						return response[type]();
+						return (await response.json());
 					} catch {
-						return await response.text()
+						return response.text();
 					}
 				}
 
