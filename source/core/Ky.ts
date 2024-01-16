@@ -100,6 +100,13 @@ export class Ky {
 					if (options.parseJson) {
 						return options.parseJson(await response.text());
 					}
+
+					// If error causes when call JSON.parse
+					try {
+						return response[type]();
+					} catch {
+						return await response.text()
+					}
 				}
 
 				return response[type]();
