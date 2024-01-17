@@ -277,8 +277,8 @@ test('.json() with invalid JSON body and accept starts with text', async t => {
 	const responseJson = await ky.get(server.url).json();
 	const responseText = await ky.get(server.url).text();
 
-	t.deepEqual(responseJson, 'not json');
-	t.deepEqual(responseText, 'not json');
+	t.is(responseJson, 'not json');
+	t.is(responseText, 'not json');
 
 	await server.close();
 });
