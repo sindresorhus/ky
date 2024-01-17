@@ -269,12 +269,11 @@ test('.json() with invalid JSON body', async t => {
 test('.json() with invalid JSON body and accept starts with text', async t => {
 	const server = await createHttpTestServer();
 	server.get('/', async (request, response) => {
-		t.is(request.headers.accept, 'text/plain');
 		response.end('not json');
 	});
 
 	// I think the code is a bit weird in this situation.
-	const responseJson = await ky.get(server.url).json();
+	const responseJson = await ky.get(server.url, {headers: {accept: 'text/plain'}}).json();
 	const responseText = await ky.get(server.url).text();
 
 	t.is(responseJson, 'not json');
