@@ -101,10 +101,7 @@ export class Ky {
 						return options.parseJson(await response.text());
 					}
 
-					// If error causes when call JSON.parse
-					try {
-						return (await response.json());
-					} catch {
+					if (response.headers.get('accept')?.startsWith('text')) {
 						return response.text();
 					}
 				}
