@@ -101,7 +101,7 @@ export class Ky {
 						return options.parseJson(await response.text());
 					}
 
-					if (response.headers.get('accept')?.startsWith('text')) {
+					if (ky.request.headers.get('accept')?.startsWith('text')) {
 						return response.text();
 					}
 				}
