@@ -118,9 +118,10 @@ export class Ky {
 	// eslint-disable-next-line complexity
 	constructor(input: Input, options: Options = {}) {
 		this._input = input;
+		const isCredentialsSupported = 'credentials' in Request.prototype;
 		this._options = {
 			// TODO: credentials can be removed when the spec change is implemented in all browsers. Context: https://www.chromestatus.com/feature/4539473312350208
-			credentials: (this._input as Request).credentials || 'same-origin',
+			credentials: isCredentialsSupported ? ((this._input as Request).credentials || 'same-origin') : undefined,
 			...options,
 			headers: mergeHeaders((this._input as Request).headers, options.headers),
 			hooks: deepMerge<Required<Hooks>>(
