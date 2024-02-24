@@ -121,7 +121,7 @@ export class Ky {
 		const isCredentialsSupported = 'credentials' in Request.prototype;
 		this._options = {
 			// TODO: credentials can be removed when the spec change is implemented in all browsers. Context: https://www.chromestatus.com/feature/4539473312350208
-			credentials: isCredentialsSupported ? ((this._input as Request).credentials || 'same-origin') : undefined,
+			credentials: isCredentialsSupported ? ((this._input as Request).credentials || 'same-origin') : 'same-origin',
 			...options,
 			headers: mergeHeaders((this._input as Request).headers, options.headers),
 			hooks: deepMerge<Required<Hooks>>(
