@@ -239,12 +239,13 @@ export interface Options extends KyOptions, Omit<RequestInit, 'headers'> { // es
 
 export type InternalOptions = Required<
 Omit<Options, 'hooks' | 'retry'>,
-'credentials' | 'fetch' | 'prefixUrl' | 'timeout'
+'fetch' | 'prefixUrl' | 'timeout'
 > & {
 	headers: Required<Headers>;
 	hooks: Required<Hooks>;
 	retry: Required<RetryOptions>;
 	prefixUrl: string;
+	credentials?: Options['credentials']; // Allows credentials to be undefined for workers
 };
 
 /**
@@ -253,7 +254,7 @@ Normalized options passed to the `fetch` call and the `beforeRequest` hooks.
 export interface NormalizedOptions extends RequestInit { // eslint-disable-line @typescript-eslint/consistent-type-definitions -- This must stay an interface so that it can be extended outside of Ky for use in `ky.create`.
 	// Extended from `RequestInit`, but ensured to be set (not optional).
 	method: NonNullable<RequestInit['method']>;
-	credentials: NonNullable<RequestInit['credentials']>;
+	credentials: RequestInit['credentials'];
 
 	// Extended from custom `KyOptions`, but ensured to be set (not optional).
 	retry: RetryOptions;
