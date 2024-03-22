@@ -245,7 +245,6 @@ Omit<Options, 'hooks' | 'retry'>,
 	hooks: Required<Hooks>;
 	retry: Required<RetryOptions>;
 	prefixUrl: string;
-	credentials?: Options['credentials']; // Allows credentials to be undefined for workers
 };
 
 /**
@@ -254,7 +253,7 @@ Normalized options passed to the `fetch` call and the `beforeRequest` hooks.
 export interface NormalizedOptions extends RequestInit { // eslint-disable-line @typescript-eslint/consistent-type-definitions -- This must stay an interface so that it can be extended outside of Ky for use in `ky.create`.
 	// Extended from `RequestInit`, but ensured to be set (not optional).
 	method: NonNullable<RequestInit['method']>;
-	credentials: RequestInit['credentials'];
+	credentials?: NonNullable<RequestInit['credentials']>;
 
 	// Extended from custom `KyOptions`, but ensured to be set (not optional).
 	retry: RetryOptions;
