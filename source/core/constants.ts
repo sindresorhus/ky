@@ -76,4 +76,5 @@ export const requestOptionsRegistry: RequestInitRegistry = {
 	window: true,
 	dispatcher: true,
 	duplex: true,
+	priority: true,
 };

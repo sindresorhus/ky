@@ -118,9 +118,13 @@ export class Ky {
 	// eslint-disable-next-line complexity
 	constructor(input: Input, options: Options = {}) {
 		this._input = input;
-		const isCredentialsSupported = 'credentials' in Request.prototype;
+		const credentials
+			= this._input instanceof Request && 'credentials' in Request.prototype
+				? this._input.credentials
+				: undefined;
+
 		this._options = {
-			credentials: isCredentialsSupported ? (this._input as Request).credentials : undefined,
+			...(credentials && {credentials}), // For exactOptionalPropertyTypes
 			...options,
 			headers: mergeHeaders((this._input as Request).headers, options.headers),
 			hooks: deepMerge<Required<Hooks>>(
