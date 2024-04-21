@@ -426,6 +426,29 @@ const json = await ky('https://example.com', {
 }).json();
 ```
 
+##### stringifyJson
+
+Type: `Function`\
+Default: `JSON.stringify()`
+
+User-defined JSON-stringifying function.
+
+Use-cases:
+1. Stringify JSON with the custom `replacer` function.
+
+```js
+import ky from 'ky';
+import { DateTime } from 'luxon';
+const json = await ky('https://example.com', {
+	stringifyJson: data => JSON.stringify(data, (_, value) => {
+		if (value instanceof DateTime) {
+			return value.toSeconds();
+		}
+		return value;
+	})
+}).json();
+```
+
 ##### fetch
 
 Type: `Function`\
