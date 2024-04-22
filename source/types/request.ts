@@ -1,9 +1,10 @@
-/**
- * Undici types need to be here because they are not exported to globals by @types/node.
- * See https://github.com/DefinitelyTyped/DefinitelyTyped/discussions/69408
- *
- * After the types are exported to globals, the Undici types can be removed from here.
- */
+/*
+Undici types need to be here because they are not exported to globals by @types/node.
+See https://github.com/DefinitelyTyped/DefinitelyTyped/discussions/69408
+
+After the types are exported to globals, the Undici types can be removed from here.
+*/
+
 type UndiciHeadersInit =
 	| string[][]
 	| Record<string, string | readonly string[]>
