@@ -155,6 +155,8 @@ When using a [`Request`](https://developer.mozilla.org/en-US/docs/Web/API/Reques
 
 Type: `object`
 
+In addition to all the [`fetch` options](https://developer.mozilla.org/en-US/docs/Web/API/fetch#options), it supports these options:
+
 ##### method
 
 Type: `string`\
