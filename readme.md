@@ -438,12 +438,14 @@ Use-cases:
 
 ```js
 import ky from 'ky';
-import { DateTime } from 'luxon';
+import {DateTime} from 'luxon';
+
 const json = await ky('https://example.com', {
 	stringifyJson: data => JSON.stringify(data, (key, value) => {
 		if (key.endsWith('_at')) {
 			return DateTime.fromISO(value).toSeconds();
 		}
+
 		return value;
 	})
 }).json();
