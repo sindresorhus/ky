@@ -736,7 +736,7 @@ test('parseJson option with promise.json() shortcut', async t => {
 
 test('stringifyJson option with request.json()', async t => {
 	const server = await createHttpTestServer({bodyParser: false});
-	
+
 	const json = {hello: 'world'};
 	const result = {data: json, extra: 'extraValue'};
 
