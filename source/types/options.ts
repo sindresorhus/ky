@@ -69,7 +69,7 @@ export type KyOptions = {
 	@example
 	```
 	import ky from 'ky';
-	import { DateTime } from 'luxon';
+	import {DateTime} from 'luxon';
 
 	const json = await ky('https://example.com', {
 		stringifyJson: data => JSON.stringify(data, (key, value) => {
@@ -81,7 +81,7 @@ export type KyOptions = {
 		})
 	}).json();
 	```
-	 */
+	*/
 	stringifyJson?: (data: unknown) => string;
 
 	/**
