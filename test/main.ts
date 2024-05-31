@@ -733,3 +733,23 @@ test('parseJson option with promise.json() shortcut', async t => {
 
 	await server.close();
 });
+
+test('stringifyJson option with request.json()', async t => {
+	const server = await createHttpTestServer({bodyParser: false});
+
+	const json = {hello: 'world'};
+	const extra = 'extraValue';
+
+	server.post('/', async (request, response) => {
+		const body = await parseRawBody(request);
+		t.is(body, JSON.stringify({data: json, extra}));
+		response.end();
+	});
+
+	await ky.post(server.url, {
+		stringifyJson: data => JSON.stringify({data, extra}),
+		json,
+	});
+
+	await server.close();
+});

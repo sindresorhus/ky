@@ -59,6 +59,32 @@ export type KyOptions = {
 	parseJson?: (text: string) => unknown;
 
 	/**
+	User-defined JSON-stringifying function.
+
+	Use-cases:
+	1. Stringify JSON with a custom `replacer` function.
+
+	@default JSON.stringify()
+
+	@example
+	```
+	import ky from 'ky';
+	import {DateTime} from 'luxon';
+
+	const json = await ky('https://example.com', {
+		stringifyJson: data => JSON.stringify(data, (key, value) => {
+			if (key.endsWith('_at')) {
+				return DateTime.fromISO(value).toSeconds();
+			}
+
+			return value;
+		})
+	}).json();
+	```
+	*/
+	stringifyJson?: (data: unknown) => string;
+
+	/**
 	Search parameters to include in the request URL. Setting this will override all existing search parameters in the input URL.
 
 	Accepts any value supported by [`URLSearchParams()`](https://developer.mozilla.org/en-US/docs/Web/API/URLSearchParams/URLSearchParams).

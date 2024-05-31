@@ -50,6 +50,7 @@ export const stop = Symbol('stop');
 export const kyOptionKeys: KyOptionsRegistry = {
 	json: true,
 	parseJson: true,
+	stringifyJson: true,
 	searchParams: true,
 	prefixUrl: true,
 	retry: true,
