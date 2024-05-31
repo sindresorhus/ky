@@ -436,7 +436,7 @@ Default: `JSON.stringify()`
 User-defined JSON-stringifying function.
 
 Use-cases:
-1. Stringify JSON with the custom `replacer` function.
+1. Stringify JSON with a custom `replacer` function.
 
 ```js
 import ky from 'ky';
