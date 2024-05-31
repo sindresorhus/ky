@@ -62,7 +62,7 @@ export type KyOptions = {
 	User-defined JSON-stringifying function.
 
 	Use-cases:
-	1. Stringify JSON with the custom `replacer` function.
+	1. Stringify JSON with a custom `replacer` function.
 
 	@default JSON.stringify()
 
