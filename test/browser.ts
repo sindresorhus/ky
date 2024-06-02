@@ -3,6 +3,7 @@ import busboy from 'busboy';
 import express from 'express';
 import {chromium, webkit, type Page} from 'playwright';
 import type ky from '../source/index.js';
+import type {DownloadProgress} from '../source/index.js';
 import {createHttpTestServer, type ExtendedHttpTestServer, type HttpServerOptions} from './helpers/create-http-test-server.js';
 import {parseRawBody} from './helpers/parse-body.js';
 import {browserTest, defaultBrowsersTest} from './helpers/with-page.js';
@@ -248,46 +249,43 @@ defaultBrowsersTest(
 	},
 );
 
-// TODO: Fix.
-// browserTest('onDownloadProgress works', [chromium, webkit], async (t: ExecutionContext, page: Page) => {
-// 	server.get('/', (_request, response) => {
-// 		response.writeHead(200, {
-// 			'content-length': '4',
-// 		});
+browserTest('onDownloadProgress works', [chromium, webkit], async (t: ExecutionContext, page: Page) => {
+	server.get('/', (_request, response) => {
+		response.writeHead(200, {
+			'content-length': '4',
+		});
 
-// 		response.write('me');
-// 		setTimeout(() => {
-// 			response.end('ow');
-// 		}, 1000);
-// 	});
+		response.write('me');
+		setTimeout(() => {
+			response.end('ow');
+		}, 1000);
+	});
 
-// 	await page.goto(server.url);
-// 	await addKyScriptToPage(page);
+	await page.goto(server.url);
+	await addKyScriptToPage(page);
 
-// 	const result = await page.evaluate(async (url: string) => {
-// 		// `new TextDecoder('utf-8').decode` hangs up?
-// 		const decodeUtf8 = (array: Uint8Array) => String.fromCodePoint(...array);
+	const result = await page.evaluate(async (url: string) => {
+		const data: Array<Array<(DownloadProgress | string)>> = [];
+		const text = await window
+			.ky(url, {
+				onDownloadProgress(progress, chunk) {
+					// Decode Utf8
+					const stringifiedChunk = String.fromCodePoint(...chunk);
+					data.push([progress, stringifiedChunk]);
+				},
+			})
+			.text();
 
-// 		const data: any[] = [];
-// 		const text = await window
-// 			.ky(url, {
-// 				onDownloadProgress(progress, chunk) {
-// 					const stringifiedChunk = decodeUtf8(chunk);
-// 					data.push([progress, stringifiedChunk]);
-// 				},
-// 			})
-// 			.text();
+		return {data, text};
+	}, server.url);
 
-// 		return {data, text};
-// 	}, server.url);
-
-// 	t.deepEqual(result.data, [
-// 		[{percent: 0, transferredBytes: 0, totalBytes: 4}, ''],
-// 		[{percent: 0.5, transferredBytes: 2, totalBytes: 4}, 'me'],
-// 		[{percent: 1, transferredBytes: 4, totalBytes: 4}, 'ow'],
-// 	]);
-// 	t.is(result.text, 'meow');
-// });
+	t.deepEqual(result.data, [
+		[{percent: 0, transferredBytes: 0, totalBytes: 4}, ''],
+		[{percent: 0.5, transferredBytes: 2, totalBytes: 4}, 'me'],
+		[{percent: 1, transferredBytes: 4, totalBytes: 4}, 'ow'],
+	]);
+	t.is(result.text, 'meow');
+});
 
 defaultBrowsersTest('throws if onDownloadProgress is not a function', async (t: ExecutionContext, page: Page) => {
 	server.get('/', (_request, response) => {
