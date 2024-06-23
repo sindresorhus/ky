@@ -244,7 +244,7 @@ defaultBrowsersTest(
 			throw new TypeError('Expected to have an object error');
 		}
 
-		t.is(error.message, 'TimeoutError: Request timed out');
+		t.is(error.message, `TimeoutError: Request timed out: GET ${server.url}/slow`);
 		t.is(error.request.url, `${server.url}/slow`);
 	},
 );
@@ -480,7 +480,7 @@ browserTest('retry with body', [chromium, webkit], async (t: ExecutionContext, p
 			method: 'PUT',
 			retry: 1,
 		}), server.url),
-		{message: /HTTPError: Request failed with status code 502 Bad Gateway/},
+		{message: /HTTPError: Request failed with status code 502 Bad Gateway: PUT/},
 	);
 
 	t.is(requestCount, 2);
