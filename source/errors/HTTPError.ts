@@ -12,7 +12,7 @@ export class HTTPError extends Error {
 		const status = `${code} ${title}`.trim();
 		const reason = status ? `status code ${status}` : 'an unknown error';
 
-		super(`Request failed with ${reason}`);
+		super(`Request failed with ${reason}: ${request.method} ${request.url}`);
 
 		this.name = 'HTTPError';
 		this.response = response;

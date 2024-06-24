@@ -482,7 +482,7 @@ test('beforeRetry hook with parseJson and error.response.json()', async t => {
 				beforeRetry: [
 					async ({error, retryCount}) => {
 						t.true(error instanceof HTTPError);
-						t.is(error.message, 'Request failed with status code 502 Bad Gateway');
+						t.is(error.message, `Request failed with status code 502 Bad Gateway: GET ${server.url}/`);
 						t.true((error as HTTPError).response instanceof Response);
 						t.deepEqual(await (error as HTTPError).response.json(), {awesome: true});
 						t.is(retryCount, 1);
