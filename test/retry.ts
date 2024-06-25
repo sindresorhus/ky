@@ -5,7 +5,9 @@ import {withPerformanceObserver} from './helpers/with-performance-observer.js';
 
 const fixture = 'fixture';
 const defaultRetryCount = 2;
+const retryAfterOn500 = 2;
 const retryAfterOn413 = 2;
+const lastTried500access = Date.now();
 const lastTried413access = Date.now();
 
 test('network error', async t => {
@@ -147,6 +149,30 @@ test('doesn\'t retry on 413 without Retry-After header', async t => {
 	t.is(requestCount, 1);
 	await ky(server.url, {throwHttpErrors: false}).text();
 	t.is(requestCount, 2);
+
+	await server.close();
+});
+
+test('respect custom `afterStatusCodes` (500) with Retry-After header', async t => {
+	let requestCount = 0;
+
+	const server = await createHttpTestServer();
+	server.get('/', (_request, response) => {
+		requestCount++;
+
+		if (requestCount === defaultRetryCount + 1) {
+			response.end((Date.now() - lastTried500access).toString());
+		} else {
+			response.writeHead(500, {
+				'Retry-After': retryAfterOn500,
+			});
+			response.end('');
+		}
+	});
+
+	const result = await ky(server.url, { retry: { afterStatusCodes: [500] } }).text();
+	console.log(result);
+	t.true(Number(result) >= retryAfterOn500 * 1000);
 
 	await server.close();
 });
