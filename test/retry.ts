@@ -1,7 +1,7 @@
 import test from 'ava';
 import ky from '../source/index.js';
 import {createHttpTestServer} from './helpers/create-http-test-server.js';
-import {withPerformanceObserver} from './helpers/with-performance-observer.js';
+import {withPerformance} from './helpers/with-performance.js';
 
 const fixture = 'fixture';
 const defaultRetryCount = 2;
@@ -442,7 +442,7 @@ test('throws when retry.statusCodes is not an array', async t => {
 	await server.close();
 });
 
-test('respect maximum backoff', async t => {
+test('respect maximum backoffLimit', async t => {
 	const retryCount = 4;
 	let requestCount = 0;
 
@@ -457,9 +457,8 @@ test('respect maximum backoff', async t => {
 		}
 	});
 
-	await withPerformanceObserver({
+	await withPerformance({
 		t,
-		name: 'default',
 		expectedDuration: 300 + 600 + 1200 + 2400,
 		async test() {
 			t.is(await ky(server.url, {
@@ -469,9 +468,9 @@ test('respect maximum backoff', async t => {
 	});
 
 	requestCount = 0;
-	await withPerformanceObserver({
+
+	await withPerformance({
 		t,
-		name: 'custom',
 		expectedDuration: 300 + 600 + 1000 + 1000,
 		async test() {
 			t.is(await ky(server.url, {
@@ -501,9 +500,8 @@ test('respect custom retry.delay', async t => {
 		}
 	});
 
-	await withPerformanceObserver({
+	await withPerformance({
 		t,
-		name: 'linear',
 		expectedDuration: 200 + 300 + 400 + 500,
 		async test() {
 			t.is(await ky(server.url, {

@@ -179,6 +179,11 @@ export class Ky {
 			this._options.duplex = 'half';
 		}
 
+		if (this._options.json !== undefined) {
+			this._options.body = this._options.stringifyJson?.(this._options.json) ?? JSON.stringify(this._options.json);
+			this._options.headers.set('content-type', this._options.headers.get('content-type') ?? 'application/json');
+		}
+
 		this.request = new globalThis.Request(this._input, this._options);
 
 		if (this._options.searchParams) {
@@ -200,12 +205,6 @@ export class Ky {
 
 			// The spread of `this.request` is required as otherwise it misses the `duplex` option for some reason and throws.
 			this.request = new globalThis.Request(new globalThis.Request(url, {...this.request}), this._options as RequestInit);
-		}
-
-		if (this._options.json !== undefined) {
-			this._options.body = this._options.stringifyJson?.(this._options.json) ?? JSON.stringify(this._options.json);
-			this.request.headers.set('content-type', this._options.headers.get('content-type') ?? 'application/json');
-			this.request = new globalThis.Request(this.request, {body: this._options.body});
 		}
 	}
 
