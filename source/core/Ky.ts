@@ -211,33 +211,33 @@ export class Ky {
 	protected _calculateRetryDelay(error: unknown) {
 		this._retryCount++;
 
-		if (this._retryCount <= this._options.retry.limit && !(error instanceof TimeoutError)) {
-			if (error instanceof HTTPError) {
-				if (!this._options.retry.statusCodes.includes(error.response.status)) {
-					return 0;
-				}
-
-				const retryAfter = error.response.headers.get('Retry-After');
-				if (retryAfter && this._options.retry.afterStatusCodes.includes(error.response.status)) {
-					let after = Number(retryAfter) * 1000;
-					if (Number.isNaN(after)) {
-						after = Date.parse(retryAfter) - Date.now();
-					}
-
-					const max = this._options.retry.maxRetryAfter ?? after;
-					return after < max ? after : max;
-				}
-
-				if (error.response.status === 413) {
-					return 0;
-				}
-			}
-
-			const retryDelay = this._options.retry.delay(this._retryCount);
-			return Math.min(this._options.retry.backoffLimit, retryDelay);
+		if (this._retryCount > this._options.retry.limit || error instanceof TimeoutError) {
+			throw error;
 		}
 
-		return 0;
+		if (error instanceof HTTPError) {
+			if (!this._options.retry.statusCodes.includes(error.response.status)) {
+				throw error;
+			}
+
+			const retryAfter = error.response.headers.get('Retry-After');
+			if (retryAfter && this._options.retry.afterStatusCodes.includes(error.response.status)) {
+				let after = Number(retryAfter) * 1000;
+				if (Number.isNaN(after)) {
+					after = Date.parse(retryAfter) - Date.now();
+				}
+
+				const max = this._options.retry.maxRetryAfter ?? after;
+				return after < max ? after : max;
+			}
+
+			if (error.response.status === 413) {
+				throw error;
+			}
+		}
+
+		const retryDelay = this._options.retry.delay(this._retryCount);
+		return Math.min(this._options.retry.backoffLimit, retryDelay);
 	}
 
 	protected _decorateResponse(response: Response): Response {
@@ -253,28 +253,28 @@ export class Ky {
 			return await function_();
 		} catch (error) {
 			const ms = Math.min(this._calculateRetryDelay(error), maxSafeTimeout);
-			if (ms !== 0 && this._retryCount > 0) {
-				await delay(ms, {signal: this._options.signal});
-
-				for (const hook of this._options.hooks.beforeRetry) {
-					// eslint-disable-next-line no-await-in-loop
-					const hookResult = await hook({
-						request: this.request,
-						options: (this._options as unknown) as NormalizedOptions,
-						error: error as Error,
-						retryCount: this._retryCount,
-					});
-
-					// If `stop` is returned from the hook, the retry process is stopped
-					if (hookResult === stop) {
-						return;
-					}
-				}
-
-				return this._retry(function_);
+			if (this._retryCount < 1) {
+				throw error;
 			}
 
-			throw error;
+			await delay(ms, {signal: this._options.signal});
+
+			for (const hook of this._options.hooks.beforeRetry) {
+				// eslint-disable-next-line no-await-in-loop
+				const hookResult = await hook({
+					request: this.request,
+					options: (this._options as unknown) as NormalizedOptions,
+					error: error as Error,
+					retryCount: this._retryCount,
+				});
+
+				// If `stop` is returned from the hook, the retry process is stopped
+				if (hookResult === stop) {
+					return;
+				}
+			}
+
+			return this._retry(function_);
 		}
 	}
 
