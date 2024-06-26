@@ -221,44 +221,54 @@ test('respect retry methods', async t => {
 });
 
 test('respect maxRetryAfter', async t => {
+	const retryCount = 4;
 	let requestCount = 0;
 
 	const server = await createHttpTestServer();
-	server.get('/', async (_request, response) => {
+	server.get('/', (_request, response) => {
 		requestCount++;
 
-		response.writeHead(413, {
-			'Retry-After': 1,
-		});
+		if (requestCount === retryCount + 1) {
+			response.end(fixture);
+		} else {
+			response.writeHead(413, {
+				'Retry-After': 1,
+			});
 
-		response.end('');
+			response.end('');
+		}
 	});
 
-	await t.throwsAsync(
-		ky(server.url, {
-			retry: {
-				limit: 5,
-				maxRetryAfter: 100,
-			},
-		}).text(),
-		{
-			message: /Payload Too Large/,
+	await withPerformance({
+		t,
+		expectedDuration: 420 + 420 + 420 + 420,
+		async test() {
+			t.is(await ky(server.url, {
+				retry: {
+					limit: retryCount,
+					maxRetryAfter: 420,
+				},
+			}).text(), fixture);
 		},
-	);
-	t.is(requestCount, 1);
+	});
+
+	t.is(requestCount, 5);
 
 	requestCount = 0;
-	await t.throwsAsync(
-		ky(server.url, {
-			retry: {
-				limit: 4,
-				maxRetryAfter: 2000,
-			},
-		}).text(),
-		{
-			message: /Payload Too Large/,
+
+	await withPerformance({
+		t,
+		expectedDuration: 1000 + 1000 + 1000 + 1000,
+		async test() {
+			t.is(await ky(server.url, {
+				retry: {
+					limit: retryCount,
+					maxRetryAfter: 2000,
+				},
+			}).text(), fixture);
 		},
-	);
+	});
+
 	t.is(requestCount, 5);
 
 	await server.close();
@@ -467,6 +477,8 @@ test('respect maximum backoffLimit', async t => {
 		},
 	});
 
+	t.is(requestCount, 5);
+
 	requestCount = 0;
 
 	await withPerformance({
@@ -482,18 +494,20 @@ test('respect maximum backoffLimit', async t => {
 		},
 	});
 
+	t.is(requestCount, 5);
+
 	await server.close();
 });
 
 test('respect custom retry.delay', async t => {
-	const retryCount = 5;
+	const retryCount = 4;
 	let requestCount = 0;
 
 	const server = await createHttpTestServer();
 	server.get('/', (_request, response) => {
 		requestCount++;
 
-		if (requestCount === retryCount) {
+		if (requestCount === retryCount + 1) {
 			response.end(fixture);
 		} else {
 			response.sendStatus(500);
@@ -512,6 +526,8 @@ test('respect custom retry.delay', async t => {
 			}).text(), fixture);
 		},
 	});
+
+	t.is(requestCount, 5);
 
 	await server.close();
 });
