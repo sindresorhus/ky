@@ -300,11 +300,15 @@ export class Ky {
 
 		const nonRequestOptions = findUnknownOptions(this.request, this._options);
 
+		// Cloning is done here to prepare in advance for retries
+		const mainRequest = this.request;
+		this.request = mainRequest.clone();
+
 		if (this._options.timeout === false) {
-			return this._options.fetch(this.request.clone(), nonRequestOptions);
+			return this._options.fetch(mainRequest, nonRequestOptions);
 		}
 
-		return timeout(this.request.clone(), nonRequestOptions, this.abortController, this._options as TimeoutOptions);
+		return timeout(mainRequest, nonRequestOptions, this.abortController, this._options as TimeoutOptions);
 	}
 
 	/* istanbul ignore next */
