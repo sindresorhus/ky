@@ -298,6 +298,54 @@ test('.json() with 204 response and empty body', async t => {
 	await server.close();
 });
 
+test('default credentials option is same-origin', async t => {
+	t.plan(2);
+	let requestCount = 0;
+
+	const server = await createHttpTestServer();
+	server.get('/', async (request, response) => {
+		requestCount++;
+		response.end();
+	});
+	await ky(server.url, {
+		hooks: {
+			beforeRequest: [
+				request => {
+					t.is(request.credentials, 'same-origin');
+				},
+			],
+		},
+	});
+
+	t.is(requestCount, 1);
+
+	await server.close();
+});
+
+test('default mode option is same-origin', async t => {
+	t.plan(2);
+	let requestCount = 0;
+
+	const server = await createHttpTestServer();
+	server.get('/', async (request, response) => {
+		requestCount++;
+		response.end();
+	});
+	await ky(server.url, {
+		hooks: {
+			beforeRequest: [
+				request => {
+					t.is(request.mode, 'same-origin');
+				},
+			],
+		},
+	});
+
+	t.is(requestCount, 1);
+
+	await server.close();
+});
+
 test('timeout option', async t => {
 	t.plan(2);
 	let requestCount = 0;
