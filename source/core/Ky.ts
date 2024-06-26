@@ -219,18 +219,13 @@ export class Ky {
 
 				const retryAfter = error.response.headers.get('Retry-After');
 				if (retryAfter && this._options.retry.afterStatusCodes.includes(error.response.status)) {
-					let after = Number(retryAfter);
+					let after = Number(retryAfter) * 1000;
 					if (Number.isNaN(after)) {
 						after = Date.parse(retryAfter) - Date.now();
-					} else {
-						after *= 1000;
 					}
 
-					if (this._options.retry.maxRetryAfter !== undefined && after > this._options.retry.maxRetryAfter) {
-						return 0;
-					}
-
-					return after;
+					const max = this._options.retry.maxRetryAfter ?? after;
+					return after < max ? after : max;
 				}
 
 				if (error.response.status === 413) {
