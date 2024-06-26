@@ -220,7 +220,7 @@ An object representing `limit`, `methods`, `statusCodes` and `maxRetryAfter` fie
 
 If `retry` is a number, it will be used as `limit` and other defaults will remain in place.
 
-If `maxRetryAfter` is set to `undefined`, it will use `options.timeout`. If [`Retry-After`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Retry-After) header is greater than `maxRetryAfter`, it will cancel the request.
+If `maxRetryAfter` is set to `undefined`, it will use `options.timeout`. If [`Retry-After`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Retry-After) header is greater than `maxRetryAfter`, it will use `maxRetryAfter`.
 
 The `backoffLimit` option is the upper limit of the delay per retry in milliseconds.
 To clamp the delay, set `backoffLimit` to 1000, for example.
