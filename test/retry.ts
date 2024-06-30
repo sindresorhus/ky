@@ -86,6 +86,40 @@ test('not on POST', async t => {
 	await server.close();
 });
 
+test('respect Retry-After: 0 and retry immediately', async t => {
+	const retryCount = 4;
+	let requestCount = 0;
+
+	const server = await createHttpTestServer();
+	server.get('/', (_request, response) => {
+		requestCount++;
+
+		if (requestCount === retryCount + 1) {
+			response.end(fixture);
+		} else {
+			response.writeHead(413, {
+				'Retry-After': 0,
+			});
+
+			response.end('');
+		}
+	});
+
+	await withPerformance({
+		t,
+		expectedDuration: 4 + 4 + 4 + 4,
+		async test() {
+			t.is(await ky(server.url, {
+				retry: retryCount,
+			}).text(), fixture);
+		},
+	});
+
+	t.is(requestCount, 5);
+
+	await server.close();
+});
+
 test('respect 413 Retry-After', async t => {
 	let requestCount = 0;
 
