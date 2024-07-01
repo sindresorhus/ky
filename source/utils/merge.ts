@@ -1,4 +1,5 @@
 import type {KyHeadersInit, Options} from '../types/options.js';
+import type {Hooks} from '../types/hooks.js';
 import {isObject} from './is.js';
 
 export const validateAndMerge = (...sources: Array<Partial<Options> | undefined>): Partial<Options> => {
@@ -27,10 +28,26 @@ export const mergeHeaders = (source1: KyHeadersInit = {}, source2: KyHeadersInit
 	return result;
 };
 
+function newHookValue<K extends keyof Hooks>(original: Hooks, incoming: Hooks, property: K): Required<Hooks>[K] {
+	return (Object.prototype.hasOwnProperty.call(incoming, property) && incoming[property] === undefined)
+		? []
+		: deepMerge<Required<Hooks>[K]>(original[property] ?? [], incoming[property] ?? []);
+}
+
+export const mergeHooks = (original: Hooks = {}, incoming: Hooks = {}): Required<Hooks> => (
+	{
+		beforeRequest: newHookValue(original, incoming, 'beforeRequest'),
+		beforeRetry: newHookValue(original, incoming, 'beforeRetry'),
+		afterResponse: newHookValue(original, incoming, 'afterResponse'),
+		beforeError: newHookValue(original, incoming, 'beforeError'),
+	}
+);
+
 // TODO: Make this strongly-typed (no `any`).
 export const deepMerge = <T>(...sources: Array<Partial<T> | undefined>): T => {
 	let returnValue: any = {};
 	let headers = {};
+	let hooks = {};
 
 	for (const source of sources) {
 		if (Array.isArray(source)) {
@@ -46,6 +63,11 @@ export const deepMerge = <T>(...sources: Array<Partial<T> | undefined>): T => {
 				}
 
 				returnValue = {...returnValue, [key]: value};
+			}
+
+			if (isObject((source as any).hooks)) {
+				hooks = mergeHooks(hooks, (source as any).hooks);
+				returnValue.hooks = hooks;
 			}
 
 			if (isObject((source as any).headers)) {
