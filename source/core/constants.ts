@@ -9,15 +9,24 @@ export const supportsRequestStreams = (() => {
 	const supportsRequest = typeof globalThis.Request === 'function';
 
 	if (supportsReadableStream && supportsRequest) {
-		hasContentType = new globalThis.Request('https://empty.invalid', {
-			body: new globalThis.ReadableStream(),
-			method: 'POST',
-			// @ts-expect-error - Types are outdated.
-			get duplex() {
-				duplexAccessed = true;
-				return 'half';
-			},
-		}).headers.has('Content-Type');
+		try {
+			hasContentType = new globalThis.Request('https://empty.invalid', {
+				body: new globalThis.ReadableStream(),
+				method: 'POST',
+				// @ts-expect-error - Types are outdated.
+				get duplex() {
+					duplexAccessed = true;
+					return 'half';
+				},
+			}).headers.has('Content-Type');
+		} catch (error) {
+			// QQBrowser on iOS throws "unsupported BodyInit type" error (see issue #581)
+			if (error instanceof Error && error.message === 'unsupported BodyInit type') {
+				return false;
+			}
+
+			throw error;
+		}
 	}
 
 	return duplexAccessed && !hasContentType;

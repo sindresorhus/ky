@@ -1,7 +1,7 @@
 import test from 'ava';
 import ky from '../source/index.js';
 import {createHttpTestServer} from './helpers/create-http-test-server.js';
-import {withPerformanceObserver} from './helpers/with-performance-observer.js';
+import {withPerformance} from './helpers/with-performance.js';
 
 const fixture = 'fixture';
 const defaultRetryCount = 2;
@@ -84,6 +84,40 @@ test('not on POST', async t => {
 	await t.throwsAsync(ky.post(server.url).text(), {
 		message: /Internal Server Error/,
 	});
+
+	await server.close();
+});
+
+test('respect Retry-After: 0 and retry immediately', async t => {
+	const retryCount = 4;
+	let requestCount = 0;
+
+	const server = await createHttpTestServer();
+	server.get('/', (_request, response) => {
+		requestCount++;
+
+		if (requestCount === retryCount + 1) {
+			response.end(fixture);
+		} else {
+			response.writeHead(413, {
+				'Retry-After': 0,
+			});
+
+			response.end('');
+		}
+	});
+
+	await withPerformance({
+		t,
+		expectedDuration: 4 + 4 + 4 + 4,
+		async test() {
+			t.is(await ky(server.url, {
+				retry: retryCount,
+			}).text(), fixture);
+		},
+	});
+
+	t.is(requestCount, 5);
 
 	await server.close();
 });
@@ -247,44 +281,54 @@ test('respect retry methods', async t => {
 });
 
 test('respect maxRetryAfter', async t => {
+	const retryCount = 4;
 	let requestCount = 0;
 
 	const server = await createHttpTestServer();
-	server.get('/', async (_request, response) => {
+	server.get('/', (_request, response) => {
 		requestCount++;
 
-		response.writeHead(413, {
-			'Retry-After': 1,
-		});
+		if (requestCount === retryCount + 1) {
+			response.end(fixture);
+		} else {
+			response.writeHead(413, {
+				'Retry-After': 1,
+			});
 
-		response.end('');
+			response.end('');
+		}
 	});
 
-	await t.throwsAsync(
-		ky(server.url, {
-			retry: {
-				limit: 5,
-				maxRetryAfter: 100,
-			},
-		}).text(),
-		{
-			message: /Payload Too Large/,
+	await withPerformance({
+		t,
+		expectedDuration: 420 + 420 + 420 + 420,
+		async test() {
+			t.is(await ky(server.url, {
+				retry: {
+					limit: retryCount,
+					maxRetryAfter: 420,
+				},
+			}).text(), fixture);
 		},
-	);
-	t.is(requestCount, 1);
+	});
+
+	t.is(requestCount, 5);
 
 	requestCount = 0;
-	await t.throwsAsync(
-		ky(server.url, {
-			retry: {
-				limit: 4,
-				maxRetryAfter: 2000,
-			},
-		}).text(),
-		{
-			message: /Payload Too Large/,
+
+	await withPerformance({
+		t,
+		expectedDuration: 1000 + 1000 + 1000 + 1000,
+		async test() {
+			t.is(await ky(server.url, {
+				retry: {
+					limit: retryCount,
+					maxRetryAfter: 2000,
+				},
+			}).text(), fixture);
 		},
-	);
+	});
+
 	t.is(requestCount, 5);
 
 	await server.close();
@@ -468,7 +512,7 @@ test('throws when retry.statusCodes is not an array', async t => {
 	await server.close();
 });
 
-test('respect maximum backoff', async t => {
+test('respect maximum backoffLimit', async t => {
 	const retryCount = 4;
 	let requestCount = 0;
 
@@ -483,9 +527,8 @@ test('respect maximum backoff', async t => {
 		}
 	});
 
-	await withPerformanceObserver({
+	await withPerformance({
 		t,
-		name: 'default',
 		expectedDuration: 300 + 600 + 1200 + 2400,
 		async test() {
 			t.is(await ky(server.url, {
@@ -494,10 +537,12 @@ test('respect maximum backoff', async t => {
 		},
 	});
 
+	t.is(requestCount, 5);
+
 	requestCount = 0;
-	await withPerformanceObserver({
+
+	await withPerformance({
 		t,
-		name: 'custom',
 		expectedDuration: 300 + 600 + 1000 + 1000,
 		async test() {
 			t.is(await ky(server.url, {
@@ -509,27 +554,28 @@ test('respect maximum backoff', async t => {
 		},
 	});
 
+	t.is(requestCount, 5);
+
 	await server.close();
 });
 
 test('respect custom retry.delay', async t => {
-	const retryCount = 5;
+	const retryCount = 4;
 	let requestCount = 0;
 
 	const server = await createHttpTestServer();
 	server.get('/', (_request, response) => {
 		requestCount++;
 
-		if (requestCount === retryCount) {
+		if (requestCount === retryCount + 1) {
 			response.end(fixture);
 		} else {
 			response.sendStatus(500);
 		}
 	});
 
-	await withPerformanceObserver({
+	await withPerformance({
 		t,
-		name: 'linear',
 		expectedDuration: 200 + 300 + 400 + 500,
 		async test() {
 			t.is(await ky(server.url, {
@@ -540,6 +586,8 @@ test('respect custom retry.delay', async t => {
 			}).text(), fixture);
 		},
 	});
+
+	t.is(requestCount, 5);
 
 	await server.close();
 });

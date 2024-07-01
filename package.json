@@ -1,6 +1,6 @@
 {
 	"name": "ky",
-	"version": "1.3.0",
+	"version": "1.4.0",
 	"description": "Tiny and elegant HTTP client based on the browser Fetch API",
 	"license": "MIT",
 	"repository": "sindresorhus/ky",
@@ -22,7 +22,7 @@
 		"node": ">=18"
 	},
 	"scripts": {
-		"test": "xo && npm run build && ava --timeout=10m --serial",
+		"test": "xo && npm run build && ava",
 		"debug": "PWDEBUG=1 ava --timeout=2m",
 		"release": "np",
 		"build": "del-cli distribution && tsc --project tsconfig.dist.json",
