@@ -136,6 +136,7 @@ import ky from 'https://esm.sh/ky';
 The `input` and `options` are the same as [`fetch`](https://developer.mozilla.org/en-US/docs/Web/API/WindowOrWorkerGlobalScope/fetch), with some exceptions:
 
 - The `credentials` option is `same-origin` by default, which is the default in the spec too, but not all browsers have caught up yet.
+- The `mode` option is `same-origin` by default, as the `no-cors` default used by `fetch` is confusing and unsafe. If you need to make cross-origin requests, set the `mode` to `cors`.
 - Adds some more options. See below.
 
 Returns a [`Response` object](https://developer.mozilla.org/en-US/docs/Web/API/Response) with [`Body` methods](https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API/Using_Fetch#body) added for convenience. So you can, for example, call `ky.get(input).json()` directly without having to await the `Response` first. When called like that, an appropriate `Accept` header will be set depending on the body method used. Unlike the `Body` methods of `window.Fetch`; these will throw an `HTTPError` if the response status is not in the range of `200...299`. Also, `.json()` will return an empty string if body is empty or the response status is `204` instead of throwing a parse error due to an empty body.

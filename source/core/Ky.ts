@@ -119,12 +119,15 @@ export class Ky {
 	constructor(input: Input, options: Options = {}) {
 		this._input = input;
 		const credentials
-			= this._input instanceof Request && 'credentials' in Request.prototype
-				? this._input.credentials
-				: undefined;
+			= (this._input instanceof Request && this._input.credentials)
+				|| ('credentials' in Request.prototype && 'same-origin');
+		const mode
+			= (this._input instanceof Request && this._input.mode)
+				|| ('mode' in Request.prototype && 'same-origin');
 
 		this._options = {
 			...(credentials && {credentials}), // For exactOptionalPropertyTypes
+			...(mode && {mode}),
 			...options,
 			headers: mergeHeaders((this._input as Request).headers, options.headers),
 			hooks: deepMerge<Required<Hooks>>(
