@@ -47,7 +47,7 @@ test.afterEach(async () => {
 	await server.close();
 });
 
-defaultBrowsersTest('prefixUrl option', async (t: ExecutionContext, page: Page) => {
+defaultBrowsersTest('prefix option', async (t: ExecutionContext, page: Page) => {
 	server.get('/', (_request, response) => {
 		response.end('zebra');
 	});
@@ -60,16 +60,16 @@ defaultBrowsersTest('prefixUrl option', async (t: ExecutionContext, page: Page) 
 	await addKyScriptToPage(page);
 
 	await t.throwsAsync(
-		page.evaluate(async () => globalThis.ky('/foo', {prefixUrl: '/'})),
-		{message: /`input` must not begin with a slash when using `prefixUrl`/},
+		page.evaluate(async () => globalThis.ky('/foo', {prefix: '/'})),
+		{message: /`input` must not begin with a slash when using `prefix`/},
 	);
 
 	const results = await page.evaluate(async (url: string) => Promise.all([
 		globalThis.ky(`${url}/api/unicorn`).text(),
-		// @ts-expect-error unsupported {prefixUrl: null} type
-		globalThis.ky(`${url}/api/unicorn`, {prefixUrl: null}).text(),
-		globalThis.ky('api/unicorn', {prefixUrl: url}).text(),
-		globalThis.ky('api/unicorn', {prefixUrl: `${url}/`}).text(),
+		// @ts-expect-error unsupported {prefix: null} type
+		globalThis.ky(`${url}/api/unicorn`, {prefix: null}).text(),
+		globalThis.ky('api/unicorn', {prefix: url}).text(),
+		globalThis.ky('api/unicorn', {prefix: `${url}/`}).text(),
 	]), server.url);
 
 	t.deepEqual(results, ['rainbow', 'rainbow', 'rainbow', 'rainbow']);

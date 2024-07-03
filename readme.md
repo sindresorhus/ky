@@ -139,7 +139,7 @@ Type: `string` | `URL` | `Request`
 
 Same as [`fetch` input](https://developer.mozilla.org/en-US/docs/Web/API/Request/Request#input).
 
-When using a [`Request`](https://developer.mozilla.org/en-US/docs/Web/API/Request) instance as `input`, any URL altering options (such as `prefixUrl`) will be ignored.
+When using a [`Request`](https://developer.mozilla.org/en-US/docs/Web/API/Request) instance as `input`, any URL altering options (such as `prefix`) will be ignored.
 
 #### options
 
@@ -173,7 +173,7 @@ Accepts any value supported by [`URLSearchParams()`](https://developer.mozilla.o
 
 When passing an object, `undefined` values are automatically filtered out, while `null` values are preserved and converted to the string `'null'`.
 
-##### prefixUrl
+##### prefix
 
 Type: `string | URL`
 
@@ -186,16 +186,16 @@ import ky from 'ky';
 
 // On https://example.com
 
-const response = await ky('unicorn', {prefixUrl: '/api'});
+const response = await ky('unicorn', {startPath: '/api'});
 //=> 'https://example.com/api/unicorn'
 
-const response2 = await ky('unicorn', {prefixUrl: 'https://cats.com'});
+const response2 = await ky('unicorn', {startPath: 'https://cats.com'});
 //=> 'https://cats.com/unicorn'
 ```
 
 Notes:
- - After `prefixUrl` and `input` are joined, the result is resolved against the [base URL](https://developer.mozilla.org/en-US/docs/Web/API/Node/baseURI) of the page (if any).
- - Leading slashes in `input` are disallowed when using this option to enforce consistency and avoid confusion about how the `input` URL is handled, given that `input` will not follow the normal URL resolution rules when `prefixUrl` is being used, which changes the meaning of a leading slash.
+ - After `startPath` and `input` are joined, the result is resolved against the [base URL](https://developer.mozilla.org/en-US/docs/Web/API/Node/baseURI) of the page (if any).
+ - Leading slashes in `input` are disallowed when using this option to enforce consistency and avoid confusion about how the `input` URL is handled, given that `input` will not follow the normal URL resolution rules when `startPath` is being used, which changes the meaning of a leading slash.
 
 ##### retry
 
@@ -828,12 +828,12 @@ import ky from 'ky';
 
 // On https://my-site.com
 
-const api = ky.create({prefixUrl: 'https://example.com/api'});
+const api = ky.create({startPath: 'https://example.com/api'});
 
 const response = await api.get('users/123');
 //=> 'https://example.com/api/users/123'
 
-const response = await api.get('/status', {prefixUrl: ''});
+const response = await api.get('/status', {startPath: ''});
 //=> 'https://my-site.com/status'
 ```
 

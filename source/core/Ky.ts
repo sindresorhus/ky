@@ -261,7 +261,7 @@ export class Ky {
 			),
 			method: normalizeRequestMethod(options.method ?? (this.#input as Request).method ?? 'GET'),
 			// eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing
-			prefixUrl: String(options.prefixUrl || ''),
+			startPath: String(options.startPath || ''),
 			retry: normalizeRetryOptions(options.retry),
 			throwHttpErrors: options.throwHttpErrors ?? true,
 			timeout: options.timeout ?? 10_000,
@@ -273,16 +273,16 @@ export class Ky {
 			throw new TypeError('`input` must be a string, URL, or Request');
 		}
 
-		if (this.#options.prefixUrl && typeof this.#input === 'string') {
+		if (this.#options.prefix && typeof this.#input === 'string') {
 			if (this.#input.startsWith('/')) {
 				throw new Error('`input` must not begin with a slash when using `prefixUrl`');
 			}
 
-			if (!this.#options.prefixUrl.endsWith('/')) {
-				this.#options.prefixUrl += '/';
+			if (!this.#options.prefix.endsWith('/')) {
+				this.#options.prefix += '/';
 			}
 
-			this.#input = this.#options.prefixUrl + this.#input;
+			this.#input = this.#options.prefix + this.#input;
 		}
 
 		if (supportsAbortController && supportsAbortSignal) {
