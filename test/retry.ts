@@ -25,6 +25,7 @@ test('network error', async t => {
 	});
 
 	t.is(await ky(server.url).text(), fixture);
+	t.is(requestCount, defaultRetryCount + 1);
 
 	await server.close();
 });
@@ -44,6 +45,7 @@ test('status code 500', async t => {
 	});
 
 	t.is(await ky(server.url).text(), fixture);
+	t.is(requestCount, defaultRetryCount + 1);
 
 	await server.close();
 });
@@ -63,6 +65,7 @@ test('only on defined status codes', async t => {
 	});
 
 	await t.throwsAsync(ky(server.url).text(), {message: /Bad Request/});
+	t.is(requestCount, 1);
 
 	await server.close();
 });
@@ -84,6 +87,7 @@ test('not on POST', async t => {
 	await t.throwsAsync(ky.post(server.url).text(), {
 		message: /Internal Server Error/,
 	});
+	t.is(requestCount, 1);
 
 	await server.close();
 });
@@ -141,6 +145,7 @@ test('respect 413 Retry-After', async t => {
 
 	const result = await ky(server.url).text();
 	t.true(Number(result) >= retryAfterOn413 * 1000);
+	t.is(requestCount, retryAfterOn413 + 1);
 
 	await server.close();
 });
@@ -165,7 +170,7 @@ test('respect 413 Retry-After with timestamp', async t => {
 
 	const result = await ky(server.url).text();
 	t.true(Number(result) >= retryAfterOn413 * 1000);
-	t.is(requestCount, 3);
+	t.is(requestCount, retryAfterOn413 + 1);
 
 	await server.close();
 });
@@ -206,6 +211,7 @@ test('respect custom `afterStatusCodes` (500) with Retry-After header', async t 
 
 	const result = await ky(server.url, {retry: {afterStatusCodes: [500]}}).text();
 	t.true(Number(result) >= retryAfterOn500 * 1000);
+	t.is(requestCount, retryAfterOn500 + 1);
 
 	await server.close();
 });
@@ -274,7 +280,7 @@ test('respect retry methods', async t => {
 			message: /Request Timeout/,
 		},
 	);
-	t.is(requestCount, 3);
+	t.is(requestCount, defaultRetryCount + 1);
 
 	await server.close();
 });
