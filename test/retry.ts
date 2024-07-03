@@ -7,8 +7,6 @@ const fixture = 'fixture';
 const defaultRetryCount = 2;
 const retryAfterOn500 = 2;
 const retryAfterOn413 = 2;
-const lastTried500access = Date.now();
-const lastTried413access = Date.now();
 
 test('network error', async t => {
 	let requestCount = 0;
@@ -127,6 +125,7 @@ test('respect Retry-After: 0 and retry immediately', async t => {
 });
 
 test('respect 413 Retry-After', async t => {
+	const startTime = Date.now();
 	let requestCount = 0;
 
 	const server = await createHttpTestServer();
@@ -134,7 +133,7 @@ test('respect 413 Retry-After', async t => {
 		requestCount++;
 
 		if (requestCount === defaultRetryCount + 1) {
-			response.end((Date.now() - lastTried413access).toString());
+			response.end((Date.now() - startTime).toString());
 		} else {
 			response.writeHead(413, {
 				'Retry-After': retryAfterOn413,
@@ -143,21 +142,22 @@ test('respect 413 Retry-After', async t => {
 		}
 	});
 
-	const result = await ky(server.url).text();
-	t.true(Number(result) >= retryAfterOn413 * 1000);
+	const timeElapsedInMs = Number(await ky(server.url).text());
+	t.true(timeElapsedInMs >= retryAfterOn413 * 1000);
 	t.is(requestCount, retryAfterOn413 + 1);
 
 	await server.close();
 });
 
 test('respect 413 Retry-After with timestamp', async t => {
+	const startTime = Date.now();
 	let requestCount = 0;
 
 	const server = await createHttpTestServer({bodyParser: false});
 	server.get('/', (_request, response) => {
 		requestCount++;
 		if (requestCount === defaultRetryCount + 1) {
-			response.end((Date.now() - lastTried413access).toString());
+			response.end((Date.now() - startTime).toString());
 		} else {
 			// @NOTE we need to round up to the next second due to http-date resolution
 			const date = new Date(Date.now() + ((retryAfterOn413 + 1) * 1000)).toUTCString();
@@ -168,8 +168,8 @@ test('respect 413 Retry-After with timestamp', async t => {
 		}
 	});
 
-	const result = await ky(server.url).text();
-	t.true(Number(result) >= retryAfterOn413 * 1000);
+	const timeElapsedInMs = Number(await ky(server.url).text());
+	t.true(timeElapsedInMs >= retryAfterOn413 * 1000);
 	t.is(requestCount, retryAfterOn413 + 1);
 
 	await server.close();
@@ -193,6 +193,7 @@ test('doesn\'t retry on 413 without Retry-After header', async t => {
 });
 
 test('respect custom `afterStatusCodes` (500) with Retry-After header', async t => {
+	const startTime = Date.now();
 	let requestCount = 0;
 
 	const server = await createHttpTestServer();
@@ -200,7 +201,7 @@ test('respect custom `afterStatusCodes` (500) with Retry-After header', async t 
 		requestCount++;
 
 		if (requestCount === defaultRetryCount + 1) {
-			response.end((Date.now() - lastTried500access).toString());
+			response.end((Date.now() - startTime).toString());
 		} else {
 			response.writeHead(500, {
 				'Retry-After': retryAfterOn500,
@@ -209,8 +210,8 @@ test('respect custom `afterStatusCodes` (500) with Retry-After header', async t 
 		}
 	});
 
-	const result = await ky(server.url, {retry: {afterStatusCodes: [500]}}).text();
-	t.true(Number(result) >= retryAfterOn500 * 1000);
+	const timeElapsedInMs = Number(await ky(server.url, {retry: {afterStatusCodes: [500]}}).text());
+	t.true(timeElapsedInMs >= retryAfterOn500 * 1000);
 	t.is(requestCount, retryAfterOn500 + 1);
 
 	await server.close();
