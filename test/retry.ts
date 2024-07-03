@@ -205,7 +205,6 @@ test('respect custom `afterStatusCodes` (500) with Retry-After header', async t 
 	});
 
 	const result = await ky(server.url, {retry: {afterStatusCodes: [500]}}).text();
-	console.log(result);
 	t.true(Number(result) >= retryAfterOn500 * 1000);
 
 	await server.close();
