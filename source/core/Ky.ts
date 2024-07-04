@@ -1,7 +1,9 @@
 import {HTTPError} from '../errors/HTTPError.js';
 import {TimeoutError} from '../errors/TimeoutError.js';
 import type {Hooks} from '../types/hooks.js';
-import type {Input, InternalOptions, NormalizedOptions, Options, SearchParamsInit} from '../types/options.js';
+import type {
+	Input, InternalOptions, NormalizedOptions, Options, SearchParamsInit,
+} from '../types/options.js';
 import {type ResponsePromise} from '../types/ResponsePromise.js';
 import {deepMerge, mergeHeaders} from '../utils/merge.js';
 import {normalizeRequestMethod, normalizeRetryOptions} from '../utils/normalize.js';
@@ -137,9 +139,9 @@ export class Ky {
 				options.hooks,
 			),
 			method: normalizeRequestMethod(options.method ?? (this._input as Request).method),
+			retry: normalizeRetryOptions(options.retry),
 			// eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing
 			startPath: String(options.startPath || ''),
-			retry: normalizeRetryOptions(options.retry),
 			throwHttpErrors: options.throwHttpErrors !== false,
 			timeout: options.timeout ?? 10_000,
 			fetch: options.fetch ?? globalThis.fetch.bind(globalThis),
@@ -149,16 +151,22 @@ export class Ky {
 			throw new TypeError('`input` must be a string, URL, or Request');
 		}
 
-		if (this._options.startPath && typeof this._input === 'string') {
-			if (this._input.startsWith('/')) {
-				throw new Error('`input` must not begin with a slash when using `startPath`');
+		if (typeof this._input === 'string') {
+			if (this._options.startPath) {
+				if (!this._options.startPath.endsWith('/')) {
+					this._options.startPath += '/';
+				}
+
+				if (this._input.startsWith('/')) {
+					this._input = this._input.slice(1);
+				}
+
+				this._input = this._options.startPath + this._input;
 			}
 
-			if (!this._options.startPath.endsWith('/')) {
-				this._options.startPath += '/';
+			if (this._options.baseUrl) {
+				this._input = new URL(this._input, (new Request(options.baseUrl)).url);
 			}
-
-			this._input = this._options.startPath + this._input;
 		}
 
 		if (supportsAbortController) {
