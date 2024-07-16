@@ -582,6 +582,31 @@ test('ky.extend()', async t => {
 	await server.close();
 });
 
+test('ky.extend() with function', async t => {
+	const server = await createHttpTestServer();
+	server.get('*', (request, response) => {
+		response.end(request.url);
+	});
+
+	const api = ky.create({prefixUrl: `${server.url}/api`});
+	const usersApi = api.extend(options => ({prefixUrl: `${options.prefixUrl!.toString()}/users`}));
+
+	t.is(await usersApi.get('123').text(), '/api/users/123');
+	t.is(await api.get('version').text(), '/api/version');
+
+	{
+		const {ok} = await api.head(server.url);
+		t.true(ok);
+	}
+
+	{
+		const {ok} = await usersApi.head(server.url);
+		t.true(ok);
+	}
+
+	await server.close();
+});
+
 test('throws DOMException/Error with name AbortError when aborted by user', async t => {
 	const server = await createHttpTestServer();
 	// eslint-disable-next-line @typescript-eslint/no-empty-function

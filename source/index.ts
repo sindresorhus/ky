@@ -17,7 +17,14 @@ const createInstance = (defaults?: Partial<Options>): KyInstance => {
 	}
 
 	ky.create = (newDefaults?: Partial<Options>) => createInstance(validateAndMerge(newDefaults));
-	ky.extend = (newDefaults?: Partial<Options>) => createInstance(validateAndMerge(defaults, newDefaults));
+	ky.extend = (newDefaults?: Partial<Options> | ((parentDefaults: Partial<Options>) => Partial<Options>)) => {
+		if (typeof newDefaults === 'function') {
+			newDefaults = newDefaults(defaults ?? {});
+		}
+
+		return createInstance(validateAndMerge(defaults, newDefaults));
+	};
+
 	ky.stop = stop;
 
 	return ky as KyInstance;

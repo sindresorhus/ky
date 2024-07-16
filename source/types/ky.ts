@@ -83,7 +83,7 @@ export type KyInstance = {
 
 	@returns A new Ky instance.
 	*/
-	extend: (defaultOptions: Options) => KyInstance;
+	extend: (defaultOptions: Options | ((parentOptions: Options) => Options)) => KyInstance;
 
 	/**
 	A `Symbol` that can be returned by a `beforeRetry` hook to stop the retry. This will also short circuit the remaining `beforeRetry` hooks.
