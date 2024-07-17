@@ -542,7 +542,7 @@ test('ky.create() does not mangle search params', async t => {
 	await server.close();
 });
 
-test('ky.extend()', async t => {
+const extendHooksMacro = test.macro<[{useFunction: boolean}]>(async (t, {useFunction}) => {
 	const server = await createHttpTestServer();
 	server.get('/', (_request, response) => {
 		response.end();
@@ -551,25 +551,28 @@ test('ky.extend()', async t => {
 	let isOriginBeforeRequestTrigged = false;
 	let isExtendBeforeRequestTrigged = false;
 
+	const intermediateOptions = {
+		hooks: {
+			beforeRequest: [
+				() => {
+					isOriginBeforeRequestTrigged = true;
+				},
+			],
+		},
+	};
+	const extendedOptions = {
+		hooks: {
+			beforeRequest: [
+				() => {
+					isExtendBeforeRequestTrigged = true;
+				},
+			],
+		},
+	};
+
 	const extended = ky
-		.extend({
-			hooks: {
-				beforeRequest: [
-					() => {
-						isOriginBeforeRequestTrigged = true;
-					},
-				],
-			},
-		})
-		.extend({
-			hooks: {
-				beforeRequest: [
-					() => {
-						isExtendBeforeRequestTrigged = true;
-					},
-				],
-			},
-		});
+		.extend(useFunction ? () => intermediateOptions : intermediateOptions)
+		.extend(useFunction ? () => extendedOptions : extendedOptions);
 
 	await extended(server.url);
 
@@ -582,7 +585,11 @@ test('ky.extend()', async t => {
 	await server.close();
 });
 
-test('ky.extend() with function', async t => {
+test('ky.extend() appends hooks', extendHooksMacro, {useFunction: false});
+
+test('ky.extend() with function appends hooks', extendHooksMacro, {useFunction: false});
+
+test('ky.extend() with function overrides primitives in parent defaults', async t => {
 	const server = await createHttpTestServer();
 	server.get('*', (request, response) => {
 		response.end(request.url);
@@ -601,6 +608,31 @@ test('ky.extend() with function', async t => {
 
 	{
 		const {ok} = await usersApi.head(server.url);
+		t.true(ok);
+	}
+
+	await server.close();
+});
+
+test('ky.extend() with function retains parent defaults when not specified', async t => {
+	const server = await createHttpTestServer();
+	server.get('*', (request, response) => {
+		response.end(request.url);
+	});
+
+	const api = ky.create({prefixUrl: `${server.url}/api`});
+	const extendedApi = api.extend(() => ({}));
+
+	t.is(await api.get('version').text(), '/api/version');
+	t.is(await extendedApi.get('something').text(), '/api/something');
+
+	{
+		const {ok} = await api.head(server.url);
+		t.true(ok);
+	}
+
+	{
+		const {ok} = await extendedApi.head(server.url);
 		t.true(ok);
 	}
 
