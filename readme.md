@@ -51,12 +51,12 @@
 	<br>
 </div>
 
-> Ky is a tiny and elegant HTTP client based on the browser [Fetch API](https://developer.mozilla.org/en-US/docs/Web/API/WindowOrWorkerGlobalScope/fetch)
+> Ky is a tiny and elegant HTTP client based on the [Fetch API](https://developer.mozilla.org/en-US/docs/Web/API/WindowOrWorkerGlobalScope/fetch)
 
 [![Coverage Status](https://codecov.io/gh/sindresorhus/ky/branch/main/graph/badge.svg)](https://codecov.io/gh/sindresorhus/ky)
 [![](https://badgen.net/bundlephobia/minzip/ky)](https://bundlephobia.com/result?p=ky)
 
-Ky targets [modern browsers](#browser-support), Node.js, and Deno.
+Ky targets [modern browsers](#browser-support), Node.js, Bun, and Deno.
 
 It's just a tiny package with no dependencies.
 
@@ -705,7 +705,7 @@ import ky from 'https://unpkg.com/ky/distribution/index.js';
 const json = await ky('https://jsonplaceholder.typicode.com/todos/1').json();
 
 console.log(json.title);
-//=> 'delectus aut autem
+//=> 'delectus aut autem'
 </script>
 ```
 
@@ -737,6 +737,7 @@ Node.js 18 and later.
 
 ## Related
 
+- [fetch-extras](https://github.com/sindresorhus/fetch-extras) - Useful utilities for working with Fetch
 - [got](https://github.com/sindresorhus/got) - Simplified HTTP requests for Node.js
 - [ky-hooks-change-case](https://github.com/alice-health/ky-hooks-change-case) - Ky hooks to modify cases on requests and responses of objects
 

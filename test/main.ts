@@ -705,8 +705,10 @@ test('options override Request instance body', async t => {
 	});
 
 	server.post('/', (request, response) => {
+		// eslint-disable-next-line @typescript-eslint/ban-types
 		const body: Buffer[] = [];
 
+		// eslint-disable-next-line @typescript-eslint/ban-types
 		request.on('data', (chunk: Buffer) => {
 			body.push(chunk);
 		});

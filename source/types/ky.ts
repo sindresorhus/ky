@@ -84,7 +84,7 @@ export type KyInstance = {
 	You can also refer to parent defaults by providing a function to `.extend()`.
 
 	@example
-	```js
+	```
 	import ky from 'ky';
 
 	const api = ky.create({prefixUrl: 'https://example.com/api'});
