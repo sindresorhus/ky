@@ -71,6 +71,7 @@ It's just a tiny file with no dependencies.
 - URL prefix option
 - Instances with custom defaults
 - Hooks
+- TypeScript niceties (e.g. `.json()` resolves to `unknown`, not `any`; `.json<T>()` can be used too)
 
 ## Install
 
