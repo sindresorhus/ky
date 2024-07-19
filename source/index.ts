@@ -48,6 +48,7 @@ export type {
 } from './types/hooks.js';
 
 export type {ResponsePromise} from './types/ResponsePromise.js';
+export type {KyRequest} from './types/request.js';
 export type {KyResponse} from './types/response.js';
 export {HTTPError} from './errors/HTTPError.js';
 export {TimeoutError} from './errors/TimeoutError.js';

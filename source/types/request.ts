@@ -59,3 +59,7 @@ type UndiciRequestInit = {
 type CombinedRequestInit = globalThis.RequestInit & UndiciRequestInit;
 
 export type RequestInitRegistry = {[K in keyof CombinedRequestInit]-?: true};
+
+export type KyRequest = {
+	json: <T = unknown>() => Promise<T>;
+} & Request;

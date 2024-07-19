@@ -652,7 +652,7 @@ test('beforeError can return promise which resolves to HTTPError', async t => {
 				beforeError: [
 					async (error: HTTPError) => {
 						const {response} = error;
-						const body = await response.json() as {reason: string};
+						const body = await response.json<{reason: string}>();
 
 						if (response?.body) {
 							error.name = 'GitHubError';

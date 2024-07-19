@@ -1,14 +1,14 @@
 import {type stop} from '../core/constants.js';
-import {type HTTPError} from '../index.js';
+import type {KyRequest, KyResponse, HTTPError} from '../index.js';
 import type {NormalizedOptions} from './options.js';
 
 export type BeforeRequestHook = (
-	request: Request,
+	request: KyRequest,
 	options: NormalizedOptions
 ) => Request | Response | void | Promise<Request | Response | void>;
 
 export type BeforeRetryState = {
-	request: Request;
+	request: KyRequest;
 	options: NormalizedOptions;
 	error: Error;
 	retryCount: number;
@@ -16,9 +16,9 @@ export type BeforeRetryState = {
 export type BeforeRetryHook = (options: BeforeRetryState) => typeof stop | void | Promise<typeof stop | void>;
 
 export type AfterResponseHook = (
-	request: Request,
+	request: KyRequest,
 	options: NormalizedOptions,
-	response: Response
+	response: KyResponse
 ) => Response | void | Promise<Response | void>;
 
 export type BeforeErrorHook = (error: HTTPError) => HTTPError | Promise<HTTPError>;
