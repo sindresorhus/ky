@@ -81,6 +81,23 @@ export type KyInstance = {
 
 	In contrast to `ky.create()`, `ky.extend()` inherits defaults from its parent.
 
+	You can also refer to parent defaults by providing a function to `.extend()`.
+
+	@example
+	```js
+	import ky from 'ky';
+
+	const api = ky.create({prefixUrl: 'https://example.com/api'});
+
+	const usersApi = api.extend((options) => ({prefixUrl: `${options.prefixUrl}/users`}));
+
+	const response = await usersApi.get('123');
+	//=> 'https://example.com/api/users/123'
+
+	const response = await api.get('version');
+	//=> 'https://example.com/api/version'
+	```
+
 	@returns A new Ky instance.
 	*/
 	extend: (defaultOptions: Options | ((parentOptions: Options) => Options)) => KyInstance;
