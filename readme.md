@@ -58,7 +58,7 @@
 
 Ky targets [modern browsers](#browser-support), Node.js, and Deno.
 
-It's just a tiny file with no dependencies.
+It's just a tiny package with no dependencies.
 
 ## Benefits over plain `fetch`
 
