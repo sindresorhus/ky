@@ -29,7 +29,7 @@ export const mergeHeaders = (source1: KyHeadersInit = {}, source2: KyHeadersInit
 };
 
 function newHookValue<K extends keyof Hooks>(original: Hooks, incoming: Hooks, property: K): Required<Hooks>[K] {
-	return (Object.prototype.hasOwnProperty.call(incoming, property) && incoming[property] === undefined)
+	return (Object.hasOwn(incoming, property) && incoming[property] === undefined)
 		? []
 		: deepMerge<Required<Hooks>[K]>(original[property] ?? [], incoming[property] ?? []);
 }

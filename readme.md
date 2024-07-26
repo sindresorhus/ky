@@ -51,14 +51,14 @@
 	<br>
 </div>
 
-> Ky is a tiny and elegant HTTP client based on the browser [Fetch API](https://developer.mozilla.org/en-US/docs/Web/API/WindowOrWorkerGlobalScope/fetch)
+> Ky is a tiny and elegant HTTP client based on the [Fetch API](https://developer.mozilla.org/en-US/docs/Web/API/WindowOrWorkerGlobalScope/fetch)
 
 [![Coverage Status](https://codecov.io/gh/sindresorhus/ky/branch/main/graph/badge.svg)](https://codecov.io/gh/sindresorhus/ky)
 [![](https://badgen.net/bundlephobia/minzip/ky)](https://bundlephobia.com/result?p=ky)
 
-Ky targets [modern browsers](#browser-support), Node.js, and Deno.
+Ky targets [modern browsers](#browser-support), Node.js, Bun, and Deno.
 
-It's just a tiny file with no dependencies.
+It's just a tiny package with no dependencies.
 
 ## Benefits over plain `fetch`
 
@@ -71,6 +71,7 @@ It's just a tiny file with no dependencies.
 - URL prefix option
 - Instances with custom defaults
 - Hooks
+- TypeScript niceties (e.g. `.json()` resolves to `unknown`, not `any`; `.json<T>()` can be used too)
 
 ## Install
 
@@ -212,15 +213,18 @@ Default:
 - `limit`: `2`
 - `methods`: `get` `put` `head` `delete` `options` `trace`
 - `statusCodes`: [`408`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/408) [`413`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/413) [`429`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/429) [`500`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/500) [`502`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/502) [`503`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/503) [`504`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/504)
+- `afterStatusCodes`: [`413`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/413), [`429`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/429), [`503`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/503)
 - `maxRetryAfter`: `undefined`
 - `backoffLimit`: `undefined`
 - `delay`: `attemptCount => 0.3 * (2 ** (attemptCount - 1)) * 1000`
 
-An object representing `limit`, `methods`, `statusCodes` and `maxRetryAfter` fields for maximum retry count, allowed methods, allowed status codes and maximum [`Retry-After`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Retry-After) time.
+An object representing `limit`, `methods`, `statusCodes`, `afterStatusCodes`, and `maxRetryAfter` fields for maximum retry count, allowed methods, allowed status codes, status codes allowed to use the [`Retry-After`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Retry-After) time, and maximum [`Retry-After`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Retry-After) time.
 
 If `retry` is a number, it will be used as `limit` and other defaults will remain in place.
 
-If `maxRetryAfter` is set to `undefined`, it will use `options.timeout`. If [`Retry-After`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Retry-After) header is greater than `maxRetryAfter`, it will cancel the request.
+If the response provides an HTTP status contained in `afterStatusCodes`, Ky will wait until the date or timeout given in the [`Retry-After`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Retry-After) header has passed to retry the request. If the provided status code is not in the list, the [`Retry-After`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Retry-After) header will be ignored.
+
+If `maxRetryAfter` is set to `undefined`, it will use `options.timeout`. If [`Retry-After`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Retry-After) header is greater than `maxRetryAfter`, it will use `maxRetryAfter`.
 
 The `backoffLimit` option is the upper limit of the delay per retry in milliseconds.
 To clamp the delay, set `backoffLimit` to 1000, for example.
@@ -522,6 +526,22 @@ console.log('unicorn' in response);
 //=> true
 ```
 
+You can also refer to parent defaults by providing a function to `.extend()`.
+
+```js
+import ky from 'ky';
+
+const api = ky.create({prefixUrl: 'https://example.com/api'});
+
+const usersApi = api.extend((options) => ({prefixUrl: `${options.prefixUrl}/users`}));
+
+const response = await usersApi.get('123');
+//=> 'https://example.com/api/users/123'
+
+const response = await api.get('version');
+//=> 'https://example.com/api/version'
+```
+
 ### ky.create(defaultOptions)
 
 Create a new Ky instance with complete new defaults.
@@ -697,7 +717,7 @@ import ky from 'https://unpkg.com/ky/distribution/index.js';
 const json = await ky('https://jsonplaceholder.typicode.com/todos/1').json();
 
 console.log(json.title);
-//=> 'delectus aut autem
+//=> 'delectus aut autem'
 </script>
 ```
 
@@ -729,6 +749,7 @@ Node.js 18 and later.
 
 ## Related
 
+- [fetch-extras](https://github.com/sindresorhus/fetch-extras) - Useful utilities for working with Fetch
 - [got](https://github.com/sindresorhus/got) - Simplified HTTP requests for Node.js
 - [ky-hooks-change-case](https://github.com/alice-health/ky-hooks-change-case) - Ky hooks to modify cases on requests and responses of objects
 

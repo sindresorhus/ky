@@ -1,6 +1,12 @@
 import process from 'node:process';
 import test, {type ExecutionContext} from 'ava';
-import {chromium, firefox, webkit, type BrowserType, type Page} from 'playwright';
+import {
+	chromium,
+	firefox,
+	webkit,
+	type BrowserType,
+	type Page,
+} from 'playwright';
 
 type Run = (t: ExecutionContext, page: Page) => Promise<void>;
 

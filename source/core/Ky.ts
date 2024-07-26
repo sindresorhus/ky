@@ -1,6 +1,12 @@
 import {HTTPError} from '../errors/HTTPError.js';
 import {TimeoutError} from '../errors/TimeoutError.js';
-import type {Input, InternalOptions, NormalizedOptions, Options, SearchParamsInit} from '../types/options.js';
+import type {
+	Input,
+	InternalOptions,
+	NormalizedOptions,
+	Options,
+	SearchParamsInit,
+} from '../types/options.js';
 import {type ResponsePromise} from '../types/ResponsePromise.js';
 import {mergeHeaders, mergeHooks} from '../utils/merge.js';
 import {normalizeRequestMethod, normalizeRetryOptions} from '../utils/normalize.js';
@@ -178,6 +184,11 @@ export class Ky {
 			this._options.duplex = 'half';
 		}
 
+		if (this._options.json !== undefined) {
+			this._options.body = this._options.stringifyJson?.(this._options.json) ?? JSON.stringify(this._options.json);
+			this._options.headers.set('content-type', this._options.headers.get('content-type') ?? 'application/json');
+		}
+
 		this.request = new globalThis.Request(this._input, this._options);
 
 		if (this._options.searchParams) {
@@ -200,49 +211,38 @@ export class Ky {
 			// The spread of `this.request` is required as otherwise it misses the `duplex` option for some reason and throws.
 			this.request = new globalThis.Request(new globalThis.Request(url, {...this.request}), this._options as RequestInit);
 		}
-
-		if (this._options.json !== undefined) {
-			this._options.body = this._options.stringifyJson?.(this._options.json) ?? JSON.stringify(this._options.json);
-			this.request.headers.set('content-type', this._options.headers.get('content-type') ?? 'application/json');
-			this.request = new globalThis.Request(this.request, {body: this._options.body});
-		}
 	}
 
 	protected _calculateRetryDelay(error: unknown) {
 		this._retryCount++;
 
-		if (this._retryCount <= this._options.retry.limit && !(error instanceof TimeoutError)) {
-			if (error instanceof HTTPError) {
-				if (!this._options.retry.statusCodes.includes(error.response.status)) {
-					return 0;
-				}
-
-				const retryAfter = error.response.headers.get('Retry-After');
-				if (retryAfter && this._options.retry.afterStatusCodes.includes(error.response.status)) {
-					let after = Number(retryAfter);
-					if (Number.isNaN(after)) {
-						after = Date.parse(retryAfter) - Date.now();
-					} else {
-						after *= 1000;
-					}
-
-					if (this._options.retry.maxRetryAfter !== undefined && after > this._options.retry.maxRetryAfter) {
-						return 0;
-					}
-
-					return after;
-				}
-
-				if (error.response.status === 413) {
-					return 0;
-				}
-			}
-
-			const retryDelay = this._options.retry.delay(this._retryCount);
-			return Math.min(this._options.retry.backoffLimit, retryDelay);
+		if (this._retryCount > this._options.retry.limit || error instanceof TimeoutError) {
+			throw error;
 		}
 
-		return 0;
+		if (error instanceof HTTPError) {
+			if (!this._options.retry.statusCodes.includes(error.response.status)) {
+				throw error;
+			}
+
+			const retryAfter = error.response.headers.get('Retry-After');
+			if (retryAfter && this._options.retry.afterStatusCodes.includes(error.response.status)) {
+				let after = Number(retryAfter) * 1000;
+				if (Number.isNaN(after)) {
+					after = Date.parse(retryAfter) - Date.now();
+				}
+
+				const max = this._options.retry.maxRetryAfter ?? after;
+				return after < max ? after : max;
+			}
+
+			if (error.response.status === 413) {
+				throw error;
+			}
+		}
+
+		const retryDelay = this._options.retry.delay(this._retryCount);
+		return Math.min(this._options.retry.backoffLimit, retryDelay);
 	}
 
 	protected _decorateResponse(response: Response): Response {
@@ -258,28 +258,28 @@ export class Ky {
 			return await function_();
 		} catch (error) {
 			const ms = Math.min(this._calculateRetryDelay(error), maxSafeTimeout);
-			if (ms !== 0 && this._retryCount > 0) {
-				await delay(ms, {signal: this._options.signal});
-
-				for (const hook of this._options.hooks.beforeRetry) {
-					// eslint-disable-next-line no-await-in-loop
-					const hookResult = await hook({
-						request: this.request,
-						options: (this._options as unknown) as NormalizedOptions,
-						error: error as Error,
-						retryCount: this._retryCount,
-					});
-
-					// If `stop` is returned from the hook, the retry process is stopped
-					if (hookResult === stop) {
-						return;
-					}
-				}
-
-				return this._retry(function_);
+			if (this._retryCount < 1) {
+				throw error;
 			}
 
-			throw error;
+			await delay(ms, {signal: this._options.signal});
+
+			for (const hook of this._options.hooks.beforeRetry) {
+				// eslint-disable-next-line no-await-in-loop
+				const hookResult = await hook({
+					request: this.request,
+					options: (this._options as unknown) as NormalizedOptions,
+					error: error as Error,
+					retryCount: this._retryCount,
+				});
+
+				// If `stop` is returned from the hook, the retry process is stopped
+				if (hookResult === stop) {
+					return;
+				}
+			}
+
+			return this._retry(function_);
 		}
 	}
 
@@ -300,11 +300,15 @@ export class Ky {
 
 		const nonRequestOptions = findUnknownOptions(this.request, this._options);
 
+		// Cloning is done here to prepare in advance for retries
+		const mainRequest = this.request;
+		this.request = mainRequest.clone();
+
 		if (this._options.timeout === false) {
-			return this._options.fetch(this.request.clone(), nonRequestOptions);
+			return this._options.fetch(mainRequest, nonRequestOptions);
 		}
 
-		return timeout(this.request.clone(), nonRequestOptions, this.abortController, this._options as TimeoutOptions);
+		return timeout(mainRequest, nonRequestOptions, this.abortController, this._options as TimeoutOptions);
 	}
 
 	/* istanbul ignore next */
