@@ -129,8 +129,11 @@ export class Ky {
 				? this._input.credentials
 				: undefined;
 
+		const signal = this._input instanceof Request ? this._input.signal : undefined;
+
 		this._options = {
 			...(credentials && {credentials}), // For exactOptionalPropertyTypes
+			...(signal && {signal}), // For exactOptionalPropertyTypes
 			...options,
 			headers: mergeHeaders((this._input as Request).headers, options.headers),
 			hooks: deepMerge<Required<Hooks>>(
