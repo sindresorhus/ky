@@ -129,11 +129,8 @@ export class Ky {
 				? this._input.credentials
 				: undefined;
 
-		const signal = this._input instanceof Request ? this._input.signal : undefined;
-
 		this._options = {
 			...(credentials && {credentials}), // For exactOptionalPropertyTypes
-			...(signal && {signal}), // For exactOptionalPropertyTypes
 			...options,
 			headers: mergeHeaders((this._input as Request).headers, options.headers),
 			hooks: deepMerge<Required<Hooks>>(
@@ -172,10 +169,9 @@ export class Ky {
 
 		if (supportsAbortController) {
 			this.abortController = new globalThis.AbortController();
-			if (this._options.signal) {
-				const originalSignal = this._options.signal;
-
-				this._options.signal.addEventListener('abort', () => {
+			const originalSignal = this._options.signal || (this._input as Request).signal;
+			if (originalSignal) {
+				originalSignal.addEventListener('abort', () => {
 					this.abortController!.abort(originalSignal.reason);
 				});
 			}
