@@ -487,6 +487,8 @@ You can pass headers as a `Headers` instance or a plain object.
 You can remove a header with `.extend()` by passing the header with an `undefined` value.
 Passing `undefined` as a string removes the header only if it comes from a `Headers` instance.
 
+Similarly, you can remove existing `hooks` entries by extending the hook with an explicit `undefined`.
+
 ```js
 import ky from 'ky';
 
@@ -496,16 +498,26 @@ const original = ky.create({
 	headers: {
 		rainbow: 'rainbow',
 		unicorn: 'unicorn'
-	}
+	},
+	hooks: {
+		beforeRequest: [ () => console.log('before 1') ],
+		afterResponse: [ () => console.log('after 1') ],
+	},
 });
 
 const extended = original.extend({
 	headers: {
 		rainbow: undefined
+	},
+	hooks: {
+		beforeRequest: undefined,
+		afterResponse: [ () => console.log('after 2') ],
 	}
 });
 
 const response = await extended(url).json();
+//=> after 1
+//=> after 2
 
 console.log('rainbow' in response);
 //=> false

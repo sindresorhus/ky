@@ -500,6 +500,7 @@ test('ky.create() with deep array', async t => {
 
 	let isOriginBeforeRequestTrigged = false;
 	let isExtendBeforeRequestTrigged = false;
+	let isExtendAfterResponseTrigged = false;
 
 	const extended = ky.create({
 		hooks: {
@@ -518,11 +519,17 @@ test('ky.create() with deep array', async t => {
 					isExtendBeforeRequestTrigged = true;
 				},
 			],
+			afterResponse: [
+				() => {
+					isExtendAfterResponseTrigged = true;
+				},
+			],
 		},
 	});
 
 	t.is(isOriginBeforeRequestTrigged, true);
 	t.is(isExtendBeforeRequestTrigged, true);
+	t.is(isExtendAfterResponseTrigged, true);
 
 	const {ok} = await extended.head(server.url);
 	t.true(ok);
@@ -549,6 +556,7 @@ const extendHooksMacro = test.macro<[{useFunction: boolean}]>(async (t, {useFunc
 	});
 
 	let isOriginBeforeRequestTrigged = false;
+	let isOriginAfterResponseTrigged = false;
 	let isExtendBeforeRequestTrigged = false;
 
 	const intermediateOptions = {
@@ -556,6 +564,11 @@ const extendHooksMacro = test.macro<[{useFunction: boolean}]>(async (t, {useFunc
 			beforeRequest: [
 				() => {
 					isOriginBeforeRequestTrigged = true;
+				},
+			],
+			afterResponse: [
+				() => {
+					isOriginAfterResponseTrigged = true;
 				},
 			],
 		},
@@ -577,6 +590,7 @@ const extendHooksMacro = test.macro<[{useFunction: boolean}]>(async (t, {useFunc
 	await extended(server.url);
 
 	t.is(isOriginBeforeRequestTrigged, true);
+	t.is(isOriginAfterResponseTrigged, true);
 	t.is(isExtendBeforeRequestTrigged, true);
 
 	const {ok} = await extended.head(server.url);
@@ -635,6 +649,48 @@ test('ky.extend() with function retains parent defaults when not specified', asy
 		const {ok} = await extendedApi.head(server.url);
 		t.true(ok);
 	}
+
+	await server.close();
+});
+
+test('ky.extend() can remove hooks', async t => {
+	const server = await createHttpTestServer();
+	server.get('/', (_request, response) => {
+		response.end();
+	});
+
+	let isOriginalBeforeRequestTrigged = false;
+	let isOriginalAfterResponseTrigged = false;
+
+	const extended = ky
+		.extend({
+			hooks: {
+				beforeRequest: [
+					() => {
+						isOriginalBeforeRequestTrigged = true;
+					},
+				],
+				afterResponse: [
+					() => {
+						isOriginalAfterResponseTrigged = true;
+					},
+				],
+			},
+		})
+		.extend({
+			hooks: {
+				beforeRequest: undefined,
+				afterResponse: [],
+			},
+		});
+
+	await extended(server.url);
+
+	t.is(isOriginalBeforeRequestTrigged, false);
+	t.is(isOriginalAfterResponseTrigged, true);
+
+	const {ok} = await extended.head(server.url);
+	t.true(ok);
 
 	await server.close();
 });

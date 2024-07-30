@@ -1,6 +1,5 @@
 import {HTTPError} from '../errors/HTTPError.js';
 import {TimeoutError} from '../errors/TimeoutError.js';
-import type {Hooks} from '../types/hooks.js';
 import type {
 	Input,
 	InternalOptions,
@@ -9,7 +8,7 @@ import type {
 	SearchParamsInit,
 } from '../types/options.js';
 import {type ResponsePromise} from '../types/ResponsePromise.js';
-import {deepMerge, mergeHeaders} from '../utils/merge.js';
+import {mergeHeaders, mergeHooks} from '../utils/merge.js';
 import {normalizeRequestMethod, normalizeRetryOptions} from '../utils/normalize.js';
 import timeout, {type TimeoutOptions} from '../utils/timeout.js';
 import delay from '../utils/delay.js';
@@ -133,7 +132,7 @@ export class Ky {
 			...(credentials && {credentials}), // For exactOptionalPropertyTypes
 			...options,
 			headers: mergeHeaders((this._input as Request).headers, options.headers),
-			hooks: deepMerge<Required<Hooks>>(
+			hooks: mergeHooks(
 				{
 					beforeRequest: [],
 					beforeRetry: [],
