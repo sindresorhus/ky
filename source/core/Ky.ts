@@ -168,13 +168,10 @@ export class Ky {
 
 		if (supportsAbortController) {
 			this.abortController = new globalThis.AbortController();
-			if (this._options.signal) {
-				const originalSignal = this._options.signal;
-
-				this._options.signal.addEventListener('abort', () => {
-					this.abortController!.abort(originalSignal.reason);
-				});
-			}
+			const originalSignal = this._options.signal ?? (this._input as Request).signal;
+			originalSignal?.addEventListener('abort', () => {
+				this.abortController!.abort(originalSignal.reason);
+			});
 
 			this._options.signal = this.abortController.signal;
 		}
