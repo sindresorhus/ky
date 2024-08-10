@@ -123,13 +123,8 @@ export class Ky {
 	// eslint-disable-next-line complexity
 	constructor(input: Input, options: Options = {}) {
 		this._input = input;
-		const credentials
-			= this._input instanceof Request && 'credentials' in Request.prototype
-				? this._input.credentials
-				: undefined;
 
 		this._options = {
-			...(credentials && {credentials}), // For exactOptionalPropertyTypes
 			...options,
 			headers: mergeHeaders((this._input as Request).headers, options.headers),
 			hooks: mergeHooks(
