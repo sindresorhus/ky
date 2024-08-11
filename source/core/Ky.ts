@@ -217,7 +217,9 @@ export class Ky {
 				throw error;
 			}
 
-			const retryAfter = error.response.headers.get('Retry-After');
+			const retryAfter = error.response.headers.get('Retry-After')
+				?? error.response.headers.get('RateLimit-Reset')
+				?? error.response.headers.get('X-RateLimit-Reset');
 			if (retryAfter && this._options.retry.afterStatusCodes.includes(error.response.status)) {
 				let after = Number(retryAfter) * 1000;
 				if (Number.isNaN(after)) {
