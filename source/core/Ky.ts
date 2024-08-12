@@ -219,11 +219,15 @@ export class Ky {
 
 			const retryAfter = error.response.headers.get('Retry-After')
 				?? error.response.headers.get('RateLimit-Reset')
-				?? error.response.headers.get('X-RateLimit-Reset');
+				?? error.response.headers.get('X-RateLimit-Reset') // GitHub
+				?? error.response.headers.get('X-Rate-Limit-Reset'); // Twitter
 			if (retryAfter && this._options.retry.afterStatusCodes.includes(error.response.status)) {
 				let after = Number(retryAfter) * 1000;
 				if (Number.isNaN(after)) {
 					after = Date.parse(retryAfter) - Date.now();
+				} else if (after >= Date.parse('2024-01-01')) {
+					// Large numbers are treated as time since the UNIX epoch (fixed threshold protects against clock skew)
+					after -= Date.now();
 				}
 
 				const max = this._options.retry.maxRetryAfter ?? after;
