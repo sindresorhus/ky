@@ -124,6 +124,71 @@ test('respect Retry-After: 0 and retry immediately', async t => {
 	await server.close();
 });
 
+test('RateLimit-Reset is treated the same as Retry-After', async t => {
+	let requestCount = 0;
+
+	const server = await createHttpTestServer();
+	server.get('/', (_request, response) => {
+		requestCount++;
+
+		if (requestCount === defaultRetryCount + 1) {
+			response.end(fixture);
+		} else {
+			const header = (requestCount < 2) ? 'RateLimit-Reset' : 'Retry-After';
+			response.writeHead(429, {
+				[header]: 1,
+			});
+
+			response.end('');
+		}
+	});
+
+	await withPerformance({
+		t,
+		expectedDuration: 1000 + 1000,
+		async test() {
+			t.is(await ky(server.url).text(), fixture);
+		},
+	});
+
+	t.is(requestCount, 3);
+
+	await server.close();
+});
+
+test('RateLimit-Reset with time since epoch', async t => {
+	let requestCount = 0;
+
+	const server = await createHttpTestServer();
+	server.get('/', (_request, response) => {
+		requestCount++;
+
+		if (requestCount === defaultRetryCount + 1) {
+			response.end(fixture);
+		} else {
+			const twoSecondsByDelta = 2;
+			const oneSecondByEpoch = (Date.now() / 1000) + 1;
+			response.writeHead(429, {
+				'RateLimit-Reset': (requestCount < 2) ? twoSecondsByDelta : oneSecondByEpoch,
+			});
+
+			response.end('');
+		}
+	});
+
+	await withPerformance({
+		t,
+		expectedDuration: 2000 + 1000,
+		async test() {
+			t.is(await ky(server.url).text(), fixture);
+		},
+	});
+
+	t.is(requestCount, 3);
+
+	await server.close();
+});
+
 test('respect 413 Retry-After', async t => {
 	const startTime = Date.now();
 	let requestCount = 0;
