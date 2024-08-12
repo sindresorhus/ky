@@ -226,7 +226,7 @@ export class Ky {
 				if (Number.isNaN(after)) {
 					after = Date.parse(retryAfter) - Date.now();
 				} else if (after >= Date.parse('2024-01-01')) {
-					// Large numbers are treated as time since the UNIX epoch (fixed threshold protects against clock skew)
+					// A large number is treated as a timestamp (fixed threshold protects against clock skew)
 					after -= Date.now();
 				}
 
