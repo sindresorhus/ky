@@ -53,7 +53,7 @@ export class Ky {
 			ky._decorateResponse(response);
 
 			if (!response.ok && ky._options.throwHttpErrors) {
-				let error = new HTTPError(response, ky.request, (ky._options as unknown) as NormalizedOptions);
+				let error = new HTTPError(response, ky.request, ky._options as NormalizedOptions);
 
 				for (const hook of ky._options.hooks.beforeError) {
 					// eslint-disable-next-line no-await-in-loop
