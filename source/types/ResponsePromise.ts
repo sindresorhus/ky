@@ -30,7 +30,9 @@ export type ResponsePromise<T = unknown> = {
 		value: number;
 	}
 
-	const result = await ky(…).json<Result>();
+	const result1 = await ky(…).json<Result>();
+	// or
+	const result2 = await ky<Result>(…).json();
 	```
 	*/
 	json: <J = T>() => Promise<J>;
