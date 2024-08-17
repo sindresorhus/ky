@@ -245,7 +245,9 @@ test('.json() when response is chunked', async t => {
 		response.end(']');
 	});
 
-	const responseJson = await ky.get(server.url).json();
+	const responseJson = await ky.get<['one', 'two']>(server.url).json();
+
+	expectTypeOf(responseJson).toEqualTypeOf<['one', 'two']>();
 
 	t.deepEqual(responseJson, ['one', 'two']);
 
@@ -831,7 +833,7 @@ test('parseJson option with response.json()', async t => {
 
 	const responseJson = await response.json<{hello: string; extra: string}>();
 
-	expectTypeOf(responseJson).toMatchTypeOf({hello: 'world', extra: 'extraValue'});
+	expectTypeOf(responseJson).toEqualTypeOf({hello: 'world', extra: 'extraValue'});
 
 	t.deepEqual(responseJson, {
 		...json,

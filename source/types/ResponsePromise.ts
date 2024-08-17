@@ -3,7 +3,7 @@ Returns a `Response` object with `Body` methods added for convenience. So you ca
 */
 import {type KyResponse} from './response.js';
 
-export type ResponsePromise = {
+export type ResponsePromise<T = unknown> = {
 	arrayBuffer: () => Promise<ArrayBuffer>;
 
 	blob: () => Promise<Blob>;
@@ -30,10 +30,12 @@ export type ResponsePromise = {
 		value: number;
 	}
 
-	const result = await ky(…).json<Result>();
+	const result1 = await ky(…).json<Result>();
+	// or
+	const result2 = await ky<Result>(…).json();
 	```
 	*/
-	json: <T = unknown>() => Promise<T>;
+	json: <J = T>() => Promise<J>;
 
 	text: () => Promise<string>;
-} & Promise<KyResponse>;
+} & Promise<KyResponse<T>>;

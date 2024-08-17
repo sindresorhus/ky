@@ -57,7 +57,7 @@ It's just a tiny package with no dependencies.
 - URL prefix option
 - Instances with custom defaults
 - Hooks
-- TypeScript niceties (e.g. `.json()` resolves to `unknown`, not `any`; `.json<T>()` can be used too)
+- TypeScript niceties (e.g. `.json()` supports generics and defaults to `unknown`, not `any`)
 
 ## Install
 
@@ -120,12 +120,32 @@ import ky from 'https://esm.sh/ky';
 
 ### ky(input, options?)
 
-The `input` and `options` are the same as [`fetch`](https://developer.mozilla.org/en-US/docs/Web/API/WindowOrWorkerGlobalScope/fetch), with some exceptions:
-
-- The `credentials` option is `same-origin` by default, which is the default in the spec too, but not all browsers have caught up yet.
-- Adds some more options. See below.
+The `input` and `options` are the same as [`fetch`](https://developer.mozilla.org/en-US/docs/Web/API/WindowOrWorkerGlobalScope/fetch), with additional `options` available (see below).
 
 Returns a [`Response` object](https://developer.mozilla.org/en-US/docs/Web/API/Response) with [`Body` methods](https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API/Using_Fetch#body) added for convenience. So you can, for example, call `ky.get(input).json()` directly without having to await the `Response` first. When called like that, an appropriate `Accept` header will be set depending on the body method used. Unlike the `Body` methods of `window.Fetch`; these will throw an `HTTPError` if the response status is not in the range of `200...299`. Also, `.json()` will return an empty string if body is empty or the response status is `204` instead of throwing a parse error due to an empty body.
+
+```js
+import ky from 'ky';
+
+const user = await ky('/api/user').json();
+
+console.log(user);
+```
+
+⌨️ **TypeScript:** Accepts an optional [type parameter](https://www.typescriptlang.org/docs/handbook/2/generics.html), which defaults to [`unknown`](https://www.typescriptlang.org/docs/handbook/2/functions.html#unknown), and is passed through to the return type of `.json()`.
+
+```ts
+import ky from 'ky';
+
+// user1 is unknown
+const user1 = await ky('/api/users/1').json();
+// user2 is a User
+const user2 = await ky<User>('/api/users/2').json();
+// user3 is a User
+const user3 = await ky('/api/users/3').json<User>();
+
+console.log([user1, user2, user3]);
+```
 
 ### ky.get(input, options?)
 ### ky.post(input, options?)
@@ -136,13 +156,21 @@ Returns a [`Response` object](https://developer.mozilla.org/en-US/docs/Web/API/R
 
 Sets `options.method` to the method name and makes a request.
 
+⌨️ **TypeScript:** Accepts an optional type parameter for use with JSON responses (see [`ky()`](#kyinput-options)).
+
+#### input
+
+Type: `string` | `URL` | `Request`
+
+Same as [`fetch` input](https://developer.mozilla.org/en-US/docs/Web/API/Request/Request#input).
+
 When using a [`Request`](https://developer.mozilla.org/en-US/docs/Web/API/Request) instance as `input`, any URL altering options (such as `prefixUrl`) will be ignored.
 
 #### options
 
 Type: `object`
 
-In addition to all the [`fetch` options](https://developer.mozilla.org/en-US/docs/Web/API/fetch#options), it supports these options:
+Same as [`fetch` options](https://developer.mozilla.org/en-US/docs/Web/API/fetch#options), plus the following additional options:
 
 ##### method
 
@@ -596,6 +624,8 @@ try {
 	}
 }
 ```
+
+⌨️ **TypeScript:** Accepts an optional [type parameter](https://www.typescriptlang.org/docs/handbook/2/generics.html), which defaults to [`unknown`](https://www.typescriptlang.org/docs/handbook/2/functions.html#unknown), and is passed through to the return type of `error.response.json()`.
 
 ### TimeoutError
 
