@@ -16,7 +16,7 @@ type UndiciBodyInit =
 	| Blob
 	| FormData
 	| Iterable<Uint8Array>
-	| NodeJS.ArrayBufferView
+	| ArrayBufferView
 	| URLSearchParams
 	// eslint-disable-next-line @typescript-eslint/ban-types
 	| null
