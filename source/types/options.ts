@@ -6,7 +6,7 @@ import type {RetryOptions} from './retry.js';
 export type SearchParamsInit = string | string[][] | Record<string, string> | URLSearchParams | undefined;
 
 // eslint-disable-next-line unicorn/prevent-abbreviations
-export type SearchParamsOption = SearchParamsInit | Record<string, string | number | boolean> | Array<Array<string | number | boolean>>;
+export type SearchParamsOption = SearchParamsInit | Record<string, string | number | boolean | unknown> | Array<Array<string | number | boolean>>;
 
 export type HttpMethod = 'get' | 'post' | 'put' | 'patch' | 'head' | 'delete';
 
