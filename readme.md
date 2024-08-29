@@ -65,14 +65,9 @@ It's just a tiny package with no dependencies.
 npm install ky
 ```
 
-###### Download
-
-- [Normal](https://cdn.jsdelivr.net/npm/ky/index.js)
-- [Minified](https://cdn.jsdelivr.net/npm/ky/index.min.js)
-
 ###### CDN
 
-- [jsdelivr](https://www.jsdelivr.com/package/npm/ky)
+- [jsdelivr](https://cdn.jsdelivr.net/npm/ky/+esm)
 - [unpkg](https://unpkg.com/ky)
 - [esm.sh](https://esm.sh/ky)
 
