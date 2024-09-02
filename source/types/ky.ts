@@ -74,7 +74,7 @@ export type KyInstance = {
 
 	@returns A new Ky instance.
 	*/
-	create: (defaultOptions: Options) => KyInstance;
+	create: (defaultOptions?: Options) => KyInstance;
 
 	/**
 	Create a new Ky instance with some defaults overridden with your own.
