@@ -203,6 +203,24 @@ export class Ky {
 			// The spread of `this.request` is required as otherwise it misses the `duplex` option for some reason and throws.
 			this.request = new globalThis.Request(new globalThis.Request(url, {...this.request}), this._options as RequestInit);
 		}
+
+		// Add onUploadProgress handling
+		if (this._options.onUploadProgress && typeof this._options.onUploadProgress === 'function') {
+			if (!supportsRequestStreams) {
+				throw new Error('Streams are not supported in your environment. `ReadableStream` is missing.');
+			}
+
+			const originalBody = this.request.body;
+			if (originalBody) {
+				const totalBytes = this._getTotalBytes(originalBody);
+				this.request = new Request(this.request, {
+					body: this._wrapBodyWithUploadProgress(originalBody, totalBytes, this._options.onUploadProgress),
+					headers: this.request.headers,
+					method: this.request.method,
+					signal: this.request.signal,
+				});
+			}
+		}
 	}
 
 	protected _calculateRetryDelay(error: unknown) {
@@ -364,5 +382,64 @@ export class Ky {
 				headers: response.headers,
 			},
 		);
+	}
+
+	protected _getTotalBytes(body: BodyInit): number {
+		if (body instanceof Blob) {
+			return body.size;
+		}
+		if (body instanceof ArrayBuffer) {
+			return body.byteLength;
+		}
+		if (typeof body === 'string') {
+			return new Blob([body]).size;
+		}
+		if (body instanceof URLSearchParams) {
+			return new Blob([body.toString()]).size;
+		}
+		if (body instanceof globalThis.FormData) {
+			// This is an approximation, as FormData size calculation is not straightforward
+			return Array.from(body.entries()).reduce((acc, [_, value]) => {
+				if (typeof value === 'string') {
+					return acc + new Blob([value]).size;
+				}
+				if (value instanceof Blob) {
+					return acc + value.size;
+				}
+				return acc;
+			}, 0);
+		}
+		return 0; // Default case, unable to determine size
+	}
+
+	protected _wrapBodyWithUploadProgress(
+		body: BodyInit,
+		totalBytes: number,
+		onUploadProgress: (progress: { percent: number; transferredBytes: number; totalBytes: number }) => void
+	): globalThis.ReadableStream<Uint8Array> {
+		let transferredBytes = 0;
+
+		return new globalThis.ReadableStream({
+			async start(controller) {
+				const reader = body instanceof globalThis.ReadableStream ? body.getReader() : new Blob([body]).stream().getReader();
+
+				async function read() {
+					const { done, value } = await reader.read();
+					if (done) {
+						controller.close();
+						return;
+					}
+
+					transferredBytes += value.byteLength;
+					const percent = totalBytes === 0 ? 0 : transferredBytes / totalBytes;
+					onUploadProgress({ percent, transferredBytes, totalBytes });
+
+					controller.enqueue(value);
+					await read();
+				}
+
+				await read();
+			},
+		});
 	}
 }
