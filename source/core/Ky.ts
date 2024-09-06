@@ -384,30 +384,33 @@ export class Ky {
 		);
 	}
 
-	protected _getTotalBytes(body: BodyInit): number {
-		if (body instanceof Blob) {
+	protected _getTotalBytes(body: globalThis.BodyInit): number {
+		if (body instanceof globalThis.Blob) {
 			return body.size;
 		}
-		if (body instanceof ArrayBuffer) {
+		if (body instanceof globalThis.ArrayBuffer) {
 			return body.byteLength;
 		}
 		if (typeof body === 'string') {
-			return new Blob([body]).size;
+			return new globalThis.TextEncoder().encode(body).length;
 		}
 		if (body instanceof URLSearchParams) {
-			return new Blob([body.toString()]).size;
+			return new globalThis.TextEncoder().encode(body.toString()).length;
 		}
 		if (body instanceof globalThis.FormData) {
 			// This is an approximation, as FormData size calculation is not straightforward
 			return Array.from(body.entries()).reduce((acc, [_, value]) => {
 				if (typeof value === 'string') {
-					return acc + new Blob([value]).size;
+					return acc + new globalThis.TextEncoder().encode(value).length;
 				}
 				if (value instanceof Blob) {
 					return acc + value.size;
 				}
 				return acc;
 			}, 0);
+		}
+		if ('byteLength' in body) {
+			return (body as globalThis.ArrayBufferView).byteLength;
 		}
 		return 0; // Default case, unable to determine size
 	}
@@ -421,7 +424,7 @@ export class Ky {
 
 		return new globalThis.ReadableStream({
 			async start(controller) {
-				const reader = body instanceof globalThis.ReadableStream ? body.getReader() : new Blob([body]).stream().getReader();
+				const reader = body instanceof globalThis.ReadableStream ? body.getReader() : new globalThis.Response(body).body!.getReader();
 
 				async function read() {
 					const { done, value } = await reader.read();
