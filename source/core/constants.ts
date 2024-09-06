@@ -67,6 +67,7 @@ export const kyOptionKeys: KyOptionsRegistry = {
 	hooks: true,
 	throwHttpErrors: true,
 	onDownloadProgress: true,
+	onUploadProgress: true,
 	fetch: true,
 };
 
