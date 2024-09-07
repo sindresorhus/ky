@@ -384,6 +384,7 @@ export class Ky {
 		);
 	}
 
+	// eslint-disable-next-line @typescript-eslint/ban-types
 	protected _getTotalBytes(body?: globalThis.BodyInit | null): number {
 		if (!body) {
 			return 0;
