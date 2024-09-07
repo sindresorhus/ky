@@ -77,30 +77,6 @@ test('POST FormData with 10MB file upload progress', async t => {
 	const formData = new FormData();
 	formData.append('file', largeBlob, 'large-file.bin');
 
-	if (formData instanceof globalThis.FormData) {
-		// This is an approximation, as FormData size calculation is not straightforward
-		let size = 0;
-		// eslint-disable-next-line unicorn/no-array-for-each -- FormData uses forEach method
-		formData.forEach((value: globalThis.FormDataEntryValue, key: string) => {
-			if (typeof value === 'string') {
-				size += new globalThis.TextEncoder().encode(value).length;
-				t.log(size, 'size is string');
-			} else if (
-				typeof value === 'object'
-				&& value !== null
-				&& 'size' in value
-			) {
-				// This catches File objects as well, as File extends Blob
-				size += (value as Blob).size;
-				t.log(size, 'size is file or blob');
-			}
-
-			// Add some bytes for field name and multipart boundaries
-			size += new TextEncoder().encode(key).length + 40; // 40 is an approximation for multipart overhead
-		});
-		// Return size
-	}
-
 	const data: Array<{
 		percent: number;
 		transferredBytes: number;
