@@ -12,17 +12,7 @@ export type HttpMethod = 'get' | 'post' | 'put' | 'patch' | 'head' | 'delete';
 
 export type Input = string | URL | Request;
 
-export type UploadProgress = {
-	percent: number;
-	transferredBytes: number;
-
-	/**
-	Note: If it's not possible to retrieve the body size, it will be `0`.
-	*/
-	totalBytes: number;
-};
-
-export type DownloadProgress = {
+export type Progress = {
 	percent: number;
 	transferredBytes: number;
 
@@ -196,7 +186,7 @@ export type KyOptions = {
 	});
 	```
 	*/
-	onDownloadProgress?: (progress: DownloadProgress, chunk: Uint8Array) => void;
+	onDownloadProgress?: (progress: Progress, chunk: Uint8Array) => void;
 
 	/**
 	Upload progress event handler.
@@ -215,7 +205,7 @@ export type KyOptions = {
 	});
 	```
 	*/
-	onUploadProgress?: (progress: UploadProgress) => void;
+	onUploadProgress?: (progress: Progress) => void;
 
 	/**
 	User-defined `fetch` function.

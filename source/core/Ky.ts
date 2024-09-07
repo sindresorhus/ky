@@ -74,7 +74,7 @@ export class Ky {
 					throw new Error('Streams are not supported in your environment. `ReadableStream` is missing.');
 				}
 
-				return ky._stream(response.clone(), ky._options.onDownloadProgress);
+				return ky._streamResponse(response.clone(), ky._options.onDownloadProgress);
 			}
 
 			return response;
@@ -216,7 +216,7 @@ export class Ky {
 				this.request
 					= new globalThis.Request(this._input, {
 						...this._options,
-						body: this._wrapBodyWithUploadProgress(
+						body: this._streamRequest(
 							originalBody, totalBytes, this._options.onUploadProgress),
 					});
 			}
@@ -328,7 +328,7 @@ export class Ky {
 	}
 
 	/* istanbul ignore next */
-	protected _stream(response: Response, onDownloadProgress: Options['onDownloadProgress']) {
+	protected _streamResponse(response: Response, onDownloadProgress: Options['onDownloadProgress']) {
 		const totalBytes = Number(response.headers.get('content-length')) || 0;
 		let transferredBytes = 0;
 
@@ -430,7 +430,7 @@ export class Ky {
 		return 0; // Default case, unable to determine size
 	}
 
-	protected _wrapBodyWithUploadProgress(
+	protected _streamRequest(
 		body: BodyInit,
 		totalBytes: number,
 		onUploadProgress: (progress: {percent: number; transferredBytes: number; totalBytes: number}) => void,
