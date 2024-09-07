@@ -213,12 +213,12 @@ export class Ky {
 			const originalBody = this.request.body;
 			if (originalBody) {
 				const totalBytes = this._getTotalBytes(originalBody);
-				this.request = new Request(this.request, {
-					body: this._wrapBodyWithUploadProgress(originalBody, totalBytes, this._options.onUploadProgress),
-					headers: this.request.headers,
-					method: this.request.method,
-					signal: this.request.signal,
-				});
+				this.request
+					= new globalThis.Request(this._input, {
+						...this._options,
+						body: this._wrapBodyWithUploadProgress(
+							originalBody, totalBytes, this._options.onUploadProgress),
+					});
 			}
 		}
 	}
@@ -384,41 +384,56 @@ export class Ky {
 		);
 	}
 
-	protected _getTotalBytes(body: globalThis.BodyInit): number {
+	protected _getTotalBytes(body?: globalThis.BodyInit): number {
+		if (!body) {
+			return 0;
+		}
+
 		if (body instanceof globalThis.Blob) {
 			return body.size;
 		}
+
 		if (body instanceof globalThis.ArrayBuffer) {
 			return body.byteLength;
 		}
+
 		if (typeof body === 'string') {
 			return new globalThis.TextEncoder().encode(body).length;
 		}
+
 		if (body instanceof URLSearchParams) {
 			return new globalThis.TextEncoder().encode(body.toString()).length;
 		}
+
 		if (body instanceof globalThis.FormData) {
 			// This is an approximation, as FormData size calculation is not straightforward
-			return Array.from(body.entries()).reduce((acc, [_, value]) => {
+			let size = 0;
+			// eslint-disable-next-line unicorn/no-array-for-each -- FormData uses forEach method
+			body.forEach((value: globalThis.FormDataEntryValue, key: string) => {
 				if (typeof value === 'string') {
-					return acc + new globalThis.TextEncoder().encode(value).length;
+					size += new globalThis.TextEncoder().encode(value).length;
+				} else if (value instanceof globalThis.Blob) {
+					size += value.size;
 				}
-				if (value instanceof Blob) {
-					return acc + value.size;
-				}
-				return acc;
-			}, 0);
+
+				// Add some bytes for field name and multipart boundaries
+				size += new TextEncoder().encode(key).length + 40; // 40 is an approximation for multipart overhead
+			});
+
+			return size;
 		}
+
 		if ('byteLength' in body) {
-			return (body as globalThis.ArrayBufferView).byteLength;
+			return (body).byteLength;
 		}
+
 		return 0; // Default case, unable to determine size
 	}
 
 	protected _wrapBodyWithUploadProgress(
 		body: BodyInit,
 		totalBytes: number,
-		onUploadProgress: (progress: { percent: number; transferredBytes: number; totalBytes: number }) => void
+		onUploadProgress: (progress: {percent: number; transferredBytes: number; totalBytes: number}) => void,
 	): globalThis.ReadableStream<Uint8Array> {
 		let transferredBytes = 0;
 
@@ -427,15 +442,17 @@ export class Ky {
 				const reader = body instanceof globalThis.ReadableStream ? body.getReader() : new globalThis.Response(body).body!.getReader();
 
 				async function read() {
-					const { done, value } = await reader.read();
+					const {done, value} = await reader.read();
 					if (done) {
+						// Ensure 100% progress is reported when the upload is complete
+						onUploadProgress({percent: 1, transferredBytes, totalBytes: Math.max(totalBytes, transferredBytes)});
 						controller.close();
 						return;
 					}
 
-					transferredBytes += value.byteLength;
+					transferredBytes += value.byteLength as number;
 					const percent = totalBytes === 0 ? 0 : transferredBytes / totalBytes;
-					onUploadProgress({ percent, transferredBytes, totalBytes });
+					onUploadProgress({percent, transferredBytes, totalBytes});
 
 					controller.enqueue(value);
 					await read();
