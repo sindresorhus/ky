@@ -212,7 +212,7 @@ export class Ky {
 
 			const originalBody = this.request.body;
 			if (originalBody) {
-				const totalBytes = this._getTotalBytes(originalBody);
+				const totalBytes = this._getTotalBytes(this._options.body);
 				this.request
 					= new globalThis.Request(this._input, {
 						...this._options,
@@ -384,9 +384,28 @@ export class Ky {
 		);
 	}
 
-	protected _getTotalBytes(body?: globalThis.BodyInit): number {
+	protected _getTotalBytes(body?: globalThis.BodyInit | undefined): number {
 		if (!body) {
 			return 0;
+		}
+
+		if (body instanceof globalThis.FormData) {
+			// This is an approximation, as FormData size calculation is not straightforward
+			let size = 0;
+			// eslint-disable-next-line unicorn/no-array-for-each -- FormData uses forEach method
+			body.forEach((value: globalThis.FormDataEntryValue, key: string) => {
+				if (typeof value === 'string') {
+					size += new globalThis.TextEncoder().encode(value).length;
+				} else if (typeof value === 'object' && value !== null && 'size' in value) {
+					// This catches File objects as well, as File extends Blob
+					size += (value as Blob).size;
+				}
+
+				// Add some bytes for field name and multipart boundaries
+				size += new TextEncoder().encode(key).length + 40; // 40 is an approximation for multipart overhead
+			});
+
+			return size;
 		}
 
 		if (body instanceof globalThis.Blob) {
@@ -405,26 +424,18 @@ export class Ky {
 			return new globalThis.TextEncoder().encode(body.toString()).length;
 		}
 
-		if (body instanceof globalThis.FormData) {
-			// This is an approximation, as FormData size calculation is not straightforward
-			let size = 0;
-			// eslint-disable-next-line unicorn/no-array-for-each -- FormData uses forEach method
-			body.forEach((value: globalThis.FormDataEntryValue, key: string) => {
-				if (typeof value === 'string') {
-					size += new globalThis.TextEncoder().encode(value).length;
-				} else if (value instanceof globalThis.Blob) {
-					size += value.size;
-				}
-
-				// Add some bytes for field name and multipart boundaries
-				size += new TextEncoder().encode(key).length + 40; // 40 is an approximation for multipart overhead
-			});
-
-			return size;
-		}
-
 		if ('byteLength' in body) {
 			return (body).byteLength;
+		}
+
+		if (typeof body === 'object' && body !== null) {
+			try {
+				const jsonString = JSON.stringify(body);
+				return new TextEncoder().encode(jsonString).length;
+			} catch (error) {
+				console.warn('Unable to stringify object:', error);
+				return 0;
+			}
 		}
 
 		return 0; // Default case, unable to determine size
@@ -451,8 +462,12 @@ export class Ky {
 					}
 
 					transferredBytes += value.byteLength as number;
-					const percent = totalBytes === 0 ? 0 : transferredBytes / totalBytes;
-					onUploadProgress({percent, transferredBytes, totalBytes});
+					let percent = totalBytes === 0 ? 0 : transferredBytes / totalBytes;
+					if (totalBytes < transferredBytes || percent === 1) {
+						percent = 0.99;
+					}
+
+					onUploadProgress({percent: Number(percent.toFixed(2)), transferredBytes, totalBytes});
 
 					controller.enqueue(value);
 					await read();
