@@ -384,7 +384,7 @@ export class Ky {
 		);
 	}
 
-	protected _getTotalBytes(body?: globalThis.BodyInit | undefined): number {
+	protected _getTotalBytes(body?: globalThis.BodyInit | null): number {
 		if (!body) {
 			return 0;
 		}
