@@ -207,7 +207,7 @@ export class Ky {
 		// Add onUploadProgress handling
 		if (this._options.onUploadProgress && typeof this._options.onUploadProgress === 'function') {
 			if (!supportsRequestStreams) {
-				throw new Error('Streams are not supported in your environment. `ReadableStream` is missing.');
+				throw new Error('Request streams are not supported in your environment. The `duplex` option for `Request` is not available.');
 			}
 
 			const originalBody = this.request.body;
