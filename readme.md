@@ -437,7 +437,7 @@ import ky from 'ky';
 
 const response = await ky.post('https://example.com/api/upload', {
 	body: largeFile,
-	onUploadProgress: (progress) => {
+	onUploadProgress: progress => {
 		console.log(`${progress.percent * 100}% - ${progress.transferredBytes} of ${progress.totalBytes} bytes`);
 	}
 });
