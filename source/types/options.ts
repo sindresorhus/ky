@@ -199,7 +199,7 @@ export type KyOptions = {
 
 	const response = await ky.post('https://example.com/upload', {
 		body: new FormData(),
-		onUploadProgress: (progress) => {
+		onUploadProgress: progress => {
 			console.log(`${progress.percent * 100}% - ${progress.transferredBytes} of ${progress.totalBytes} bytes`);
 		}
 	});
