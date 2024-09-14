@@ -12,7 +12,7 @@ export type HttpMethod = 'get' | 'post' | 'put' | 'patch' | 'head' | 'delete';
 
 export type Input = string | URL | Request;
 
-export type DownloadProgress = {
+export type Progress = {
 	percent: number;
 	transferredBytes: number;
 
@@ -186,7 +186,26 @@ export type KyOptions = {
 	});
 	```
 	*/
-	onDownloadProgress?: (progress: DownloadProgress, chunk: Uint8Array) => void;
+	onDownloadProgress?: (progress: Progress, chunk: Uint8Array) => void;
+
+	/**
+	Upload progress event handler.
+
+	@param progress - Object containing upload progress information.
+
+	@example
+	```
+	import ky from 'ky';
+
+	const response = await ky.post('https://example.com/upload', {
+		body: new FormData(),
+		onUploadProgress: progress => {
+			console.log(`${progress.percent * 100}% - ${progress.transferredBytes} of ${progress.totalBytes} bytes`);
+		}
+	});
+	```
+	*/
+	onUploadProgress?: (progress: Progress) => void;
 
 	/**
 	User-defined `fetch` function.
@@ -287,6 +306,7 @@ export interface NormalizedOptions extends RequestInit { // eslint-disable-line 
 	retry: RetryOptions;
 	prefixUrl: string;
 	onDownloadProgress: Options['onDownloadProgress'];
+	onUploadProgress: Options['onUploadProgress'];
 }
 
 export type {RetryOptions} from './retry.js';

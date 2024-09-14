@@ -74,7 +74,7 @@ export class Ky {
 					throw new Error('Streams are not supported in your environment. `ReadableStream` is missing.');
 				}
 
-				return ky._stream(response.clone(), ky._options.onDownloadProgress);
+				return ky._streamResponse(response.clone(), ky._options.onDownloadProgress);
 			}
 
 			return response;
@@ -203,6 +203,24 @@ export class Ky {
 			// The spread of `this.request` is required as otherwise it misses the `duplex` option for some reason and throws.
 			this.request = new globalThis.Request(new globalThis.Request(url, {...this.request}), this._options as RequestInit);
 		}
+
+		// Add onUploadProgress handling
+		if (this._options.onUploadProgress && typeof this._options.onUploadProgress === 'function') {
+			if (!supportsRequestStreams) {
+				throw new Error('Request streams are not supported in your environment. The `duplex` option for `Request` is not available.');
+			}
+
+			const originalBody = this.request.body;
+			if (originalBody) {
+				const totalBytes = this._getTotalBytes(this._options.body);
+				this.request
+					= new globalThis.Request(this._input, {
+						...this._options,
+						body: this._streamRequest(
+							originalBody, totalBytes, this._options.onUploadProgress),
+					});
+			}
+		}
 	}
 
 	protected _calculateRetryDelay(error: unknown) {
@@ -310,7 +328,7 @@ export class Ky {
 	}
 
 	/* istanbul ignore next */
-	protected _stream(response: Response, onDownloadProgress: Options['onDownloadProgress']) {
+	protected _streamResponse(response: Response, onDownloadProgress: Options['onDownloadProgress']) {
 		const totalBytes = Number(response.headers.get('content-length')) || 0;
 		let transferredBytes = 0;
 
@@ -364,5 +382,100 @@ export class Ky {
 				headers: response.headers,
 			},
 		);
+	}
+
+	// eslint-disable-next-line @typescript-eslint/ban-types
+	protected _getTotalBytes(body?: globalThis.BodyInit | null): number {
+		if (!body) {
+			return 0;
+		}
+
+		if (body instanceof globalThis.FormData) {
+			// This is an approximation, as FormData size calculation is not straightforward
+			let size = 0;
+			// eslint-disable-next-line unicorn/no-array-for-each -- FormData uses forEach method
+			body.forEach((value: globalThis.FormDataEntryValue, key: string) => {
+				if (typeof value === 'string') {
+					size += new globalThis.TextEncoder().encode(value).length;
+				} else if (typeof value === 'object' && value !== null && 'size' in value) {
+					// This catches File objects as well, as File extends Blob
+					size += (value as Blob).size;
+				}
+
+				// Add some bytes for field name and multipart boundaries
+				size += new TextEncoder().encode(key).length + 40; // 40 is an approximation for multipart overhead
+			});
+
+			return size;
+		}
+
+		if (body instanceof globalThis.Blob) {
+			return body.size;
+		}
+
+		if (body instanceof globalThis.ArrayBuffer) {
+			return body.byteLength;
+		}
+
+		if (typeof body === 'string') {
+			return new globalThis.TextEncoder().encode(body).length;
+		}
+
+		if (body instanceof URLSearchParams) {
+			return new globalThis.TextEncoder().encode(body.toString()).length;
+		}
+
+		if ('byteLength' in body) {
+			return (body).byteLength;
+		}
+
+		if (typeof body === 'object' && body !== null) {
+			try {
+				const jsonString = JSON.stringify(body);
+				return new TextEncoder().encode(jsonString).length;
+			} catch (error) {
+				console.warn('Unable to stringify object:', error);
+				return 0;
+			}
+		}
+
+		return 0; // Default case, unable to determine size
+	}
+
+	protected _streamRequest(
+		body: BodyInit,
+		totalBytes: number,
+		onUploadProgress: (progress: {percent: number; transferredBytes: number; totalBytes: number}) => void,
+	): globalThis.ReadableStream<Uint8Array> {
+		let transferredBytes = 0;
+
+		return new globalThis.ReadableStream({
+			async start(controller) {
+				const reader = body instanceof globalThis.ReadableStream ? body.getReader() : new globalThis.Response(body).body!.getReader();
+
+				async function read() {
+					const {done, value} = await reader.read();
+					if (done) {
+						// Ensure 100% progress is reported when the upload is complete
+						onUploadProgress({percent: 1, transferredBytes, totalBytes: Math.max(totalBytes, transferredBytes)});
+						controller.close();
+						return;
+					}
+
+					transferredBytes += value.byteLength as number;
+					let percent = totalBytes === 0 ? 0 : transferredBytes / totalBytes;
+					if (totalBytes < transferredBytes || percent === 1) {
+						percent = 0.99;
+					}
+
+					onUploadProgress({percent: Number(percent.toFixed(2)), transferredBytes, totalBytes});
+
+					controller.enqueue(value);
+					await read();
+				}
+
+				await read();
+			},
+		});
 	}
 }
