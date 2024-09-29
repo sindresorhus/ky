@@ -1,4 +1,4 @@
-import type {KyRequest} from '../types/request.js';
+import type {KyRequest} from '../types/request';
 
 export class TimeoutError extends Error {
 	public request: KyRequest;

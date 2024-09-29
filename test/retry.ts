@@ -1,7 +1,7 @@
 import test from 'ava';
-import ky from '../source/index.js';
-import {createHttpTestServer} from './helpers/create-http-test-server.js';
-import {withPerformance} from './helpers/with-performance.js';
+import ky from '../source/index';
+import {createHttpTestServer} from './helpers/create-http-test-server';
+import {withPerformance} from './helpers/with-performance';
 
 const fixture = 'fixture';
 const defaultRetryCount = 2;

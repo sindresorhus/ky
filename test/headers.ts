@@ -2,8 +2,8 @@ import {Buffer} from 'node:buffer';
 import type {IncomingHttpHeaders} from 'node:http';
 import test from 'ava';
 import type {RequestHandler} from 'express';
-import ky from '../source/index.js';
-import {createHttpTestServer} from './helpers/create-http-test-server.js';
+import ky from '../source/index';
+import {createHttpTestServer} from './helpers/create-http-test-server';
 
 const timeout = 60_000;
 

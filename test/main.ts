@@ -2,9 +2,9 @@ import {Buffer} from 'node:buffer';
 import test from 'ava';
 import delay from 'delay';
 import {expectTypeOf} from 'expect-type';
-import ky, {TimeoutError} from '../source/index.js';
-import {createHttpTestServer} from './helpers/create-http-test-server.js';
-import {parseRawBody} from './helpers/parse-body.js';
+import ky, {TimeoutError} from '../source/index';
+import {createHttpTestServer} from './helpers/create-http-test-server';
+import {parseRawBody} from './helpers/parse-body';
 
 const fixture = 'fixture';
 

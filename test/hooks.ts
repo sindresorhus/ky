@@ -1,8 +1,8 @@
 import test from 'ava';
 import delay from 'delay';
-import ky, {HTTPError} from '../source/index.js';
-import {type Options} from '../source/types/options.js';
-import {createHttpTestServer} from './helpers/create-http-test-server.js';
+import ky, {HTTPError} from '../source/index';
+import {type Options} from '../source/types/options';
+import {createHttpTestServer} from './helpers/create-http-test-server';
 
 test('hooks can be async', async t => {
 	const server = await createHttpTestServer();

@@ -1,6 +1,6 @@
 // https://github.com/sindresorhus/delay/tree/ab98ae8dfcb38e1593286c94d934e70d14a4e111
 
-import {type InternalOptions} from '../types/options.js';
+import {type InternalOptions} from '../types/options';
 
 export type DelayOptions = {
 	signal?: InternalOptions['signal'];

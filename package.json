@@ -86,7 +86,17 @@
 			"@typescript-eslint/no-unsafe-return": "off",
 			"@typescript-eslint/no-unsafe-call": "off",
 			"@typescript-eslint/naming-convention": "off",
-			"n/no-unsupported-features/node-builtins": "off"
+			"n/no-unsupported-features/node-builtins": "off",
+			"import/extensions": [
+				"error",
+				"ignorePackages",
+				{
+				  "js": "never",
+				  "jsx": "never",
+				  "ts": "never",
+				  "tsx": "never"
+				}
+			 ]
 		}
 	},
 	"ava": {

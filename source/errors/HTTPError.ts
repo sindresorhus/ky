@@ -1,6 +1,6 @@
-import type {NormalizedOptions} from '../types/options.js';
-import type {KyRequest} from '../types/request.js';
-import type {KyResponse} from '../types/response.js';
+import type {NormalizedOptions} from '../types/options';
+import type {KyRequest} from '../types/request';
+import type {KyResponse} from '../types/response';
 
 export class HTTPError<T = unknown> extends Error {
 	public response: KyResponse<T>;

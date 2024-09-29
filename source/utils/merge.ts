@@ -1,6 +1,6 @@
-import type {KyHeadersInit, Options} from '../types/options.js';
-import type {Hooks} from '../types/hooks.js';
-import {isObject} from './is.js';
+import type {KyHeadersInit, Options} from '../types/options';
+import type {Hooks} from '../types/hooks';
+import {isObject} from './is';
 
 export const validateAndMerge = (...sources: Array<Partial<Options> | undefined>): Partial<Options> => {
 	for (const source of sources) {

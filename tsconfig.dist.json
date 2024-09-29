@@ -4,9 +4,9 @@
 		"sourceMap": true,
 		"inlineSources": true,
 		"rootDir": "./source",
-		"outDir": "./distribution"
+		"outDir": "./distribution",
+		"module": "ESNext",
+		"moduleResolution": "Bundler"
 	},
-	"include": [
-		"source"
-	]
+	"include": ["source"]
 }

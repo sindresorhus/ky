@@ -1,4 +1,4 @@
-import {TimeoutError} from '../errors/TimeoutError.js';
+import {TimeoutError} from '../errors/TimeoutError';
 
 export type TimeoutOptions = {
 	timeout: number;

@@ -1,6 +1,6 @@
 import test from 'ava';
-import ky from '../source/index.js';
-import {createHttpTestServer} from './helpers/create-http-test-server.js';
+import ky from '../source/index';
+import {createHttpTestServer} from './helpers/create-http-test-server';
 
 test('common method is normalized', async t => {
 	const server = await createHttpTestServer();

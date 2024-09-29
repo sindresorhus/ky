@@ -1,11 +1,11 @@
 /*! MIT License © Sindre Sorhus */
 
-import {Ky} from './core/Ky.js';
-import {requestMethods, stop} from './core/constants.js';
-import type {KyInstance} from './types/ky.js';
-import type {Input, Options} from './types/options.js';
-import {validateAndMerge} from './utils/merge.js';
-import {type Mutable} from './utils/types.js';
+import {Ky} from './core/Ky';
+import {requestMethods, stop} from './core/constants';
+import type {KyInstance} from './types/ky';
+import type {Input, Options} from './types/options';
+import {validateAndMerge} from './utils/merge';
+import {type Mutable} from './utils/types';
 
 const createInstance = (defaults?: Partial<Options>): KyInstance => {
 	// eslint-disable-next-line @typescript-eslint/promise-function-async
@@ -34,7 +34,7 @@ const ky = createInstance();
 
 export default ky;
 
-export type {KyInstance} from './types/ky.js';
+export type {KyInstance} from './types/ky';
 
 export type {
 	Input,
@@ -43,7 +43,7 @@ export type {
 	RetryOptions,
 	SearchParamsOption,
 	DownloadProgress,
-} from './types/options.js';
+} from './types/options';
 
 export type {
 	Hooks,
@@ -52,10 +52,10 @@ export type {
 	BeforeRetryState,
 	BeforeErrorHook,
 	AfterResponseHook,
-} from './types/hooks.js';
+} from './types/hooks';
 
-export type {ResponsePromise} from './types/ResponsePromise.js';
-export type {KyRequest} from './types/request.js';
-export type {KyResponse} from './types/response.js';
-export {HTTPError} from './errors/HTTPError.js';
-export {TimeoutError} from './errors/TimeoutError.js';
+export type {ResponsePromise} from './types/ResponsePromise';
+export type {KyRequest} from './types/request';
+export type {KyResponse} from './types/response';
+export {HTTPError} from './errors/HTTPError';
+export {TimeoutError} from './errors/TimeoutError';

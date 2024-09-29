@@ -1,5 +1,5 @@
 import test from 'ava';
-import ky from '../source/index.js';
+import ky from '../source/index';
 
 const fixture = 'https://example.com/unicorn';
 

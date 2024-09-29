@@ -1,19 +1,19 @@
-import {HTTPError} from '../errors/HTTPError.js';
-import {TimeoutError} from '../errors/TimeoutError.js';
+import {HTTPError} from '../errors/HTTPError';
+import {TimeoutError} from '../errors/TimeoutError';
 import type {
 	Input,
 	InternalOptions,
 	NormalizedOptions,
 	Options,
 	SearchParamsInit,
-} from '../types/options.js';
-import {type ResponsePromise} from '../types/ResponsePromise.js';
-import {mergeHeaders, mergeHooks} from '../utils/merge.js';
-import {normalizeRequestMethod, normalizeRetryOptions} from '../utils/normalize.js';
-import timeout, {type TimeoutOptions} from '../utils/timeout.js';
-import delay from '../utils/delay.js';
-import {type ObjectEntries} from '../utils/types.js';
-import {findUnknownOptions} from '../utils/options.js';
+} from '../types/options';
+import {type ResponsePromise} from '../types/ResponsePromise';
+import {mergeHeaders, mergeHooks} from '../utils/merge';
+import {normalizeRequestMethod, normalizeRetryOptions} from '../utils/normalize';
+import timeout, {type TimeoutOptions} from '../utils/timeout';
+import delay from '../utils/delay';
+import {type ObjectEntries} from '../utils/types';
+import {findUnknownOptions} from '../utils/options';
 import {
 	maxSafeTimeout,
 	responseTypes,
@@ -22,7 +22,7 @@ import {
 	supportsFormData,
 	supportsResponseStreams,
 	supportsRequestStreams,
-} from './constants.js';
+} from './constants';
 
 export class Ky {
 	static create(input: Input, options: Options): ResponsePromise {

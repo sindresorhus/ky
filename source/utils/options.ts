@@ -1,4 +1,4 @@
-import {kyOptionKeys, requestOptionsRegistry} from '../core/constants.js';
+import {kyOptionKeys, requestOptionsRegistry} from '../core/constants';
 
 export const findUnknownOptions = (
 	request: Request,

@@ -1,7 +1,7 @@
 import test from 'ava';
 import {expectTypeOf} from 'expect-type';
-import {HTTPError} from '../source/index.js';
-import {type Mutable} from '../source/utils/types.js';
+import {HTTPError} from '../source/index';
+import {type Mutable} from '../source/utils/types';
 
 function createFakeResponse({status, statusText}: {status?: number; statusText?: string}): Response {
 	// Start with a realistic fetch Response.

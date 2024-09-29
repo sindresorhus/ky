@@ -2,11 +2,11 @@ import test, {type ExecutionContext} from 'ava';
 import busboy from 'busboy';
 import express from 'express';
 import {chromium, webkit, type Page} from 'playwright';
-import type ky from '../source/index.js'; // eslint-disable-line import/no-duplicates
-import type {DownloadProgress} from '../source/index.js'; // eslint-disable-line import/no-duplicates
-import {createHttpTestServer, type ExtendedHttpTestServer, type HttpServerOptions} from './helpers/create-http-test-server.js';
-import {parseRawBody} from './helpers/parse-body.js';
-import {browserTest, defaultBrowsersTest} from './helpers/with-page.js';
+import type ky from '../source/index'; // eslint-disable-line import/no-duplicates
+import type {DownloadProgress} from '../source/index'; // eslint-disable-line import/no-duplicates
+import {createHttpTestServer, type ExtendedHttpTestServer, type HttpServerOptions} from './helpers/create-http-test-server';
+import {parseRawBody} from './helpers/parse-body';
+import {browserTest, defaultBrowsersTest} from './helpers/with-page';
 
 declare global {
 	// eslint-disable-next-line @typescript-eslint/consistent-type-definitions
@@ -29,7 +29,7 @@ const createEsmTestServer = async (options?: HttpServerOptions) => {
 const KY_SCRIPT = {
 	type: 'module',
 	content: `
-		import ky from '/distribution/index.js';
+		import ky from '/distribution/index';
 		globalThis.ky = ky;
 	`,
 };

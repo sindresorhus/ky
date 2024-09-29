@@ -1,6 +1,6 @@
-import {type stop} from '../core/constants.js';
-import type {KyRequest, KyResponse, HTTPError} from '../index.js';
-import type {NormalizedOptions} from './options.js';
+import {type stop} from '../core/constants';
+import type {KyRequest, KyResponse, HTTPError} from '../index';
+import type {NormalizedOptions} from './options';
 
 export type BeforeRequestHook = (
 	request: KyRequest,
