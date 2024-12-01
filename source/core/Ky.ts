@@ -434,7 +434,6 @@ export class Ky {
 				const jsonString = JSON.stringify(body);
 				return new TextEncoder().encode(jsonString).length;
 			} catch (error) {
-				console.warn('Unable to stringify object:', error);
 				return 0;
 			}
 		}
