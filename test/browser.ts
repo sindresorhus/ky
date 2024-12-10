@@ -3,7 +3,7 @@ import busboy from 'busboy';
 import express from 'express';
 import {chromium, webkit, type Page} from 'playwright';
 import type ky from '../source/index.js'; // eslint-disable-line import/no-duplicates
-import type {DownloadProgress} from '../source/index.js'; // eslint-disable-line import/no-duplicates
+import type {Progress} from '../source/index.js'; // eslint-disable-line import/no-duplicates
 import {createHttpTestServer, type ExtendedHttpTestServer, type HttpServerOptions} from './helpers/create-http-test-server.js';
 import {parseRawBody} from './helpers/parse-body.js';
 import {browserTest, defaultBrowsersTest} from './helpers/with-page.js';
@@ -265,7 +265,7 @@ browserTest('onDownloadProgress works', [chromium, webkit], async (t: ExecutionC
 	await addKyScriptToPage(page);
 
 	const result = await page.evaluate(async (url: string) => {
-		const data: Array<Array<(DownloadProgress | string)>> = [];
+		const data: Array<Array<(Progress | string)>> = [];
 		const text = await window
 			.ky(url, {
 				onDownloadProgress(progress, chunk) {

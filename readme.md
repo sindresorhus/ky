@@ -421,6 +421,37 @@ const response = await ky('https://example.com', {
 });
 ```
 
+##### onUploadProgress
+
+Type: `Function`
+
+Upload progress event handler.
+
+The function receives a `progress` object containing the following properties:
+- `percent`: A number between 0 and 1 representing the progress percentage.
+- `transferredBytes`: The number of bytes transferred so far.
+- `totalBytes`: The total number of bytes to be transferred. This is an estimate and may be 0 if the total size cannot be determined.
+
+```js
+import ky from 'ky';
+
+const response = await ky.post('https://example.com/api/upload', {
+	body: largeFile,
+	onUploadProgress: progress => {
+		console.log(`${progress.percent * 100}% - ${progress.transferredBytes} of ${progress.totalBytes} bytes`);
+	}
+});
+```
+
+Notes:
+- This option requires environment support for `ReadableStream`. If streams are not supported, an error will be thrown.
+- The `body` of the request must be set for this option to have an effect.
+- The total size calculation is an approximation for certain types of bodies (e.g., `FormData`).
+- For `FormData` bodies, the size calculation includes an estimation for multipart boundaries and field names.
+- If the total size cannot be determined, `totalBytes` will be 0, and `percent` will remain at 0 throughout the upload and will be 1 once upload is finished.
+
+This feature is useful for tracking the progress of large file uploads or when sending substantial amounts of data to a server.
+
 ##### parseJson
 
 Type: `Function`\
