@@ -163,7 +163,9 @@ export class Ky {
 		if (supportsAbortController) {
 			this.abortController = new globalThis.AbortController();
 			const originalSignal = this._options.signal ?? (this._input as Request).signal;
-			originalSignal?.throwIfAborted();
+			if (originalSignal?.aborted) {
+				this.abortController.abort();
+			}
 			originalSignal?.addEventListener('abort', () => {
 				this.abortController!.abort(originalSignal.reason);
 			});
