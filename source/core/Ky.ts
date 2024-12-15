@@ -166,10 +166,10 @@ export class Ky {
 			if (originalSignal?.aborted) {
 				this.abortController.abort();
 			}
+
 			originalSignal?.addEventListener('abort', () => {
 				this.abortController!.abort(originalSignal.reason);
 			});
-
 			this._options.signal = this.abortController.signal;
 		}
 

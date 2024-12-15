@@ -726,7 +726,6 @@ test('throws AbortError when signal was aborted before request', async t => {
 
 	const error = (await t.throwsAsync(response))!;
 
-
 	t.true(['DOMException', 'Error'].includes(error.constructor.name), `Expected DOMException or Error, got ${error.constructor.name}`);
 	t.is(error.name, 'AbortError', `Expected AbortError, got ${error.name}`);
 });
