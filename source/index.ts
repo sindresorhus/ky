@@ -42,7 +42,7 @@ export type {
 	NormalizedOptions,
 	RetryOptions,
 	SearchParamsOption,
-	DownloadProgress,
+	Progress,
 } from './types/options.js';
 
 export type {
