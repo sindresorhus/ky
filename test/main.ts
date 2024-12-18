@@ -713,6 +713,26 @@ test('throws DOMException/Error with name AbortError when aborted by user', asyn
 	t.is(error.name, 'AbortError', `Expected AbortError, got ${error.name}`);
 });
 
+test('throws AbortError when signal was aborted before request', async t => {
+	const server = await createHttpTestServer();
+	let requestCount = 0;
+	server.get('/', () => {
+		requestCount += 1;
+	});
+
+	const abortController = new AbortController();
+	const {signal} = abortController;
+	const request = new Request(server.url, {signal});
+	abortController.abort();
+	const response = ky(request);
+
+	const error = (await t.throwsAsync(response))!;
+
+	t.true(['DOMException', 'Error'].includes(error.constructor.name), `Expected DOMException or Error, got ${error.constructor.name}`);
+	t.is(error.name, 'AbortError', `Expected AbortError, got ${error.name}`);
+	t.is(requestCount, 0, 'Request count is more than 0, server received request.');
+});
+
 test('throws AbortError when aborted via Request', async t => {
 	const server = await createHttpTestServer();
 	// eslint-disable-next-line @typescript-eslint/no-empty-function
