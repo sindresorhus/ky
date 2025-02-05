@@ -2,7 +2,7 @@ import {requestMethods} from '../core/constants.js';
 import type {HttpMethod} from '../types/options.js';
 import type {RetryOptions} from '../types/retry.js';
 
-export const normalizeRequestMethod = (input: string = 'GET'): string =>
+export const normalizeRequestMethod = (input = 'GET'): string =>
 	requestMethods.includes(input as HttpMethod) ? input.toUpperCase() : input;
 
 const retryMethods = ['get', 'put', 'head', 'delete', 'options', 'trace'];
