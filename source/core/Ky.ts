@@ -135,7 +135,6 @@ export class Ky {
 				},
 				options.hooks,
 			),
-			method: normalizeRequestMethod(options.method ?? (this._input as Request).method),
 			// eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing
 			prefixUrl: String(options.prefixUrl || ''),
 			retry: normalizeRetryOptions(options.retry),
@@ -143,6 +142,12 @@ export class Ky {
 			timeout: options.timeout ?? 10_000,
 			fetch: options.fetch ?? globalThis.fetch.bind(globalThis),
 		};
+
+		const method = normalizeRequestMethod(options.method ?? (this._input as Request).method);
+
+		if (method !== undefined) {
+			this._options.method = method;
+		}
 
 		if (typeof this._input !== 'string' && !(this._input instanceof URL || this._input instanceof globalThis.Request)) {
 			throw new TypeError('`input` must be a string, URL, or Request');
