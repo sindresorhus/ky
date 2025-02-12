@@ -1,6 +1,6 @@
 {
 	"name": "ky",
-	"version": "1.7.4",
+	"version": "1.7.5",
 	"description": "Tiny and elegant HTTP client based on the Fetch API",
 	"license": "MIT",
 	"repository": "sindresorhus/ky",
