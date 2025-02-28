@@ -433,7 +433,7 @@ export class Ky {
 			try {
 				const jsonString = JSON.stringify(body);
 				return new TextEncoder().encode(jsonString).length;
-			} catch () {
+			} catch {
 				return 0;
 			}
 		}
