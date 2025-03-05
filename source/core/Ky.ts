@@ -22,6 +22,7 @@ import {
 	supportsFormData,
 	supportsResponseStreams,
 	supportsRequestStreams,
+	usualFormBoundarySize,
 } from './constants.js';
 
 export class Ky {
@@ -393,18 +394,14 @@ export class Ky {
 		if (body instanceof globalThis.FormData) {
 			// This is an approximation, as FormData size calculation is not straightforward
 			let size = 0;
-			// eslint-disable-next-line unicorn/no-array-for-each -- FormData uses forEach method
-			body.forEach((value: globalThis.FormDataEntryValue, key: string) => {
-				if (typeof value === 'string') {
-					size += new globalThis.TextEncoder().encode(value).length;
-				} else if (typeof value === 'object' && value !== null && 'size' in value) {
-					// This catches File objects as well, as File extends Blob
-					size += (value as Blob).size;
-				}
 
-				// Add some bytes for field name and multipart boundaries
-				size += new TextEncoder().encode(key).length + 40; // 40 is an approximation for multipart overhead
-			});
+			for (const [key, value] of body) {
+				size += usualFormBoundarySize;
+				size += new TextEncoder().encode(`Content-Disposition: form-data; name="${key}"`).length;
+				size += typeof value === 'string'
+					? new globalThis.TextEncoder().encode(value).length
+					: value.size;
+			}
 
 			return size;
 		}
