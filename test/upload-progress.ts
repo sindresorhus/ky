@@ -29,9 +29,9 @@ test('POST JSON with upload progress', async t => {
 		chunks,
 		[
 			'{"test":"test"}',
-			''
+			'',
 		],
-		'Should have chunks for all but the last event'
+		'Should have chunks for all but the last event',
 	);
 
 	// Check the first progress update
