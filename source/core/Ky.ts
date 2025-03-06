@@ -8,6 +8,7 @@ import type {
 	SearchParamsInit,
 } from '../types/options.js';
 import {type ResponsePromise} from '../types/ResponsePromise.js';
+import {streamRequest, streamResponse} from '../utils/body.js';
 import {mergeHeaders, mergeHooks} from '../utils/merge.js';
 import {normalizeRequestMethod, normalizeRetryOptions} from '../utils/normalize.js';
 import timeout, {type TimeoutOptions} from '../utils/timeout.js';
@@ -22,7 +23,6 @@ import {
 	supportsFormData,
 	supportsResponseStreams,
 	supportsRequestStreams,
-	usualFormBoundarySize,
 } from './constants.js';
 
 export class Ky {
@@ -65,7 +65,6 @@ export class Ky {
 			}
 
 			// If `onDownloadProgress` is passed, it uses the stream API internally
-			/* istanbul ignore next */
 			if (ky._options.onDownloadProgress) {
 				if (typeof ky._options.onDownloadProgress !== 'function') {
 					throw new TypeError('The `onDownloadProgress` option must be a function');
@@ -75,7 +74,7 @@ export class Ky {
 					throw new Error('Streams are not supported in your environment. `ReadableStream` is missing.');
 				}
 
-				return ky._streamResponse(response.clone(), ky._options.onDownloadProgress);
+				return streamResponse(response.clone(), ky._options.onDownloadProgress);
 			}
 
 			return response;
@@ -205,21 +204,19 @@ export class Ky {
 			this.request = new globalThis.Request(new globalThis.Request(url, {...this.request}), this._options as RequestInit);
 		}
 
-		// Add onUploadProgress handling
-		if (this._options.onUploadProgress && typeof this._options.onUploadProgress === 'function') {
+		// If `onUploadProgress` is passed, it uses the stream API internally
+		if (this._options.onUploadProgress) {
+			if (typeof this._options.onUploadProgress !== 'function') {
+				throw new TypeError('The `onUploadProgress` option must be a function');
+			}
+
 			if (!supportsRequestStreams) {
 				throw new Error('Request streams are not supported in your environment. The `duplex` option for `Request` is not available.');
 			}
 
 			const originalBody = this.request.body;
 			if (originalBody) {
-				const totalBytes = this._getTotalBytes(this._options.body);
-				this.request
-					= new globalThis.Request(this._input, {
-						...this._options,
-						body: this._streamRequest(
-							originalBody, totalBytes, this._options.onUploadProgress),
-					});
+				this.request = streamRequest(this.request, this._options.onUploadProgress);
 			}
 		}
 	}
@@ -326,152 +323,5 @@ export class Ky {
 		}
 
 		return timeout(mainRequest, nonRequestOptions, this.abortController, this._options as TimeoutOptions);
-	}
-
-	/* istanbul ignore next */
-	protected _streamResponse(response: Response, onDownloadProgress: Options['onDownloadProgress']) {
-		const totalBytes = Number(response.headers.get('content-length')) || 0;
-		let transferredBytes = 0;
-
-		if (response.status === 204) {
-			if (onDownloadProgress) {
-				onDownloadProgress({percent: 1, totalBytes, transferredBytes}, new Uint8Array());
-			}
-
-			return new globalThis.Response(
-				null,
-				{
-					status: response.status,
-					statusText: response.statusText,
-					headers: response.headers,
-				},
-			);
-		}
-
-		return new globalThis.Response(
-			new globalThis.ReadableStream({
-				async start(controller) {
-					const reader = response.body!.getReader();
-
-					if (onDownloadProgress) {
-						onDownloadProgress({percent: 0, transferredBytes: 0, totalBytes}, new Uint8Array());
-					}
-
-					async function read() {
-						const {done, value} = await reader.read();
-						if (done) {
-							controller.close();
-							return;
-						}
-
-						if (onDownloadProgress) {
-							transferredBytes += value.byteLength;
-							const percent = totalBytes === 0 ? 0 : transferredBytes / totalBytes;
-							onDownloadProgress({percent, transferredBytes, totalBytes}, value);
-						}
-
-						controller.enqueue(value);
-						await read();
-					}
-
-					await read();
-				},
-			}),
-			{
-				status: response.status,
-				statusText: response.statusText,
-				headers: response.headers,
-			},
-		);
-	}
-
-	// eslint-disable-next-line @typescript-eslint/ban-types
-	protected _getTotalBytes(body?: globalThis.BodyInit | null): number {
-		if (!body) {
-			return 0;
-		}
-
-		if (body instanceof globalThis.FormData) {
-			// This is an approximation, as FormData size calculation is not straightforward
-			let size = 0;
-
-			for (const [key, value] of body) {
-				size += usualFormBoundarySize;
-				size += new TextEncoder().encode(`Content-Disposition: form-data; name="${key}"`).length;
-				size += typeof value === 'string'
-					? new globalThis.TextEncoder().encode(value).length
-					: value.size;
-			}
-
-			return size;
-		}
-
-		if (body instanceof globalThis.Blob) {
-			return body.size;
-		}
-
-		if (body instanceof globalThis.ArrayBuffer) {
-			return body.byteLength;
-		}
-
-		if (typeof body === 'string') {
-			return new globalThis.TextEncoder().encode(body).length;
-		}
-
-		if (body instanceof URLSearchParams) {
-			return new globalThis.TextEncoder().encode(body.toString()).length;
-		}
-
-		if ('byteLength' in body) {
-			return (body).byteLength;
-		}
-
-		if (typeof body === 'object' && body !== null) {
-			try {
-				const jsonString = JSON.stringify(body);
-				return new TextEncoder().encode(jsonString).length;
-			} catch {
-				return 0;
-			}
-		}
-
-		return 0; // Default case, unable to determine size
-	}
-
-	protected _streamRequest(
-		body: BodyInit,
-		totalBytes: number,
-		onUploadProgress: (progress: {percent: number; transferredBytes: number; totalBytes: number}) => void,
-	): globalThis.ReadableStream<Uint8Array> {
-		let transferredBytes = 0;
-
-		return new globalThis.ReadableStream({
-			async start(controller) {
-				const reader = body instanceof globalThis.ReadableStream ? body.getReader() : new globalThis.Response(body).body!.getReader();
-
-				async function read() {
-					const {done, value} = await reader.read();
-					if (done) {
-						// Ensure 100% progress is reported when the upload is complete
-						onUploadProgress({percent: 1, transferredBytes, totalBytes: Math.max(totalBytes, transferredBytes)});
-						controller.close();
-						return;
-					}
-
-					transferredBytes += value.byteLength as number;
-					let percent = totalBytes === 0 ? 0 : transferredBytes / totalBytes;
-					if (totalBytes < transferredBytes || percent === 1) {
-						percent = 0.99;
-					}
-
-					onUploadProgress({percent: Number(percent.toFixed(2)), transferredBytes, totalBytes});
-
-					controller.enqueue(value);
-					await read();
-				}
-
-				await read();
-			},
-		});
 	}
 }
