@@ -126,7 +126,7 @@ export const streamRequest = (request: Request, onUploadProgress: Options['onUpl
 					if (done) {
 						// Ensure 100% progress is reported when the upload is complete
 						if (onUploadProgress) {
-							onUploadProgress({percent: 1, transferredBytes, totalBytes: Math.max(totalBytes, transferredBytes)});
+							onUploadProgress({percent: 1, transferredBytes, totalBytes: Math.max(totalBytes, transferredBytes)}, new Uint8Array());
 						}
 
 						controller.close();
@@ -140,7 +140,7 @@ export const streamRequest = (request: Request, onUploadProgress: Options['onUpl
 					}
 
 					if (onUploadProgress) {
-						onUploadProgress({percent: Number(percent.toFixed(2)), transferredBytes, totalBytes});
+						onUploadProgress({percent: Number(percent.toFixed(2)), transferredBytes, totalBytes}, value);
 					}
 
 					controller.enqueue(value);

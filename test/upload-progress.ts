@@ -12,17 +12,27 @@ test('POST JSON with upload progress', async t => {
 
 	const json = {test: 'test'};
 	const data: Progress[] = [];
+	const chunks: string[] = [];
 	const responseJson = await ky
 		.post(server.url, {
 			json,
-			onUploadProgress(progress) {
+			onUploadProgress(progress, chunk) {
 				data.push(progress);
+				chunks.push(new TextDecoder().decode(chunk));
 			},
 		})
 		.json();
 
 	// Check if we have at least two progress updates
 	t.true(data.length >= 2, 'Should have at least two progress updates');
+	t.deepEqual(
+		chunks,
+		[
+			'{"test":"test"}',
+			''
+		],
+		'Should have chunks for all but the last event'
+	);
 
 	// Check the first progress update
 	t.true(

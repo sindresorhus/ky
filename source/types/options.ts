@@ -170,7 +170,8 @@ export type KyOptions = {
 	/**
 	Download progress event handler.
 
-	@param chunk - Note: It's empty for the first call.
+	@param progress - Object containing download progress information.
+	@param chunk - Data that was received. Note: It's empty for the first call.
 
 	@example
 	```
@@ -192,20 +193,24 @@ export type KyOptions = {
 	Upload progress event handler.
 
 	@param progress - Object containing upload progress information.
+	@param chunk - Data that was sent. Note: It's empty for the last call.
 
 	@example
 	```
 	import ky from 'ky';
 
 	const response = await ky.post('https://example.com/upload', {
-		body: new FormData(),
-		onUploadProgress: progress => {
+		body: largeFile,
+		onUploadProgress: (progress, chunk) => {
+			// Example output:
+			// `0% - 0 of 1271 bytes`
+			// `100% - 1271 of 1271 bytes`
 			console.log(`${progress.percent * 100}% - ${progress.transferredBytes} of ${progress.totalBytes} bytes`);
 		}
 	});
 	```
 	*/
-	onUploadProgress?: (progress: Progress) => void;
+	onUploadProgress?: (progress: Progress, chunk: Uint8Array) => void;
 
 	/**
 	User-defined `fetch` function.

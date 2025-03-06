@@ -404,9 +404,12 @@ Type: `Function`
 
 Download progress event handler.
 
-The function receives a `progress` and `chunk` argument:
-- The `progress` object contains the following elements: `percent`, `transferredBytes` and `totalBytes`. If it's not possible to retrieve the body size, `totalBytes` will be `0`.
-- The `chunk` argument is an instance of `Uint8Array`. It's empty for the first call.
+The function receives these arguments:
+- `progress` is an object with the following properties:
+- - `percent` is a number between 0 and 1 representing the progress percentage.
+- - `transferredBytes` is the number of bytes transferred so far.
+- - `totalBytes` is the total number of bytes to be transferred. This is an estimate and may be 0 if the total size cannot be determined.
+- `chunk` is an instance of `Uint8Array` containing the data that was sent. Note: It's empty for the first call.
 
 ```js
 import ky from 'ky';
@@ -427,30 +430,26 @@ Type: `Function`
 
 Upload progress event handler.
 
-The function receives a `progress` object containing the following properties:
-- `percent`: A number between 0 and 1 representing the progress percentage.
-- `transferredBytes`: The number of bytes transferred so far.
-- `totalBytes`: The total number of bytes to be transferred. This is an estimate and may be 0 if the total size cannot be determined.
+The function receives these arguments:
+- `progress` is an object with the following properties:
+- - `percent` is a number between 0 and 1 representing the progress percentage.
+- - `transferredBytes` is the number of bytes transferred so far.
+- - `totalBytes` is the total number of bytes to be transferred. This is an estimate and may be 0 if the total size cannot be determined.
+- `chunk` is an instance of `Uint8Array` containing the data that was sent. Note: It's empty for the last call.
 
 ```js
 import ky from 'ky';
 
 const response = await ky.post('https://example.com/api/upload', {
 	body: largeFile,
-	onUploadProgress: progress => {
+	onUploadProgress: (progress, chunk) => {
+		// Example output:
+		// `0% - 0 of 1271 bytes`
+		// `100% - 1271 of 1271 bytes`
 		console.log(`${progress.percent * 100}% - ${progress.transferredBytes} of ${progress.totalBytes} bytes`);
 	}
 });
 ```
-
-Notes:
-- This option requires environment support for `ReadableStream`. If streams are not supported, an error will be thrown.
-- The `body` of the request must be set for this option to have an effect.
-- The total size calculation is an approximation for certain types of bodies (e.g., `FormData`).
-- For `FormData` bodies, the size calculation includes an estimation for multipart boundaries and field names.
-- If the total size cannot be determined, `totalBytes` will be 0, and `percent` will remain at 0 throughout the upload and will be 1 once upload is finished.
-
-This feature is useful for tracking the progress of large file uploads or when sending substantial amounts of data to a server.
 
 ##### parseJson
 
