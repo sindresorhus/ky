@@ -404,15 +404,45 @@ Type: `Function`
 
 Download progress event handler.
 
-The function receives a `progress` and `chunk` argument:
-- The `progress` object contains the following elements: `percent`, `transferredBytes` and `totalBytes`. If it's not possible to retrieve the body size, `totalBytes` will be `0`.
-- The `chunk` argument is an instance of `Uint8Array`. It's empty for the first call.
+The function receives these arguments:
+- `progress` is an object with the these properties:
+- - `percent` is a number between 0 and 1 representing the progress percentage.
+- - `transferredBytes` is the number of bytes transferred so far.
+- - `totalBytes` is the total number of bytes to be transferred. This is an estimate and may be 0 if the total size cannot be determined.
+- `chunk` is an instance of `Uint8Array` containing the data that was sent. Note: It's empty for the first call.
 
 ```js
 import ky from 'ky';
 
 const response = await ky('https://example.com', {
 	onDownloadProgress: (progress, chunk) => {
+		// Example output:
+		// `0% - 0 of 1271 bytes`
+		// `100% - 1271 of 1271 bytes`
+		console.log(`${progress.percent * 100}% - ${progress.transferredBytes} of ${progress.totalBytes} bytes`);
+	}
+});
+```
+
+##### onUploadProgress
+
+Type: `Function`
+
+Upload progress event handler.
+
+The function receives these arguments:
+- `progress` is an object with the these properties:
+- - `percent` is a number between 0 and 1 representing the progress percentage.
+- - `transferredBytes` is the number of bytes transferred so far.
+- - `totalBytes` is the total number of bytes to be transferred. This is an estimate and may be 0 if the total size cannot be determined.
+- `chunk` is an instance of `Uint8Array` containing the data that was sent. Note: It's empty for the last call.
+
+```js
+import ky from 'ky';
+
+const response = await ky.post('https://example.com/upload', {
+	body: largeFile,
+	onUploadProgress: (progress, chunk) => {
 		// Example output:
 		// `0% - 0 of 1271 bytes`
 		// `100% - 1271 of 1271 bytes`

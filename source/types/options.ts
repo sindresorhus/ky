@@ -12,7 +12,7 @@ export type HttpMethod = 'get' | 'post' | 'put' | 'patch' | 'head' | 'delete';
 
 export type Input = string | URL | Request;
 
-export type DownloadProgress = {
+export type Progress = {
 	percent: number;
 	transferredBytes: number;
 
@@ -170,7 +170,8 @@ export type KyOptions = {
 	/**
 	Download progress event handler.
 
-	@param chunk - Note: It's empty for the first call.
+	@param progress - Object containing download progress information.
+	@param chunk - Data that was received. Note: It's empty for the first call.
 
 	@example
 	```
@@ -186,7 +187,30 @@ export type KyOptions = {
 	});
 	```
 	*/
-	onDownloadProgress?: (progress: DownloadProgress, chunk: Uint8Array) => void;
+	onDownloadProgress?: (progress: Progress, chunk: Uint8Array) => void;
+
+	/**
+	Upload progress event handler.
+
+	@param progress - Object containing upload progress information.
+	@param chunk - Data that was sent. Note: It's empty for the last call.
+
+	@example
+	```
+	import ky from 'ky';
+
+	const response = await ky.post('https://example.com/upload', {
+		body: largeFile,
+		onUploadProgress: (progress, chunk) => {
+			// Example output:
+			// `0% - 0 of 1271 bytes`
+			// `100% - 1271 of 1271 bytes`
+			console.log(`${progress.percent * 100}% - ${progress.transferredBytes} of ${progress.totalBytes} bytes`);
+		}
+	});
+	```
+	*/
+	onUploadProgress?: (progress: Progress, chunk: Uint8Array) => void;
 
 	/**
 	User-defined `fetch` function.
@@ -287,6 +311,7 @@ export interface NormalizedOptions extends RequestInit { // eslint-disable-line 
 	retry: RetryOptions;
 	prefixUrl: string;
 	onDownloadProgress: Options['onDownloadProgress'];
+	onUploadProgress: Options['onUploadProgress'];
 }
 
 export type {RetryOptions} from './retry.js';
