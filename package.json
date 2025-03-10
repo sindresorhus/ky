@@ -60,7 +60,7 @@
 		"@types/busboy": "^1.5.0",
 		"@types/express": "^4.17.17",
 		"@types/node": "^20.14.12",
-		"ava": "^5.3.1",
+		"ava": "^6.2.0",
 		"body-parser": "^1.20.2",
 		"busboy": "^1.6.0",
 		"del-cli": "^5.1.0",
@@ -86,6 +86,7 @@
 			"@typescript-eslint/no-unsafe-return": "off",
 			"@typescript-eslint/no-unsafe-call": "off",
 			"@typescript-eslint/naming-convention": "off",
+			"@typescript-eslint/no-unnecessary-type-assertion": "off",
 			"n/no-unsupported-features/node-builtins": "off"
 		}
 	},
