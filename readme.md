@@ -405,7 +405,7 @@ Type: `Function`
 Download progress event handler.
 
 The function receives these arguments:
-- `progress` is an object with the following properties:
+- `progress` is an object with the these properties:
 - - `percent` is a number between 0 and 1 representing the progress percentage.
 - - `transferredBytes` is the number of bytes transferred so far.
 - - `totalBytes` is the total number of bytes to be transferred. This is an estimate and may be 0 if the total size cannot be determined.
@@ -431,7 +431,7 @@ Type: `Function`
 Upload progress event handler.
 
 The function receives these arguments:
-- `progress` is an object with the following properties:
+- `progress` is an object with the these properties:
 - - `percent` is a number between 0 and 1 representing the progress percentage.
 - - `transferredBytes` is the number of bytes transferred so far.
 - - `totalBytes` is the total number of bytes to be transferred. This is an estimate and may be 0 if the total size cannot be determined.
@@ -440,7 +440,7 @@ The function receives these arguments:
 ```js
 import ky from 'ky';
 
-const response = await ky.post('https://example.com/api/upload', {
+const response = await ky.post('https://example.com/upload', {
 	body: largeFile,
 	onUploadProgress: (progress, chunk) => {
 		// Example output:
