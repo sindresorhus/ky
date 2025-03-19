@@ -570,9 +570,9 @@ You can also refer to parent defaults by providing a function to `.extend()`.
 ```js
 import ky from 'ky';
 
-const api = ky.create({prefixUrl: 'https://example.com/api'});
+const api = ky.create({prefix: 'https://example.com/api'});
 
-const usersApi = api.extend((options) => ({prefixUrl: `${options.prefixUrl}/users`}));
+const usersApi = api.extend((options) => ({prefix: `${options.prefix}/users`}));
 
 const response = await usersApi.get('123');
 //=> 'https://example.com/api/users/123'
