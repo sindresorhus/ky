@@ -47,7 +47,7 @@ test.afterEach(async () => {
 	await server.close();
 });
 
-defaultBrowsersTest('startPath option', async (t: ExecutionContext, page: Page) => {
+defaultBrowsersTest('prefix option', async (t: ExecutionContext, page: Page) => {
 	server.get('/', (_request, response) => {
 		response.end('zebra');
 	});
@@ -60,16 +60,16 @@ defaultBrowsersTest('startPath option', async (t: ExecutionContext, page: Page) 
 	await addKyScriptToPage(page);
 
 	await t.throwsAsync(
-		page.evaluate(async () => window.ky('/foo', {startPath: '/'})),
-		{message: /`input` must not begin with a slash when using `startPath`/},
+		page.evaluate(async () => window.ky('/foo', {prefix: '/'})),
+		{message: /`input` must not begin with a slash when using `prefix`/},
 	);
 
 	const results = await page.evaluate(async (url: string) => Promise.all([
 		window.ky(`${url}/api/unicorn`).text(),
-		// @ts-expect-error unsupported {startPath: null} type
-		window.ky(`${url}/api/unicorn`, {startPath: null}).text(),
-		window.ky('api/unicorn', {startPath: url}).text(),
-		window.ky('api/unicorn', {startPath: `${url}/`}).text(),
+		// @ts-expect-error unsupported {prefix: null} type
+		window.ky(`${url}/api/unicorn`, {prefix: null}).text(),
+		window.ky('api/unicorn', {prefix: url}).text(),
+		window.ky('api/unicorn', {prefix: `${url}/`}).text(),
 	]), server.url);
 
 	t.deepEqual(results, ['rainbow', 'rainbow', 'rainbow', 'rainbow']);

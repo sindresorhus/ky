@@ -141,7 +141,7 @@ export class Ky {
 			method: normalizeRequestMethod(options.method ?? (this._input as Request).method),
 			retry: normalizeRetryOptions(options.retry),
 			// eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing
-			startPath: String(options.startPath || ''),
+			prefix: String(options.prefix || ''),
 			throwHttpErrors: options.throwHttpErrors !== false,
 			timeout: options.timeout ?? 10_000,
 			fetch: options.fetch ?? globalThis.fetch.bind(globalThis),
@@ -152,16 +152,16 @@ export class Ky {
 		}
 
 		if (typeof this._input === 'string') {
-			if (this._options.startPath) {
-				if (!this._options.startPath.endsWith('/')) {
-					this._options.startPath += '/';
+			if (this._options.prefix) {
+				if (!this._options.prefix.endsWith('/')) {
+					this._options.prefix += '/';
 				}
 
 				if (this._input.startsWith('/')) {
 					this._input = this._input.slice(1);
 				}
 
-				this._input = this._options.startPath + this._input;
+				this._input = this._options.prefix + this._input;
 			}
 
 			if (this._options.baseUrl) {

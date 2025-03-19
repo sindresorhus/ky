@@ -97,8 +97,8 @@ export type KyOptions = {
 	Useful when used with [`ky.extend()`](#kyextenddefaultoptions) to create niche-specific Ky-instances.
 
 	Notes:
-	 - After `startPath` and `input` are joined, the result is resolved against the [base URL](https://developer.mozilla.org/en-US/docs/Web/API/Node/baseURI) of the page (if any).
-	 - Leading slashes in `input` are disallowed when using this option to enforce consistency and avoid confusion about how the `input` URL is handled, given that `input` will not follow the normal URL resolution rules when `startPath` is being used, which changes the meaning of a leading slash.
+	 - After `prefix` and `input` are joined, the result is resolved against the [base URL](https://developer.mozilla.org/en-US/docs/Web/API/Node/baseURI) of the page (if any).
+	 - Leading slashes in `input` are disallowed when using this option to enforce consistency and avoid confusion about how the `input` URL is handled, given that `input` will not follow the normal URL resolution rules when `prefix` is being used, which changes the meaning of a leading slash.
 
 	@example
 	```
@@ -106,14 +106,14 @@ export type KyOptions = {
 
 	// On https://example.com
 
-	const response = await ky('unicorn', {startPath: '/api'});
+	const response = await ky('unicorn', {prefix: '/api'});
 	//=> 'https://example.com/api/unicorn'
 
-	const response = await ky('unicorn', {startPath: 'https://cats.com'});
+	const response = await ky('unicorn', {prefix: 'https://cats.com'});
 	//=> 'https://cats.com/unicorn'
 	```
 	*/
-	startPath?: URL | string;
+	prefix?: URL | string;
 
 	/**
 	An object representing `limit`, `methods`, `statusCodes` and `maxRetryAfter` fields for maximum retry count, allowed methods, allowed status codes and maximum [`Retry-After`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Retry-After) time.
@@ -265,12 +265,12 @@ export interface Options extends KyOptions, Omit<RequestInit, 'headers'> { // es
 
 export type InternalOptions = Required<
 Omit<Options, 'hooks' | 'retry'>,
-'fetch' | 'startPath' | 'timeout'
+'fetch' | 'prefix' | 'timeout'
 > & {
 	headers: Required<Headers>;
 	hooks: Required<Hooks>;
 	retry: Required<RetryOptions>;
-	startPath: string;
+	prefix: string;
 };
 
 /**
@@ -283,7 +283,7 @@ export interface NormalizedOptions extends RequestInit { // eslint-disable-line 
 
 	// Extended from custom `KyOptions`, but ensured to be set (not optional).
 	retry: RetryOptions;
-	startPath: string;
+	prefix: string;
 	onDownloadProgress: Options['onDownloadProgress'];
 }
 
