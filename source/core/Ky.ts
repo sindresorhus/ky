@@ -36,6 +36,8 @@ export class Ky {
 
 			// Delay the fetch so that body method shortcuts can set the Accept header
 			await Promise.resolve();
+			// Before using ky.request, _fetch clones it and saves the clone for future retries to use.
+			// If retry is not needed, close the cloned request's ReadableStream for memory safety.
 			let response = await ky._fetch();
 
 			for (const hook of ky._options.hooks.afterResponse) {
@@ -62,6 +64,11 @@ export class Ky {
 				}
 
 				throw error;
+			}
+
+			// Now that we know a retry is not needed, close the ReadableStream of the cloned request.
+			if (!ky.request.bodyUsed) {
+				await ky.request.body?.cancel();
 			}
 
 			// If `onDownloadProgress` is passed, it uses the stream API internally
