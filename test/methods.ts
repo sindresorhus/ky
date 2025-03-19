@@ -24,6 +24,29 @@ test('common method is normalized', async t => {
 	await server.close();
 });
 
+test('method defaults to "GET"', async t => {
+	const server = await createHttpTestServer();
+	server.all('/', (_request, response) => {
+		response.end();
+	});
+
+	t.plan(2);
+
+	await t.notThrowsAsync(
+		ky(server.url, {
+			hooks: {
+				beforeRequest: [
+					(_input, options) => {
+						t.is(options.method, 'GET');
+					},
+				],
+			},
+		}),
+	);
+
+	await server.close();
+});
+
 test.failing('custom method remains identical', async t => {
 	const server = await createHttpTestServer();
 	server.all('/', (_request, response) => {

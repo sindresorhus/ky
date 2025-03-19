@@ -1,9 +1,10 @@
 import type {NormalizedOptions} from '../types/options.js';
+import type {KyRequest} from '../types/request.js';
+import type {KyResponse} from '../types/response.js';
 
-// eslint-lint-disable-next-line @typescript-eslint/naming-convention
-export class HTTPError extends Error {
-	public response: Response;
-	public request: Request;
+export class HTTPError<T = unknown> extends Error {
+	public response: KyResponse<T>;
+	public request: KyRequest;
 	public options: NormalizedOptions;
 
 	constructor(response: Response, request: Request, options: NormalizedOptions) {

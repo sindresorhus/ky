@@ -12,7 +12,7 @@ export type HttpMethod = 'get' | 'post' | 'put' | 'patch' | 'head' | 'delete';
 
 export type Input = string | URL | Request;
 
-export type DownloadProgress = {
+export type Progress = {
 	percent: number;
 	transferredBytes: number;
 
@@ -116,9 +116,11 @@ export type KyOptions = {
 	prefix?: URL | string;
 
 	/**
-	An object representing `limit`, `methods`, `statusCodes` and `maxRetryAfter` fields for maximum retry count, allowed methods, allowed status codes and maximum [`Retry-After`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Retry-After) time.
+	An object representing `limit`, `methods`, `statusCodes`, `afterStatusCodes`, and `maxRetryAfter` fields for maximum retry count, allowed methods, allowed status codes, status codes allowed to use the [`Retry-After`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Retry-After) time, and maximum [`Retry-After`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Retry-After) time.
 
 	If `retry` is a number, it will be used as `limit` and other defaults will remain in place.
+
+	If the response provides an HTTP status contained in `afterStatusCodes`, Ky will wait until the date or timeout given in the [`Retry-After`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Retry-After) header has passed to retry the request. If `Retry-After` is missing, the non-standard [`RateLimit-Reset`](https://www.ietf.org/archive/id/draft-polli-ratelimit-headers-02.html#section-3.3) header is used in its place as a fallback. If the provided status code is not in the list, the [`Retry-After`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Retry-After) header will be ignored.
 
 	If `maxRetryAfter` is set to `undefined`, it will use `options.timeout`. If [`Retry-After`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Retry-After) header is greater than `maxRetryAfter`, it will cancel the request.
 
@@ -168,7 +170,8 @@ export type KyOptions = {
 	/**
 	Download progress event handler.
 
-	@param chunk - Note: It's empty for the first call.
+	@param progress - Object containing download progress information.
+	@param chunk - Data that was received. Note: It's empty for the first call.
 
 	@example
 	```
@@ -184,7 +187,30 @@ export type KyOptions = {
 	});
 	```
 	*/
-	onDownloadProgress?: (progress: DownloadProgress, chunk: Uint8Array) => void;
+	onDownloadProgress?: (progress: Progress, chunk: Uint8Array) => void;
+
+	/**
+	Upload progress event handler.
+
+	@param progress - Object containing upload progress information.
+	@param chunk - Data that was sent. Note: It's empty for the last call.
+
+	@example
+	```
+	import ky from 'ky';
+
+	const response = await ky.post('https://example.com/upload', {
+		body: largeFile,
+		onUploadProgress: (progress, chunk) => {
+			// Example output:
+			// `0% - 0 of 1271 bytes`
+			// `100% - 1271 of 1271 bytes`
+			console.log(`${progress.percent * 100}% - ${progress.transferredBytes} of ${progress.totalBytes} bytes`);
+		}
+	});
+	```
+	*/
+	onUploadProgress?: (progress: Progress, chunk: Uint8Array) => void;
 
 	/**
 	User-defined `fetch` function.
@@ -285,6 +311,7 @@ export interface NormalizedOptions extends RequestInit { // eslint-disable-line 
 	retry: RetryOptions;
 	prefix: string;
 	onDownloadProgress: Options['onDownloadProgress'];
+	onUploadProgress: Options['onUploadProgress'];
 }
 
 export type {RetryOptions} from './retry.js';

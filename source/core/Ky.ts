@@ -1,11 +1,15 @@
 import {HTTPError} from '../errors/HTTPError.js';
 import {TimeoutError} from '../errors/TimeoutError.js';
-import type {Hooks} from '../types/hooks.js';
 import type {
-	Input, InternalOptions, NormalizedOptions, Options, SearchParamsInit,
+	Input,
+	InternalOptions,
+	NormalizedOptions,
+	Options,
+	SearchParamsInit,
 } from '../types/options.js';
 import {type ResponsePromise} from '../types/ResponsePromise.js';
-import {deepMerge, mergeHeaders} from '../utils/merge.js';
+import {streamRequest, streamResponse} from '../utils/body.js';
+import {mergeHeaders, mergeHooks} from '../utils/merge.js';
 import {normalizeRequestMethod, normalizeRetryOptions} from '../utils/normalize.js';
 import timeout, {type TimeoutOptions} from '../utils/timeout.js';
 import delay from '../utils/delay.js';
@@ -32,6 +36,8 @@ export class Ky {
 
 			// Delay the fetch so that body method shortcuts can set the Accept header
 			await Promise.resolve();
+			// Before using ky.request, _fetch clones it and saves the clone for future retries to use.
+			// If retry is not needed, close the cloned request's ReadableStream for memory safety.
 			let response = await ky._fetch();
 
 			for (const hook of ky._options.hooks.afterResponse) {
@@ -50,7 +56,7 @@ export class Ky {
 			ky._decorateResponse(response);
 
 			if (!response.ok && ky._options.throwHttpErrors) {
-				let error = new HTTPError(response, ky.request, (ky._options as unknown) as NormalizedOptions);
+				let error = new HTTPError(response, ky.request, ky._options as NormalizedOptions);
 
 				for (const hook of ky._options.hooks.beforeError) {
 					// eslint-disable-next-line no-await-in-loop
@@ -60,8 +66,12 @@ export class Ky {
 				throw error;
 			}
 
+			// Now that we know a retry is not needed, close the ReadableStream of the cloned request.
+			if (!ky.request.bodyUsed) {
+				await ky.request.body?.cancel();
+			}
+
 			// If `onDownloadProgress` is passed, it uses the stream API internally
-			/* istanbul ignore next */
 			if (ky._options.onDownloadProgress) {
 				if (typeof ky._options.onDownloadProgress !== 'function') {
 					throw new TypeError('The `onDownloadProgress` option must be a function');
@@ -71,7 +81,7 @@ export class Ky {
 					throw new Error('Streams are not supported in your environment. `ReadableStream` is missing.');
 				}
 
-				return ky._stream(response.clone(), ky._options.onDownloadProgress);
+				return streamResponse(response.clone(), ky._options.onDownloadProgress);
 			}
 
 			return response;
@@ -85,8 +95,7 @@ export class Ky {
 				// eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing
 				ky.request.headers.set('accept', ky.request.headers.get('accept') || mimeType);
 
-				const awaitedResult = await result;
-				const response = awaitedResult.clone();
+				const response = await result;
 
 				if (type === 'json') {
 					if (response.status === 204) {
@@ -120,16 +129,11 @@ export class Ky {
 	// eslint-disable-next-line complexity
 	constructor(input: Input, options: Options = {}) {
 		this._input = input;
-		const credentials
-			= this._input instanceof Request && 'credentials' in Request.prototype
-				? this._input.credentials
-				: undefined;
 
 		this._options = {
-			...(credentials && {credentials}), // For exactOptionalPropertyTypes
 			...options,
 			headers: mergeHeaders((this._input as Request).headers, options.headers),
-			hooks: deepMerge<Required<Hooks>>(
+			hooks: mergeHooks(
 				{
 					beforeRequest: [],
 					beforeRetry: [],
@@ -138,10 +142,10 @@ export class Ky {
 				},
 				options.hooks,
 			),
-			method: normalizeRequestMethod(options.method ?? (this._input as Request).method),
-			retry: normalizeRetryOptions(options.retry),
+			method: normalizeRequestMethod(options.method ?? (this._input as Request).method ?? 'GET'),
 			// eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing
 			prefix: String(options.prefix || ''),
+			retry: normalizeRetryOptions(options.retry),
 			throwHttpErrors: options.throwHttpErrors !== false,
 			timeout: options.timeout ?? 10_000,
 			fetch: options.fetch ?? globalThis.fetch.bind(globalThis),
@@ -171,14 +175,14 @@ export class Ky {
 
 		if (supportsAbortController) {
 			this.abortController = new globalThis.AbortController();
-			if (this._options.signal) {
-				const originalSignal = this._options.signal;
-
-				this._options.signal.addEventListener('abort', () => {
-					this.abortController!.abort(originalSignal.reason);
-				});
+			const originalSignal = this._options.signal ?? (this._input as Request).signal;
+			if (originalSignal?.aborted) {
+				this.abortController.abort(originalSignal?.reason);
 			}
 
+			originalSignal?.addEventListener('abort', () => {
+				this.abortController!.abort(originalSignal.reason);
+			});
 			this._options.signal = this.abortController.signal;
 		}
 
@@ -214,6 +218,22 @@ export class Ky {
 			// The spread of `this.request` is required as otherwise it misses the `duplex` option for some reason and throws.
 			this.request = new globalThis.Request(new globalThis.Request(url, {...this.request}), this._options as RequestInit);
 		}
+
+		// If `onUploadProgress` is passed, it uses the stream API internally
+		if (this._options.onUploadProgress) {
+			if (typeof this._options.onUploadProgress !== 'function') {
+				throw new TypeError('The `onUploadProgress` option must be a function');
+			}
+
+			if (!supportsRequestStreams) {
+				throw new Error('Request streams are not supported in your environment. The `duplex` option for `Request` is not available.');
+			}
+
+			const originalBody = this.request.body;
+			if (originalBody) {
+				this.request = streamRequest(this.request, this._options.onUploadProgress);
+			}
+		}
 	}
 
 	protected _calculateRetryDelay(error: unknown) {
@@ -228,11 +248,17 @@ export class Ky {
 				throw error;
 			}
 
-			const retryAfter = error.response.headers.get('Retry-After');
+			const retryAfter = error.response.headers.get('Retry-After')
+				?? error.response.headers.get('RateLimit-Reset')
+				?? error.response.headers.get('X-RateLimit-Reset') // GitHub
+				?? error.response.headers.get('X-Rate-Limit-Reset'); // Twitter
 			if (retryAfter && this._options.retry.afterStatusCodes.includes(error.response.status)) {
 				let after = Number(retryAfter) * 1000;
 				if (Number.isNaN(after)) {
 					after = Date.parse(retryAfter) - Date.now();
+				} else if (after >= Date.parse('2024-01-01')) {
+					// A large number is treated as a timestamp (fixed threshold protects against clock skew)
+					after -= Date.now();
 				}
 
 				const max = this._options.retry.maxRetryAfter ?? after;
@@ -312,62 +338,5 @@ export class Ky {
 		}
 
 		return timeout(mainRequest, nonRequestOptions, this.abortController, this._options as TimeoutOptions);
-	}
-
-	/* istanbul ignore next */
-	protected _stream(response: Response, onDownloadProgress: Options['onDownloadProgress']) {
-		const totalBytes = Number(response.headers.get('content-length')) || 0;
-		let transferredBytes = 0;
-
-		if (response.status === 204) {
-			if (onDownloadProgress) {
-				onDownloadProgress({percent: 1, totalBytes, transferredBytes}, new Uint8Array());
-			}
-
-			return new globalThis.Response(
-				null,
-				{
-					status: response.status,
-					statusText: response.statusText,
-					headers: response.headers,
-				},
-			);
-		}
-
-		return new globalThis.Response(
-			new globalThis.ReadableStream({
-				async start(controller) {
-					const reader = response.body!.getReader();
-
-					if (onDownloadProgress) {
-						onDownloadProgress({percent: 0, transferredBytes: 0, totalBytes}, new Uint8Array());
-					}
-
-					async function read() {
-						const {done, value} = await reader.read();
-						if (done) {
-							controller.close();
-							return;
-						}
-
-						if (onDownloadProgress) {
-							transferredBytes += value.byteLength;
-							const percent = totalBytes === 0 ? 0 : transferredBytes / totalBytes;
-							onDownloadProgress({percent, transferredBytes, totalBytes}, value);
-						}
-
-						controller.enqueue(value);
-						await read();
-					}
-
-					await read();
-				},
-			}),
-			{
-				status: response.status,
-				statusText: response.statusText,
-				headers: response.headers,
-			},
-		);
 	}
 }

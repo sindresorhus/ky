@@ -12,20 +12,6 @@
 			</sup>
 		</p>
 		<br>
-		<a href="https://serpapi.com#gh-light-mode-only">
-			<div>
-				<img src="https://sindresorhus.com/assets/thanks/serpapi-logo-light.svg" width="130" alt="SerpApi">
-			</div>
-			<b>API to get search engine results with ease.</b>
-		</a>
-		<a href="https://serpapi.com#gh-dark-mode-only">
-			<div>
-				<img src="https://sindresorhus.com/assets/thanks/serpapi-logo-dark.svg" width="120" alt="SerpApi">
-			</div>
-			<b>API to get search engine results with ease.</b>
-		</a>
-		<br>
-		<br>
 		<br>
 		<a href="https://logto.io/?ref=sindre">
 			<div>
@@ -51,14 +37,14 @@
 	<br>
 </div>
 
-> Ky is a tiny and elegant HTTP client based on the browser [Fetch API](https://developer.mozilla.org/en-US/docs/Web/API/WindowOrWorkerGlobalScope/fetch)
+> Ky is a tiny and elegant HTTP client based on the [Fetch API](https://developer.mozilla.org/en-US/docs/Web/API/WindowOrWorkerGlobalScope/fetch)
 
 [![Coverage Status](https://codecov.io/gh/sindresorhus/ky/branch/main/graph/badge.svg)](https://codecov.io/gh/sindresorhus/ky)
 [![](https://badgen.net/bundlephobia/minzip/ky)](https://bundlephobia.com/result?p=ky)
 
-Ky targets [modern browsers](#browser-support), Node.js, and Deno.
+Ky targets [modern browsers](#browser-support), Node.js, Bun, and Deno.
 
-It's just a tiny file with no dependencies.
+It's just a tiny package with no dependencies.
 
 ## Benefits over plain `fetch`
 
@@ -71,6 +57,7 @@ It's just a tiny file with no dependencies.
 - URL prefix option
 - Instances with custom defaults
 - Hooks
+- TypeScript niceties (e.g. `.json()` supports generics and defaults to `unknown`, not `any`)
 
 ## Install
 
@@ -78,14 +65,9 @@ It's just a tiny file with no dependencies.
 npm install ky
 ```
 
-###### Download
-
-- [Normal](https://cdn.jsdelivr.net/npm/ky/index.js)
-- [Minified](https://cdn.jsdelivr.net/npm/ky/index.min.js)
-
 ###### CDN
 
-- [jsdelivr](https://www.jsdelivr.com/package/npm/ky)
+- [jsdelivr](https://cdn.jsdelivr.net/npm/ky/+esm)
 - [unpkg](https://unpkg.com/ky)
 - [esm.sh](https://esm.sh/ky)
 
@@ -97,7 +79,7 @@ import ky from 'ky';
 const json = await ky.post('https://example.com', {json: {foo: true}}).json();
 
 console.log(json);
-//=> `{data: '🦄'}`
+//=> {data: '🦄'}
 ```
 
 With plain `fetch`, it would be:
@@ -120,7 +102,7 @@ if (!response.ok) {
 const json = await response.json();
 
 console.log(json);
-//=> `{data: '🦄'}`
+//=> {data: '🦄'}
 ```
 
 If you are using [Deno](https://github.com/denoland/deno), import Ky from a URL. For example, using a CDN:
@@ -133,12 +115,32 @@ import ky from 'https://esm.sh/ky';
 
 ### ky(input, options?)
 
-The `input` and `options` are the same as [`fetch`](https://developer.mozilla.org/en-US/docs/Web/API/WindowOrWorkerGlobalScope/fetch), with some exceptions:
+The `input` and `options` are the same as [`fetch`](https://developer.mozilla.org/en-US/docs/Web/API/WindowOrWorkerGlobalScope/fetch), with additional `options` available (see below).
 
-- The `credentials` option is `same-origin` by default, which is the default in the spec too, but not all browsers have caught up yet.
-- Adds some more options. See below.
+Returns a [`Response` object](https://developer.mozilla.org/en-US/docs/Web/API/Response) with [`Body` methods](https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API/Using_Fetch#body) added for convenience. So you can, for example, call `ky.get(input).json()` directly without having to await the `Response` first. When called like that, an appropriate `Accept` header will be set depending on the body method used. Unlike the `Body` methods of `window.Fetch`, these will throw an `HTTPError` if the response status is not in the range of `200...299`. Also, `.json()` will return an empty string if body is empty or the response status is `204` instead of throwing a parse error due to an empty body.
 
-Returns a [`Response` object](https://developer.mozilla.org/en-US/docs/Web/API/Response) with [`Body` methods](https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API/Using_Fetch#body) added for convenience. So you can, for example, call `ky.get(input).json()` directly without having to await the `Response` first. When called like that, an appropriate `Accept` header will be set depending on the body method used. Unlike the `Body` methods of `window.Fetch`; these will throw an `HTTPError` if the response status is not in the range of `200...299`. Also, `.json()` will return an empty string if body is empty or the response status is `204` instead of throwing a parse error due to an empty body.
+```js
+import ky from 'ky';
+
+const user = await ky('/api/user').json();
+
+console.log(user);
+```
+
+⌨️ **TypeScript:** Accepts an optional [type parameter](https://www.typescriptlang.org/docs/handbook/2/generics.html), which defaults to [`unknown`](https://www.typescriptlang.org/docs/handbook/2/functions.html#unknown), and is passed through to the return type of `.json()`.
+
+```ts
+import ky from 'ky';
+
+// user1 is unknown
+const user1 = await ky('/api/users/1').json();
+// user2 is a User
+const user2 = await ky<User>('/api/users/2').json();
+// user3 is a User
+const user3 = await ky('/api/users/3').json<User>();
+
+console.log([user1, user2, user3]);
+```
 
 ### ky.get(input, options?)
 ### ky.post(input, options?)
@@ -149,13 +151,21 @@ Returns a [`Response` object](https://developer.mozilla.org/en-US/docs/Web/API/R
 
 Sets `options.method` to the method name and makes a request.
 
+⌨️ **TypeScript:** Accepts an optional type parameter for use with JSON responses (see [`ky()`](#kyinput-options)).
+
+#### input
+
+Type: `string` | `URL` | `Request`
+
+Same as [`fetch` input](https://developer.mozilla.org/en-US/docs/Web/API/Request/Request#input).
+
 When using a [`Request`](https://developer.mozilla.org/en-US/docs/Web/API/Request) instance as `input`, any URL altering options (such as `prefix`) will be ignored.
 
 #### options
 
 Type: `object`
 
-In addition to all the [`fetch` options](https://developer.mozilla.org/en-US/docs/Web/API/fetch#options), it supports these options:
+Same as [`fetch` options](https://developer.mozilla.org/en-US/docs/Web/API/fetch#options), plus the following additional options:
 
 ##### method
 
@@ -212,13 +222,16 @@ Default:
 - `limit`: `2`
 - `methods`: `get` `put` `head` `delete` `options` `trace`
 - `statusCodes`: [`408`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/408) [`413`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/413) [`429`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/429) [`500`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/500) [`502`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/502) [`503`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/503) [`504`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/504)
+- `afterStatusCodes`: [`413`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/413), [`429`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/429), [`503`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/503)
 - `maxRetryAfter`: `undefined`
 - `backoffLimit`: `undefined`
 - `delay`: `attemptCount => 0.3 * (2 ** (attemptCount - 1)) * 1000`
 
-An object representing `limit`, `methods`, `statusCodes` and `maxRetryAfter` fields for maximum retry count, allowed methods, allowed status codes and maximum [`Retry-After`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Retry-After) time.
+An object representing `limit`, `methods`, `statusCodes`, `afterStatusCodes`, and `maxRetryAfter` fields for maximum retry count, allowed methods, allowed status codes, status codes allowed to use the [`Retry-After`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Retry-After) time, and maximum [`Retry-After`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Retry-After) time.
 
 If `retry` is a number, it will be used as `limit` and other defaults will remain in place.
+
+If the response provides an HTTP status contained in `afterStatusCodes`, Ky will wait until the date, timeout, or timestamp given in the [`Retry-After`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Retry-After) header has passed to retry the request. If `Retry-After` is missing, the non-standard [`RateLimit-Reset`](https://www.ietf.org/archive/id/draft-polli-ratelimit-headers-05.html#section-3.3) header is used in its place as a fallback. If the provided status code is not in the list, the [`Retry-After`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Retry-After) header will be ignored.
 
 If `maxRetryAfter` is set to `undefined`, it will use `options.timeout`. If [`Retry-After`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Retry-After) header is greater than `maxRetryAfter`, it will use `maxRetryAfter`.
 
@@ -391,15 +404,45 @@ Type: `Function`
 
 Download progress event handler.
 
-The function receives a `progress` and `chunk` argument:
-- The `progress` object contains the following elements: `percent`, `transferredBytes` and `totalBytes`. If it's not possible to retrieve the body size, `totalBytes` will be `0`.
-- The `chunk` argument is an instance of `Uint8Array`. It's empty for the first call.
+The function receives these arguments:
+- `progress` is an object with the these properties:
+- - `percent` is a number between 0 and 1 representing the progress percentage.
+- - `transferredBytes` is the number of bytes transferred so far.
+- - `totalBytes` is the total number of bytes to be transferred. This is an estimate and may be 0 if the total size cannot be determined.
+- `chunk` is an instance of `Uint8Array` containing the data that was sent. Note: It's empty for the first call.
 
 ```js
 import ky from 'ky';
 
 const response = await ky('https://example.com', {
 	onDownloadProgress: (progress, chunk) => {
+		// Example output:
+		// `0% - 0 of 1271 bytes`
+		// `100% - 1271 of 1271 bytes`
+		console.log(`${progress.percent * 100}% - ${progress.transferredBytes} of ${progress.totalBytes} bytes`);
+	}
+});
+```
+
+##### onUploadProgress
+
+Type: `Function`
+
+Upload progress event handler.
+
+The function receives these arguments:
+- `progress` is an object with the these properties:
+- - `percent` is a number between 0 and 1 representing the progress percentage.
+- - `transferredBytes` is the number of bytes transferred so far.
+- - `totalBytes` is the total number of bytes to be transferred. This is an estimate and may be 0 if the total size cannot be determined.
+- `chunk` is an instance of `Uint8Array` containing the data that was sent. Note: It's empty for the last call.
+
+```js
+import ky from 'ky';
+
+const response = await ky.post('https://example.com/upload', {
+	body: largeFile,
+	onUploadProgress: (progress, chunk) => {
 		// Example output:
 		// `0% - 0 of 1271 bytes`
 		// `100% - 1271 of 1271 bytes`
@@ -483,6 +526,8 @@ You can pass headers as a `Headers` instance or a plain object.
 You can remove a header with `.extend()` by passing the header with an `undefined` value.
 Passing `undefined` as a string removes the header only if it comes from a `Headers` instance.
 
+Similarly, you can remove existing `hooks` entries by extending the hook with an explicit `undefined`.
+
 ```js
 import ky from 'ky';
 
@@ -492,22 +537,48 @@ const original = ky.create({
 	headers: {
 		rainbow: 'rainbow',
 		unicorn: 'unicorn'
-	}
+	},
+	hooks: {
+		beforeRequest: [ () => console.log('before 1') ],
+		afterResponse: [ () => console.log('after 1') ],
+	},
 });
 
 const extended = original.extend({
 	headers: {
 		rainbow: undefined
+	},
+	hooks: {
+		beforeRequest: undefined,
+		afterResponse: [ () => console.log('after 2') ],
 	}
 });
 
 const response = await extended(url).json();
+//=> after 1
+//=> after 2
 
 console.log('rainbow' in response);
 //=> false
 
 console.log('unicorn' in response);
 //=> true
+```
+
+You can also refer to parent defaults by providing a function to `.extend()`.
+
+```js
+import ky from 'ky';
+
+const api = ky.create({prefixUrl: 'https://example.com/api'});
+
+const usersApi = api.extend((options) => ({prefixUrl: `${options.prefixUrl}/users`}));
+
+const response = await usersApi.get('123');
+//=> 'https://example.com/api/users/123'
+
+const response = await api.get('version');
+//=> 'https://example.com/api/version'
 ```
 
 ### ky.create(defaultOptions)
@@ -567,6 +638,8 @@ const text = await ky('https://example.com', options).text();
 
 Exposed for `instanceof` checks. The error has a `response` property with the [`Response` object](https://developer.mozilla.org/en-US/docs/Web/API/Response), `request` property with the [`Request` object](https://developer.mozilla.org/en-US/docs/Web/API/Request), and `options` property with normalized options (either passed to `ky` when creating an instance with `ky.create()` or directly when performing the request).
 
+Be aware that some types of errors, such as network errors, inherently mean that a response was not received. In that case, the error will not be an instance of HTTPError and will not contain a `response` property.
+
 If you need to read the actual response when an `HTTPError` has occurred, call the respective parser method on the response object. For example:
 
 ```js
@@ -578,6 +651,8 @@ try {
 	}
 }
 ```
+
+⌨️ **TypeScript:** Accepts an optional [type parameter](https://www.typescriptlang.org/docs/handbook/2/generics.html), which defaults to [`unknown`](https://www.typescriptlang.org/docs/handbook/2/functions.html#unknown), and is passed through to the return type of `error.response.json()`.
 
 ### TimeoutError
 
@@ -630,7 +705,7 @@ const json = await ky.post('https://example.com', {
 }).json();
 
 console.log(json);
-//=> `{data: '🦄'}`
+//=> {data: '🦄'}
 ```
 
 ### Cancellation
@@ -685,7 +760,7 @@ import ky from 'https://unpkg.com/ky/distribution/index.js';
 const json = await ky('https://jsonplaceholder.typicode.com/todos/1').json();
 
 console.log(json.title);
-//=> 'delectus aut autem
+//=> 'delectus aut autem'
 </script>
 ```
 
@@ -717,11 +792,11 @@ Node.js 18 and later.
 
 ## Related
 
-- [got](https://github.com/sindresorhus/got) - Simplified HTTP requests for Node.js
+- [fetch-extras](https://github.com/sindresorhus/fetch-extras) - Useful utilities for working with Fetch
 - [ky-hooks-change-case](https://github.com/alice-health/ky-hooks-change-case) - Ky hooks to modify cases on requests and responses of objects
 
 ## Maintainers
 
 - [Sindre Sorhus](https://github.com/sindresorhus)
-- [Szymon Marczak](https://github.com/szmarczak)
 - [Seth Holladay](https://github.com/sholladay)
+- [Szymon Marczak](https://github.com/szmarczak)

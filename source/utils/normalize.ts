@@ -40,6 +40,5 @@ export const normalizeRetryOptions = (retry: number | RetryOptions = {}): Requir
 	return {
 		...defaultRetryOptions,
 		...retry,
-		afterStatusCodes: retryAfterStatusCodes,
 	};
 };

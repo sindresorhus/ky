@@ -245,7 +245,9 @@ test('.json() when response is chunked', async t => {
 		response.end(']');
 	});
 
-	const responseJson = await ky.get(server.url).json();
+	const responseJson = await ky.get<['one', 'two']>(server.url).json();
+
+	expectTypeOf(responseJson).toEqualTypeOf<['one', 'two']>();
 
 	t.deepEqual(responseJson, ['one', 'two']);
 
@@ -500,6 +502,7 @@ test('ky.create() with deep array', async t => {
 
 	let isOriginBeforeRequestTrigged = false;
 	let isExtendBeforeRequestTrigged = false;
+	let isExtendAfterResponseTrigged = false;
 
 	const extended = ky.create({
 		hooks: {
@@ -518,11 +521,17 @@ test('ky.create() with deep array', async t => {
 					isExtendBeforeRequestTrigged = true;
 				},
 			],
+			afterResponse: [
+				() => {
+					isExtendAfterResponseTrigged = true;
+				},
+			],
 		},
 	});
 
 	t.is(isOriginBeforeRequestTrigged, true);
 	t.is(isExtendBeforeRequestTrigged, true);
+	t.is(isExtendAfterResponseTrigged, true);
 
 	const {ok} = await extended.head(server.url);
 	t.true(ok);
@@ -542,39 +551,145 @@ test('ky.create() does not mangle search params', async t => {
 	await server.close();
 });
 
-test('ky.extend()', async t => {
+const extendHooksMacro = test.macro<[{useFunction: boolean}]>(async (t, {useFunction}) => {
 	const server = await createHttpTestServer();
 	server.get('/', (_request, response) => {
 		response.end();
 	});
 
 	let isOriginBeforeRequestTrigged = false;
+	let isOriginAfterResponseTrigged = false;
 	let isExtendBeforeRequestTrigged = false;
+
+	const intermediateOptions = {
+		hooks: {
+			beforeRequest: [
+				() => {
+					isOriginBeforeRequestTrigged = true;
+				},
+			],
+			afterResponse: [
+				() => {
+					isOriginAfterResponseTrigged = true;
+				},
+			],
+		},
+	};
+	const extendedOptions = {
+		hooks: {
+			beforeRequest: [
+				() => {
+					isExtendBeforeRequestTrigged = true;
+				},
+			],
+		},
+	};
+
+	const extended = ky
+		.extend(useFunction ? () => intermediateOptions : intermediateOptions)
+		.extend(useFunction ? () => extendedOptions : extendedOptions);
+
+	await extended(server.url);
+
+	t.is(isOriginBeforeRequestTrigged, true);
+	t.is(isOriginAfterResponseTrigged, true);
+	t.is(isExtendBeforeRequestTrigged, true);
+
+	const {ok} = await extended.head(server.url);
+	t.true(ok);
+
+	await server.close();
+});
+
+test('ky.extend() appends hooks', extendHooksMacro, {useFunction: false});
+
+test('ky.extend() with function appends hooks', extendHooksMacro, {useFunction: false});
+
+test('ky.extend() with function overrides primitives in parent defaults', async t => {
+	const server = await createHttpTestServer();
+	server.get('*', (request, response) => {
+		response.end(request.url);
+	});
+
+	const api = ky.create({prefixUrl: `${server.url}/api`});
+	const usersApi = api.extend(options => ({prefixUrl: `${options.prefixUrl!.toString()}/users`}));
+
+	t.is(await usersApi.get('123').text(), '/api/users/123');
+	t.is(await api.get('version').text(), '/api/version');
+
+	{
+		const {ok} = await api.head(server.url);
+		t.true(ok);
+	}
+
+	{
+		const {ok} = await usersApi.head(server.url);
+		t.true(ok);
+	}
+
+	await server.close();
+});
+
+test('ky.extend() with function retains parent defaults when not specified', async t => {
+	const server = await createHttpTestServer();
+	server.get('*', (request, response) => {
+		response.end(request.url);
+	});
+
+	const api = ky.create({prefixUrl: `${server.url}/api`});
+	const extendedApi = api.extend(() => ({}));
+
+	t.is(await api.get('version').text(), '/api/version');
+	t.is(await extendedApi.get('something').text(), '/api/something');
+
+	{
+		const {ok} = await api.head(server.url);
+		t.true(ok);
+	}
+
+	{
+		const {ok} = await extendedApi.head(server.url);
+		t.true(ok);
+	}
+
+	await server.close();
+});
+
+test('ky.extend() can remove hooks', async t => {
+	const server = await createHttpTestServer();
+	server.get('/', (_request, response) => {
+		response.end();
+	});
+
+	let isOriginalBeforeRequestTrigged = false;
+	let isOriginalAfterResponseTrigged = false;
 
 	const extended = ky
 		.extend({
 			hooks: {
 				beforeRequest: [
 					() => {
-						isOriginBeforeRequestTrigged = true;
+						isOriginalBeforeRequestTrigged = true;
+					},
+				],
+				afterResponse: [
+					() => {
+						isOriginalAfterResponseTrigged = true;
 					},
 				],
 			},
 		})
 		.extend({
 			hooks: {
-				beforeRequest: [
-					() => {
-						isExtendBeforeRequestTrigged = true;
-					},
-				],
+				beforeRequest: undefined,
+				afterResponse: [],
 			},
 		});
 
 	await extended(server.url);
 
-	t.is(isOriginBeforeRequestTrigged, true);
-	t.is(isExtendBeforeRequestTrigged, true);
+	t.is(isOriginalBeforeRequestTrigged, false);
+	t.is(isOriginalAfterResponseTrigged, true);
 
 	const {ok} = await extended.head(server.url);
 	t.true(ok);
@@ -590,6 +705,43 @@ test('throws DOMException/Error with name AbortError when aborted by user', asyn
 	const abortController = new AbortController();
 	const {signal} = abortController;
 	const response = ky(server.url, {signal});
+	abortController.abort();
+
+	const error = (await t.throwsAsync(response))!;
+
+	t.true(['DOMException', 'Error'].includes(error.constructor.name), `Expected DOMException or Error, got ${error.constructor.name}`);
+	t.is(error.name, 'AbortError', `Expected AbortError, got ${error.name}`);
+});
+
+test('throws AbortError when signal was aborted before request', async t => {
+	const server = await createHttpTestServer();
+	let requestCount = 0;
+	server.get('/', () => {
+		requestCount += 1;
+	});
+
+	const abortController = new AbortController();
+	const {signal} = abortController;
+	const request = new Request(server.url, {signal});
+	abortController.abort();
+	const response = ky(request);
+
+	const error = (await t.throwsAsync(response))!;
+
+	t.true(['DOMException', 'Error'].includes(error.constructor.name), `Expected DOMException or Error, got ${error.constructor.name}`);
+	t.is(error.name, 'AbortError', `Expected AbortError, got ${error.name}`);
+	t.is(requestCount, 0, 'Request count is more than 0, server received request.');
+});
+
+test('throws AbortError when aborted via Request', async t => {
+	const server = await createHttpTestServer();
+	// eslint-disable-next-line @typescript-eslint/no-empty-function
+	server.get('/', () => {});
+
+	const abortController = new AbortController();
+	const {signal} = abortController;
+	const request = new Request(server.url, {signal});
+	const response = ky(request);
 	abortController.abort();
 
 	const error = (await t.throwsAsync(response))!;
@@ -648,8 +800,10 @@ test('options override Request instance body', async t => {
 	});
 
 	server.post('/', (request, response) => {
+		// eslint-disable-next-line @typescript-eslint/ban-types
 		const body: Buffer[] = [];
 
+		// eslint-disable-next-line @typescript-eslint/ban-types
 		request.on('data', (chunk: Buffer) => {
 			body.push(chunk);
 		});
@@ -699,7 +853,7 @@ test('parseJson option with response.json()', async t => {
 
 	const responseJson = await response.json<{hello: string; extra: string}>();
 
-	expectTypeOf(responseJson).toMatchTypeOf({hello: 'world', extra: 'extraValue'});
+	expectTypeOf(responseJson).toEqualTypeOf({hello: 'world', extra: 'extraValue'});
 
 	t.deepEqual(responseJson, {
 		...json,

@@ -5,8 +5,8 @@ import {withPerformance} from './helpers/with-performance.js';
 
 const fixture = 'fixture';
 const defaultRetryCount = 2;
+const retryAfterOn500 = 2;
 const retryAfterOn413 = 2;
-const lastTried413access = Date.now();
 
 test('network error', async t => {
 	let requestCount = 0;
@@ -23,6 +23,7 @@ test('network error', async t => {
 	});
 
 	t.is(await ky(server.url).text(), fixture);
+	t.is(requestCount, defaultRetryCount + 1);
 
 	await server.close();
 });
@@ -42,6 +43,7 @@ test('status code 500', async t => {
 	});
 
 	t.is(await ky(server.url).text(), fixture);
+	t.is(requestCount, defaultRetryCount + 1);
 
 	await server.close();
 });
@@ -61,6 +63,7 @@ test('only on defined status codes', async t => {
 	});
 
 	await t.throwsAsync(ky(server.url).text(), {message: /Bad Request/});
+	t.is(requestCount, 1);
 
 	await server.close();
 });
@@ -82,6 +85,7 @@ test('not on POST', async t => {
 	await t.throwsAsync(ky.post(server.url).text(), {
 		message: /Internal Server Error/,
 	});
+	t.is(requestCount, 1);
 
 	await server.close();
 });
@@ -120,7 +124,7 @@ test('respect Retry-After: 0 and retry immediately', async t => {
 	await server.close();
 });
 
-test('respect 413 Retry-After', async t => {
+test('RateLimit-Reset is treated the same as Retry-After', async t => {
 	let requestCount = 0;
 
 	const server = await createHttpTestServer();
@@ -128,7 +132,73 @@ test('respect 413 Retry-After', async t => {
 		requestCount++;
 
 		if (requestCount === defaultRetryCount + 1) {
-			response.end((Date.now() - lastTried413access).toString());
+			response.end(fixture);
+		} else {
+			const header = (requestCount < 2) ? 'RateLimit-Reset' : 'Retry-After';
+			response.writeHead(429, {
+				[header]: 1,
+			});
+
+			response.end('');
+		}
+	});
+
+	await withPerformance({
+		t,
+		expectedDuration: 1000 + 1000,
+		async test() {
+			t.is(await ky(server.url).text(), fixture);
+		},
+	});
+
+	t.is(requestCount, 3);
+
+	await server.close();
+});
+
+test('RateLimit-Reset with time since epoch', async t => {
+	let requestCount = 0;
+
+	const server = await createHttpTestServer();
+	server.get('/', (_request, response) => {
+		requestCount++;
+
+		if (requestCount === defaultRetryCount + 1) {
+			response.end(fixture);
+		} else {
+			const twoSecondsByDelta = 2;
+			const oneSecondByEpoch = (Date.now() / 1000) + 1;
+			response.writeHead(429, {
+				'RateLimit-Reset': (requestCount < 2) ? twoSecondsByDelta : oneSecondByEpoch,
+			});
+
+			response.end('');
+		}
+	});
+
+	await withPerformance({
+		t,
+		expectedDuration: 2000 + 1000,
+		async test() {
+			t.is(await ky(server.url).text(), fixture);
+		},
+	});
+
+	t.is(requestCount, 3);
+
+	await server.close();
+});
+
+test('respect 413 Retry-After', async t => {
+	const startTime = Date.now();
+	let requestCount = 0;
+
+	const server = await createHttpTestServer();
+	server.get('/', (_request, response) => {
+		requestCount++;
+
+		if (requestCount === defaultRetryCount + 1) {
+			response.end((Date.now() - startTime).toString());
 		} else {
 			response.writeHead(413, {
 				'Retry-After': retryAfterOn413,
@@ -137,20 +207,22 @@ test('respect 413 Retry-After', async t => {
 		}
 	});
 
-	const result = await ky(server.url).text();
-	t.true(Number(result) >= retryAfterOn413 * 1000);
+	const timeElapsedInMs = Number(await ky(server.url).text());
+	t.true(timeElapsedInMs >= retryAfterOn413 * 1000);
+	t.is(requestCount, retryAfterOn413 + 1);
 
 	await server.close();
 });
 
 test('respect 413 Retry-After with timestamp', async t => {
+	const startTime = Date.now();
 	let requestCount = 0;
 
 	const server = await createHttpTestServer({bodyParser: false});
 	server.get('/', (_request, response) => {
 		requestCount++;
 		if (requestCount === defaultRetryCount + 1) {
-			response.end((Date.now() - lastTried413access).toString());
+			response.end((Date.now() - startTime).toString());
 		} else {
 			// @NOTE we need to round up to the next second due to http-date resolution
 			const date = new Date(Date.now() + ((retryAfterOn413 + 1) * 1000)).toUTCString();
@@ -161,9 +233,9 @@ test('respect 413 Retry-After with timestamp', async t => {
 		}
 	});
 
-	const result = await ky(server.url).text();
-	t.true(Number(result) >= retryAfterOn413 * 1000);
-	t.is(requestCount, 3);
+	const timeElapsedInMs = Number(await ky(server.url).text());
+	t.true(timeElapsedInMs >= retryAfterOn413 * 1000);
+	t.is(requestCount, retryAfterOn413 + 1);
 
 	await server.close();
 });
@@ -181,6 +253,31 @@ test('doesn\'t retry on 413 without Retry-After header', async t => {
 	t.is(requestCount, 1);
 	await ky(server.url, {throwHttpErrors: false}).text();
 	t.is(requestCount, 2);
+
+	await server.close();
+});
+
+test('respect custom `afterStatusCodes` (500) with Retry-After header', async t => {
+	const startTime = Date.now();
+	let requestCount = 0;
+
+	const server = await createHttpTestServer();
+	server.get('/', (_request, response) => {
+		requestCount++;
+
+		if (requestCount === defaultRetryCount + 1) {
+			response.end((Date.now() - startTime).toString());
+		} else {
+			response.writeHead(500, {
+				'Retry-After': retryAfterOn500,
+			});
+			response.end('');
+		}
+	});
+
+	const timeElapsedInMs = Number(await ky(server.url, {retry: {afterStatusCodes: [500]}}).text());
+	t.true(timeElapsedInMs >= retryAfterOn500 * 1000);
+	t.is(requestCount, retryAfterOn500 + 1);
 
 	await server.close();
 });
@@ -249,7 +346,7 @@ test('respect retry methods', async t => {
 			message: /Request Timeout/,
 		},
 	);
-	t.is(requestCount, 3);
+	t.is(requestCount, defaultRetryCount + 1);
 
 	await server.close();
 });

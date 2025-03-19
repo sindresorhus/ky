@@ -19,7 +19,7 @@ export type KyInstance = {
 	//=> `{data: '🦄'}`
 	```
 	*/
-	(url: Input, options?: Options): ResponsePromise;
+	<T>(url: Input, options?: Options): ResponsePromise<T>;
 
 	/**
 	Fetch the given `url` using the option `{method: 'get'}`.
@@ -27,7 +27,7 @@ export type KyInstance = {
 	@param url - `Request` object, `URL` object, or URL string.
 	@returns A promise with `Body` methods added.
 	*/
-	get: (url: Input, options?: Options) => ResponsePromise;
+	get: <T>(url: Input, options?: Options) => ResponsePromise<T>;
 
 	/**
 	Fetch the given `url` using the option `{method: 'post'}`.
@@ -35,7 +35,7 @@ export type KyInstance = {
 	@param url - `Request` object, `URL` object, or URL string.
 	@returns A promise with `Body` methods added.
 	*/
-	post: (url: Input, options?: Options) => ResponsePromise;
+	post: <T>(url: Input, options?: Options) => ResponsePromise<T>;
 
 	/**
 	Fetch the given `url` using the option `{method: 'put'}`.
@@ -43,7 +43,7 @@ export type KyInstance = {
 	@param url - `Request` object, `URL` object, or URL string.
 	@returns A promise with `Body` methods added.
 	*/
-	put: (url: Input, options?: Options) => ResponsePromise;
+	put: <T>(url: Input, options?: Options) => ResponsePromise<T>;
 
 	/**
 	Fetch the given `url` using the option `{method: 'delete'}`.
@@ -51,7 +51,7 @@ export type KyInstance = {
 	@param url - `Request` object, `URL` object, or URL string.
 	@returns A promise with `Body` methods added.
 	*/
-	delete: (url: Input, options?: Options) => ResponsePromise;
+	delete: <T>(url: Input, options?: Options) => ResponsePromise<T>;
 
 	/**
 	Fetch the given `url` using the option `{method: 'patch'}`.
@@ -59,7 +59,7 @@ export type KyInstance = {
 	@param url - `Request` object, `URL` object, or URL string.
 	@returns A promise with `Body` methods added.
 	*/
-	patch: (url: Input, options?: Options) => ResponsePromise;
+	patch: <T>(url: Input, options?: Options) => ResponsePromise<T>;
 
 	/**
 	Fetch the given `url` using the option `{method: 'head'}`.
@@ -74,16 +74,33 @@ export type KyInstance = {
 
 	@returns A new Ky instance.
 	*/
-	create: (defaultOptions: Options) => KyInstance;
+	create: (defaultOptions?: Options) => KyInstance;
 
 	/**
 	Create a new Ky instance with some defaults overridden with your own.
 
 	In contrast to `ky.create()`, `ky.extend()` inherits defaults from its parent.
 
+	You can also refer to parent defaults by providing a function to `.extend()`.
+
+	@example
+	```
+	import ky from 'ky';
+
+	const api = ky.create({prefixUrl: 'https://example.com/api'});
+
+	const usersApi = api.extend((options) => ({prefixUrl: `${options.prefixUrl}/users`}));
+
+	const response = await usersApi.get('123');
+	//=> 'https://example.com/api/users/123'
+
+	const response = await api.get('version');
+	//=> 'https://example.com/api/version'
+	```
+
 	@returns A new Ky instance.
 	*/
-	extend: (defaultOptions: Options) => KyInstance;
+	extend: (defaultOptions: Options | ((parentOptions: Options) => Options)) => KyInstance;
 
 	/**
 	A `Symbol` that can be returned by a `beforeRetry` hook to stop the retry. This will also short circuit the remaining `beforeRetry` hooks.
