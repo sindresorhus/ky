@@ -43,6 +43,7 @@ export const mergeHooks = (original: Hooks = {}, incoming: Hooks = {}): Required
 	}
 );
 
+// eslint-disable-next-line no-warning-comments
 // TODO: Make this strongly-typed (no `any`).
 export const deepMerge = <T>(...sources: Array<Partial<T> | undefined>): T => {
 	let returnValue: any = {};
