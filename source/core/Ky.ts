@@ -169,15 +169,9 @@ export class Ky {
 
 		if (supportsAbortController) {
 			this.abortController = new globalThis.AbortController();
-			const originalSignal = this._options.signal ?? (this._input as Request).signal;
-			if (originalSignal?.aborted) {
-				this.abortController.abort(originalSignal?.reason);
-			}
 
-			originalSignal?.addEventListener('abort', () => {
-				this.abortController!.abort(originalSignal.reason);
-			});
-			this._options.signal = this.abortController.signal;
+			const originalSignal = this._options.signal ?? (this._input as Request).signal;
+			this._options.signal = originalSignal ? AbortSignal.any([originalSignal, this.abortController.signal]) : this.abortController.signal;
 		}
 
 		if (supportsRequestStreams) {
