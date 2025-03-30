@@ -56,7 +56,6 @@ test.failing('custom method remains identical', async t => {
 	t.plan(1);
 
 	await t.notThrowsAsync(
-		// eslint-disable-next-line no-warning-comments
 		// TODO: Is it correct for this to throw 400 status code?
 		ky(server.url, {
 			method: 'report',

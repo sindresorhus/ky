@@ -10,7 +10,6 @@ export type ResponsePromise<T = unknown> = {
 
 	formData: () => Promise<FormData>;
 
-	// eslint-disable-next-line no-warning-comments
 	// TODO: Use `json<T extends JSONValue>(): Promise<T>;` when it's fixed in TS.
 	// See https://github.com/microsoft/TypeScript/issues/15300 and https://github.com/sindresorhus/ky/pull/80
 	/**
