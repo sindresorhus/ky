@@ -159,7 +159,7 @@ Type: `string` | `URL` | `Request`
 
 Same as [`fetch` input](https://developer.mozilla.org/en-US/docs/Web/API/Request/Request#input).
 
-When using a [`Request`](https://developer.mozilla.org/en-US/docs/Web/API/Request) instance as `input`, any URL altering options (such as `prefixUrl`) will be ignored.
+When using a [`Request`](https://developer.mozilla.org/en-US/docs/Web/API/Request) instance as `input`, any URL altering options (such as `prefix`) will be ignored.
 
 #### options
 
@@ -191,7 +191,7 @@ Search parameters to include in the request URL. Setting this will override all 
 
 Accepts any value supported by [`URLSearchParams()`](https://developer.mozilla.org/en-US/docs/Web/API/URLSearchParams/URLSearchParams).
 
-##### prefixUrl
+##### prefix
 
 Type: `string | URL`
 
@@ -204,16 +204,16 @@ import ky from 'ky';
 
 // On https://example.com
 
-const response = await ky('unicorn', {prefixUrl: '/api'});
+const response = await ky('unicorn', {prefix: '/api'});
 //=> 'https://example.com/api/unicorn'
 
-const response2 = await ky('unicorn', {prefixUrl: 'https://cats.com'});
+const response2 = await ky('unicorn', {prefix: 'https://cats.com'});
 //=> 'https://cats.com/unicorn'
 ```
 
 Notes:
- - After `prefixUrl` and `input` are joined, the result is resolved against the [base URL](https://developer.mozilla.org/en-US/docs/Web/API/Node/baseURI) of the page (if any).
- - Leading slashes in `input` are disallowed when using this option to enforce consistency and avoid confusion about how the `input` URL is handled, given that `input` will not follow the normal URL resolution rules when `prefixUrl` is being used, which changes the meaning of a leading slash.
+ - After `prefix` and `input` are joined, the result is resolved against the [base URL](https://developer.mozilla.org/en-US/docs/Web/API/Node/baseURI) of the page (if any).
+ - Leading slashes in `input` are disallowed when using this option to enforce consistency and avoid confusion about how the `input` URL is handled, given that `input` will not follow the normal URL resolution rules when `prefix` is being used, which changes the meaning of a leading slash.
 
 ##### retry
 
@@ -570,9 +570,9 @@ You can also refer to parent defaults by providing a function to `.extend()`.
 ```js
 import ky from 'ky';
 
-const api = ky.create({prefixUrl: 'https://example.com/api'});
+const api = ky.create({prefix: 'https://example.com/api'});
 
-const usersApi = api.extend((options) => ({prefixUrl: `${options.prefixUrl}/users`}));
+const usersApi = api.extend((options) => ({prefix: `${options.prefix}/users`}));
 
 const response = await usersApi.get('123');
 //=> 'https://example.com/api/users/123'
@@ -590,12 +590,12 @@ import ky from 'ky';
 
 // On https://my-site.com
 
-const api = ky.create({prefixUrl: 'https://example.com/api'});
+const api = ky.create({prefix: 'https://example.com/api'});
 
 const response = await api.get('users/123');
 //=> 'https://example.com/api/users/123'
 
-const response = await api.get('/status', {prefixUrl: ''});
+const response = await api.get('/status', {prefix: ''});
 //=> 'https://my-site.com/status'
 ```
 
