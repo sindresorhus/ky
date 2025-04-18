@@ -66,11 +66,6 @@ export class Ky {
 				throw error;
 			}
 
-			// Now that we know a retry is not needed, close the ReadableStream of the cloned request.
-			if (!ky.request.bodyUsed) {
-				await ky.request.body?.cancel();
-			}
-
 			// If `onDownloadProgress` is passed, it uses the stream API internally
 			if (ky._options.onDownloadProgress) {
 				if (typeof ky._options.onDownloadProgress !== 'function') {
@@ -88,7 +83,13 @@ export class Ky {
 		};
 
 		const isRetriableMethod = ky._options.retry.methods.includes(ky.request.method.toLowerCase());
-		const result = (isRetriableMethod ? ky._retry(function_) : function_()) as ResponsePromise;
+		const result = (isRetriableMethod ? ky._retry(function_) : function_())
+			.finally(async () => {
+				// Now that we know a retry is not needed, close the ReadableStream of the cloned request.
+				if (!ky.request.bodyUsed) {
+					await ky.request.body?.cancel();
+				}
+			}) as ResponsePromise;
 
 		for (const [type, mimeType] of Object.entries(responseTypes) as ObjectEntries<typeof responseTypes>) {
 			result[type] = async () => {
@@ -174,16 +175,9 @@ export class Ky {
 		}
 
 		if (supportsAbortController) {
-			this.abortController = new globalThis.AbortController();
 			const originalSignal = this._options.signal ?? (this._input as Request).signal;
-			if (originalSignal?.aborted) {
-				this.abortController.abort(originalSignal?.reason);
-			}
-
-			originalSignal?.addEventListener('abort', () => {
-				this.abortController!.abort(originalSignal.reason);
-			});
-			this._options.signal = this.abortController.signal;
+			this.abortController = new globalThis.AbortController();
+			this._options.signal = originalSignal ? AbortSignal.any([originalSignal, this.abortController.signal]) : this.abortController.signal;
 		}
 
 		if (supportsRequestStreams) {
