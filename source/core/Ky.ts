@@ -170,7 +170,7 @@ export class Ky {
 			}
 
 			if (this._options.baseUrl) {
-				this._input = new URL(this._input, (new Request(options.baseUrl)).url);
+				this._input = new URL(this._input, (new Request(options.baseUrl ?? '')).url);
 			}
 		}
 

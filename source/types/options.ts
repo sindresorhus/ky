@@ -92,13 +92,13 @@ export type KyOptions = {
 	searchParams?: SearchParamsOption;
 
 	/**
-	A prefix to prepend to the `input` URL when making the request. It can be any valid URL, either relative or absolute. A trailing slash `/` is optional and will be added automatically, if needed, when it is joined with `input`. Only takes effect when `input` is a string. The `input` argument cannot start with a slash `/` when using this option.
+	A base to [resolve](https://developer.mozilla.org/en-US/docs/Web/API/URL_API/Resolving_relative_references) relative `input` URLs. When the `input` (after applying the `prefix` option) is only a partial URL, such as `'users'`, `'/users'`,  or `'//my-site.com'`, it will be resolved against the `baseUrl` to determine the destination of the request. Otherwise, the input is absolute, such as `'https://my-site.com'`, and it will bypass the `baseUrl`.
 
 	Useful when used with [`ky.extend()`](#kyextenddefaultoptions) to create niche-specific Ky-instances.
 
-	Notes:
-	 - After `prefix` and `input` are joined, the result is resolved against the [base URL](https://developer.mozilla.org/en-US/docs/Web/API/Node/baseURI) of the page (if any).
-	 - Leading slashes in `input` are disallowed when using this option to enforce consistency and avoid confusion about how the `input` URL is handled, given that `input` will not follow the normal URL resolution rules when `prefix` is being used, which changes the meaning of a leading slash.
+	When setting a `baseUrl` that has a path, we recommend that it includes a trailing slash `/`, as in `'/api/'` or `'https://my-site.com/api/'`, so that directory-relative `input` URLs, such as `'users'` or `'./users'`, use the full path of the `baseUrl` instead of just replacing its last path segment.
+
+	If the `baseUrl` itself is relative, it will be resolved against the environment's base URL, such as [`document.baseURI`](https://developer.mozilla.org/en-US/docs/Web/API/Node/baseURI) in browsers or `location.href` in Deno, which can be set with the `--location` flag.
 
 	@example
 	```
@@ -106,11 +106,37 @@ export type KyOptions = {
 
 	// On https://example.com
 
-	const response = await ky('unicorn', {prefix: '/api'});
-	//=> 'https://example.com/api/unicorn'
+	const response = await ky('users', {baseUrl: '/api/'});
+	//=> 'https://example.com/api/users'
 
-	const response = await ky('unicorn', {prefix: 'https://cats.com'});
-	//=> 'https://cats.com/unicorn'
+	const response = await ky('/user', {baseUrl: '/api/'});
+	//=> 'https://example.com/user'
+	```
+	*/
+	baseUrl?: URL | string;
+
+	/**
+	A prefix to prepend to the `input` URL before making the request. It can be any valid path or URL, either relative or absolute. A trailing slash `/` is optional and will be added automatically, if needed, when it is joined with `input`. Only takes effect when `input` is a string.
+
+	Useful when used with [`ky.extend()`](#kyextenddefaultoptions) to create niche-specific Ky-instances.
+
+	In most cases, you should use the `baseUrl` option instead, as it is more consistent with web standards. The main use-case for the `prefix` option is to treat `input` URLs that start with a leading slash `/` as page-relative rather than origin-relative.
+
+	Notes:
+	 - The `prefix` and `input` are joined with a slash `/` and deduplicated with any adjacent slashes already present in `prefix` or `input`.
+	 - After `prefix` and `input` are joined, the result is resolved against the `baseUrl` option, if present.
+
+	@example
+	```
+	import ky from 'ky';
+
+	// On https://example.com
+
+	const response = await ky('users', {baseUrl: '/api/'});
+	//=> 'https://example.com/api/users'
+
+	const response = await ky('/user', {baseUrl: '/api/'});
+	//=> 'https://example.com/api/user'
 	```
 	*/
 	prefix?: URL | string;
