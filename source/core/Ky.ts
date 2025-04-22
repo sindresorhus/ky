@@ -285,7 +285,7 @@ export class Ky {
 			}
 
 			if (this.#options.baseUrl) {
-				this.#input = new URL(this.#input, (new Request(this.#options.baseUrl)).url);
+				this.#input = new URL(this.#input, (new Request(this.#options.baseUrl ?? '')).url);
 			}
 		}
 

@@ -59,20 +59,16 @@ defaultBrowsersTest('prefix option', async (t: ExecutionContext, page: Page) => 
 	await page.goto(server.url);
 	await addKyScriptToPage(page);
 
-	await t.throwsAsync(
-		page.evaluate(async () => globalThis.ky('/foo', {prefix: '/'})),
-		{message: /`input` must not begin with a slash when using `prefix`/},
-	);
-
 	const results = await page.evaluate(async (url: string) => Promise.all([
 		globalThis.ky(`${url}/api/unicorn`).text(),
 		// @ts-expect-error unsupported {prefix: null} type
 		globalThis.ky(`${url}/api/unicorn`, {prefix: null}).text(),
 		globalThis.ky('api/unicorn', {prefix: url}).text(),
 		globalThis.ky('api/unicorn', {prefix: `${url}/`}).text(),
+		globalThis.ky('/api/unicorn', {prefix: `${url}/`}).text(),
 	]), server.url);
 
-	t.deepEqual(results, ['rainbow', 'rainbow', 'rainbow', 'rainbow']);
+	t.deepEqual(results, ['rainbow', 'rainbow', 'rainbow', 'rainbow', 'rainbow']);
 });
 
 defaultBrowsersTest('aborting a request', async (t: ExecutionContext, page: Page) => {
