@@ -55,6 +55,7 @@ It's just a tiny package with no dependencies.
 - JSON option
 - Timeout support
 - URL prefix option
+- Bearer option
 - Instances with custom defaults
 - Hooks
 - TypeScript niceties (e.g. `.json()` supports generics and defaults to `unknown`, not `any`)

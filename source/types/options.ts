@@ -38,6 +38,13 @@ export type KyOptions = {
 	json?: unknown;
 
 	/**
+	Shortcut for sending Authorization: Bearer <...>. Use this instead of the `headers` option.
+
+	Accepts any string, which will be sent with the correct header set.
+	 */
+	bearer?: string;
+
+	/**
 	User-defined JSON-parsing function.
 
 	Use-cases:
@@ -291,12 +298,13 @@ export interface Options extends KyOptions, Omit<RequestInit, 'headers'> { // es
 
 export type InternalOptions = Required<
 Omit<Options, 'hooks' | 'retry'>,
-'fetch' | 'prefixUrl' | 'timeout'
+'fetch' | 'prefixUrl' | 'bearer' | 'timeout'
 > & {
 	headers: Required<Headers>;
 	hooks: Required<Hooks>;
 	retry: Required<RetryOptions>;
 	prefixUrl: string;
+	bearer: string;
 };
 
 /**
@@ -310,6 +318,7 @@ export interface NormalizedOptions extends RequestInit { // eslint-disable-line 
 	// Extended from custom `KyOptions`, but ensured to be set (not optional).
 	retry: RetryOptions;
 	prefixUrl: string;
+	bearer: string;
 	onDownloadProgress: Options['onDownloadProgress'];
 	onUploadProgress: Options['onUploadProgress'];
 }

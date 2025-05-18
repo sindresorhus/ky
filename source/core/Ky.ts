@@ -146,6 +146,8 @@ export class Ky {
 			method: normalizeRequestMethod(options.method ?? (this._input as Request).method ?? 'GET'),
 			// eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing
 			prefixUrl: String(options.prefixUrl || ''),
+			// eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing
+			bearer: String(options.bearer || ''),
 			retry: normalizeRetryOptions(options.retry),
 			throwHttpErrors: options.throwHttpErrors !== false,
 			timeout: options.timeout ?? 10_000,
@@ -166,6 +168,10 @@ export class Ky {
 			}
 
 			this._input = this._options.prefixUrl + this._input;
+		}
+
+		if (this._options.bearer) {
+			this._options.headers.set('authorization', `Bearer ${this._options.bearer}`);
 		}
 
 		if (supportsAbortController) {
