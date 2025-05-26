@@ -1,6 +1,6 @@
 import test from 'ava';
 import delay from 'delay';
-import ky, {HTTPError} from '../source/index.js';
+import ky, {HTTPError, type KyResponse} from '../source/index.js';
 import {type Options} from '../source/types/options.js';
 import {createHttpTestServer} from './helpers/create-http-test-server.js';
 
@@ -669,6 +669,20 @@ test('beforeError can return promise which resolves to HTTPError', async t => {
 			message: `${responseBody.reason} --- (500)`,
 		},
 	);
+
+	await server.close();
+});
+
+test('beforeReturn hook overrides Response object', async t => {
+	const responseBody = {status: 'unavailable'};
+	const server = await createHttpTestServer();
+	server.post('/', (_request, response) => {
+		response.status(500).send(responseBody);
+	});
+
+	const transformResponse = async (response: KyResponse<typeof responseBody>) => ({...(await response.json()), code: response.status});
+
+	t.deepEqual(await ky.post(server.url, {hooks: {beforeReturn: [transformResponse]}, throwHttpErrors: false}), {status: 'unavailable', code: 500});
 
 	await server.close();
 });

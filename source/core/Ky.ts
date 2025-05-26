@@ -8,6 +8,7 @@ import type {
 	SearchParamsInit,
 } from '../types/options.js';
 import {type ResponsePromise} from '../types/ResponsePromise.js';
+import type {GetKyReturnType} from '../types/ky.js';
 import {streamRequest, streamResponse} from '../utils/body.js';
 import {mergeHeaders, mergeHooks} from '../utils/merge.js';
 import {normalizeRequestMethod, normalizeRetryOptions} from '../utils/normalize.js';
@@ -26,7 +27,7 @@ import {
 } from './constants.js';
 
 export class Ky {
-	static create(input: Input, options: Options): ResponsePromise {
+	static create<K extends Options>(input: Input, options: K): GetKyReturnType<K> {
 		const ky = new Ky(input, options);
 
 		const function_ = async (): Promise<Response> => {
@@ -79,6 +80,11 @@ export class Ky {
 				return streamResponse(response.clone(), ky._options.onDownloadProgress);
 			}
 
+			for (const hook of ky._options.hooks.beforeReturn) {
+				// eslint-disable-next-line no-await-in-loop
+				response = (await hook(response)) as unknown as typeof response;
+			}
+
 			return response;
 		};
 
@@ -90,6 +96,11 @@ export class Ky {
 					await ky.request.body?.cancel();
 				}
 			}) as ResponsePromise;
+
+		const isUserDefinedResponse = ky._options.hooks.beforeReturn.length > 0;
+		if (isUserDefinedResponse) {
+			return result as GetKyReturnType<K>;
+		}
 
 		for (const [type, mimeType] of Object.entries(responseTypes) as ObjectEntries<typeof responseTypes>) {
 			result[type] = async () => {
@@ -118,7 +129,7 @@ export class Ky {
 			};
 		}
 
-		return result;
+		return result as GetKyReturnType<K>;
 	}
 
 	public request: Request;
@@ -140,6 +151,7 @@ export class Ky {
 					beforeRetry: [],
 					beforeError: [],
 					afterResponse: [],
+					beforeReturn: [],
 				},
 				options.hooks,
 			),

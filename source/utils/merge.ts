@@ -40,6 +40,7 @@ export const mergeHooks = (original: Hooks = {}, incoming: Hooks = {}): Required
 		beforeRetry: newHookValue(original, incoming, 'beforeRetry'),
 		afterResponse: newHookValue(original, incoming, 'afterResponse'),
 		beforeError: newHookValue(original, incoming, 'beforeError'),
+		beforeReturn: newHookValue(original, incoming, 'beforeReturn'),
 	}
 );
 
