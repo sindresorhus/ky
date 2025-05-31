@@ -65,6 +65,7 @@ export const kyOptionKeys: KyOptionsRegistry = {
 	stringifyJson: true,
 	searchParams: true,
 	prefixUrl: true,
+	bearer: true,
 	retry: true,
 	timeout: true,
 	hooks: true,
