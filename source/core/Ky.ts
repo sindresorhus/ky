@@ -87,7 +87,7 @@ export class Ky {
 			.finally(async () => {
 				// Now that we know a retry is not needed, close the ReadableStream of the cloned request.
 				if (!ky.request.bodyUsed) {
-					await ky.request.body?.cancel();
+					ky.request.body?.cancel();
 				}
 			}) as ResponsePromise;
 
