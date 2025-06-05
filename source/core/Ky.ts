@@ -15,6 +15,7 @@ import timeout, {type TimeoutOptions} from '../utils/timeout.js';
 import delay from '../utils/delay.js';
 import {type ObjectEntries} from '../utils/types.js';
 import {findUnknownOptions} from '../utils/options.js';
+import {abortSignalAny} from '../utils/abort.js';
 import {
 	maxSafeTimeout,
 	responseTypes,
@@ -171,7 +172,7 @@ export class Ky {
 		if (supportsAbortController) {
 			const originalSignal = this._options.signal ?? (this._input as Request).signal;
 			this.abortController = new globalThis.AbortController();
-			this._options.signal = originalSignal ? AbortSignal.any([originalSignal, this.abortController.signal]) : this.abortController.signal;
+			this._options.signal = originalSignal ? abortSignalAny([originalSignal, this.abortController.signal]) : this.abortController.signal;
 		}
 
 		if (supportsRequestStreams) {
