@@ -1,6 +1,6 @@
 /**
- * A ponyfill for [`AbortSignal.any`](https://developer.mozilla.org/en-US/docs/Web/API/AbortSignal/any_static).
- */
+A ponyfill for [`AbortSignal.any`](https://developer.mozilla.org/en-US/docs/Web/API/AbortSignal/any_static).
+*/
 export function abortSignalAny(
 	signals: AbortSignal[],
 ): AbortSignal {
@@ -8,17 +8,17 @@ export function abortSignalAny(
 		return AbortSignal.any(signals);
 	}
 
-	const ac = new AbortController();
+	const controller = new AbortController();
 
 	for (const signal of signals) {
 		if (signal.aborted) {
-			ac.abort();
+			controller.abort();
 		} else {
 			signal.addEventListener('abort', () => {
-				ac.abort();
+				controller.abort();
 			}, {once: true});
 		}
 	}
 
-	return ac.signal;
+	return controller.signal;
 }
