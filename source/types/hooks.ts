@@ -23,6 +23,22 @@ export type AfterResponseHook = (
 
 export type BeforeErrorHook = (error: HTTPError) => HTTPError | Promise<HTTPError>;
 
+type ResponseOrValue =
+	| Response
+	| Promise<unknown>
+	| Record<string | symbol | number, unknown>
+	| string
+	| symbol
+	| number
+	| unknown[];
+export type BeforeReturnFirstHook = (response: Response) => ResponseOrValue;
+export type BeforeReturnHook = (resul: ResponseOrValue) => ResponseOrValue;
+
+export type BeforeReturnHookParameter =
+	| [BeforeReturnFirstHook]
+	| [BeforeReturnFirstHook, ...BeforeReturnHook[]]
+	| never[];
+
 export type Hooks = {
 	/**
 	This hook enables you to modify the request right before it is sent. Ky will make no further changes to the request after this. The hook function receives normalized input and options as arguments. You could, for example, modify `options.headers` here.
@@ -126,4 +142,37 @@ export type Hooks = {
 	```
 	*/
 	beforeError?: BeforeErrorHook[];
+
+	/**
+	This hook enables you to modify Ky's return after every other hook has been called. Ky returns whatever the last function returns.
+
+	The first function receives original Response object or the one returned by `afterResponse`. Every subsequent function receives whatever the previous function has returned
+
+	Hook does not get called if `throwHttpErrors` is set to `True` and an HTTPError has occured
+
+	It is crucial to pass `options` to Ky instance with thoroughly typed `beforeReturn`. Typing your options object as `Options` or `Partial<Options` will result in an unknown return.
+
+	@default []
+
+	@example
+	```
+	import ky from 'ky';
+
+	await ky('https://example.com', {
+		hooks: {
+			beforeReturn: [
+				async ((response) => {
+					if (response.status === 200) {
+						return { ok: true, data: await response.json() }
+					}
+
+					return { ok: false }
+				})
+			]
+		}
+	});
+	```
+	*/
+	beforeReturn?: BeforeReturnHookParameter;
 };
+
