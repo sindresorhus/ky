@@ -26,7 +26,11 @@ export const isNonEmptySearchParameters = (search: SearchParamsOption): boolean 
 		return search.length > 0;
 	}
 
-	// Record and URLSearchParams
+	if (search instanceof URLSearchParams) {
+		return search.size > 0;
+	}
+
+	// Record
 	if (typeof search === 'object') {
 		return Object.keys(search).length > 0;
 	}
