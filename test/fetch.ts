@@ -4,7 +4,7 @@ import ky from '../source/index.js';
 const fixture = 'https://example.com/unicorn';
 
 test('fetch option takes a custom fetch function', async t => {
-	t.plan(6);
+	t.plan(9);
 
 	const customFetch: typeof fetch = async input => {
 		if (!(input instanceof Request)) {
@@ -21,6 +21,27 @@ test('fetch option takes a custom fetch function', async t => {
 			searchParams: {foo: 'bar'},
 		}).text(),
 		`${fixture}?foo=bar`,
+	);
+	t.is(
+		await ky(fixture, {
+			fetch: customFetch,
+			searchParams: {},
+		}).text(),
+		`${fixture}`,
+	);
+	t.is(
+		await ky(fixture, {
+			fetch: customFetch,
+			searchParams: [],
+		}).text(),
+		`${fixture}`,
+	);
+	t.is(
+		await ky(fixture, {
+			fetch: customFetch,
+			searchParams: '  ',
+		}).text(),
+		`${fixture}`,
 	);
 	t.is(
 		await ky(`${fixture}#hash`, {

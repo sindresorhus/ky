@@ -1,4 +1,5 @@
 import {kyOptionKeys, requestOptionsRegistry} from '../core/constants.js';
+import type {SearchParamsOption} from '../types/options.js';
 
 export const findUnknownOptions = (
 	request: Request,
@@ -13,4 +14,26 @@ export const findUnknownOptions = (
 	}
 
 	return unknownOptions;
+};
+
+export const isNonEmptySearchParameters = (search: SearchParamsOption): boolean => {
+	if (search === undefined) {
+		return false;
+	}
+
+	// The `typeof array` still gives "object", so we need different checking for array.
+	if (Array.isArray(search)) {
+		return search.length > 0;
+	}
+
+	// Record and URLSearchParams
+	if (typeof search === 'object') {
+		return Object.keys(search).length > 0;
+	}
+
+	if (typeof search === 'string') {
+		return search.trim().length > 0;
+	}
+
+	return Boolean(search);
 };
