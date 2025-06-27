@@ -1,3 +1,34 @@
+
+<div align="right">
+  <details>
+    <summary >🌐 Language</summary>
+    <div>
+      <div align="right">
+        <p><a href="https://openaitx.github.io/view.html?user=sindresorhus&project=ky&lang=en">English</a></p>
+        <p><a href="https://openaitx.github.io/view.html?user=sindresorhus&project=ky&lang=zh-CN">简体中文</a></p>
+        <p><a href="https://openaitx.github.io/view.html?user=sindresorhus&project=ky&lang=zh-TW">繁體中文</a></p>
+        <p><a href="https://openaitx.github.io/view.html?user=sindresorhus&project=ky&lang=ja">日本語</a></p>
+        <p><a href="https://openaitx.github.io/view.html?user=sindresorhus&project=ky&lang=ko">한국어</a></p>
+        <p><a href="https://openaitx.github.io/view.html?user=sindresorhus&project=ky&lang=hi">हिन्दी</a></p>
+        <p><a href="https://openaitx.github.io/view.html?user=sindresorhus&project=ky&lang=th">ไทย</a></p>
+        <p><a href="https://openaitx.github.io/view.html?user=sindresorhus&project=ky&lang=fr">Français</a></p>
+        <p><a href="https://openaitx.github.io/view.html?user=sindresorhus&project=ky&lang=de">Deutsch</a></p>
+        <p><a href="https://openaitx.github.io/view.html?user=sindresorhus&project=ky&lang=es">Español</a></p>
+        <p><a href="https://openaitx.github.io/view.html?user=sindresorhus&project=ky&lang=it">Itapano</a></p>
+        <p><a href="https://openaitx.github.io/view.html?user=sindresorhus&project=ky&lang=ru">Русский</a></p>
+        <p><a href="https://openaitx.github.io/view.html?user=sindresorhus&project=ky&lang=pt">Português</a></p>
+        <p><a href="https://openaitx.github.io/view.html?user=sindresorhus&project=ky&lang=nl">Nederlands</a></p>
+        <p><a href="https://openaitx.github.io/view.html?user=sindresorhus&project=ky&lang=pl">Polski</a></p>
+        <p><a href="https://openaitx.github.io/view.html?user=sindresorhus&project=ky&lang=ar">العربية</a></p>
+        <p><a href="https://openaitx.github.io/view.html?user=sindresorhus&project=ky&lang=fa">فارسی</a></p>
+        <p><a href="https://openaitx.github.io/view.html?user=sindresorhus&project=ky&lang=tr">Türkçe</a></p>
+        <p><a href="https://openaitx.github.io/view.html?user=sindresorhus&project=ky&lang=vi">Tiếng Việt</a></p>
+        <p><a href="https://openaitx.github.io/view.html?user=sindresorhus&project=ky&lang=id">Bahasa Indonesia</a></p>
+      </div>
+    </div>
+  </details>
+</div>
+
 <div align="center">
 	<br>
 	<div>
