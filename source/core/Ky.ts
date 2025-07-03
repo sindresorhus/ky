@@ -152,10 +152,25 @@ export class Ky {
 			fetch: options.fetch ?? globalThis.fetch.bind(globalThis),
 		};
 
+		this._validateUrl();
+		this._handlePrefixUrl();
+		this._setupAbortController();
+		this._setupRequestStreams();
+		this._handleJsonBody();
+
+		this.request = new globalThis.Request(this._input, this._options);
+
+		this._handleSearchParams();
+		this._handleUploadProgress();
+	}
+
+	private _validateUrl() {
 		if (typeof this._input !== 'string' && !(this._input instanceof URL || this._input instanceof globalThis.Request)) {
 			throw new TypeError('`input` must be a string, URL, or Request');
 		}
+	}
 
+	private _handlePrefixUrl() {
 		if (this._options.prefixUrl && typeof this._input === 'string') {
 			if (this._input.startsWith('/')) {
 				throw new Error('`input` must not begin with a slash when using `prefixUrl`');
@@ -167,25 +182,49 @@ export class Ky {
 
 			this._input = this._options.prefixUrl + this._input;
 		}
+	}
 
+	private _setupAbortController() {
 		if (supportsAbortController) {
 			const originalSignal = this._options.signal ?? (this._input as Request).signal;
 			this.abortController = new globalThis.AbortController();
 			this._options.signal = originalSignal ? AbortSignal.any([originalSignal, this.abortController.signal]) : this.abortController.signal;
 		}
+	}
 
+	private _setupRequestStreams() {
 		if (supportsRequestStreams) {
 			// @ts-expect-error - Types are outdated.
 			this._options.duplex = 'half';
 		}
+	}
 
+	private _handleJsonBody() {
 		if (this._options.json !== undefined) {
 			this._options.body = this._options.stringifyJson?.(this._options.json) ?? JSON.stringify(this._options.json);
 			this._options.headers.set('content-type', this._options.headers.get('content-type') ?? 'application/json');
 		}
+	}
 
-		this.request = new globalThis.Request(this._input, this._options);
+	private _handleUploadProgress() {
+		// If `onUploadProgress` is passed, it uses the stream API internally
+		if (this._options.onUploadProgress) {
+			if (typeof this._options.onUploadProgress !== 'function') {
+				throw new TypeError('The `onUploadProgress` option must be a function');
+			}
 
+			if (!supportsRequestStreams) {
+				throw new Error('Request streams are not supported in your environment. The `duplex` option for `Request` is not available.');
+			}
+
+			const originalBody = this.request.body;
+			if (originalBody) {
+				this.request = streamRequest(this.request, this._options.onUploadProgress);
+			}
+		}
+	}
+
+	private _handleSearchParams() {
 		if (this._options.searchParams) {
 			// eslint-disable-next-line unicorn/prevent-abbreviations
 			const textSearchParams = typeof this._options.searchParams === 'string'
@@ -205,22 +244,6 @@ export class Ky {
 
 			// The spread of `this.request` is required as otherwise it misses the `duplex` option for some reason and throws.
 			this.request = new globalThis.Request(new globalThis.Request(url, {...this.request}), this._options as RequestInit);
-		}
-
-		// If `onUploadProgress` is passed, it uses the stream API internally
-		if (this._options.onUploadProgress) {
-			if (typeof this._options.onUploadProgress !== 'function') {
-				throw new TypeError('The `onUploadProgress` option must be a function');
-			}
-
-			if (!supportsRequestStreams) {
-				throw new Error('Request streams are not supported in your environment. The `duplex` option for `Request` is not available.');
-			}
-
-			const originalBody = this.request.body;
-			if (originalBody) {
-				this.request = streamRequest(this.request, this._options.onUploadProgress);
-			}
 		}
 	}
 
