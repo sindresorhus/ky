@@ -33,6 +33,7 @@ export const supportsRequestStreams = (() => {
 })();
 
 export const supportsAbortController = typeof globalThis.AbortController === 'function';
+export const supportsAbortSignal = typeof globalThis.AbortSignal === 'function' && typeof globalThis.AbortSignal.any === 'function';
 export const supportsResponseStreams = typeof globalThis.ReadableStream === 'function';
 export const supportsFormData = typeof globalThis.FormData === 'function';
 
