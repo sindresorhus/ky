@@ -20,6 +20,7 @@ import {
 	responseTypes,
 	stop,
 	supportsAbortController,
+	supportsAbortSignal,
 	supportsFormData,
 	supportsResponseStreams,
 	supportsRequestStreams,
@@ -168,7 +169,7 @@ export class Ky {
 			this._input = this._options.prefixUrl + this._input;
 		}
 
-		if (supportsAbortController) {
+		if (supportsAbortController && supportsAbortSignal) {
 			const originalSignal = this._options.signal ?? (this._input as Request).signal;
 			this.abortController = new globalThis.AbortController();
 			this._options.signal = originalSignal ? AbortSignal.any([originalSignal, this.abortController.signal]) : this.abortController.signal;
