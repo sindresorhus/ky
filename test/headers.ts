@@ -1,4 +1,5 @@
 import {Buffer} from 'node:buffer';
+import process from 'node:process';
 import type {IncomingHttpHeaders} from 'node:http';
 import test from 'ava';
 import type {RequestHandler} from 'express';
@@ -251,10 +252,14 @@ test('form-data sets `content-length` header', async t => {
 	const form = new FormData();
 	form.append('a', 'b');
 
-	// @ts-expect-error FormData type mismatch
 	const headers = await ky.post(server.url, {body: form}).json<IncomingHttpHeaders>();
 
-	t.is(headers['content-length'], '119');
+	// Node 24 added some linebreaks to the end of the serialized FormData
+	if (Number.parseInt(process.versions.node, 10) < 24) {
+		t.is(headers['content-length'], '119');
+	} else {
+		t.is(headers['content-length'], '121');
+	}
 });
 
 test('buffer as `options.body` sets `content-length` header', async t => {
