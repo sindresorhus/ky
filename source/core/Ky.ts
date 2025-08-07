@@ -14,7 +14,7 @@ import {normalizeRequestMethod, normalizeRetryOptions} from '../utils/normalize.
 import timeout, {type TimeoutOptions} from '../utils/timeout.js';
 import delay from '../utils/delay.js';
 import {type ObjectEntries} from '../utils/types.js';
-import {findUnknownOptions, isNonEmptySearchParameters} from '../utils/options.js';
+import {findUnknownOptions, hasSearchParameters} from '../utils/options.js';
 import {
 	maxSafeTimeout,
 	responseTypes,
@@ -186,7 +186,7 @@ export class Ky {
 
 		this.request = new globalThis.Request(this._input, this._options);
 
-		if (isNonEmptySearchParameters(this._options.searchParams)) {
+		if (hasSearchParameters(this._options.searchParams)) {
 			// eslint-disable-next-line unicorn/prevent-abbreviations
 			const textSearchParams = typeof this._options.searchParams === 'string'
 				? this._options.searchParams.replace(/^\?/, '')

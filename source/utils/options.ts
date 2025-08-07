@@ -16,7 +16,7 @@ export const findUnknownOptions = (
 	return unknownOptions;
 };
 
-export const isNonEmptySearchParameters = (search: SearchParamsOption): boolean => {
+export const hasSearchParameters = (search: SearchParamsOption): boolean => {
 	if (search === undefined) {
 		return false;
 	}
