@@ -10,6 +10,13 @@ export type ResponsePromise<T = unknown> = {
 
 	formData: () => Promise<FormData>;
 
+	/**
+	Get the response body as raw bytes.
+
+	Note: This shortcut is only available when the runtime supports `Response.prototype.bytes()`.
+	*/
+	bytes: () => Promise<Uint8Array>;
+
 	// TODO: Use `json<T extends JSONValue>(): Promise<T>;` when it's fixed in TS.
 	// See https://github.com/microsoft/TypeScript/issues/15300 and https://github.com/sindresorhus/ky/pull/80
 	/**
