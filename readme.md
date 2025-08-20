@@ -90,6 +90,8 @@ The `input` and `options` are the same as [`fetch`](https://developer.mozilla.or
 
 Returns a [`Response` object](https://developer.mozilla.org/en-US/docs/Web/API/Response) with [`Body` methods](https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API/Using_Fetch#body) added for convenience. So you can, for example, call `ky.get(input).json()` directly without having to await the `Response` first. When called like that, an appropriate `Accept` header will be set depending on the body method used. Unlike the `Body` methods of `window.Fetch`, these will throw an `HTTPError` if the response status is not in the range of `200...299`. Also, `.json()` will return an empty string if body is empty or the response status is `204` instead of throwing a parse error due to an empty body.
 
+Available body shortcuts: `.json()`, `.text()`, `.formData()`, `.arrayBuffer()`, `.blob()`, and `.bytes()`. The `.bytes()` shortcut is only present when the runtime supports `Response.prototype.bytes()`.
+
 ```js
 import ky from 'ky';
 
@@ -111,6 +113,10 @@ const user2 = await ky<User>('/api/users/2').json();
 const user3 = await ky('/api/users/3').json<User>();
 
 console.log([user1, user2, user3]);
+
+// Get raw bytes (when supported by the runtime)
+const bytes = await ky('/api/file').bytes();
+console.log(bytes instanceof Uint8Array);
 ```
 
 ### ky.get(input, options?)

@@ -93,6 +93,14 @@ export class Ky {
 			}) as ResponsePromise;
 
 		for (const [type, mimeType] of Object.entries(responseTypes) as ObjectEntries<typeof responseTypes>) {
+			// Only expose `.bytes()` when the environment implements it.
+			if (
+				type === 'bytes'
+				&& typeof (globalThis.Response?.prototype as unknown as {bytes?: unknown})?.bytes !== 'function'
+			) {
+				continue;
+			}
+
 			result[type] = async () => {
 				// eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing
 				ky.request.headers.set('accept', ky.request.headers.get('accept') || mimeType);
