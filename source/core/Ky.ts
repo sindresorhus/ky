@@ -154,7 +154,7 @@ export class Ky {
 			),
 			method: normalizeRequestMethod(options.method ?? (this._input as Request).method ?? 'GET'),
 			// eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing
-			prefixUrl: String(options.prefixUrl || ''),
+			prefix: String(options.prefix || ''),
 			retry: normalizeRetryOptions(options.retry),
 			throwHttpErrors: options.throwHttpErrors !== false,
 			timeout: options.timeout ?? 10_000,
@@ -165,16 +165,22 @@ export class Ky {
 			throw new TypeError('`input` must be a string, URL, or Request');
 		}
 
-		if (this._options.prefixUrl && typeof this._input === 'string') {
-			if (this._input.startsWith('/')) {
-				throw new Error('`input` must not begin with a slash when using `prefixUrl`');
+		if (typeof this._input === 'string') {
+			if (this._options.prefix) {
+				if (!this._options.prefix.endsWith('/')) {
+					this._options.prefix += '/';
+				}
+
+				if (this._input.startsWith('/')) {
+					this._input = this._input.slice(1);
+				}
+
+				this._input = this._options.prefix + this._input;
 			}
 
-			if (!this._options.prefixUrl.endsWith('/')) {
-				this._options.prefixUrl += '/';
+			if (this._options.baseUrl) {
+				this._input = new URL(this._input, (new Request(options.baseUrl ?? '')).url);
 			}
-
-			this._input = this._options.prefixUrl + this._input;
 		}
 
 		if (supportsAbortController && supportsAbortSignal) {
