@@ -228,7 +228,8 @@ export class Ky {
 
 			const originalBody = this.request.body;
 			if (originalBody) {
-				this.request = streamRequest(this.request, this._options.onUploadProgress);
+				// Pass original body to calculate size correctly (before it becomes a stream)
+				this.request = streamRequest(this.request, this._options.onUploadProgress, this._options.body);
 			}
 		}
 	}
