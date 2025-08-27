@@ -110,8 +110,10 @@ export const streamResponse = (response: Response, onDownloadProgress: Options['
 	);
 };
 
-export const streamRequest = (request: Request, onUploadProgress: Options['onUploadProgress']) => {
-	const totalBytes = getBodySize(request.body);
+// eslint-disable-next-line @typescript-eslint/ban-types
+export const streamRequest = (request: Request, onUploadProgress: Options['onUploadProgress'], originalBody?: BodyInit | null) => {
+	// Use original body for size calculation since request.body is already a stream
+	const totalBytes = getBodySize(originalBody ?? request.body);
 	let transferredBytes = 0;
 
 	return new Request(request, {
