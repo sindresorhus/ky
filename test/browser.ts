@@ -485,3 +485,37 @@ browserTest('retry with body', [chromium, webkit], async (t: ExecutionContext, p
 
 	t.is(requestCount, 2);
 });
+
+defaultBrowsersTest('request is cancelled on timeout', async (t: ExecutionContext, page: Page) => {
+	let requestAborted = false;
+
+	server.get('/', (_request, response) => {
+		response.end('meow');
+	});
+
+	server.get('/slow', (request, response) => {
+		request.on('aborted', () => {
+			requestAborted = true;
+		});
+
+		// Never respond to simulate timeout
+		setTimeout(() => {
+			if (!response.headersSent) {
+				response.end('too late');
+			}
+		}, 2000);
+	});
+
+	await page.goto(server.url);
+	await addKyScriptToPage(page);
+
+	await t.throwsAsync(
+		page.evaluate(async (url: string) => window.ky(`${url}/slow`, {timeout: 100}).text(), server.url),
+		{message: /Request timed out/},
+	);
+
+	// Wait a bit to ensure the abort signal was received
+	await page.waitForTimeout(200);
+
+	t.true(requestAborted, 'Request should be aborted on timeout');
+});
