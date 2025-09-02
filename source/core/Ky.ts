@@ -130,6 +130,18 @@ export class Ky {
 		return result;
 	}
 
+	// eslint-disable-next-line unicorn/prevent-abbreviations
+	static #normalizeSearchParams(searchParams: any): any {
+		// Filter out undefined values from plain objects
+		if (searchParams && typeof searchParams === 'object' && !Array.isArray(searchParams) && !(searchParams instanceof URLSearchParams)) {
+			return Object.fromEntries(
+				Object.entries(searchParams).filter(([, value]) => value !== undefined),
+			);
+		}
+
+		return searchParams;
+	}
+
 	public request: Request;
 	protected abortController?: AbortController;
 	protected _retryCount = 0;
@@ -199,7 +211,7 @@ export class Ky {
 			// eslint-disable-next-line unicorn/prevent-abbreviations
 			const textSearchParams = typeof this._options.searchParams === 'string'
 				? this._options.searchParams.replace(/^\?/, '')
-				: new URLSearchParams(this._options.searchParams as unknown as SearchParamsInit).toString();
+				: new URLSearchParams(Ky.#normalizeSearchParams(this._options.searchParams) as unknown as SearchParamsInit).toString();
 			// eslint-disable-next-line unicorn/prevent-abbreviations
 			const searchParams = '?' + textSearchParams;
 			const url = this.request.url.replace(/(?:\?.*?)?(?=#|$)/, searchParams);

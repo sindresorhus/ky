@@ -406,6 +406,35 @@ test('searchParams option', async t => {
 	await server.close();
 });
 
+test('searchParams option with undefined values', async t => {
+	const server = await createHttpTestServer();
+
+	server.get('/', (request, response) => {
+		response.end(request.url.slice(1));
+	});
+
+	const objectWithUndefined = {
+		cats: 'meow',
+		dogs: undefined,
+		opossums: 'false',
+		birds: undefined,
+	};
+
+	const objectWithNull = {
+		cats: 'meow',
+		dogs: null as any,
+		opossums: 'false',
+	};
+
+	// Undefined values should be filtered out
+	t.is(await ky(server.url, {searchParams: objectWithUndefined}).text(), '?cats=meow&opossums=false');
+
+	// Null values should be preserved as string "null"
+	t.is(await ky(server.url, {searchParams: objectWithNull}).text(), '?cats=meow&dogs=null&opossums=false');
+
+	await server.close();
+});
+
 test('throwHttpErrors option', async t => {
 	const server = await createHttpTestServer();
 	server.get('/', (_request, response) => {
