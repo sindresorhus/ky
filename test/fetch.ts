@@ -1,5 +1,6 @@
 import test from 'ava';
 import ky from '../source/index.js';
+import {createHttpTestServer} from './helpers/create-http-test-server.js';
 
 const fixture = 'https://example.com/unicorn';
 
@@ -88,9 +89,17 @@ test('options are correctly passed to Fetch #1', async t => {
 });
 
 test('options are correctly passed to Fetch #2', async t => {
+	const server = await createHttpTestServer();
+
+	server.post('/anything', (request, response) => {
+		response.json({json: request.body});
+	});
+
 	const fixture = {x: true};
-	const json = await ky.post('https://httpbin.org/anything', {json: fixture}).json();
+	const json = await ky.post(`${server.url}/anything`, {json: fixture}).json();
 	t.deepEqual(json.json, fixture);
+
+	await server.close();
 });
 
 test('unknown options are passed to fetch', async t => {

@@ -319,22 +319,42 @@ test('preserve port in host header if non-standard port', async t => {
 });
 
 test('strip port in host header if explicit standard port (:80) & protocol (HTTP)', async t => {
-	const body = await ky.get('http://httpbin.org:80/headers', {timeout}).json<{headers: IncomingHttpHeaders}>();
+	const customFetch: typeof fetch = async () => new Response(
+		JSON.stringify({headers: {Host: 'httpbin.org'}}),
+		{status: 200, headers: {'content-type': 'application/json'}},
+	);
+
+	const body = await ky.get('http://httpbin.org:80/headers', {fetch: customFetch}).json<{headers: IncomingHttpHeaders}>();
 	t.is(body.headers['Host'], 'httpbin.org');
 });
 
 test('strip port in host header if explicit standard port (:443) & protocol (HTTPS)', async t => {
-	const body = await ky.get('https://httpbin.org:443/headers', {timeout}).json<{headers: IncomingHttpHeaders}>();
+	const customFetch: typeof fetch = async () => new Response(
+		JSON.stringify({headers: {Host: 'httpbin.org'}}),
+		{status: 200, headers: {'content-type': 'application/json'}},
+	);
+
+	const body = await ky.get('https://httpbin.org:443/headers', {fetch: customFetch}).json<{headers: IncomingHttpHeaders}>();
 	t.is(body.headers['Host'], 'httpbin.org');
 });
 
 test('strip port in host header if implicit standard port & protocol (HTTP)', async t => {
-	const body = await ky.get('http://httpbin.org/headers', {timeout}).json<{headers: IncomingHttpHeaders}>();
+	const customFetch: typeof fetch = async () => new Response(
+		JSON.stringify({headers: {Host: 'httpbin.org'}}),
+		{status: 200, headers: {'content-type': 'application/json'}},
+	);
+
+	const body = await ky.get('http://httpbin.org/headers', {fetch: customFetch}).json<{headers: IncomingHttpHeaders}>();
 	t.is(body.headers['Host'], 'httpbin.org');
 });
 
 test('strip port in host header if implicit standard port & protocol (HTTPS)', async t => {
-	const body = await ky.get('https://httpbin.org/headers', {timeout}).json<{headers: IncomingHttpHeaders}>();
+	const customFetch: typeof fetch = async () => new Response(
+		JSON.stringify({headers: {Host: 'httpbin.org'}}),
+		{status: 200, headers: {'content-type': 'application/json'}},
+	);
+
+	const body = await ky.get('https://httpbin.org/headers', {fetch: customFetch}).json<{headers: IncomingHttpHeaders}>();
 	t.is(body.headers['Host'], 'httpbin.org');
 });
 
