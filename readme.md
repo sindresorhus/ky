@@ -161,12 +161,14 @@ Shortcut for sending JSON. Use this instead of the `body` option. Accepts any pl
 
 ##### searchParams
 
-Type: `string | object<string, string | number | boolean> | Array<Array<string | number | boolean>> | URLSearchParams`\
+Type: `string | object<string, string | number | boolean | undefined> | Array<Array<string | number | boolean>> | URLSearchParams`\
 Default: `''`
 
 Search parameters to include in the request URL. Setting this will override all existing search parameters in the input URL.
 
 Accepts any value supported by [`URLSearchParams()`](https://developer.mozilla.org/en-US/docs/Web/API/URLSearchParams/URLSearchParams).
+
+When passing an object, `undefined` values are automatically filtered out, while `null` values are preserved and converted to the string `'null'`.
 
 ##### prefixUrl
 

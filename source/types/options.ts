@@ -6,7 +6,7 @@ import type {RetryOptions} from './retry.js';
 export type SearchParamsInit = string | string[][] | Record<string, string> | URLSearchParams | undefined;
 
 // eslint-disable-next-line unicorn/prevent-abbreviations
-export type SearchParamsOption = SearchParamsInit | Record<string, string | number | boolean> | Array<Array<string | number | boolean>>;
+export type SearchParamsOption = SearchParamsInit | Record<string, string | number | boolean | undefined> | Array<Array<string | number | boolean>>;
 
 export type HttpMethod = 'get' | 'post' | 'put' | 'patch' | 'head' | 'delete';
 
@@ -88,6 +88,8 @@ export type KyOptions = {
 	Search parameters to include in the request URL. Setting this will override all existing search parameters in the input URL.
 
 	Accepts any value supported by [`URLSearchParams()`](https://developer.mozilla.org/en-US/docs/Web/API/URLSearchParams/URLSearchParams).
+
+	When passing an object, `undefined` values are automatically filtered out, while `null` values are preserved and converted to the string `'null'`.
 	*/
 	searchParams?: SearchParamsOption;
 
