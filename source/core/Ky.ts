@@ -112,15 +112,16 @@ export class Ky {
 						return '';
 					}
 
-					const arrayBuffer = await response.clone().arrayBuffer();
-					const responseSize = arrayBuffer.byteLength;
-					if (responseSize === 0) {
+					const text = await response.text();
+					if (text === '') {
 						return '';
 					}
 
 					if (options.parseJson) {
-						return options.parseJson(await response.text());
+						return options.parseJson(text);
 					}
+
+					return JSON.parse(text);
 				}
 
 				return response[type]();
