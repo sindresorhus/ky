@@ -75,6 +75,7 @@ export const kyOptionKeys: KyOptionsRegistry = {
 	onDownloadProgress: true,
 	onUploadProgress: true,
 	fetch: true,
+	context: true,
 };
 
 // Standard RequestInit options that should NOT be passed separately to fetch()

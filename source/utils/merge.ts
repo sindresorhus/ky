@@ -105,6 +105,22 @@ export const deepMerge = <T>(...sources: Array<Partial<T> | undefined>): T => {
 					continue;
 				}
 
+				// Special handling for context - shallow merge only
+				if (key === 'context') {
+					if (value !== undefined && value !== null && (!isObject(value) || Array.isArray(value))) {
+						throw new TypeError('The `context` option must be an object');
+					}
+
+					// Shallow merge: always create a new object to prevent mutation bugs
+					returnValue = {
+						...returnValue,
+						context: (value === undefined || value === null)
+							? {}
+							: {...returnValue.context, ...value},
+					};
+					continue;
+				}
+
 				// Special handling for searchParams
 				if (key === 'searchParams') {
 					if (value === undefined || value === null) {
@@ -153,6 +169,10 @@ export const deepMerge = <T>(...sources: Array<Partial<T> | undefined>): T => {
 			// This can be remove when the `supportsAbortSignal` check is removed.`
 			returnValue.signal = signals.at(-1);
 		}
+	}
+
+	if (returnValue.context === undefined) {
+		returnValue.context = {};
 	}
 
 	return returnValue;
