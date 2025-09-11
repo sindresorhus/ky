@@ -1,5 +1,7 @@
 import type {Options} from '../types/options.js';
-import {usualFormBoundarySize} from '../core/constants.js';
+import {initialFormSize, formBoundarySize} from '../core/constants.js';
+
+const encoder = new TextEncoder();
 
 // eslint-disable-next-line @typescript-eslint/ban-types
 export const getBodySize = (body?: BodyInit | null): number => {
@@ -8,14 +10,19 @@ export const getBodySize = (body?: BodyInit | null): number => {
 	}
 
 	if (body instanceof FormData) {
-		// This is an approximation, as FormData size calculation is not straightforward
-		let size = 0;
+		let size = initialFormSize;
 
 		for (const [key, value] of body) {
-			size += usualFormBoundarySize;
-			size += new TextEncoder().encode(`Content-Disposition: form-data; name="${key}"`).length;
+			size += formBoundarySize;
+			size += key.length;
+
+			if (value instanceof Blob) {
+				size += encoder.encode(`; filename="${value.name ?? 'blob'}"`).length;
+				size += encoder.encode(`\r\nContent-Type: ${value.type || 'application/octet-stream'}`).length;
+			}
+
 			size += typeof value === 'string'
-				? new TextEncoder().encode(value).length
+				? encoder.encode(value).length
 				: value.size;
 		}
 
@@ -26,29 +33,16 @@ export const getBodySize = (body?: BodyInit | null): number => {
 		return body.size;
 	}
 
-	if (body instanceof ArrayBuffer) {
+	if (body instanceof ArrayBuffer || ArrayBuffer.isView(body)) {
 		return body.byteLength;
 	}
 
 	if (typeof body === 'string') {
-		return new TextEncoder().encode(body).length;
+		return encoder.encode(body).length;
 	}
 
 	if (body instanceof URLSearchParams) {
-		return new TextEncoder().encode(body.toString()).length;
-	}
-
-	if ('byteLength' in body) {
-		return (body).byteLength;
-	}
-
-	if (typeof body === 'object' && body !== null) {
-		try {
-			const jsonString = JSON.stringify(body);
-			return new TextEncoder().encode(jsonString).length;
-		} catch {
-			return 0;
-		}
+		return encoder.encode(body.toString()).length;
 	}
 
 	return 0; // Default case, unable to determine size
@@ -127,6 +121,7 @@ export const streamRequest = (request: Request, onUploadProgress: Options['onUpl
 					const {done, value} = await reader.read();
 					if (done) {
 						// Ensure 100% progress is reported when the upload is complete
+						// TODO: Don't report duplicate completion events
 						if (onUploadProgress) {
 							onUploadProgress({percent: 1, transferredBytes, totalBytes: Math.max(totalBytes, transferredBytes)}, new Uint8Array());
 						}
@@ -136,10 +131,7 @@ export const streamRequest = (request: Request, onUploadProgress: Options['onUpl
 					}
 
 					transferredBytes += value.byteLength;
-					let percent = totalBytes === 0 ? 0 : transferredBytes / totalBytes;
-					if (totalBytes < transferredBytes || percent === 1) {
-						percent = 0.99;
-					}
+					const percent = totalBytes === 0 ? 0 : transferredBytes / totalBytes;
 
 					if (onUploadProgress) {
 						onUploadProgress({percent: Number(percent.toFixed(2)), transferredBytes, totalBytes}, value);

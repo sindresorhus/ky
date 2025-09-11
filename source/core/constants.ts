@@ -58,8 +58,22 @@ export const responseTypes = {
 // The maximum value of a 32bit int (see issue #117)
 export const maxSafeTimeout = 2_147_483_647;
 
-// Size in bytes of a typical form boundary, used to help estimate upload size
-export const usualFormBoundarySize = new TextEncoder().encode('------WebKitFormBoundaryaxpyiPgbbPti10Rw').length;
+// Used to help estimate upload size
+async function getFormBodySize(formData: FormData) {
+	const responseText = await new Response(formData).text();
+
+	return responseText.length;
+}
+
+const formData = new FormData();
+
+export const initialFormSize = await getFormBodySize(formData);
+
+formData.append('', '');
+
+const largerFormSize = await getFormBodySize(formData);
+
+export const formBoundarySize = largerFormSize - initialFormSize;
 
 export const stop = Symbol('stop');
 
