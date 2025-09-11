@@ -14,7 +14,7 @@ export const getBodySize = (body?: BodyInit | null): number => {
 
 		for (const [key, value] of body) {
 			size += formBoundarySize;
-			size += key.length;
+			size += encoder.encode(key).length;
 
 			if (value instanceof Blob) {
 				size += encoder.encode(`; filename="${value.name ?? 'blob'}"`).length;
