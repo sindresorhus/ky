@@ -140,11 +140,7 @@ test.failing('ReadableStream', async t => {
 	await testBodySize(t, stream);
 });
 
-test('null and undefined', async t => {
+test('null and undefined (no body)', async t => {
 	await testBodySize(t, null);
-	await testBodySize(t, undefined);
-});
-
-test('no body', async t => {
 	await testBodySize(t, undefined);
 });
