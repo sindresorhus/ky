@@ -86,10 +86,10 @@ export const streamResponse = (response: Response, onDownloadProgress: Options['
 
 					let percent = totalBytes === 0 ? 0 : transferredBytes / totalBytes;
 					if (!done && percent >= 1) {
-						percent = 0.99;
+						percent = 0.9999;
 					}
 
-					onDownloadProgress?.({percent: Math.min(1, Number(percent.toFixed(2))), transferredBytes, totalBytes: Math.max(totalBytes, transferredBytes)}, previousChunk);
+					onDownloadProgress?.({percent: Math.min(1, percent), transferredBytes, totalBytes: Math.max(totalBytes, transferredBytes)}, previousChunk);
 				}
 
 				if (done) {
@@ -132,10 +132,10 @@ export const streamRequest = (request: Request, onUploadProgress: Options['onUpl
 
 					let percent = totalBytes === 0 ? 0 : transferredBytes / totalBytes;
 					if (!done && percent >= 1) {
-						percent = 0.99;
+						percent = 0.9999;
 					}
 
-					onUploadProgress?.({percent: Math.min(1, Number(percent.toFixed(2))), transferredBytes, totalBytes: Math.max(totalBytes, transferredBytes)}, previousChunk);
+					onUploadProgress?.({percent: Math.min(1, percent), transferredBytes, totalBytes: Math.max(totalBytes, transferredBytes)}, previousChunk);
 				}
 
 				if (done) {
