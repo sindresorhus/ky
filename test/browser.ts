@@ -280,7 +280,6 @@ browserTest('onDownloadProgress works', [chromium, webkit], async (t: ExecutionC
 	}, server.url);
 
 	t.deepEqual(result.data, [
-		[{percent: 0, transferredBytes: 0, totalBytes: 4}, ''],
 		[{percent: 0.5, transferredBytes: 2, totalBytes: 4}, 'me'],
 		[{percent: 1, transferredBytes: 4, totalBytes: 4}, 'ow'],
 	]);

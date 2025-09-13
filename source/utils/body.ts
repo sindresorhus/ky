@@ -56,12 +56,12 @@ export const getBodySize = (body?: BodyInit | null): number => {
 
 export const streamResponse = (response: Response, onDownloadProgress: Options['onDownloadProgress']) => {
 	const totalBytes = Number(response.headers.get('content-length')) || 0;
+	const reader = (response.body ?? new Response('').body!).getReader();
 	let transferredBytes = 0;
+	let previousChunk: Uint8Array<ArrayBuffer> | undefined;
 
 	if (response.status === 204) {
-		if (onDownloadProgress) {
-			onDownloadProgress({percent: 1, totalBytes, transferredBytes}, new Uint8Array());
-		}
+		onDownloadProgress?.({percent: 1, totalBytes, transferredBytes}, new Uint8Array());
 
 		return new Response(
 			null,
@@ -75,31 +75,30 @@ export const streamResponse = (response: Response, onDownloadProgress: Options['
 
 	return new Response(
 		new ReadableStream({
-			async start(controller) {
-				const reader = response.body!.getReader();
+			cancel() {
+				reader.releaseLock();
+			},
+			async pull(controller) {
+				const {value, done} = await reader.read();
 
-				if (onDownloadProgress) {
-					onDownloadProgress({percent: 0, transferredBytes: 0, totalBytes}, new Uint8Array());
-				}
+				if (previousChunk) {
+					transferredBytes += previousChunk.byteLength;
 
-				async function read() {
-					const {done, value} = await reader.read();
-					if (done) {
-						controller.close();
-						return;
+					let percent = totalBytes === 0 ? 0 : transferredBytes / totalBytes;
+					if (!done && percent >= 1) {
+						percent = 0.99;
 					}
 
-					if (onDownloadProgress) {
-						transferredBytes += value.byteLength;
-						const percent = totalBytes === 0 ? 0 : transferredBytes / totalBytes;
-						onDownloadProgress({percent, transferredBytes, totalBytes}, value);
-					}
-
-					controller.enqueue(value);
-					await read();
+					onDownloadProgress?.({percent: Math.min(1, Number(percent.toFixed(2))), transferredBytes, totalBytes: Math.max(totalBytes, transferredBytes)}, previousChunk);
 				}
 
-				await read();
+				if (done) {
+					controller.close();
+					return;
+				}
+
+				controller.enqueue(value);
+				previousChunk = value;
 			},
 		}),
 		{
