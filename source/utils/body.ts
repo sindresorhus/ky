@@ -54,15 +54,42 @@ export const getBodySize = (body?: BodyInit | null): number => {
 	return 0; // Default case, unable to determine size
 };
 
-export const streamResponse = (response: Response, onDownloadProgress: Options['onDownloadProgress']) => {
-	const totalBytes = Number(response.headers.get('content-length')) || 0;
-	const reader = (response.body ?? new Response('').body!).getReader();
+const withProgress = (stream: ReadableStream<Uint8Array>, totalBytes: number, onProgress: Options['onDownloadProgress'] | Options['onUploadProgress']): ReadableStream<Uint8Array> => {
+	let previousChunk: Uint8Array | undefined;
 	let transferredBytes = 0;
-	let previousChunk: Uint8Array<ArrayBuffer> | undefined;
+
+	return stream.pipeThrough(new TransformStream<Uint8Array, Uint8Array>({
+		transform(currentChunk, controller) {
+			controller.enqueue(currentChunk);
+
+			if (previousChunk) {
+				transferredBytes += previousChunk.byteLength;
+
+				let percent = totalBytes === 0 ? 0 : transferredBytes / totalBytes;
+				if (percent >= 1) {
+					percent = 0.9999;
+				}
+
+				onProgress?.({percent, totalBytes: Math.max(totalBytes, transferredBytes), transferredBytes}, previousChunk);
+			}
+
+			previousChunk = currentChunk;
+		},
+		flush() {
+			if (previousChunk) {
+				transferredBytes += previousChunk.byteLength;
+				onProgress?.({percent: 1, totalBytes: Math.max(totalBytes, transferredBytes), transferredBytes}, previousChunk);
+			}
+		},
+	}));
+};
+
+export const streamResponse = (response: Response, onDownloadProgress: Options['onDownloadProgress']) => {
+	if (!response.body) {
+		return response;
+	}
 
 	if (response.status === 204) {
-		onDownloadProgress?.({percent: 1, totalBytes, transferredBytes}, new Uint8Array());
-
 		return new Response(
 			null,
 			{
@@ -73,34 +100,10 @@ export const streamResponse = (response: Response, onDownloadProgress: Options['
 		);
 	}
 
+	const totalBytes = Number(response.headers.get('content-length')) || 0;
+
 	return new Response(
-		new ReadableStream({
-			cancel() {
-				reader.releaseLock();
-			},
-			async pull(controller) {
-				const {value, done} = await reader.read();
-
-				if (previousChunk) {
-					transferredBytes += previousChunk.byteLength;
-
-					let percent = totalBytes === 0 ? 0 : transferredBytes / totalBytes;
-					if (!done && percent >= 1) {
-						percent = 0.9999;
-					}
-
-					onDownloadProgress?.({percent: Math.min(1, percent), transferredBytes, totalBytes: Math.max(totalBytes, transferredBytes)}, previousChunk);
-				}
-
-				if (done) {
-					controller.close();
-					return;
-				}
-
-				controller.enqueue(value);
-				previousChunk = value;
-			},
-		}),
+		withProgress(response.body, totalBytes, onDownloadProgress),
 		{
 			status: response.status,
 			statusText: response.statusText,
@@ -111,41 +114,16 @@ export const streamResponse = (response: Response, onDownloadProgress: Options['
 
 // eslint-disable-next-line @typescript-eslint/ban-types
 export const streamRequest = (request: Request, onUploadProgress: Options['onUploadProgress'], originalBody?: BodyInit | null) => {
+	if (!request.body) {
+		return request;
+	}
+
 	// Use original body for size calculation since request.body is already a stream
 	const totalBytes = getBodySize(originalBody ?? request.body);
-	const reader = (request.body ?? new Response('').body!).getReader();
-	let transferredBytes = 0;
-	let previousChunk: Uint8Array<ArrayBuffer> | undefined;
 
 	return new Request(request, {
 		// @ts-expect-error - Types are outdated.
 		duplex: 'half',
-		body: new ReadableStream({
-			cancel() {
-				reader.releaseLock();
-			},
-			async pull(controller) {
-				const {value, done} = await reader.read();
-
-				if (previousChunk) {
-					transferredBytes += previousChunk.byteLength;
-
-					let percent = totalBytes === 0 ? 0 : transferredBytes / totalBytes;
-					if (!done && percent >= 1) {
-						percent = 0.9999;
-					}
-
-					onUploadProgress?.({percent: Math.min(1, percent), transferredBytes, totalBytes: Math.max(totalBytes, transferredBytes)}, previousChunk);
-				}
-
-				if (done) {
-					controller.close();
-					return;
-				}
-
-				controller.enqueue(value);
-				previousChunk = value;
-			},
-		}),
+		body: withProgress(request.body, totalBytes, onUploadProgress),
 	});
 };
