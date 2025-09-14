@@ -66,8 +66,9 @@ const withProgress = (stream: ReadableStream<Uint8Array>, totalBytes: number, on
 				transferredBytes += previousChunk.byteLength;
 
 				let percent = totalBytes === 0 ? 0 : transferredBytes / totalBytes;
+				// Avoid reporting 100% progress before the stream is actually finished (in case totalBytes is inaccurate)
 				if (percent >= 1) {
-					percent = 0.999;
+					percent = 1 - Number.EPSILON;
 				}
 
 				onProgress?.({percent, totalBytes: Math.max(totalBytes, transferredBytes), transferredBytes}, previousChunk);
