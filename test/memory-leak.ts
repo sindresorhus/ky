@@ -1,3 +1,4 @@
+import {Readable} from 'node:stream';
 import test from 'ava';
 import _LeakDetector from 'jest-leak-detector';
 import ky, {type KyInstance} from '../source/index.js';
@@ -33,4 +34,30 @@ test('shared abort signal must not cause memory leak of input', async t => {
 		abortController.abort();
 		await server.close();
 	}
+});
+
+test('failed stream request must not cause memory leak', async t => {
+	async function isStreamLeaking() {
+		let stream: Readable | undefined = Readable.from('Bell is Ringing.');
+		const error = new TypeError('Simulated fetch error');
+		const detector = new LeakDetector(stream);
+
+		await t.throwsAsync(
+			ky.post('https://example.com', {
+				body: stream,
+				async fetch() {
+					throw error;
+				},
+			}),
+			{
+				is: error,
+			},
+		);
+
+		stream = undefined;
+
+		return detector.isLeaking();
+	}
+
+	t.false(await isStreamLeaking());
 });
