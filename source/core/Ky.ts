@@ -88,8 +88,15 @@ export class Ky {
 			.finally(async () => {
 				// Now that we know a retry is not needed, close the ReadableStream of the cloned request.
 				if (!ky.request.bodyUsed) {
-					// Consume stream via .arrayBuffer() to avoid Node.js .cancel() hang bug on cloned streams.
-					await ky.request.arrayBuffer();
+					// Use different cleanup strategies based on environment:
+					// Node.js: Consume stream via .arrayBuffer() to avoid .cancel() hang bug on cloned streams
+					// Other environments: Use standard .cancel() method for proper stream cleanup
+					if (navigator.userAgent.startsWith('Node.js')) {
+						await ky.request.arrayBuffer();
+						return;
+					}
+
+					await ky.request.body?.cancel();
 				}
 			}) as ResponsePromise;
 
