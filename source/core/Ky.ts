@@ -86,17 +86,13 @@ export class Ky {
 		const isRetriableMethod = ky._options.retry.methods.includes(ky.request.method.toLowerCase());
 		const result = (isRetriableMethod ? ky._retry(function_) : function_())
 			.finally(async () => {
-				// Now that we know a retry is not needed, close the ReadableStream of the cloned request.
-				if (!ky.request.bodyUsed) {
-					// Use different cleanup strategies based on environment:
-					// Node.js: Consume stream via .arrayBuffer() to avoid .cancel() hang bug on cloned streams
-					// Other environments: Use standard .cancel() method for proper stream cleanup
-					if (navigator.userAgent.startsWith('Node.js')) {
-						await ky.request.arrayBuffer();
-						return;
-					}
+				const originalRequest = ky._originalRequest;
 
-					await ky.request.body?.cancel();
+				// Cancel both the original and cloned request bodies to prevent hanging.
+				if (originalRequest && !originalRequest.bodyUsed && !ky.request.bodyUsed) {
+					await Promise.all([
+						originalRequest.body?.cancel(), ky.request.body?.cancel(),
+					]);
 				}
 			}) as ResponsePromise;
 
@@ -156,6 +152,7 @@ export class Ky {
 	protected _retryCount = 0;
 	protected _input: Input;
 	protected _options: InternalOptions;
+	protected _originalRequest?: Request;
 
 	// eslint-disable-next-line complexity
 	constructor(input: Input, options: Options = {}) {
@@ -349,13 +346,13 @@ export class Ky {
 		const nonRequestOptions = findUnknownOptions(this.request, this._options);
 
 		// Cloning is done here to prepare in advance for retries
-		const mainRequest = this.request;
-		this.request = mainRequest.clone();
+		this._originalRequest = this.request;
+		this.request = this._originalRequest.clone();
 
 		if (this._options.timeout === false) {
-			return this._options.fetch(mainRequest, nonRequestOptions);
+			return this._options.fetch(this._originalRequest, nonRequestOptions);
 		}
 
-		return timeout(mainRequest, nonRequestOptions, this.abortController, this._options as TimeoutOptions);
+		return timeout(this._originalRequest, nonRequestOptions, this.abortController, this._options as TimeoutOptions);
 	}
 }
