@@ -627,9 +627,9 @@ import { HTTPError } from "ky";
 try {
 	await ky('https://example.com').json();
 } catch (error) {
-    if (error instanceof HTTPError && error.name === 'HTTPError') {
-        const errorJson = await error.response.json();
-    }
+  if (error instanceof HTTPError && error.name === 'HTTPError') {
+    const errorJson = await error.response.json();
+  }
 }
 ```
 
