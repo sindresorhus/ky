@@ -63,6 +63,12 @@ export const usualFormBoundarySize = new TextEncoder().encode('------WebKitFormB
 
 export const stop = Symbol('stop');
 
+// Error names
+export const ERROR_NAMES = {
+	HTTPError: 'HTTPError',
+	TimeoutError: 'TimeoutError',
+} as const;
+
 export const kyOptionKeys: KyOptionsRegistry = {
 	json: true,
 	parseJson: true,

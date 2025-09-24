@@ -1,6 +1,7 @@
 import type {NormalizedOptions} from '../types/options.js';
 import type {KyRequest} from '../types/request.js';
 import type {KyResponse} from '../types/response.js';
+import {ERROR_NAMES} from '../core/constants.js';
 
 export class HTTPError<T = unknown> extends Error {
 	public response: KyResponse<T>;
@@ -15,7 +16,7 @@ export class HTTPError<T = unknown> extends Error {
 
 		super(`Request failed with ${reason}: ${request.method} ${request.url}`);
 
-		this.name = 'HTTPError';
+		this.name = ERROR_NAMES.HTTPError;
 		this.response = response;
 		this.request = request;
 		this.options = options;
