@@ -631,6 +631,9 @@ try {
 		} else if (isTimeoutError(error)) {
 			console.log('Timeout URL:', error.request.url);
 		}
+	} else {
+		// Handle other errors
+		console.log('Unknown error:', error);
 	}
 }
 ```
