@@ -1,8 +1,8 @@
 import {type stop} from '../core/constants.js';
-import type {Input, Options} from './options.js';
-import type {ResponsePromise} from './ResponsePromise.js';
 import type {HTTPError} from '../errors/HTTPError.js';
 import type {TimeoutError} from '../errors/TimeoutError.js';
+import type {Input, Options} from './options.js';
+import type {ResponsePromise} from './ResponsePromise.js';
 
 export type KyInstance = {
 	/**
