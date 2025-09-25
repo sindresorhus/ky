@@ -625,8 +625,12 @@ If you need to read the actual response when an `HTTPError` has occurred, call t
 try {
 	await ky('https://example.com').json();
 } catch (error) {
-	if (error.name === 'HTTPError') {
-		const errorJson = await error.response.json();
+	if (isKyError(error)) {
+		if (isHTTPError(error)) {
+			console.log('Status:', error.response.status);
+		} else if (isTimeoutError(error)) {
+			console.log('Timeout URL:', error.request.url);
+		}
 	}
 }
 ```

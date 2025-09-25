@@ -1,6 +1,8 @@
 import {type stop} from '../core/constants.js';
 import type {Input, Options} from './options.js';
 import type {ResponsePromise} from './ResponsePromise.js';
+import type {HTTPError} from '../errors/HTTPError.js';
+import type {TimeoutError} from '../errors/TimeoutError.js';
 
 export type KyInstance = {
 	/**
@@ -134,4 +136,71 @@ export type KyInstance = {
 	```
 	*/
 	readonly stop: typeof stop;
+
+	/**
+	Type guard to check if an error is a Ky error (HTTPError or TimeoutError).
+
+	@param error - The error to check
+	@returns `true` if the error is a Ky error, `false` otherwise
+
+	@example
+	```
+	import ky from 'ky';
+
+	try {
+		const response = await ky.get('/api/data');
+	} catch (error) {
+		if (ky.isKyError(error)) {
+			// Handle Ky-specific errors
+			console.log('Ky error occurred:', error.message);
+		} else {
+			// Handle other errors
+			console.log('Unknown error:', error);
+		}
+	}
+	```
+	*/
+	isKyError: (error: unknown) => error is HTTPError | TimeoutError;
+
+	/**
+	Type guard to check if an error is an HTTPError.
+
+	@param error - The error to check
+	@returns `true` if the error is an HTTPError, `false` otherwise
+
+	@example
+	```
+	import ky from 'ky';
+
+	try {
+		const response = await ky.get('/api/data');
+	} catch (error) {
+		if (ky.isHTTPError(error)) {
+			console.log('HTTP error status:', error.response.status);
+		}
+	}
+	```
+	*/
+	isHTTPError: <T = unknown>(error: unknown) => error is HTTPError<T>;
+
+	/**
+	Type guard to check if an error is a TimeoutError.
+
+	@param error - The error to check
+	@returns `true` if the error is a TimeoutError, `false` otherwise
+
+	@example
+	```
+	import ky from 'ky';
+
+	try {
+		const response = await ky.get('/api/data', { timeout: 1000 });
+	} catch (error) {
+		if (ky.isTimeoutError(error)) {
+			console.log('Request timed out:', error.request.url);
+		}
+	}
+	```
+	*/
+	isTimeoutError: (error: unknown) => error is TimeoutError;
 };
