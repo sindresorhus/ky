@@ -166,7 +166,7 @@ export class Ky {
 				options.hooks,
 			),
 			method: normalizeRequestMethod(options.method ?? (this._input as Request).method ?? 'GET'),
-			prefixUrl: String(options.prefixUrl ?? ''),
+			prefixUrl: String(options.prefixUrl || ''),
 			retry: normalizeRetryOptions(options.retry),
 			throwHttpErrors: options.throwHttpErrors !== false,
 			timeout: options.timeout ?? 10_000,
