@@ -627,8 +627,7 @@ import { HTTPError } from "ky";
 try {
 	await ky('https://example.com').json();
 } catch (error) {
-  // we check for the name because instanceof may not work across realms
-  if (error instanceof HTTPError || error.name === 'HTTPError') {
+  if (error instanceof HTTPError) {
     const errorJson = await error.response.json();
   }
 }
