@@ -1,5 +1,4 @@
 import {HTTPError} from '../errors/HTTPError.js';
-import {TimeoutError} from '../errors/TimeoutError.js';
 import type {
 	Input,
 	InternalOptions,

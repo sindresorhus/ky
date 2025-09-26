@@ -1,6 +1,6 @@
 import test from 'ava';
 import delay from 'delay';
-import ky, {HTTPError, isHTTPError} from '../source/index.js';
+import ky, {type HTTPError, isHTTPError} from '../source/index.js';
 import {type Options} from '../source/types/options.js';
 import {createHttpTestServer} from './helpers/create-http-test-server.js';
 
