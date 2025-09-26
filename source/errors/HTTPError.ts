@@ -9,7 +9,7 @@ export class HTTPError<T = unknown> extends Error {
 
 	constructor(response: Response, request: Request, options: NormalizedOptions) {
 		const code = (response.status || response.status === 0) ? response.status : '';
-		const title = response.statusText || '';
+		const title = response.statusText ?? '';
 		const status = `${code} ${title}`.trim();
 		const reason = status ? `status code ${status}` : 'an unknown error';
 
