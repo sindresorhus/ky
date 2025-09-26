@@ -6,7 +6,6 @@ import type {KyInstance} from './types/ky.js';
 import type {Input, Options} from './types/options.js';
 import {validateAndMerge} from './utils/merge.js';
 import {type Mutable} from './utils/types.js';
-import {isKyError, isHTTPError, isTimeoutError} from './utils/type-guards.js';
 
 const createInstance = (defaults?: Partial<Options>): KyInstance => {
 	// eslint-disable-next-line @typescript-eslint/promise-function-async
@@ -27,11 +26,6 @@ const createInstance = (defaults?: Partial<Options>): KyInstance => {
 	};
 
 	ky.stop = stop;
-
-	// Add type guards
-	ky.isKyError = isKyError;
-	ky.isHTTPError = isHTTPError;
-	ky.isTimeoutError = isTimeoutError;
 
 	return ky as KyInstance;
 };
