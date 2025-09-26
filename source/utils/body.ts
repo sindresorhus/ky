@@ -68,6 +68,8 @@ const withProgress = (stream: ReadableStream<Uint8Array>, totalBytes: number, on
 				let percent = totalBytes === 0 ? 0 : transferredBytes / totalBytes;
 				// Avoid reporting 100% progress before the stream is actually finished (in case totalBytes is inaccurate)
 				if (percent >= 1) {
+					// Epsilon is used here to get as close as possible to 100% without reaching it.
+					// If we were to use 0.99 here, percent could potentially go backwards.
 					percent = 1 - Number.EPSILON;
 				}
 
