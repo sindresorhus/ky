@@ -39,18 +39,15 @@ test('shared abort signal must not cause memory leak of input', async t => {
 test('failed stream request must not cause memory leak', async t => {
 	async function isStreamLeaking() {
 		let stream: Readable | undefined = Readable.from('Bell is Ringing.');
-		const error = new TypeError('Simulated fetch error');
 		const detector = new LeakDetector(stream);
 
 		await t.throwsAsync(
-			ky.post('https://example.com', {
+			ky.post('invalid:', {
 				body: stream,
-				async fetch() {
-					throw error;
-				},
 			}),
 			{
-				is: error,
+				instanceOf: TypeError,
+				message: 'Fetch failed'
 			},
 		);
 
