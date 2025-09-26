@@ -24,14 +24,13 @@ test('POST JSON with upload progress', async t => {
 		.json();
 
 	// Check if we have at least two progress updates
-	t.true(data.length >= 2, 'Should have at least two progress updates');
+	t.true(data.length > 0, 'Should have at least one progress update');
 	t.deepEqual(
 		chunks,
 		[
 			'{"test":"test"}',
-			'',
 		],
-		'Should have chunks for all but the last event',
+		'Should have chunks for all events',
 	);
 
 	// Check the first progress update

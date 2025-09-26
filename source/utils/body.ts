@@ -48,15 +48,45 @@ export const getBodySize = (body?: BodyInit | null): number => {
 	return 0; // Default case, unable to determine size
 };
 
-export const streamResponse = (response: Response, onDownloadProgress: Options['onDownloadProgress']) => {
-	const totalBytes = Number(response.headers.get('content-length')) || 0;
+const withProgress = (stream: ReadableStream<Uint8Array>, totalBytes: number, onProgress: Options['onDownloadProgress'] | Options['onUploadProgress']): ReadableStream<Uint8Array> => {
+	let previousChunk: Uint8Array | undefined;
 	let transferredBytes = 0;
 
-	if (response.status === 204) {
-		if (onDownloadProgress) {
-			onDownloadProgress({percent: 1, totalBytes, transferredBytes}, new Uint8Array());
-		}
+	return stream.pipeThrough(new TransformStream<Uint8Array, Uint8Array>({
+		transform(currentChunk, controller) {
+			controller.enqueue(currentChunk);
 
+			if (previousChunk) {
+				transferredBytes += previousChunk.byteLength;
+
+				let percent = totalBytes === 0 ? 0 : transferredBytes / totalBytes;
+				// Avoid reporting 100% progress before the stream is actually finished (in case totalBytes is inaccurate)
+				if (percent >= 1) {
+					// Epsilon is used here to get as close as possible to 100% without reaching it.
+					// If we were to use 0.99 here, percent could potentially go backwards.
+					percent = 1 - Number.EPSILON;
+				}
+
+				onProgress?.({percent, totalBytes: Math.max(totalBytes, transferredBytes), transferredBytes}, previousChunk);
+			}
+
+			previousChunk = currentChunk;
+		},
+		flush() {
+			if (previousChunk) {
+				transferredBytes += previousChunk.byteLength;
+				onProgress?.({percent: 1, totalBytes: Math.max(totalBytes, transferredBytes), transferredBytes}, previousChunk);
+			}
+		},
+	}));
+};
+
+export const streamResponse = (response: Response, onDownloadProgress: Options['onDownloadProgress']) => {
+	if (!response.body) {
+		return response;
+	}
+
+	if (response.status === 204) {
 		return new Response(
 			null,
 			{
@@ -67,35 +97,10 @@ export const streamResponse = (response: Response, onDownloadProgress: Options['
 		);
 	}
 
+	const totalBytes = Number(response.headers.get('content-length')) || 0;
+
 	return new Response(
-		new ReadableStream({
-			async start(controller) {
-				const reader = response.body!.getReader();
-
-				if (onDownloadProgress) {
-					onDownloadProgress({percent: 0, transferredBytes: 0, totalBytes}, new Uint8Array());
-				}
-
-				async function read() {
-					const {done, value} = await reader.read();
-					if (done) {
-						controller.close();
-						return;
-					}
-
-					if (onDownloadProgress) {
-						transferredBytes += value.byteLength;
-						const percent = totalBytes === 0 ? 0 : transferredBytes / totalBytes;
-						onDownloadProgress({percent, transferredBytes, totalBytes}, value);
-					}
-
-					controller.enqueue(value);
-					await read();
-				}
-
-				await read();
-			},
-		}),
+		withProgress(response.body, totalBytes, onDownloadProgress),
 		{
 			status: response.status,
 			statusText: response.statusText,
@@ -106,43 +111,16 @@ export const streamResponse = (response: Response, onDownloadProgress: Options['
 
 // eslint-disable-next-line @typescript-eslint/ban-types
 export const streamRequest = (request: Request, onUploadProgress: Options['onUploadProgress'], originalBody?: BodyInit | null) => {
+	if (!request.body) {
+		return request;
+	}
+
 	// Use original body for size calculation since request.body is already a stream
 	const totalBytes = getBodySize(originalBody ?? request.body);
-	let transferredBytes = 0;
 
 	return new Request(request, {
 		// @ts-expect-error - Types are outdated.
 		duplex: 'half',
-		body: new ReadableStream({
-			async start(controller) {
-				const reader = request.body instanceof ReadableStream ? request.body.getReader() : new Response('').body!.getReader();
-
-				async function read() {
-					const {done, value} = await reader.read();
-					if (done) {
-						// Ensure 100% progress is reported when the upload is complete
-						// TODO: Don't report duplicate completion events
-						if (onUploadProgress) {
-							onUploadProgress({percent: 1, transferredBytes, totalBytes: Math.max(totalBytes, transferredBytes)}, new Uint8Array());
-						}
-
-						controller.close();
-						return;
-					}
-
-					transferredBytes += value.byteLength;
-					const percent = totalBytes === 0 ? 0 : transferredBytes / totalBytes;
-
-					if (onUploadProgress) {
-						onUploadProgress({percent: Number(percent.toFixed(2)), transferredBytes, totalBytes}, value);
-					}
-
-					controller.enqueue(value);
-					await read();
-				}
-
-				await read();
-			},
-		}),
+		body: withProgress(request.body, totalBytes, onUploadProgress),
 	});
 };

@@ -176,11 +176,7 @@ defaultBrowsersTest('should not copy response body with 204 status code when usi
 		headers: 'ky',
 		statusText,
 	});
-	t.deepEqual(data.progress, [{
-		percent: 1,
-		totalBytes: data.totalBytes,
-		transferredBytes: 0,
-	}]);
+	t.deepEqual(data.progress, []);
 });
 
 browserTest('aborting a request with onDownloadProgress', [chromium], async (t: ExecutionContext, page: Page) => {
@@ -280,7 +276,6 @@ browserTest('onDownloadProgress works', [chromium, webkit], async (t: ExecutionC
 	}, server.url);
 
 	t.deepEqual(result.data, [
-		[{percent: 0, transferredBytes: 0, totalBytes: 4}, ''],
 		[{percent: 0.5, transferredBytes: 2, totalBytes: 4}, 'me'],
 		[{percent: 1, transferredBytes: 4, totalBytes: 4}, 'ow'],
 	]);
