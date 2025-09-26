@@ -47,7 +47,7 @@ test('failed stream request must not cause memory leak', async t => {
 			}),
 			{
 				instanceOf: TypeError,
-				message: 'Fetch failed',
+				message: 'fetch failed',
 			},
 		);
 
