@@ -90,12 +90,10 @@ export class Ky {
 				const cleanupPromises = [];
 
 				if (originalRequest && !originalRequest.bodyUsed) {
-					// TODO: Use request.body.cancel() instead for efficiency when it is more reliable in Node
 					cleanupPromises.push(originalRequest.body?.cancel());
 				}
 
 				if (!ky.request.bodyUsed) {
-					// TODO: Use request.body.cancel() instead for efficiency when it is more reliable in Node
 					cleanupPromises.push(ky.request.body?.cancel());
 				}
 
