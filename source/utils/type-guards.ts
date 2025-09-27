@@ -48,7 +48,7 @@ export function isKyError(error: unknown): error is HTTPError | TimeoutError {
  * ```
  */
 export function isHTTPError<T = unknown>(error: unknown): error is HTTPError<T> {
-	return error instanceof HTTPError || ((error as any)?.name === HTTPError.name);
+	return error instanceof HTTPError;
 }
 
 /**
@@ -71,5 +71,5 @@ export function isHTTPError<T = unknown>(error: unknown): error is HTTPError<T> 
  * ```
  */
 export function isTimeoutError(error: unknown): error is TimeoutError {
-	return error instanceof TimeoutError || ((error as any)?.name === TimeoutError.name);
+	return error instanceof TimeoutError;
 }
