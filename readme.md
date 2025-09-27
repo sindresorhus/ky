@@ -622,12 +622,15 @@ Be aware that some types of errors, such as network errors, inherently mean that
 If you need to read the actual response when an `HTTPError` has occurred, call the respective parser method on the response object. For example:
 
 ```js
+import { HTTPError } from "ky";
+
 try {
 	await ky('https://example.com').json();
 } catch (error) {
 	if (isKyError(error)) {
 		if (isHTTPError(error)) {
 			console.log('Status:', error.response.status);
+		  const errorJson = await error.response.json();
 		} else if (isTimeoutError(error)) {
 			console.log('Timeout URL:', error.request.url);
 		}
