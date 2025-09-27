@@ -87,13 +87,19 @@ export class Ky {
 		const result = (isRetriableMethod ? ky._retry(function_) : function_())
 			.finally(async () => {
 				const originalRequest = ky._originalRequest;
+				const cleanupPromises = [];
 
-				// Cancel both the original and cloned request bodies to prevent hanging.
-				if (originalRequest && !originalRequest.bodyUsed && !ky.request.bodyUsed) {
-					await Promise.all([
-						originalRequest.body?.cancel(), ky.request.body?.cancel(),
-					]);
+				if (originalRequest && !originalRequest.bodyUsed) {
+					// TODO: Use request.body.cancel() instead for efficiency when it is more reliable in Node
+					cleanupPromises.push(originalRequest.arrayBuffer());
 				}
+
+				if (!ky.request.bodyUsed) {
+					// TODO: Use request.body.cancel() instead for efficiency when it is more reliable in Node
+					cleanupPromises.push(ky.request.arrayBuffer());
+				}
+
+				await Promise.all(cleanupPromises);
 			}) as ResponsePromise;
 
 		for (const [type, mimeType] of Object.entries(responseTypes) as ObjectEntries<typeof responseTypes>) {
