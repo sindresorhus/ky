@@ -1,5 +1,4 @@
 import {HTTPError} from '../errors/HTTPError.js';
-import {TimeoutError} from '../errors/TimeoutError.js';
 import type {
 	Input,
 	InternalOptions,
@@ -15,6 +14,7 @@ import timeout, {type TimeoutOptions} from '../utils/timeout.js';
 import delay from '../utils/delay.js';
 import {type ObjectEntries} from '../utils/types.js';
 import {findUnknownOptions, hasSearchParameters} from '../utils/options.js';
+import {isHTTPError, isTimeoutError} from '../utils/type-guards.js';
 import {
 	maxSafeTimeout,
 	responseTypes,
@@ -259,11 +259,11 @@ export class Ky {
 	protected _calculateRetryDelay(error: unknown) {
 		this._retryCount++;
 
-		if (this._retryCount > this._options.retry.limit || error instanceof TimeoutError) {
+		if (this._retryCount > this._options.retry.limit || isTimeoutError(error)) {
 			throw error;
 		}
 
-		if (error instanceof HTTPError) {
+		if (isHTTPError(error)) {
 			if (!this._options.retry.statusCodes.includes(error.response.status)) {
 				throw error;
 			}

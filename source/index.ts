@@ -59,3 +59,4 @@ export type {KyRequest} from './types/request.js';
 export type {KyResponse} from './types/response.js';
 export {HTTPError} from './errors/HTTPError.js';
 export {TimeoutError} from './errors/TimeoutError.js';
+export {isKyError, isHTTPError, isTimeoutError} from './utils/type-guards.js';
