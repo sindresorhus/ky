@@ -86,10 +86,18 @@ export class Ky {
 		const isRetriableMethod = ky._options.retry.methods.includes(ky.request.method.toLowerCase());
 		const result = (isRetriableMethod ? ky._retry(function_) : function_())
 			.finally(async () => {
-				// Now that we know a retry is not needed, close the ReadableStream of the cloned request.
-				if (!ky.request.bodyUsed) {
-					await ky.request.body?.cancel();
+				const originalRequest = ky._originalRequest;
+				const cleanupPromises = [];
+
+				if (originalRequest && !originalRequest.bodyUsed) {
+					cleanupPromises.push(originalRequest.body?.cancel());
 				}
+
+				if (!ky.request.bodyUsed) {
+					cleanupPromises.push(ky.request.body?.cancel());
+				}
+
+				await Promise.all(cleanupPromises);
 			}) as ResponsePromise;
 
 		for (const [type, mimeType] of Object.entries(responseTypes) as ObjectEntries<typeof responseTypes>) {
@@ -148,6 +156,7 @@ export class Ky {
 	protected _retryCount = 0;
 	protected _input: Input;
 	protected _options: InternalOptions;
+	protected _originalRequest?: Request;
 
 	// eslint-disable-next-line complexity
 	constructor(input: Input, options: Options = {}) {
@@ -341,13 +350,13 @@ export class Ky {
 		const nonRequestOptions = findUnknownOptions(this.request, this._options);
 
 		// Cloning is done here to prepare in advance for retries
-		const mainRequest = this.request;
-		this.request = mainRequest.clone();
+		this._originalRequest = this.request;
+		this.request = this._originalRequest.clone();
 
 		if (this._options.timeout === false) {
-			return this._options.fetch(mainRequest, nonRequestOptions);
+			return this._options.fetch(this._originalRequest, nonRequestOptions);
 		}
 
-		return timeout(mainRequest, nonRequestOptions, this.abortController, this._options as TimeoutOptions);
+		return timeout(this._originalRequest, nonRequestOptions, this.abortController, this._options as TimeoutOptions);
 	}
 }
