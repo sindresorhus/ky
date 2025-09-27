@@ -1,10 +1,8 @@
-import {Readable} from 'node:stream';
+import {ReadableStream} from 'node:stream/web';
 import test from 'ava';
-import _LeakDetector from 'jest-leak-detector';
+import LeakDetector from 'jest-leak-detector';
 import ky, {type KyInstance} from '../source/index.js';
 import {createHttpTestServer} from './helpers/create-http-test-server.js';
-
-const LeakDetector = _LeakDetector.default as typeof _LeakDetector;
 
 test('shared abort signal must not cause memory leak of input', async t => {
 	const server = await createHttpTestServer();
@@ -38,7 +36,7 @@ test('shared abort signal must not cause memory leak of input', async t => {
 
 test('failed stream request must not cause memory leak', async t => {
 	async function isStreamLeaking() {
-		let stream: Readable | undefined = Readable.from('Bell is Ringing.');
+		const stream: ReadableStream | undefined = ReadableStream.from([new TextEncoder().encode('Bell is Ringing.')]);
 		const detector = new LeakDetector(stream);
 
 		await t.throwsAsync(
@@ -50,8 +48,6 @@ test('failed stream request must not cause memory leak', async t => {
 				message: 'fetch failed',
 			},
 		);
-
-		stream = undefined;
 
 		return detector.isLeaking();
 	}
