@@ -4,8 +4,9 @@ import {createLargeBlob} from './helpers/create-large-file.js';
 
 async function testBodySize(t: ExecutionContext, body: unknown) {
 	const actualSize = getBodySize(body);
-	const expectedText = await new Response(body).text();
-	const expectedSize = expectedText.length;
+	const expectedBytes = await new Response(body).arrayBuffer();
+	const expectedSize = expectedBytes.byteLength;
+	const expectedText = new TextDecoder().decode(expectedBytes);
 
 	t.is(actualSize, expectedSize, `\`${expectedText}\` predicted body size (${actualSize}) not actual size ${expectedSize}`);
 }
@@ -19,6 +20,10 @@ const encoded8 = encoder.encode('abcdefghabcdefgh');
 // Test all supported body types (https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API/Using_Fetch#setting_a_body)
 test('string', async t => {
 	await testBodySize(t, 'unicorn');
+});
+
+test('multi-byte string', async t => {
+	await testBodySize(t, '😍');
 });
 
 test('ArrayBuffer', async t => {
@@ -58,10 +63,11 @@ test('Blob', async t => {
 test('File', async t => {
 	await testBodySize(t, new File(['unicorn'], 'unicorn.txt', {type: 'text/plain'}));
 	await testBodySize(t, new File(['unicorn'], 'unicorn.txt'));
+	await testBodySize(t, new File(['😍'], '😍.txt'));
 });
 
 test('URLSearchParams', async t => {
-	await testBodySize(t, new URLSearchParams({foo: 'bar', baz: 'qux'}));
+	await testBodySize(t, new URLSearchParams({foo: 'bar', baz: 'qux 😍'}));
 });
 
 test('FormData - string', async t => {
@@ -94,6 +100,7 @@ test('FormData - multiple fields', async t => {
 	formData.append('file', new Blob(['test content']), 'test.txt');
 	formData.append('field1', 'value1');
 	formData.append('field2', 'value2');
+	formData.append('emoji', '😍');
 	await testBodySize(t, formData);
 });
 

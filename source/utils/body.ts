@@ -14,15 +14,15 @@ export const getBodySize = (body?: BodyInit | null): number => {
 
 		for (const [key, value] of body) {
 			size += formBoundarySize;
-			size += encoder.encode(key).length;
+			size += encoder.encode(key).byteLength;
 
 			if (value instanceof Blob) {
-				size += encoder.encode(`; filename="${value.name ?? 'blob'}"`).length;
-				size += encoder.encode(`\r\nContent-Type: ${value.type || 'application/octet-stream'}`).length;
+				size += encoder.encode(`; filename="${value.name ?? 'blob'}"`).byteLength;
+				size += encoder.encode(`\r\nContent-Type: ${value.type || 'application/octet-stream'}`).byteLength;
 			}
 
 			size += typeof value === 'string'
-				? encoder.encode(value).length
+				? encoder.encode(value).byteLength
 				: value.size;
 		}
 
@@ -38,11 +38,11 @@ export const getBodySize = (body?: BodyInit | null): number => {
 	}
 
 	if (typeof body === 'string') {
-		return encoder.encode(body).length;
+		return encoder.encode(body).byteLength;
 	}
 
 	if (body instanceof URLSearchParams) {
-		return encoder.encode(body.toString()).length;
+		return encoder.encode(body.toString()).byteLength;
 	}
 
 	return 0; // Default case, unable to determine size

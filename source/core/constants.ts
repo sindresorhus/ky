@@ -60,9 +60,9 @@ export const maxSafeTimeout = 2_147_483_647;
 
 // Used to help estimate upload size
 async function getFormBodySize(formData: FormData) {
-	const responseText = await new Response(formData).text();
+	const buffer = await new Response(formData).arrayBuffer();
 
-	return responseText.length;
+	return buffer.byteLength;
 }
 
 const formData = new FormData();
