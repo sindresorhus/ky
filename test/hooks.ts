@@ -458,7 +458,7 @@ test('beforeRetry hook is called even if the error has no response', async t => 
 });
 
 test('beforeRetry hook with parseJson and error.response.json()', async t => {
-	t.plan(10);
+	t.plan(11);
 
 	let requestCount = 0;
 
