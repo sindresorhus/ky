@@ -10,11 +10,11 @@ import {TimeoutError} from '../errors/TimeoutError.js';
  * @example
  * ```
  * import ky from 'ky';
- *
+ * import {isKyError} from 'ky';
  * try {
  *   const response = await ky.get('/api/data');
  * } catch (error) {
- *   if (ky.isKyError(error)) {
+ *   if (isKyError(error)) {
  *     // Handle Ky-specific errors
  *     console.log('Ky error occurred:', error.message);
  *   } else {
@@ -37,11 +37,11 @@ export function isKyError(error: unknown): error is HTTPError | TimeoutError {
  * @example
  * ```
  * import ky from 'ky';
- *
+ * import {isHTTPError} from 'ky';
  * try {
  *   const response = await ky.get('/api/data');
  * } catch (error) {
- *   if (ky.isHTTPError(error)) {
+ *   if (isHTTPError(error)) {
  *     console.log('HTTP error status:', error.response.status);
  *   }
  * }
@@ -60,11 +60,11 @@ export function isHTTPError<T = unknown>(error: unknown): error is HTTPError<T> 
  * @example
  * ```
  * import ky from 'ky';
- *
+ * import {isTimeoutError} from 'ky';
  * try {
  *   const response = await ky.get('/api/data', { timeout: 1000 });
  * } catch (error) {
- *   if (ky.isTimeoutError(error)) {
+ *   if (isTimeoutError(error)) {
  *     console.log('Request timed out:', error.request.url);
  *   }
  * }
