@@ -1,6 +1,6 @@
 import test from 'ava';
 import delay from 'delay';
-import ky, {HTTPError} from '../source/index.js';
+import ky, {HTTPError, isHTTPError} from '../source/index.js';
 import {type Options} from '../source/types/options.js';
 import {createHttpTestServer} from './helpers/create-http-test-server.js';
 
@@ -405,6 +405,7 @@ test('beforeRetry hook is called with error and retryCount', async t => {
 			beforeRetry: [
 				({error, retryCount}) => {
 					t.true(error instanceof HTTPError);
+					t.true(isHTTPError(error));
 					t.true(retryCount >= 1);
 				},
 			],
@@ -457,7 +458,7 @@ test('beforeRetry hook is called even if the error has no response', async t => 
 });
 
 test('beforeRetry hook with parseJson and error.response.json()', async t => {
-	t.plan(10);
+	t.plan(11);
 
 	let requestCount = 0;
 
@@ -482,6 +483,7 @@ test('beforeRetry hook with parseJson and error.response.json()', async t => {
 				beforeRetry: [
 					async ({error, retryCount}) => {
 						t.true(error instanceof HTTPError);
+						t.true(isHTTPError(error));
 						t.is(error.message, `Request failed with status code 502 Bad Gateway: GET ${server.url}/`);
 						t.true((error as HTTPError).response instanceof Response);
 						t.deepEqual(await (error as HTTPError).response.json(), {awesome: true});
