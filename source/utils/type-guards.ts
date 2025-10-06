@@ -9,8 +9,7 @@ import {TimeoutError} from '../errors/TimeoutError.js';
  *
  * @example
  * ```
- * import ky from 'ky';
- * import {isKyError} from 'ky';
+ * import ky, {isKyError} from 'ky';
  * try {
  *   const response = await ky.get('/api/data');
  * } catch (error) {
@@ -36,8 +35,7 @@ export function isKyError(error: unknown): error is HTTPError | TimeoutError {
  *
  * @example
  * ```
- * import ky from 'ky';
- * import {isHTTPError} from 'ky';
+ * import ky, {isHTTPError} from 'ky';
  * try {
  *   const response = await ky.get('/api/data');
  * } catch (error) {
@@ -59,8 +57,7 @@ export function isHTTPError<T = unknown>(error: unknown): error is HTTPError<T> 
  *
  * @example
  * ```
- * import ky from 'ky';
- * import {isTimeoutError} from 'ky';
+ * import ky, {isTimeoutError} from 'ky';
  * try {
  *   const response = await ky.get('/api/data', { timeout: 1000 });
  * } catch (error) {
