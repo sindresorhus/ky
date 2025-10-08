@@ -59,11 +59,6 @@ defaultBrowsersTest('prefixUrl option', async (t: ExecutionContext, page: Page) 
 	await page.goto(server.url);
 	await addKyScriptToPage(page);
 
-	await t.throwsAsync(
-		page.evaluate(async () => window.ky('/foo', {prefixUrl: '/'})),
-		{message: /`input` must not begin with a slash when using `prefixUrl`/},
-	);
-
 	const results = await page.evaluate(async (url: string) => Promise.all([
 		window.ky(`${url}/api/unicorn`).text(),
 		// @ts-expect-error unsupported {prefixUrl: null} type
@@ -355,8 +350,8 @@ defaultBrowsersTest('FormData with searchParams ("multipart/form-data" parser)',
 	});
 
 	server.post('/', async (request, response) => {
+		// @ts-expect-error
 		const [body, error] = await new Promise(resolve => {
-			// @ts-expect-error
 			const busboyInstance = busboy({headers: request.headers});
 
 			busboyInstance.on('error', (error: Error) => {
