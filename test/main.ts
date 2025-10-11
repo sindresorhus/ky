@@ -636,7 +636,7 @@ test('ky.extend() with function appends hooks', extendHooksMacro, {useFunction: 
 
 test('ky.extend() with function overrides primitives in parent defaults', async t => {
 	const server = await createHttpTestServer();
-	server.get('*', (request, response) => {
+	server.use((request, response) => {
 		response.end(request.url);
 	});
 
@@ -661,7 +661,7 @@ test('ky.extend() with function overrides primitives in parent defaults', async 
 
 test('ky.extend() with function retains parent defaults when not specified', async t => {
 	const server = await createHttpTestServer();
-	server.get('*', (request, response) => {
+	server.use((request, response) => {
 		response.end(request.url);
 	});
 

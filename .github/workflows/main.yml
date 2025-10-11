@@ -11,11 +11,12 @@ jobs:
       matrix:
         node-version:
           - latest
+          - 24
           - 22
           - 20
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: ${{ matrix.node-version }}
       - run: npm install
@@ -24,6 +25,6 @@ jobs:
       - run: npm test
       # TODO: Enable again when https://github.com/istanbuljs/nyc/issues/1287 is fixed.
       # - uses: codecov/codecov-action@v1
-      #   if: matrix.node-version == 14
+      #   if: matrix.node-version == 24
       #   with:
       #     fail_ci_if_error: true
