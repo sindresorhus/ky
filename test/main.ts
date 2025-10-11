@@ -435,6 +435,86 @@ test('searchParams option with undefined values', async t => {
 	await server.close();
 });
 
+test('merges plain object searchParams with URLSearchParams', async t => {
+	const server = await createHttpTestServer();
+	server.get('/', (request, response) => {
+		response.end(request.url);
+	});
+
+	const client = ky.create({searchParams: {api: '123'}});
+	const response = await client.get(server.url, {
+		searchParams: new URLSearchParams({_limit_: '1'}),
+	});
+
+	const url = await response.text();
+	t.true(url.includes('api=123'), `URL should contain api=123, got: ${url}`);
+	t.true(url.includes('_limit_=1'), `URL should contain _limit_=1, got: ${url}`);
+	t.false(url.includes('[object Object]'), `URL should not contain [object Object], got: ${url}`);
+	t.false(url.includes('headers'), `URL should not contain 'headers', got: ${url}`);
+
+	await server.close();
+});
+
+test('merges URLSearchParams with plain object searchParams', async t => {
+	const server = await createHttpTestServer();
+	server.get('/', (request, response) => {
+		response.end(request.url);
+	});
+
+	const client = ky.create({searchParams: new URLSearchParams({api: '123'})});
+	const response = await client.get(server.url, {
+		searchParams: {_limit_: '1'},
+	});
+
+	const url = await response.text();
+	t.true(url.includes('api=123'), `URL should contain api=123, got: ${url}`);
+	t.true(url.includes('_limit_=1'), `URL should contain _limit_=1, got: ${url}`);
+	t.false(url.includes('[object Object]'), `URL should not contain [object Object], got: ${url}`);
+
+	await server.close();
+});
+
+test('merges URLSearchParams with URLSearchParams', async t => {
+	const server = await createHttpTestServer();
+	server.get('/', (request, response) => {
+		response.end(request.url);
+	});
+
+	const client = ky.create({searchParams: new URLSearchParams({api: '123'})});
+	const response = await client.get(server.url, {
+		searchParams: new URLSearchParams({_limit_: '1'}),
+	});
+
+	const url = await response.text();
+	t.true(url.includes('api=123'), `URL should contain api=123, got: ${url}`);
+	t.true(url.includes('_limit_=1'), `URL should contain _limit_=1, got: ${url}`);
+	t.false(url.includes('[object Object]'), `URL should not contain [object Object], got: ${url}`);
+
+	await server.close();
+});
+
+test('merges searchParams with duplicate keys', async t => {
+	const server = await createHttpTestServer();
+	server.get('/', (request, response) => {
+		response.end(request.url);
+	});
+
+	const client = ky.create({searchParams: new URLSearchParams({filter: 'active'})});
+	const response = await client.get(server.url, {
+		searchParams: new URLSearchParams({filter: 'recent', _limit_: '10'}),
+	});
+
+	const urlString = await response.text();
+	const url = new URL(urlString, server.url);
+	const filterValues = url.searchParams.getAll('filter');
+
+	t.deepEqual(filterValues.sort(), ['active', 'recent'], `Both filter values should be present, got: ${JSON.stringify(filterValues)}`);
+	t.is(url.searchParams.get('_limit_'), '10', `URL should contain _limit_=10, got: ${urlString}`);
+	t.false(urlString.includes('[object Object]'), `URL should not contain [object Object], got: ${urlString}`);
+
+	await server.close();
+});
+
 test('throwHttpErrors option', async t => {
 	const server = await createHttpTestServer();
 	server.get('/', (_request, response) => {
