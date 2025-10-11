@@ -779,6 +779,33 @@ test('throws AbortError when aborted via Request', async t => {
 	t.is(error.name, 'AbortError', `Expected AbortError, got ${error.name}`);
 });
 
+test('merges signals from instance and request options', async t => {
+	const server = await createHttpTestServer();
+	server.get('/', async (_request, response) => {
+		await delay(100);
+		response.end('success');
+	});
+
+	const instanceController = new AbortController();
+	const requestController = new AbortController();
+
+	const instance = ky.create({
+		signal: instanceController.signal,
+	});
+
+	const response = instance.get(server.url, {
+		signal: requestController.signal,
+	});
+
+	requestController.abort();
+
+	const error = (await t.throwsAsync(response))!;
+	t.true(['DOMException', 'Error'].includes(error.constructor.name));
+	t.is(error.name, 'AbortError');
+
+	await server.close();
+});
+
 test('supports Request instance as input', async t => {
 	const server = await createHttpTestServer();
 	const inputRequest = new Request(server.url, {method: 'POST'});
