@@ -44,11 +44,50 @@ export const mergeHooks = (original: Hooks = {}, incoming: Hooks = {}): Required
 	}
 );
 
+const appendSearchParameters = (target: any, source: any): URLSearchParams => {
+	const result = new URLSearchParams();
+
+	for (const input of [target, source]) {
+		if (input === undefined) {
+			continue;
+		}
+
+		if (input instanceof URLSearchParams) {
+			for (const [key, value] of input.entries()) {
+				result.append(key, value);
+			}
+		} else if (Array.isArray(input)) {
+			for (const pair of input) {
+				if (!Array.isArray(pair) || pair.length !== 2) {
+					throw new TypeError('Array search parameters must be provided in [[key, value], ...] format');
+				}
+
+				result.append(String(pair[0]), String(pair[1]));
+			}
+		} else if (isObject(input)) {
+			for (const [key, value] of Object.entries(input)) {
+				if (value !== undefined) {
+					result.append(key, String(value));
+				}
+			}
+		} else {
+			// String
+			const parameters = new URLSearchParams(input);
+			for (const [key, value] of parameters.entries()) {
+				result.append(key, value);
+			}
+		}
+	}
+
+	return result;
+};
+
 // TODO: Make this strongly-typed (no `any`).
 export const deepMerge = <T>(...sources: Array<Partial<T> | undefined>): T => {
 	let returnValue: any = {};
 	let headers = {};
 	let hooks = {};
+	let searchParameters: any;
 	const signals: AbortSignal[] = [];
 
 	for (const source of sources) {
@@ -63,6 +102,20 @@ export const deepMerge = <T>(...sources: Array<Partial<T> | undefined>): T => {
 				// Special handling for AbortSignal instances
 				if (key === 'signal' && value instanceof globalThis.AbortSignal) {
 					signals.push(value);
+					continue;
+				}
+
+				// Special handling for searchParams
+				if (key === 'searchParams') {
+					if (value === undefined || value === null) {
+						// Explicit undefined or null removes searchParams
+						searchParameters = undefined;
+					} else {
+						// First source: keep as-is to preserve type (string/object/URLSearchParams)
+						// Subsequent sources: merge and convert to URLSearchParams
+						searchParameters = searchParameters === undefined ? value : appendSearchParameters(searchParameters, value);
+					}
+
 					continue;
 				}
 
@@ -83,6 +136,10 @@ export const deepMerge = <T>(...sources: Array<Partial<T> | undefined>): T => {
 				returnValue.headers = headers;
 			}
 		}
+	}
+
+	if (searchParameters !== undefined) {
+		returnValue.searchParams = searchParameters;
 	}
 
 	if (signals.length > 0) {
