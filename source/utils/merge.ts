@@ -1,5 +1,6 @@
 import type {KyHeadersInit, Options} from '../types/options.js';
 import type {Hooks} from '../types/hooks.js';
+import {supportsAbortSignal} from '../core/constants.js';
 import {isObject} from './is.js';
 
 export const validateAndMerge = (...sources: Array<Partial<Options> | undefined>): Partial<Options> => {
@@ -48,6 +49,7 @@ export const deepMerge = <T>(...sources: Array<Partial<T> | undefined>): T => {
 	let returnValue: any = {};
 	let headers = {};
 	let hooks = {};
+	const signals: AbortSignal[] = [];
 
 	for (const source of sources) {
 		if (Array.isArray(source)) {
@@ -58,6 +60,12 @@ export const deepMerge = <T>(...sources: Array<Partial<T> | undefined>): T => {
 			returnValue = [...returnValue, ...source];
 		} else if (isObject(source)) {
 			for (let [key, value] of Object.entries(source)) {
+				// Special handling for AbortSignal instances
+				if (key === 'signal' && value instanceof globalThis.AbortSignal) {
+					signals.push(value);
+					continue;
+				}
+
 				if (isObject(value) && key in returnValue) {
 					value = deepMerge(returnValue[key], value);
 				}
@@ -74,6 +82,19 @@ export const deepMerge = <T>(...sources: Array<Partial<T> | undefined>): T => {
 				headers = mergeHeaders(headers, (source as any).headers);
 				returnValue.headers = headers;
 			}
+		}
+	}
+
+	if (signals.length > 0) {
+		if (signals.length === 1) {
+			returnValue.signal = signals[0];
+		} else if (supportsAbortSignal) {
+			returnValue.signal = AbortSignal.any(signals);
+		} else {
+			// When AbortSignal.any is not available, use the last signal
+			// This maintains the previous behavior before signal merging was added
+			// This can be remove when the `supportsAbortSignal` check is removed.`
+			returnValue.signal = signals.at(-1);
 		}
 	}
 
