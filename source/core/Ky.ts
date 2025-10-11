@@ -338,7 +338,11 @@ export class Ky {
 	protected async _fetch(): Promise<Response> {
 		for (const hook of this._options.hooks.beforeRequest) {
 			// eslint-disable-next-line no-await-in-loop
-			const result = await hook(this.request, (this._options as unknown) as NormalizedOptions);
+			const result = await hook(
+				this.request,
+				(this._options as unknown) as NormalizedOptions,
+				{retryCount: this._retryCount},
+			);
 
 			if (result instanceof Request) {
 				this.request = result;

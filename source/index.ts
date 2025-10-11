@@ -48,6 +48,7 @@ export type {
 export type {
 	Hooks,
 	BeforeRequestHook,
+	BeforeRequestState,
 	BeforeRetryHook,
 	BeforeRetryState,
 	BeforeErrorHook,

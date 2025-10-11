@@ -674,3 +674,49 @@ test('beforeError can return promise which resolves to HTTPError', async t => {
 
 	await server.close();
 });
+
+test('beforeRequest hook receives retryCount parameter', async t => {
+	let requestCount = 0;
+	const retryCounts: number[] = [];
+
+	const server = await createHttpTestServer();
+	server.get('/', async (request, response) => {
+		requestCount++;
+
+		if (requestCount === 1) {
+			// First request fails
+			response.sendStatus(408);
+		} else {
+			// Retry succeeds, return the auth header that was sent
+			response.end(request.headers.authorization);
+		}
+	});
+
+	const result = await ky.get(server.url, {
+		hooks: {
+			beforeRequest: [
+				(request, _options, {retryCount}) => {
+					retryCounts.push(retryCount);
+					// Only set default token on initial request
+					if (retryCount === 0) {
+						request.headers.set('Authorization', 'token initial-token');
+					}
+				},
+			],
+			beforeRetry: [
+				({request}) => {
+					// Refresh token on retry
+					request.headers.set('Authorization', 'token refreshed-token');
+				},
+			],
+		},
+	}).text();
+
+	// Verify beforeRequest was called twice with correct retryCount values
+	t.deepEqual(retryCounts, [0, 1]);
+	t.is(requestCount, 2);
+	// Verify the refreshed token was used, not the initial token
+	t.is(result, 'token refreshed-token');
+
+	await server.close();
+});
