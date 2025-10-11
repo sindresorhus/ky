@@ -2,9 +2,14 @@ import {type stop} from '../core/constants.js';
 import type {KyRequest, KyResponse, HTTPError} from '../index.js';
 import type {NormalizedOptions} from './options.js';
 
+export type BeforeRequestState = {
+	retryCount: number;
+};
+
 export type BeforeRequestHook = (
 	request: KyRequest,
-	options: NormalizedOptions
+	options: NormalizedOptions,
+	state: BeforeRequestState
 ) => Request | Response | void | Promise<Request | Response | void>;
 
 export type BeforeRetryState = {
@@ -25,9 +30,30 @@ export type BeforeErrorHook = (error: HTTPError) => HTTPError | Promise<HTTPErro
 
 export type Hooks = {
 	/**
-	This hook enables you to modify the request right before it is sent. Ky will make no further changes to the request after this. The hook function receives normalized input and options as arguments. You could, for example, modify `options.headers` here.
+	This hook enables you to modify the request right before it is sent. Ky will make no further changes to the request after this. The hook function receives the normalized request, options, and a state object. You could, for example, modify `request.headers` here.
+
+	The `state.retryCount` is `0` for the initial request and increments with each retry. This allows you to distinguish between initial requests and retries, which is useful when you need different behavior for retries (e.g., avoiding overwriting headers set in `beforeRetry`).
 
 	A [`Response`](https://developer.mozilla.org/en-US/docs/Web/API/Response) can be returned from this hook to completely avoid making a HTTP request. This can be used to mock a request, check an internal cache, etc. An **important** consideration when returning a `Response` from this hook is that all the following hooks will be skipped, so **ensure you only return a `Response` from the last hook**.
+
+	@example
+	```
+	import ky from 'ky';
+
+	const response = await ky('https://example.com', {
+		hooks: {
+			beforeRequest: [
+				(request, options, {retryCount}) => {
+					// Only set default auth header on initial request, not on retries
+					// (retries may have refreshed token set by beforeRetry)
+					if (retryCount === 0) {
+						request.headers.set('Authorization', 'token initial-token');
+					}
+				}
+			]
+		}
+	});
+	```
 
 	@default []
 	*/
