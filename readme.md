@@ -314,11 +314,12 @@ import ky from 'ky';
 await ky('https://example.com', {
 	hooks: {
 		beforeError: [
-			error => {
+			async error => {
 				const {response} = error;
-				if (response && response.body) {
+				if (response) {
+					const body = await response.json();
 					error.name = 'GitHubError';
-					error.message = `${response.body.message} (${response.status})`;
+					error.message = `${body.message} (${response.status})`;
 				}
 
 				return error;
