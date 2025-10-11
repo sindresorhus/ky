@@ -215,6 +215,17 @@ export class Ky {
 			this._options.headers.set('content-type', this._options.headers.get('content-type') ?? 'application/json');
 		}
 
+		// To provide correct form boundary, Content-Type header should be deleted when creating Request from another Request with FormData/URLSearchParams body
+		// Only delete if user didn't explicitly provide a custom content-type
+		const userProvidedContentType = options.headers && new globalThis.Headers(options.headers as HeadersInit).has('content-type');
+		if (
+			this._input instanceof globalThis.Request
+			&& ((supportsFormData && this._options.body instanceof globalThis.FormData) || this._options.body instanceof URLSearchParams)
+			&& !userProvidedContentType
+		) {
+			this._options.headers.delete('content-type');
+		}
+
 		this.request = new globalThis.Request(this._input, this._options);
 
 		if (hasSearchParameters(this._options.searchParams)) {
@@ -225,14 +236,6 @@ export class Ky {
 			// eslint-disable-next-line unicorn/prevent-abbreviations
 			const searchParams = '?' + textSearchParams;
 			const url = this.request.url.replace(/(?:\?.*?)?(?=#|$)/, searchParams);
-
-			// To provide correct form boundary, Content-Type header should be deleted each time when new Request instantiated from another one
-			if (
-				((supportsFormData && this._options.body instanceof globalThis.FormData)
-					|| this._options.body instanceof URLSearchParams) && !(this._options.headers && (this._options.headers as Record<string, string>)['content-type'])
-			) {
-				this.request.headers.delete('content-type');
-			}
 
 			// The spread of `this.request` is required as otherwise it misses the `duplex` option for some reason and throws.
 			this.request = new globalThis.Request(new globalThis.Request(url, {...this.request}), this._options as RequestInit);

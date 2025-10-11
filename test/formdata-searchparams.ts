@@ -55,3 +55,61 @@ test('FormData with searchParams and onUploadProgress', async t => {
 
 	await server.close();
 });
+
+test('retries with FormData in afterResponse hook maintains correct boundary', async t => {
+	const server = await createHttpTestServer();
+
+	let requestCount = 0;
+	const receivedBoundaries: string[] = [];
+
+	server.post('/', (request, response) => {
+		requestCount++;
+
+		const contentType = request.headers['content-type'] ?? '';
+		const boundaryMatch = /boundary=([^;]+)/.exec(contentType);
+		const headerBoundary = boundaryMatch?.[1];
+
+		let body = '';
+		request.on('data', chunk => {
+			body += chunk.toString(); // eslint-disable-line @typescript-eslint/restrict-plus-operands
+		});
+
+		request.on('end', () => {
+			// Extract boundary from actual body content
+			const bodyBoundaryMatch = /^--([^\r\n]+)/.exec(body);
+			const bodyBoundary = bodyBoundaryMatch?.[1];
+
+			receivedBoundaries.push(`header:${headerBoundary},body:${bodyBoundary}`);
+
+			if (requestCount === 1) {
+				// First request fails with 401
+				response.status(401).end();
+			} else {
+				// Second request succeeds - verify boundary matches
+				const boundariesMatch = headerBoundary === bodyBoundary;
+				response.json({success: boundariesMatch});
+			}
+		});
+	});
+
+	const formData = new FormData();
+	formData.append('field', 'value');
+
+	const result = await ky.post(server.url, {
+		body: formData,
+		hooks: {
+			afterResponse: [
+				async (request, options, response) => {
+					if (response.status === 401) {
+						return ky(request, options);
+					}
+				},
+			],
+		},
+	}).json<{success: boolean}>();
+
+	t.is(requestCount, 2, 'Should make 2 requests');
+	t.true(result.success, 'Content-type boundary should match body boundary on retry');
+
+	await server.close();
+});
