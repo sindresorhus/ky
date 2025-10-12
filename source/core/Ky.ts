@@ -295,7 +295,19 @@ export class Ky {
 		}
 
 		const retryDelay = this._options.retry.delay(this._retryCount);
-		return Math.min(this._options.retry.backoffLimit, retryDelay);
+
+		let jitteredDelay = retryDelay;
+		if (this._options.retry.jitter === true) {
+			jitteredDelay = Math.random() * retryDelay;
+		} else if (typeof this._options.retry.jitter === 'function') {
+			jitteredDelay = this._options.retry.jitter(retryDelay);
+
+			if (!Number.isFinite(jitteredDelay) || jitteredDelay < 0) {
+				jitteredDelay = retryDelay;
+			}
+		}
+
+		return Math.min(this._options.retry.backoffLimit, jitteredDelay);
 	}
 
 	protected _decorateResponse(response: Response): Response {

@@ -662,3 +662,204 @@ test('respect custom retry.delay', async t => {
 
 	await server.close();
 });
+
+test('jitter: true applies full jitter to delay', async t => {
+	const retryCount = 3;
+	let requestCount = 0;
+	const delays: number[] = [];
+	let lastTime = Date.now();
+
+	const server = await createHttpTestServer();
+	server.get('/', (_request, response) => {
+		const now = Date.now();
+		if (requestCount > 0) {
+			delays.push(now - lastTime);
+		}
+
+		lastTime = now;
+		requestCount++;
+
+		if (requestCount === retryCount + 1) {
+			response.end(fixture);
+		} else {
+			response.sendStatus(500);
+		}
+	});
+
+	await ky(server.url, {
+		retry: {
+			limit: retryCount,
+			jitter: true,
+		},
+	}).text();
+
+	t.is(requestCount, 4);
+
+	// Full jitter should produce delays between 0 and the computed delay
+	// Add 20% tolerance for system overhead
+	t.true(delays[0] >= 0 && delays[0] <= 360);
+	t.true(delays[1] >= 0 && delays[1] <= 720);
+	t.true(delays[2] >= 0 && delays[2] <= 1440);
+
+	await server.close();
+});
+
+test('jitter: custom function applies custom jitter', async t => {
+	const retryCount = 3;
+	let requestCount = 0;
+	const jitterCalls: number[] = [];
+
+	const customJitter = (delay: number) => {
+		jitterCalls.push(delay);
+		return delay * 0.5; // Half the delay
+	};
+
+	const server = await createHttpTestServer();
+	server.get('/', (_request, response) => {
+		requestCount++;
+
+		if (requestCount === retryCount + 1) {
+			response.end(fixture);
+		} else {
+			response.sendStatus(500);
+		}
+	});
+
+	await ky(server.url, {
+		retry: {
+			limit: retryCount,
+			jitter: customJitter,
+		},
+	}).text();
+
+	t.is(requestCount, 4);
+	t.is(jitterCalls.length, 3); // Called for each retry
+
+	// Verify the jitter function received the correct delays
+	t.is(jitterCalls[0], 300); // First retry
+	t.is(jitterCalls[1], 600); // Second retry
+	t.is(jitterCalls[2], 1200); // Third retry
+
+	await server.close();
+});
+
+test('jitter respects backoffLimit', async t => {
+	const retryCount = 3;
+	let requestCount = 0;
+	const delays: number[] = [];
+	let lastTime = Date.now();
+
+	const server = await createHttpTestServer();
+	server.get('/', (_request, response) => {
+		const now = Date.now();
+		if (requestCount > 0) {
+			delays.push(now - lastTime);
+		}
+
+		lastTime = now;
+		requestCount++;
+
+		if (requestCount === retryCount + 1) {
+			response.end(fixture);
+		} else {
+			response.sendStatus(500);
+		}
+	});
+
+	await ky(server.url, {
+		retry: {
+			limit: retryCount,
+			backoffLimit: 500,
+			jitter: true,
+		},
+	}).text();
+
+	t.is(requestCount, 4);
+
+	// With backoffLimit of 500, all delays should be <= 500ms
+	// Even though the computed delays would be 300, 600, 1200
+	// After jitter and backoffLimit, they should all be <= 500
+	// Add 20% tolerance for system overhead
+	t.true(delays[0] >= 0 && delays[0] <= 600);
+	t.true(delays[1] >= 0 && delays[1] <= 600);
+	t.true(delays[2] >= 0 && delays[2] <= 600);
+
+	await server.close();
+});
+
+test('jitter works with custom delay function', async t => {
+	const retryCount = 2;
+	let requestCount = 0;
+	const jitterCalls: number[] = [];
+
+	const customJitter = (delay: number) => {
+		jitterCalls.push(delay);
+		return delay * 0.5;
+	};
+
+	const server = await createHttpTestServer();
+	server.get('/', (_request, response) => {
+		requestCount++;
+
+		if (requestCount === retryCount + 1) {
+			response.end(fixture);
+		} else {
+			response.sendStatus(500);
+		}
+	});
+
+	await ky(server.url, {
+		retry: {
+			limit: retryCount,
+			delay: n => 100 * n, // Custom delay: 100ms, 200ms, etc.
+			jitter: customJitter,
+		},
+	}).text();
+
+	t.is(requestCount, 3);
+	t.is(jitterCalls.length, 2);
+	t.is(jitterCalls[0], 100); // First retry with custom delay
+	t.is(jitterCalls[1], 200); // Second retry with custom delay
+
+	await server.close();
+});
+
+test('jitter is not applied when Retry-After header is present', async t => {
+	const startTime = Date.now();
+	let requestCount = 0;
+	const jitterCalls: number[] = [];
+
+	const customJitter = (delay: number) => {
+		jitterCalls.push(delay);
+		return delay * 0.5;
+	};
+
+	const server = await createHttpTestServer();
+	server.get('/', (_request, response) => {
+		requestCount++;
+
+		if (requestCount === 3) {
+			response.end((Date.now() - startTime).toString());
+		} else {
+			response.writeHead(429, {
+				'Retry-After': 1,
+			});
+			response.end('');
+		}
+	});
+
+	const timeElapsedInMs = Number(await ky(server.url, {
+		retry: {
+			jitter: customJitter,
+		},
+	}).text());
+
+	// Should have made 3 requests (initial + 2 retries)
+	t.is(requestCount, 3);
+	// Jitter function should NOT have been called when Retry-After is present
+	t.is(jitterCalls.length, 0);
+	// Should have waited at least 2 seconds (1s per retry)
+	t.true(timeElapsedInMs >= 2000);
+
+	await server.close();
+});
