@@ -626,26 +626,42 @@ Exposed for `instanceof` checks. The error has a `response` property with the [`
 
 Be aware that some types of errors, such as network errors, inherently mean that a response was not received. In that case, the error will not be an instance of HTTPError and will not contain a `response` property.
 
-If you need to read the actual response when an `HTTPError` has occurred, call the respective parser method on the response object. For example:
+> [!IMPORTANT]
+> When catching an `HTTPError`, you must consume or cancel the `error.response` body to prevent resource leaks (especially in Deno and Bun).
 
 ```js
-import {isKyError, isHTTPError, isTimeoutError} from 'ky';
+import {isHTTPError} from 'ky';
 
 try {
 	await ky('https://example.com').json();
 } catch (error) {
-	if (isKyError(error)) {
-		if (isHTTPError(error)) {
-			console.log('Status:', error.response.status);
-		  const errorJson = await error.response.json();
-		} else if (isTimeoutError(error)) {
-			console.log('Timeout URL:', error.request.url);
-		}
-	} else {
-		// Handle other errors
-		console.log('Unknown error:', error);
+	if (isHTTPError(error)) {
+		// Option 1: Read the error response body
+		const errorJson = await error.response.json();
+
+		// Option 2: Cancel the body if you don't need it
+		// await error.response.body?.cancel();
 	}
 }
+```
+
+You can also use the `beforeError` hook:
+
+```js
+await ky('https://example.com', {
+	hooks: {
+		beforeError: [
+			async error => {
+				const {response} = error;
+				if (response) {
+					error.message = `${error.message}: ${await response.text()}`;
+				}
+
+				return error;
+			}
+		]
+	}
+});
 ```
 
 ⌨️ **TypeScript:** Accepts an optional [type parameter](https://www.typescriptlang.org/docs/handbook/2/generics.html), which defaults to [`unknown`](https://www.typescriptlang.org/docs/handbook/2/functions.html#unknown), and is passed through to the return type of `error.response.json()`.
