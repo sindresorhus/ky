@@ -720,3 +720,34 @@ test('beforeRequest hook receives retryCount parameter', async t => {
 
 	await server.close();
 });
+
+test('hooks are not included in normalized options passed to hooks', async t => {
+	const server = await createHttpTestServer();
+	server.get('/', (_request, response) => {
+		response.end('ok');
+	});
+
+	await ky.get(server.url, {
+		hooks: {
+			beforeRequest: [
+				(_request, options) => {
+					// Verify hooks field is not present
+					t.false('hooks' in options);
+
+					// Verify options object is frozen (can't add/modify properties)
+					t.throws(() => {
+						// @ts-expect-error - Testing freeze behavior
+						options.newProperty = 'test';
+					});
+
+					// Verify nested objects like headers are still mutable
+					t.notThrows(() => {
+						options.headers.set('X-Test', 'value');
+					});
+				},
+			],
+		},
+	});
+
+	await server.close();
+});
