@@ -45,7 +45,7 @@ export class Ky {
 				// eslint-disable-next-line no-await-in-loop
 				const modifiedResponse = await hook(
 					ky.request,
-					ky._options as NormalizedOptions,
+					ky.#getNormalizedOptions(),
 					ky._decorateResponse(response.clone()),
 				);
 
@@ -57,7 +57,7 @@ export class Ky {
 			ky._decorateResponse(response);
 
 			if (!response.ok && ky._options.throwHttpErrors) {
-				let error = new HTTPError(response, ky.request, ky._options as NormalizedOptions);
+				let error = new HTTPError(response, ky.request, ky.#getNormalizedOptions());
 
 				for (const hook of ky._options.hooks.beforeError) {
 					// eslint-disable-next-line no-await-in-loop
@@ -157,6 +157,7 @@ export class Ky {
 	protected _input: Input;
 	protected _options: InternalOptions;
 	protected _originalRequest?: Request;
+	#cachedNormalizedOptions?: NormalizedOptions;
 
 	// eslint-disable-next-line complexity
 	constructor(input: Input, options: Options = {}) {
@@ -320,7 +321,7 @@ export class Ky {
 				// eslint-disable-next-line no-await-in-loop
 				const hookResult = await hook({
 					request: this.request,
-					options: (this._options as unknown) as NormalizedOptions,
+					options: this.#getNormalizedOptions(),
 					error: error as Error,
 					retryCount: this._retryCount,
 				});
@@ -340,7 +341,7 @@ export class Ky {
 			// eslint-disable-next-line no-await-in-loop
 			const result = await hook(
 				this.request,
-				(this._options as unknown) as NormalizedOptions,
+				this.#getNormalizedOptions(),
 				{retryCount: this._retryCount},
 			);
 
@@ -365,5 +366,14 @@ export class Ky {
 		}
 
 		return timeout(this._originalRequest, nonRequestOptions, this.abortController, this._options as TimeoutOptions);
+	}
+
+	#getNormalizedOptions(): NormalizedOptions {
+		if (!this.#cachedNormalizedOptions) {
+			const {hooks, ...normalizedOptions} = this._options;
+			this.#cachedNormalizedOptions = Object.freeze(normalizedOptions) as NormalizedOptions;
+		}
+
+		return this.#cachedNormalizedOptions;
 	}
 }
