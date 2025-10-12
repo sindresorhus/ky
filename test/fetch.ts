@@ -114,3 +114,27 @@ test('unknown options are passed to fetch', async t => {
 
 	await ky(fixture, {...options, fetch: customFetch}).text();
 });
+
+test('fetch-only options like dispatcher are passed to fetch', async t => {
+	t.plan(1);
+
+	const mockDispatcher = {name: 'custom-agent'};
+
+	const customFetch: typeof fetch = async (request, init) => {
+		t.is(init.dispatcher, mockDispatcher);
+		return new Response(request.url);
+	};
+
+	await ky(fixture, {dispatcher: mockDispatcher, fetch: customFetch}).text();
+});
+
+test('priority option is passed to fetch', async t => {
+	t.plan(1);
+
+	const customFetch: typeof fetch = async (request, init) => {
+		t.is(init.priority, 'high');
+		return new Response(request.url);
+	};
+
+	await ky(fixture, {priority: 'high', fetch: customFetch}).text();
+});

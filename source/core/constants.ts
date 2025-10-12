@@ -1,6 +1,5 @@
 import type {Expect, Equal} from '@type-challenges/utils';
 import {type HttpMethod, type KyOptionsRegistry} from '../types/options.js';
-import {type RequestInitRegistry} from '../types/request.js';
 
 export const supportsRequestStreams = (() => {
 	let duplexAccessed = false;
@@ -78,7 +77,12 @@ export const kyOptionKeys: KyOptionsRegistry = {
 	fetch: true,
 };
 
-export const requestOptionsRegistry: RequestInitRegistry = {
+// Standard RequestInit options that should NOT be passed separately to fetch()
+// because they're already applied to the Request object.
+// Note: `dispatcher` and `priority` are NOT included here - they're fetch-only
+// options that the Request constructor doesn't accept, so they need to be passed
+// separately to fetch().
+export const requestOptionsRegistry = {
 	method: true,
 	headers: true,
 	body: true,
@@ -92,7 +96,5 @@ export const requestOptionsRegistry: RequestInitRegistry = {
 	keepalive: true,
 	signal: true,
 	window: true,
-	dispatcher: true,
 	duplex: true,
-	priority: true,
-};
+} as const;
