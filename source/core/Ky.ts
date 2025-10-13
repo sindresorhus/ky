@@ -47,6 +47,7 @@ export class Ky {
 					ky.request,
 					ky.#getNormalizedOptions(),
 					ky._decorateResponse(response.clone()),
+					{retryCount: ky._retryCount},
 				);
 
 				if (modifiedResponse instanceof globalThis.Response) {
@@ -61,7 +62,7 @@ export class Ky {
 
 				for (const hook of ky._options.hooks.beforeError) {
 					// eslint-disable-next-line no-await-in-loop
-					error = await hook(error);
+					error = await hook(error, {retryCount: ky._retryCount});
 				}
 
 				throw error;

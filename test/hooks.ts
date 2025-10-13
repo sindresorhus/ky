@@ -751,3 +751,82 @@ test('hooks are not included in normalized options passed to hooks', async t => 
 
 	await server.close();
 });
+
+test('afterResponse hook receives retryCount in state parameter', async t => {
+	let requestCount = 0;
+	const retryCounts: number[] = [];
+
+	const server = await createHttpTestServer();
+	server.get('/', (_request, response) => {
+		requestCount++;
+
+		if (requestCount <= 2) {
+			// First two requests fail
+			response.sendStatus(500);
+		} else {
+			// Third request succeeds
+			response.end('success');
+		}
+	});
+
+	await ky.get(server.url, {
+		retry: {
+			limit: 2,
+		},
+		hooks: {
+			afterResponse: [
+				(_request, _options, _response, state) => {
+					t.is(typeof state.retryCount, 'number');
+					retryCounts.push(state.retryCount);
+				},
+			],
+		},
+	});
+
+	// AfterResponse should be called 3 times (initial + 2 retries)
+	t.is(requestCount, 3);
+	t.deepEqual(retryCounts, [0, 1, 2]);
+
+	await server.close();
+});
+
+test('beforeError hook receives retryCount in state parameter', async t => {
+	let requestCount = 0;
+	let errorRetryCount: number | undefined;
+
+	const server = await createHttpTestServer();
+	server.get('/', (_request, response) => {
+		requestCount++;
+		// All requests fail
+		response.sendStatus(500);
+	});
+
+	try {
+		await ky.get(server.url, {
+			retry: {
+				limit: 2,
+			},
+			hooks: {
+				beforeError: [
+					(error: HTTPError, state) => {
+						// Verify retryCount exists in state and is a number
+						t.is(typeof state.retryCount, 'number');
+						t.true(state.retryCount >= 0);
+						errorRetryCount = state.retryCount;
+						return error;
+					},
+				],
+			},
+		});
+		t.fail('Should have thrown an error');
+	} catch (error: any) {
+		t.true(error instanceof HTTPError);
+		// State should have had retryCount = 2 (after 2 retries)
+		t.is(errorRetryCount, 2);
+	}
+
+	// Should have made 3 requests total (initial + 2 retries)
+	t.is(requestCount, 3);
+
+	await server.close();
+});

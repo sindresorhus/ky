@@ -52,7 +52,9 @@ export type {
 	BeforeRetryHook,
 	BeforeRetryState,
 	BeforeErrorHook,
+	BeforeErrorState,
 	AfterResponseHook,
+	AfterResponseState,
 } from './types/hooks.js';
 
 export type {ResponsePromise} from './types/ResponsePromise.js';
