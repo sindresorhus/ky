@@ -235,6 +235,9 @@ const json = await ky('https://example.com', {
 }).json();
 ```
 
+> [!NOTE]
+> Chromium-based browsers automatically retry `408 Request Timeout` responses at the network layer for keep-alive connections. This means requests may be retried by both the browser and ky. If you want to avoid duplicate retries, you can either set `keepalive: false` in your request options (though this may impact performance for multiple requests) or remove `408` from the retry status codes.
+
 ##### timeout
 
 Type: `number | false`\
