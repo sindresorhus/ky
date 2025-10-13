@@ -27,14 +27,5 @@ test('prefixUrl option', async t => {
 	t.is(await ky('', {prefixUrl: `${server.url}/`}).text(), 'zebra');
 	t.is(await ky('', {prefixUrl: new URL(server.url)}).text(), 'zebra');
 
-	t.throws(
-		() => {
-			void ky('/unicorn', {prefixUrl: `${server.url}/api`});
-		},
-		{
-			message: '`input` must not begin with a slash when using `prefixUrl`',
-		},
-	);
-
 	await server.close();
 });

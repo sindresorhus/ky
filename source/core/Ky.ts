@@ -190,9 +190,7 @@ export class Ky {
 		}
 
 		if (this._options.prefixUrl && typeof this._input === 'string') {
-			if (this._input.startsWith('/')) {
-				throw new Error('`input` must not begin with a slash when using `prefixUrl`');
-			}
+			this._input = this._input.replace(/^\/+/, '');
 
 			if (!this._options.prefixUrl.endsWith('/')) {
 				this._options.prefixUrl += '/';
