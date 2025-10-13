@@ -1,3 +1,15 @@
+export type ShouldRetryState = {
+	/**
+	The error that caused the request to fail.
+	*/
+	error: Error;
+
+	/**
+	The number of retries attempted. Starts at 1 for the first retry.
+	*/
+	retryCount: number;
+};
+
 export type RetryOptions = {
 	/**
 	The number of times to retry failed requests.
@@ -89,4 +101,69 @@ export type RetryOptions = {
 	```
 	*/
 	jitter?: boolean | ((delay: number) => number) | undefined;
+
+	/**
+	Whether to retry when the request times out.
+
+	@default false
+
+	@example
+	```
+	import ky from 'ky';
+
+	const json = await ky('https://example.com', {
+		retry: {
+			limit: 3,
+			retryOnTimeout: true
+		}
+	}).json();
+	```
+	*/
+	retryOnTimeout?: boolean;
+
+	/**
+	A function to determine whether a retry should be attempted.
+
+	This function takes precedence over all other retry checks and is called first, before any other retry validation.
+
+	**Note:** This is different from the `beforeRetry` hook:
+	- `shouldRetry`: Controls WHETHER to retry (called before the retry decision is made)
+	- `beforeRetry`: Called AFTER retry is confirmed, allowing you to modify the request
+
+	Should return:
+	- `true` to force a retry (bypasses `retryOnTimeout`, status code checks, and other validations)
+	- `false` to prevent a retry (no retry will occur)
+	- `undefined` to use the default retry logic (`retryOnTimeout`, status codes, etc.)
+
+	@example
+	```
+	import ky, {HTTPError} from 'ky';
+
+	const json = await ky('https://example.com', {
+		retry: {
+			limit: 3,
+			shouldRetry: ({error, retryCount}) => {
+				// Retry on specific business logic errors from API
+				if (error instanceof HTTPError) {
+					const status = error.response.status;
+
+					// Retry on 429 (rate limit) but only for first 2 attempts
+					if (status === 429 && retryCount <= 2) {
+						return true;
+					}
+
+					// Don't retry on 4xx errors except rate limits
+					if (status >= 400 && status < 500) {
+						return false;
+					}
+				}
+
+				// Use default retry logic for other errors
+				return undefined;
+			}
+		}
+	}).json();
+	```
+	*/
+	shouldRetry?: (state: ShouldRetryState) => boolean | undefined | Promise<boolean | undefined>;
 };
