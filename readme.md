@@ -747,6 +747,99 @@ try {
 }
 ```
 
+### Proxy support (Node.js)
+
+#### Native proxy support
+
+Node.js 24.5+ supports automatic proxy configuration via environment variables. Set `NODE_USE_ENV_PROXY=1` or use the `--use-env-proxy` CLI flag.
+
+```sh
+NODE_USE_ENV_PROXY=1 HTTP_PROXY=http://proxy.example.com:8080 node app.js
+```
+
+Or:
+
+```sh
+node --use-env-proxy app.js
+```
+
+Supported environment variables:
+- `HTTP_PROXY` / `http_proxy`: Proxy URL for HTTP requests
+- `HTTPS_PROXY` / `https_proxy`: Proxy URL for HTTPS requests
+- `NO_PROXY` / `no_proxy`: Comma-separated list of hosts to bypass the proxy
+
+#### Using ProxyAgent
+
+For more control, use `ProxyAgent` or `EnvHttpProxyAgent` with the `dispatcher` option.
+
+```js
+import ky from 'ky';
+import {ProxyAgent} from 'undici';
+
+const proxyAgent = new ProxyAgent('http://proxy.example.com:8080');
+
+const response = await ky('https://example.com', {
+	// @ts-expect-error - dispatcher is not in the type definition, but it's passed through to fetch.
+	dispatcher: proxyAgent
+}).json();
+```
+
+Using `EnvHttpProxyAgent` to automatically read proxy settings from environment variables:
+
+```js
+import ky from 'ky';
+import {EnvHttpProxyAgent} from 'undici';
+
+const proxyAgent = new EnvHttpProxyAgent();
+
+const api = ky.extend({
+	// @ts-expect-error - dispatcher is not in the type definition, but it's passed through to fetch.
+	dispatcher: proxyAgent
+});
+
+const response = await api('https://example.com').json();
+```
+
+### HTTP/2 support (Node.js)
+
+Undici supports HTTP/2, but it's not enabled by default. Create a custom dispatcher with the `allowH2` option:
+
+```js
+import ky from 'ky';
+import {Agent, Pool} from 'undici';
+
+const agent = new Agent({
+	factory(origin, options) {
+		return new Pool(origin, {
+			...options,
+			allowH2: true
+		});
+	}
+});
+
+const response = await ky('https://example.com', {
+	// @ts-expect-error - dispatcher is not in the type definition, but it's passed through to fetch.
+	dispatcher: agent
+}).json();
+```
+
+Combine proxy and HTTP/2:
+
+```js
+import ky from 'ky';
+import {ProxyAgent} from 'undici';
+
+const proxyAgent = new ProxyAgent({
+	uri: 'http://proxy.example.com:8080',
+	allowH2: true
+});
+
+const response = await ky('https://example.com', {
+	// @ts-expect-error - dispatcher is not in the type definition, but it's passed through to fetch.
+	dispatcher: proxyAgent
+}).json();
+```
+
 ## FAQ
 
 #### How do I use this in Node.js?
