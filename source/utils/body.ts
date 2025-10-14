@@ -103,7 +103,7 @@ export const streamResponse = (response: Response, onDownloadProgress: Options['
 		);
 	}
 
-	const totalBytes = Number(response.headers.get('content-length')) || 0;
+	const totalBytes = Math.max(0, Number(response.headers.get('content-length')) || 0);
 
 	return new Response(
 		withProgress(response.body, totalBytes, onDownloadProgress),
