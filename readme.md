@@ -727,6 +727,35 @@ searchParams.set('drink', 'icetea');
 const response = await ky.post(url, {body: searchParams});
 ```
 
+#### Modifying FormData in hooks
+
+If you need to modify FormData in a `beforeRequest` hook (for example, to transform field names), delete the `Content-Type` header before creating a new `Request`:
+
+```js
+import ky from 'ky';
+
+const response = await ky.post(url, {
+	body: formData,
+	hooks: {
+		beforeRequest: [
+			request => {
+				const newFormData = new FormData();
+
+				// Modify FormData as needed
+				for (const [key, value] of formData) {
+					newFormData.set(key.toLowerCase(), value);
+				}
+
+				// Delete `Content-Type` to let Request regenerate it with correct boundary
+				request.headers.delete('content-type');
+
+				return new Request(request, {body: newFormData});
+			}
+		]
+	}
+});
+```
+
 ### Setting a custom `Content-Type`
 
 Ky automatically sets an appropriate [`Content-Type`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Type) header for each request based on the data in the request body. However, some APIs require custom, non-standard content types, such as `application/x-amz-json-1.1`. Using the `headers` option, you can manually override the content type.
