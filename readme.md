@@ -259,6 +259,9 @@ const json = await ky('https://example.com', {
 }).json();
 ```
 
+> [!NOTE]
+> Chromium-based browsers automatically retry `408 Request Timeout` responses at the network layer for keep-alive connections. This means requests may be retried by both the browser and ky. If you want to avoid duplicate retries, you can either set `keepalive: false` in your request options (though this may impact performance for multiple requests) or remove `408` from the retry status codes.
+
 ##### timeout
 
 Type: `number | false`\
@@ -312,6 +315,8 @@ Default: `[]`
 
 This hook enables you to modify the request right before retry. Ky will make no further changes to the request after this. The hook function receives an object with the normalized request and options, an error instance, and the retry count. You could, for example, modify `request.headers` here.
 
+The `retryCount` is always `>= 1` since this hook is only called during retries, not on the initial request.
+
 If the request received a response, the error will be of type `HTTPError` and the `Response` object will be available at `error.response`. Be aware that some types of errors, such as network errors, inherently mean that a response was not received. In that case, the error will not be an instance of `HTTPError`.
 
 You can prevent Ky from retrying the request by throwing an error. Ky will not handle it in any way and the error will be propagated to the request initiator. The rest of the `beforeRetry` hooks will not be called in this case. Alternatively, you can return the [`ky.stop`](#kystop) symbol to do the same thing but without propagating an error (this has some limitations, see `ky.stop` docs for details).
@@ -336,7 +341,9 @@ const response = await ky('https://example.com', {
 Type: `Function[]`\
 Default: `[]`
 
-This hook enables you to modify the `HTTPError` right before it is thrown. The hook function receives a `HTTPError` as an argument and should return an instance of `HTTPError`.
+This hook enables you to modify the `HTTPError` right before it is thrown. The hook function receives a `HTTPError` and a state object as arguments and should return an instance of `HTTPError`.
+
+The `state.retryCount` is `0` for the initial request and increments with each retry. This allows you to distinguish between the initial request and retries, which is useful when you need different error handling based on retry attempts (e.g., showing different error messages on the final attempt).
 
 ```js
 import ky from 'ky';
@@ -353,6 +360,15 @@ await ky('https://example.com', {
 				}
 
 				return error;
+			},
+
+			// Or show different message based on retry count
+			(error, state) => {
+				if (state.retryCount === error.options.retry.limit) {
+					error.message = `${error.message} (failed after ${state.retryCount} retries)`;
+				}
+
+				return error;
 			}
 		]
 	}
@@ -364,7 +380,9 @@ await ky('https://example.com', {
 Type: `Function[]`\
 Default: `[]`
 
-This hook enables you to read and optionally modify the response. The hook function receives normalized request, options, and a clone of the response as arguments. The return value of the hook function will be used by Ky as the response object if it's an instance of [`Response`](https://developer.mozilla.org/en-US/docs/Web/API/Response).
+This hook enables you to read and optionally modify the response. The hook function receives normalized request, options, a clone of the response, and a state object. The return value of the hook function will be used by Ky as the response object if it's an instance of [`Response`](https://developer.mozilla.org/en-US/docs/Web/API/Response).
+
+The `state.retryCount` is `0` for the initial request and increments with each retry. This allows you to distinguish between initial requests and retries, which is useful when you need different behavior for retries (e.g., showing a notification only on the final retry).
 
 ```js
 import ky from 'ky';
@@ -389,7 +407,16 @@ const response = await ky('https://example.com', {
 					// Retry with the token
 					request.headers.set('Authorization', `token ${token}`);
 
-					return ky(request);
+					return ky(request, options);
+				}
+			},
+
+			// Or show a notification only on the last retry for 5xx errors
+			(request, options, response, {retryCount}) => {
+				if (response.status >= 500 && response.status <= 599) {
+					if (retryCount === options.retry.limit) {
+						showNotification('Request failed after all retries');
+					}
 				}
 			}
 		]
@@ -722,6 +749,35 @@ searchParams.set('food', 'fries');
 searchParams.set('drink', 'icetea');
 
 const response = await ky.post(url, {body: searchParams});
+```
+
+#### Modifying FormData in hooks
+
+If you need to modify FormData in a `beforeRequest` hook (for example, to transform field names), delete the `Content-Type` header before creating a new `Request`:
+
+```js
+import ky from 'ky';
+
+const response = await ky.post(url, {
+	body: formData,
+	hooks: {
+		beforeRequest: [
+			request => {
+				const newFormData = new FormData();
+
+				// Modify FormData as needed
+				for (const [key, value] of formData) {
+					newFormData.set(key.toLowerCase(), value);
+				}
+
+				// Delete `Content-Type` to let Request regenerate it with correct boundary
+				request.headers.delete('content-type');
+
+				return new Request(request, {body: newFormData});
+			}
+		]
+	}
+});
 ```
 
 ### Setting a custom `Content-Type`
