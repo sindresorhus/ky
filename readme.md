@@ -729,7 +729,7 @@ const response = await ky.post(url, {body: searchParams});
 
 #### Modifying FormData in hooks
 
-If you need to modify FormData in a `beforeRequest` hook (for example, to transform field names), create a new `Request` from scratch instead of copying the original request:
+If you need to modify FormData in a `beforeRequest` hook (for example, to transform field names), delete the `Content-Type` header before creating a new `Request`:
 
 ```js
 import ky from 'ky';
@@ -746,22 +746,15 @@ const response = await ky.post(url, {
 					newFormData.set(key.toLowerCase(), value);
 				}
 
-				// Create new Request without copying headers
-				return new Request(request.url, {
-					method: request.method,
-					body: newFormData,
-					credentials: request.credentials,
-					cache: request.cache,
-					redirect: request.redirect,
-					mode: request.mode,
-				});
+				// Delete `Content-Type` to let Request regenerate it with correct boundary
+				request.headers.delete('content-type');
+
+				return new Request(request, {body: newFormData});
 			}
 		]
 	}
 });
 ```
-
-Avoid using `new Request(request, {body: newFormData})` as it copies the old `Content-Type` header with the wrong boundary. Creating a fresh Request ensures the correct `Content-Type` header is automatically generated.
 
 ### Setting a custom `Content-Type`
 
