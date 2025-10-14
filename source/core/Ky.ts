@@ -5,6 +5,7 @@ import type {
 	NormalizedOptions,
 	Options,
 	SearchParamsInit,
+	SearchParamsOption,
 } from '../types/options.js';
 import {type ResponsePromise} from '../types/ResponsePromise.js';
 import {streamRequest, streamResponse} from '../utils/body.js';
@@ -31,7 +32,7 @@ export class Ky {
 		const ky = new Ky(input, options);
 
 		const function_ = async (): Promise<Response> => {
-			if (typeof ky._options.timeout === 'number' && ky._options.timeout > maxSafeTimeout) {
+			if (typeof ky.#options.timeout === 'number' && ky.#options.timeout > maxSafeTimeout) {
 				throw new RangeError(`The \`timeout\` option cannot be greater than ${maxSafeTimeout}`);
 			}
 
@@ -39,15 +40,15 @@ export class Ky {
 			await Promise.resolve();
 			// Before using ky.request, _fetch clones it and saves the clone for future retries to use.
 			// If retry is not needed, close the cloned request's ReadableStream for memory safety.
-			let response = await ky._fetch();
+			let response = await ky.#fetch();
 
-			for (const hook of ky._options.hooks.afterResponse) {
+			for (const hook of ky.#options.hooks.afterResponse) {
 				// eslint-disable-next-line no-await-in-loop
 				const modifiedResponse = await hook(
 					ky.request,
 					ky.#getNormalizedOptions(),
-					ky._decorateResponse(response.clone()),
-					{retryCount: ky._retryCount},
+					ky.#decorateResponse(response.clone()),
+					{retryCount: ky.#retryCount},
 				);
 
 				if (modifiedResponse instanceof globalThis.Response) {
@@ -55,22 +56,22 @@ export class Ky {
 				}
 			}
 
-			ky._decorateResponse(response);
+			ky.#decorateResponse(response);
 
-			if (!response.ok && ky._options.throwHttpErrors) {
+			if (!response.ok && ky.#options.throwHttpErrors) {
 				let error = new HTTPError(response, ky.request, ky.#getNormalizedOptions());
 
-				for (const hook of ky._options.hooks.beforeError) {
+				for (const hook of ky.#options.hooks.beforeError) {
 					// eslint-disable-next-line no-await-in-loop
-					error = await hook(error, {retryCount: ky._retryCount});
+					error = await hook(error, {retryCount: ky.#retryCount});
 				}
 
 				throw error;
 			}
 
 			// If `onDownloadProgress` is passed, it uses the stream API internally
-			if (ky._options.onDownloadProgress) {
-				if (typeof ky._options.onDownloadProgress !== 'function') {
+			if (ky.#options.onDownloadProgress) {
+				if (typeof ky.#options.onDownloadProgress !== 'function') {
 					throw new TypeError('The `onDownloadProgress` option must be a function');
 				}
 
@@ -78,16 +79,16 @@ export class Ky {
 					throw new Error('Streams are not supported in your environment. `ReadableStream` is missing.');
 				}
 
-				return streamResponse(response.clone(), ky._options.onDownloadProgress);
+				return streamResponse(response.clone(), ky.#options.onDownloadProgress);
 			}
 
 			return response;
 		};
 
-		const isRetriableMethod = ky._options.retry.methods.includes(ky.request.method.toLowerCase());
-		const result = (isRetriableMethod ? ky._retry(function_) : function_())
+		const isRetriableMethod = ky.#options.retry.methods.includes(ky.request.method.toLowerCase());
+		const result = (isRetriableMethod ? ky.#retry(function_) : function_())
 			.finally(async () => {
-				const originalRequest = ky._originalRequest;
+				const originalRequest = ky.#originalRequest;
 				const cleanupPromises = [];
 
 				if (originalRequest && !originalRequest.bodyUsed) {
@@ -141,7 +142,7 @@ export class Ky {
 	}
 
 	// eslint-disable-next-line unicorn/prevent-abbreviations
-	static #normalizeSearchParams(searchParams: any): any {
+	static #normalizeSearchParams(searchParams: SearchParamsOption): SearchParamsOption {
 		// Filter out undefined values from plain objects
 		if (searchParams && typeof searchParams === 'object' && !Array.isArray(searchParams) && !(searchParams instanceof URLSearchParams)) {
 			return Object.fromEntries(
@@ -153,20 +154,21 @@ export class Ky {
 	}
 
 	public request: Request;
-	protected abortController?: AbortController;
-	protected _retryCount = 0;
-	protected _input: Input;
-	protected _options: InternalOptions;
-	protected _originalRequest?: Request;
+	readonly #abortController?: AbortController;
+	#retryCount = 0;
+	// eslint-disable-next-line @typescript-eslint/prefer-readonly -- False positive: #input is reassigned on line 202
+	#input: Input;
+	readonly #options: InternalOptions;
+	#originalRequest?: Request;
 	#cachedNormalizedOptions?: NormalizedOptions;
 
 	// eslint-disable-next-line complexity
 	constructor(input: Input, options: Options = {}) {
-		this._input = input;
+		this.#input = input;
 
-		this._options = {
+		this.#options = {
 			...options,
-			headers: mergeHeaders((this._input as Request).headers, options.headers),
+			headers: mergeHeaders((this.#input as Request).headers, options.headers),
 			hooks: mergeHooks(
 				{
 					beforeRequest: [],
@@ -176,7 +178,7 @@ export class Ky {
 				},
 				options.hooks,
 			),
-			method: normalizeRequestMethod(options.method ?? (this._input as Request).method ?? 'GET'),
+			method: normalizeRequestMethod(options.method ?? (this.#input as Request).method ?? 'GET'),
 			// eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing
 			prefixUrl: String(options.prefixUrl || ''),
 			retry: normalizeRetryOptions(options.retry),
@@ -185,67 +187,67 @@ export class Ky {
 			fetch: options.fetch ?? globalThis.fetch.bind(globalThis),
 		};
 
-		if (typeof this._input !== 'string' && !(this._input instanceof URL || this._input instanceof globalThis.Request)) {
+		if (typeof this.#input !== 'string' && !(this.#input instanceof URL || this.#input instanceof globalThis.Request)) {
 			throw new TypeError('`input` must be a string, URL, or Request');
 		}
 
-		if (this._options.prefixUrl && typeof this._input === 'string') {
-			if (this._input.startsWith('/')) {
+		if (this.#options.prefixUrl && typeof this.#input === 'string') {
+			if (this.#input.startsWith('/')) {
 				throw new Error('`input` must not begin with a slash when using `prefixUrl`');
 			}
 
-			if (!this._options.prefixUrl.endsWith('/')) {
-				this._options.prefixUrl += '/';
+			if (!this.#options.prefixUrl.endsWith('/')) {
+				this.#options.prefixUrl += '/';
 			}
 
-			this._input = this._options.prefixUrl + this._input;
+			this.#input = this.#options.prefixUrl + this.#input;
 		}
 
 		if (supportsAbortController && supportsAbortSignal) {
-			const originalSignal = this._options.signal ?? (this._input as Request).signal;
-			this.abortController = new globalThis.AbortController();
-			this._options.signal = originalSignal ? AbortSignal.any([originalSignal, this.abortController.signal]) : this.abortController.signal;
+			const originalSignal = this.#options.signal ?? (this.#input as Request).signal;
+			this.#abortController = new globalThis.AbortController();
+			this.#options.signal = originalSignal ? AbortSignal.any([originalSignal, this.#abortController.signal]) : this.#abortController.signal;
 		}
 
 		if (supportsRequestStreams) {
 			// @ts-expect-error - Types are outdated.
-			this._options.duplex = 'half';
+			this.#options.duplex = 'half';
 		}
 
-		if (this._options.json !== undefined) {
-			this._options.body = this._options.stringifyJson?.(this._options.json) ?? JSON.stringify(this._options.json);
-			this._options.headers.set('content-type', this._options.headers.get('content-type') ?? 'application/json');
+		if (this.#options.json !== undefined) {
+			this.#options.body = this.#options.stringifyJson?.(this.#options.json) ?? JSON.stringify(this.#options.json);
+			this.#options.headers.set('content-type', this.#options.headers.get('content-type') ?? 'application/json');
 		}
 
 		// To provide correct form boundary, Content-Type header should be deleted when creating Request from another Request with FormData/URLSearchParams body
 		// Only delete if user didn't explicitly provide a custom content-type
 		const userProvidedContentType = options.headers && new globalThis.Headers(options.headers as HeadersInit).has('content-type');
 		if (
-			this._input instanceof globalThis.Request
-			&& ((supportsFormData && this._options.body instanceof globalThis.FormData) || this._options.body instanceof URLSearchParams)
+			this.#input instanceof globalThis.Request
+			&& ((supportsFormData && this.#options.body instanceof globalThis.FormData) || this.#options.body instanceof URLSearchParams)
 			&& !userProvidedContentType
 		) {
-			this._options.headers.delete('content-type');
+			this.#options.headers.delete('content-type');
 		}
 
-		this.request = new globalThis.Request(this._input, this._options);
+		this.request = new globalThis.Request(this.#input, this.#options);
 
-		if (hasSearchParameters(this._options.searchParams)) {
+		if (hasSearchParameters(this.#options.searchParams)) {
 			// eslint-disable-next-line unicorn/prevent-abbreviations
-			const textSearchParams = typeof this._options.searchParams === 'string'
-				? this._options.searchParams.replace(/^\?/, '')
-				: new URLSearchParams(Ky.#normalizeSearchParams(this._options.searchParams) as unknown as SearchParamsInit).toString();
+			const textSearchParams = typeof this.#options.searchParams === 'string'
+				? this.#options.searchParams.replace(/^\?/, '')
+				: new URLSearchParams(Ky.#normalizeSearchParams(this.#options.searchParams) as unknown as SearchParamsInit).toString();
 			// eslint-disable-next-line unicorn/prevent-abbreviations
 			const searchParams = '?' + textSearchParams;
 			const url = this.request.url.replace(/(?:\?.*?)?(?=#|$)/, searchParams);
 
 			// The spread of `this.request` is required as otherwise it misses the `duplex` option for some reason and throws.
-			this.request = new globalThis.Request(new globalThis.Request(url, {...this.request}), this._options as RequestInit);
+			this.request = new globalThis.Request(new globalThis.Request(url, {...this.request}), this.#options as RequestInit);
 		}
 
 		// If `onUploadProgress` is passed, it uses the stream API internally
-		if (this._options.onUploadProgress) {
-			if (typeof this._options.onUploadProgress !== 'function') {
+		if (this.#options.onUploadProgress) {
+			if (typeof this.#options.onUploadProgress !== 'function') {
 				throw new TypeError('The `onUploadProgress` option must be a function');
 			}
 
@@ -256,20 +258,20 @@ export class Ky {
 			const originalBody = this.request.body;
 			if (originalBody) {
 				// Pass original body to calculate size correctly (before it becomes a stream)
-				this.request = streamRequest(this.request, this._options.onUploadProgress, this._options.body);
+				this.request = streamRequest(this.request, this.#options.onUploadProgress, this.#options.body);
 			}
 		}
 	}
 
-	protected _calculateRetryDelay(error: unknown) {
-		this._retryCount++;
+	#calculateRetryDelay(error: unknown) {
+		this.#retryCount++;
 
-		if (this._retryCount > this._options.retry.limit || isTimeoutError(error)) {
+		if (this.#retryCount > this.#options.retry.limit || isTimeoutError(error)) {
 			throw error;
 		}
 
 		if (isHTTPError(error)) {
-			if (!this._options.retry.statusCodes.includes(error.response.status)) {
+			if (!this.#options.retry.statusCodes.includes(error.response.status)) {
 				throw error;
 			}
 
@@ -277,7 +279,7 @@ export class Ky {
 				?? error.response.headers.get('RateLimit-Reset')
 				?? error.response.headers.get('X-RateLimit-Reset') // GitHub
 				?? error.response.headers.get('X-Rate-Limit-Reset'); // Twitter
-			if (retryAfter && this._options.retry.afterStatusCodes.includes(error.response.status)) {
+			if (retryAfter && this.#options.retry.afterStatusCodes.includes(error.response.status)) {
 				let after = Number(retryAfter) * 1000;
 				if (Number.isNaN(after)) {
 					after = Date.parse(retryAfter) - Date.now();
@@ -286,7 +288,7 @@ export class Ky {
 					after -= Date.now();
 				}
 
-				const max = this._options.retry.maxRetryAfter ?? after;
+				const max = this.#options.retry.maxRetryAfter ?? after;
 				return after < max ? after : max;
 			}
 
@@ -295,48 +297,48 @@ export class Ky {
 			}
 		}
 
-		const retryDelay = this._options.retry.delay(this._retryCount);
+		const retryDelay = this.#options.retry.delay(this.#retryCount);
 
 		let jitteredDelay = retryDelay;
-		if (this._options.retry.jitter === true) {
+		if (this.#options.retry.jitter === true) {
 			jitteredDelay = Math.random() * retryDelay;
-		} else if (typeof this._options.retry.jitter === 'function') {
-			jitteredDelay = this._options.retry.jitter(retryDelay);
+		} else if (typeof this.#options.retry.jitter === 'function') {
+			jitteredDelay = this.#options.retry.jitter(retryDelay);
 
 			if (!Number.isFinite(jitteredDelay) || jitteredDelay < 0) {
 				jitteredDelay = retryDelay;
 			}
 		}
 
-		return Math.min(this._options.retry.backoffLimit, jitteredDelay);
+		return Math.min(this.#options.retry.backoffLimit, jitteredDelay);
 	}
 
-	protected _decorateResponse(response: Response): Response {
-		if (this._options.parseJson) {
-			response.json = async () => this._options.parseJson!(await response.text());
+	#decorateResponse(response: Response): Response {
+		if (this.#options.parseJson) {
+			response.json = async () => this.#options.parseJson!(await response.text());
 		}
 
 		return response;
 	}
 
-	protected async _retry<T extends (...arguments_: any) => Promise<any>>(function_: T): Promise<ReturnType<T> | void> {
+	async #retry<T extends (...arguments_: any) => Promise<any>>(function_: T): Promise<ReturnType<T> | void> {
 		try {
 			return await function_();
 		} catch (error) {
-			const ms = Math.min(this._calculateRetryDelay(error), maxSafeTimeout);
-			if (this._retryCount < 1) {
+			const ms = Math.min(this.#calculateRetryDelay(error), maxSafeTimeout);
+			if (this.#retryCount < 1) {
 				throw error;
 			}
 
-			await delay(ms, {signal: this._options.signal});
+			await delay(ms, {signal: this.#options.signal});
 
-			for (const hook of this._options.hooks.beforeRetry) {
+			for (const hook of this.#options.hooks.beforeRetry) {
 				// eslint-disable-next-line no-await-in-loop
 				const hookResult = await hook({
 					request: this.request,
 					options: this.#getNormalizedOptions(),
 					error: error as Error,
-					retryCount: this._retryCount,
+					retryCount: this.#retryCount,
 				});
 
 				// If `stop` is returned from the hook, the retry process is stopped
@@ -345,17 +347,17 @@ export class Ky {
 				}
 			}
 
-			return this._retry(function_);
+			return this.#retry(function_);
 		}
 	}
 
-	protected async _fetch(): Promise<Response> {
-		for (const hook of this._options.hooks.beforeRequest) {
+	async #fetch(): Promise<Response> {
+		for (const hook of this.#options.hooks.beforeRequest) {
 			// eslint-disable-next-line no-await-in-loop
 			const result = await hook(
 				this.request,
 				this.#getNormalizedOptions(),
-				{retryCount: this._retryCount},
+				{retryCount: this.#retryCount},
 			);
 
 			if (result instanceof Request) {
@@ -368,22 +370,22 @@ export class Ky {
 			}
 		}
 
-		const nonRequestOptions = findUnknownOptions(this.request, this._options);
+		const nonRequestOptions = findUnknownOptions(this.request, this.#options);
 
 		// Cloning is done here to prepare in advance for retries
-		this._originalRequest = this.request;
-		this.request = this._originalRequest.clone();
+		this.#originalRequest = this.request;
+		this.request = this.#originalRequest.clone();
 
-		if (this._options.timeout === false) {
-			return this._options.fetch(this._originalRequest, nonRequestOptions);
+		if (this.#options.timeout === false) {
+			return this.#options.fetch(this.#originalRequest, nonRequestOptions);
 		}
 
-		return timeout(this._originalRequest, nonRequestOptions, this.abortController, this._options as TimeoutOptions);
+		return timeout(this.#originalRequest, nonRequestOptions, this.#abortController, this.#options as TimeoutOptions);
 	}
 
 	#getNormalizedOptions(): NormalizedOptions {
 		if (!this.#cachedNormalizedOptions) {
-			const {hooks, ...normalizedOptions} = this._options;
+			const {hooks, ...normalizedOptions} = this.#options;
 			this.#cachedNormalizedOptions = Object.freeze(normalizedOptions) as NormalizedOptions;
 		}
 
