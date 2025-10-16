@@ -298,7 +298,19 @@ export class Ky {
 		}
 
 		const retryDelay = this.#options.retry.delay(this.#retryCount);
-		return Math.min(this.#options.retry.backoffLimit, retryDelay);
+
+		let jitteredDelay = retryDelay;
+		if (this.#options.retry.jitter === true) {
+			jitteredDelay = Math.random() * retryDelay;
+		} else if (typeof this.#options.retry.jitter === 'function') {
+			jitteredDelay = this.#options.retry.jitter(retryDelay);
+
+			if (!Number.isFinite(jitteredDelay) || jitteredDelay < 0) {
+				jitteredDelay = retryDelay;
+			}
+		}
+
+		return Math.min(this.#options.retry.backoffLimit, jitteredDelay);
 	}
 
 	#decorateResponse(response: Response): Response {

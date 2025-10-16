@@ -205,6 +205,7 @@ Default:
 - `maxRetryAfter`: `undefined`
 - `backoffLimit`: `undefined`
 - `delay`: `attemptCount => 0.3 * (2 ** (attemptCount - 1)) * 1000`
+- `jitter`: `undefined`
 
 An object representing `limit`, `methods`, `statusCodes`, `afterStatusCodes`, and `maxRetryAfter` fields for maximum retry count, allowed methods, allowed status codes, status codes allowed to use the [`Retry-After`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Retry-After) time, and maximum [`Retry-After`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Retry-After) time.
 
@@ -220,6 +221,10 @@ By default, the delay is calculated with `0.3 * (2 ** (attemptCount - 1)) * 1000
 
 The `delay` option can be used to change how the delay between retries is calculated. The function receives one parameter, the attempt count, starting at `1`.
 
+The `jitter` option adds random jitter to retry delays to prevent thundering herd problems. When many clients retry simultaneously (e.g., after hitting a rate limit), they can overwhelm the server again. Jitter adds randomness to break this synchronization. Set to `true` to use full jitter, which randomizes the delay between 0 and the computed delay. Alternatively, pass a function to implement custom jitter strategies.
+
+**Note:** Jitter is not applied when the server provides a `Retry-After` header, as the server's explicit timing should be respected.
+
 Retries are not triggered following a [timeout](#timeout).
 
 ```js
@@ -231,6 +236,25 @@ const json = await ky('https://example.com', {
 		methods: ['get'],
 		statusCodes: [413],
 		backoffLimit: 3000
+	}
+}).json();
+```
+
+```js
+import ky from 'ky';
+
+const json = await ky('https://example.com', {
+	retry: {
+		limit: 5,
+
+		// Full jitter (randomizes delay between 0 and computed value)
+		jitter: true
+
+		// Percentage jitter (80-120% of delay)
+		// jitter: delay => delay * (0.8 + Math.random() * 0.4)
+
+		// Absolute jitter (±100ms)
+		// jitter: delay => delay + (Math.random() * 200 - 100)
 	}
 }).json();
 ```

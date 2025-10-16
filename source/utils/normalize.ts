@@ -19,6 +19,7 @@ const defaultRetryOptions: Required<RetryOptions> = {
 	maxRetryAfter: Number.POSITIVE_INFINITY,
 	backoffLimit: Number.POSITIVE_INFINITY,
 	delay: attemptCount => 0.3 * (2 ** (attemptCount - 1)) * 1000,
+	jitter: undefined,
 };
 
 export const normalizeRetryOptions = (retry: number | RetryOptions = {}): Required<RetryOptions> => {
