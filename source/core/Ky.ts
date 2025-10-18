@@ -16,6 +16,7 @@ import delay from '../utils/delay.js';
 import {type ObjectEntries} from '../utils/types.js';
 import {findUnknownOptions, hasSearchParameters} from '../utils/options.js';
 import {isHTTPError, isTimeoutError} from '../utils/type-guards.js';
+import {isObject} from '../utils/is.js';
 import {
 	maxSafeTimeout,
 	responseTypes,
@@ -166,6 +167,11 @@ export class Ky {
 	constructor(input: Input, options: Options = {}) {
 		this.#input = input;
 
+		const rawContext = options.context;
+		if (rawContext !== undefined && (!isObject(rawContext) || Array.isArray(rawContext))) {
+			throw new TypeError('The `context` option must be an object');
+		}
+
 		this.#options = {
 			...options,
 			headers: mergeHeaders((this.#input as Request).headers, options.headers),
@@ -182,6 +188,7 @@ export class Ky {
 			// eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing
 			prefixUrl: String(options.prefixUrl || ''),
 			retry: normalizeRetryOptions(options.retry),
+			context: rawContext ? {...rawContext} : {},
 			throwHttpErrors: options.throwHttpErrors !== false,
 			timeout: options.timeout ?? 10_000,
 			fetch: options.fetch ?? globalThis.fetch.bind(globalThis),
