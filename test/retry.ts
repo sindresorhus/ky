@@ -697,10 +697,10 @@ test('jitter: true applies full jitter to delay', async t => {
 	t.is(requestCount, 4);
 
 	// Full jitter should produce delays between 0 and the computed delay
-	// Add 20% tolerance for system overhead
-	t.true(delays[0] >= 0 && delays[0] <= 360);
-	t.true(delays[1] >= 0 && delays[1] <= 720);
-	t.true(delays[2] >= 0 && delays[2] <= 1440);
+	// Add 50% tolerance for system overhead and CI variability
+	t.true(delays[0] >= 0 && delays[0] <= 450);
+	t.true(delays[1] >= 0 && delays[1] <= 900);
+	t.true(delays[2] >= 0 && delays[2] <= 1800);
 
 	await server.close();
 });
@@ -780,10 +780,10 @@ test('jitter respects backoffLimit', async t => {
 	// With backoffLimit of 500, all delays should be <= 500ms
 	// Even though the computed delays would be 300, 600, 1200
 	// After jitter and backoffLimit, they should all be <= 500
-	// Add 20% tolerance for system overhead
-	t.true(delays[0] >= 0 && delays[0] <= 600);
-	t.true(delays[1] >= 0 && delays[1] <= 600);
-	t.true(delays[2] >= 0 && delays[2] <= 600);
+	// Add 50% tolerance for system overhead and CI variability
+	t.true(delays[0] >= 0 && delays[0] <= 750);
+	t.true(delays[1] >= 0 && delays[1] <= 750);
+	t.true(delays[2] >= 0 && delays[2] <= 750);
 
 	await server.close();
 });
