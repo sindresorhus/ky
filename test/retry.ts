@@ -872,13 +872,13 @@ test('retryOnTimeout: false (default) - does not retry on timeout', async t => {
 	server.get('/', async (_request, response) => {
 		requestCount++;
 		// Delay longer than timeout to trigger timeout
-		await delay(200);
+		await delay(1000);
 		response.end(fixture);
 	});
 
 	await t.throwsAsync(
 		ky(server.url, {
-			timeout: 100,
+			timeout: 500,
 			retry: {
 				limit: 3,
 			},
@@ -901,7 +901,7 @@ test('retryOnTimeout: true - retries on timeout', async t => {
 		requestCount++;
 		if (requestCount <= 2) {
 			// Delay longer than timeout to trigger timeout
-			await delay(200);
+			await delay(1000);
 			response.end(fixture);
 		} else {
 			response.end(fixture);
@@ -909,7 +909,7 @@ test('retryOnTimeout: true - retries on timeout', async t => {
 	});
 
 	const result = await ky(server.url, {
-		timeout: 100,
+		timeout: 500,
 		retry: {
 			limit: 3,
 			retryOnTimeout: true,
@@ -929,12 +929,12 @@ test('retryOnTimeout: true - respects retry limit on timeout', async t => {
 	server.get('/', async (_request, response) => {
 		requestCount++;
 		// Always timeout
-		await delay(1000);
+		await delay(2000);
 	});
 
 	await t.throwsAsync(
 		ky(server.url, {
-			timeout: 100,
+			timeout: 500,
 			retry: {
 				limit: 2,
 				retryOnTimeout: true,
@@ -958,7 +958,7 @@ test('shouldRetry: returns true - forces retry bypassing all checks', async t =>
 		requestCount++;
 		if (requestCount <= 2) {
 			// Delay longer than timeout to trigger timeout
-			await delay(200);
+			await delay(1000);
 			response.end(fixture);
 		} else {
 			response.end(fixture);
@@ -966,7 +966,7 @@ test('shouldRetry: returns true - forces retry bypassing all checks', async t =>
 	});
 
 	const result = await ky(server.url, {
-		timeout: 100,
+		timeout: 500,
 		retry: {
 			limit: 3,
 			retryOnTimeout: false, // Disabled
@@ -1140,7 +1140,7 @@ test('shouldRetry: works with TimeoutError', async t => {
 		requestCount++;
 		if (requestCount <= 2) {
 			// Delay longer than timeout to trigger timeout
-			await delay(200);
+			await delay(1000);
 			response.end(fixture);
 		} else {
 			response.end(fixture);
@@ -1148,7 +1148,7 @@ test('shouldRetry: works with TimeoutError', async t => {
 	});
 
 	const result = await ky(server.url, {
-		timeout: 100,
+		timeout: 500,
 		retry: {
 			limit: 3,
 			async shouldRetry({error}) {
@@ -1171,13 +1171,13 @@ test('shouldRetry: precedence over retryOnTimeout', async t => {
 	server.get('/', async (_request, response) => {
 		requestCount++;
 		// Delay longer than timeout to trigger timeout
-		await delay(200);
+		await delay(1000);
 		response.end(fixture);
 	});
 
 	await t.throwsAsync(
 		ky(server.url, {
-			timeout: 100,
+			timeout: 500,
 			retry: {
 				limit: 3,
 				retryOnTimeout: true, // Would retry
