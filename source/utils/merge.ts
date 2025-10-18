@@ -119,6 +119,20 @@ export const deepMerge = <T>(...sources: Array<Partial<T> | undefined>): T => {
 					continue;
 				}
 
+				if (key === 'context') {
+					if (value === undefined) {
+						returnValue = {...returnValue, context: undefined};
+					} else if (isObject(value) && !Array.isArray(value)) {
+						const existingContext = returnValue.context;
+						const base = isObject(existingContext) && !Array.isArray(existingContext) ? existingContext : {};
+						returnValue = {...returnValue, context: {...base, ...value}};
+					} else {
+						returnValue = {...returnValue, context: value};
+					}
+
+					continue;
+				}
+
 				if (isObject(value) && key in returnValue) {
 					value = deepMerge(returnValue[key], value);
 				}

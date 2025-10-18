@@ -270,6 +270,44 @@ Default: `10000`
 Timeout in milliseconds for getting a response, including any retries. Can not be greater than 2147483647.
 If set to `false`, there will be no timeout.
 
+##### context
+
+Type: `object<string, unknown>`\
+Default: `{}`
+
+Custom per-request data that is shared with your hooks. Ky shallow merges the context when you `.extend()` or supply request-specific overrides, so properties you pass with a request overwrite defaults. Only enumerable properties are merged.
+
+```js
+import ky from 'ky';
+
+const api = ky.extend({
+	context: {requestId: 'default'},
+	hooks: {
+		beforeRequest: [
+			(request, options) => {
+				const token = options.context.token;
+				if (typeof token !== 'string') {
+					throw new Error('Token required');
+				}
+
+				request.headers.set('token', token);
+				request.headers.set('x-request-id', options.context.requestId as string);
+			}
+		]
+	}
+});
+
+await api('https://example.com', {
+	context: {
+		token: 'secret',
+		requestId: 'request-123',
+	}
+});
+```
+
+> [!NOTE]
+> Non-enumerable properties inside the context are not merged.
+
 ##### hooks
 
 Type: `object<string, Function[]>`\

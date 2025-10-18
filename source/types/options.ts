@@ -170,6 +170,37 @@ export type KyOptions = {
 	throwHttpErrors?: boolean;
 
 	/**
+	User-defined per-request metadata shared with hooks.
+
+	This object is shallow-merged when you `.extend()` or pass new defaults, so request-specific values override defaults. Only enumerable properties are merged.
+
+	@example
+	```
+	import ky from 'ky';
+
+	const client = ky.extend({
+		hooks: {
+			beforeRequest: [
+				(_request, options) => {
+					const token = options.context.token;
+					if (typeof token !== 'string') {
+						throw new Error('Token required');
+					}
+
+					options.headers.set('token', token);
+				}
+			]
+		}
+	});
+
+	const response = await client('https://example.com', {
+		context: {token: 'secret'},
+	});
+	```
+	*/
+	context?: Record<string, unknown>;
+
+	/**
 	Download progress event handler.
 
 	@param progress - Object containing download progress information.
@@ -297,6 +328,7 @@ Omit<Options, 'hooks' | 'retry'>,
 > & {
 	headers: Required<Headers>;
 	hooks: Required<Hooks>;
+	context: Record<string, unknown>;
 	retry: Required<RetryOptions>;
 	prefixUrl: string;
 };
@@ -314,6 +346,7 @@ export interface NormalizedOptions extends RequestInit { // eslint-disable-line 
 	prefixUrl: string;
 	onDownloadProgress: Options['onDownloadProgress'];
 	onUploadProgress: Options['onUploadProgress'];
+	context: Record<string, unknown>;
 }
 
 export type {RetryOptions} from './retry.js';

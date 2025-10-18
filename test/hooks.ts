@@ -177,6 +177,119 @@ test('afterResponse hook can change response instance by sequence', async t => {
 	await server.close();
 });
 
+test('context is available in hooks', async t => {
+	const server = await createHttpTestServer();
+	server.get('/', (request, response) => {
+		response.json({
+			token: request.get('token'),
+		});
+	});
+
+	const body = await ky
+		.get(server.url, {
+			context: {token: 'secret'},
+			hooks: {
+				beforeRequest: [
+					(request, options) => {
+						const {token} = options.context as {token?: string};
+						if (typeof token === 'string') {
+							request.headers.set('token', token);
+						}
+					},
+				],
+			},
+		})
+		.json<{token?: string}>();
+
+	t.is(body.token, 'secret');
+
+	await server.close();
+});
+
+test('context merges across extended instances', async t => {
+	const server = await createHttpTestServer();
+	server.get('/', (request, response) => {
+		response.json({
+			token: request.get('x-token'),
+			requestId: request.get('x-request-id'),
+		});
+	});
+
+	const base = ky.extend({
+		context: {token: 'base-token'},
+		hooks: {
+			beforeRequest: [
+				(request, options) => {
+					const {token, requestId} = options.context as {
+						token?: string;
+						requestId?: string;
+					};
+
+					if (typeof token === 'string') {
+						request.headers.set('x-token', token);
+					}
+
+					if (typeof requestId === 'string') {
+						request.headers.set('x-request-id', requestId);
+					}
+				},
+			],
+		},
+	});
+
+	const child = base.extend({context: {requestId: 'child-request'}});
+
+	const body = await child
+		.get(server.url, {
+			context: {token: 'override-token'},
+		})
+		.json<{token?: string; requestId?: string}>();
+
+	t.deepEqual(body, {
+		token: 'override-token',
+		requestId: 'child-request',
+	});
+
+	await server.close();
+});
+
+test('context does not leak between requests', async t => {
+	const server = await createHttpTestServer();
+	server.get('/', (request, response) => {
+		response.json({
+			count: Number(request.get('x-count')),
+		});
+	});
+
+	const client = ky.extend({
+		context: {count: 0},
+		hooks: {
+			beforeRequest: [
+				(request, options) => {
+					const context = options.context as {count?: number};
+					const next = (context.count ?? 0) + 1;
+					context.count = next;
+					request.headers.set('x-count', String(next));
+				},
+			],
+		},
+	});
+
+	const first = await client.get(server.url).json<{count?: number}>();
+	const second = await client.get(server.url).json<{count?: number}>();
+
+	t.deepEqual(first, {count: 1});
+	t.deepEqual(second, {count: 1});
+
+	await server.close();
+});
+
+test('context must be an object', t => {
+	t.throws(() => {
+		void ky('https://example.com', {context: [] as any});
+	}, {message: 'The `context` option must be an object'});
+});
+
 test('afterResponse hook can throw error to reject the request promise', async t => {
 	const server = await createHttpTestServer();
 	server.get('/', (_request, response) => {
