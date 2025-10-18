@@ -41,6 +41,7 @@ export type {
 	Options,
 	NormalizedOptions,
 	RetryOptions,
+	ShouldRetryState,
 	SearchParamsOption,
 	Progress,
 } from './types/options.js';
@@ -63,3 +64,6 @@ export type {KyResponse} from './types/response.js';
 export {HTTPError} from './errors/HTTPError.js';
 export {TimeoutError} from './errors/TimeoutError.js';
 export {isKyError, isHTTPError, isTimeoutError} from './utils/type-guards.js';
+
+// Intentionally not exporting this for now as it's just an implementation detail and we don't want to commit to a certain API yet at least.
+// export {NonError} from './errors/NonError.js';

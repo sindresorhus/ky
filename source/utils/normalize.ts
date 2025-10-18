@@ -11,7 +11,9 @@ const retryStatusCodes = [408, 413, 429, 500, 502, 503, 504];
 
 const retryAfterStatusCodes = [413, 429, 503];
 
-const defaultRetryOptions: Required<RetryOptions> = {
+type InternalRetryOptions = Required<Omit<RetryOptions, 'shouldRetry'>> & Pick<RetryOptions, 'shouldRetry'>;
+
+const defaultRetryOptions: InternalRetryOptions = {
 	limit: 2,
 	methods: retryMethods,
 	statusCodes: retryStatusCodes,
@@ -20,9 +22,10 @@ const defaultRetryOptions: Required<RetryOptions> = {
 	backoffLimit: Number.POSITIVE_INFINITY,
 	delay: attemptCount => 0.3 * (2 ** (attemptCount - 1)) * 1000,
 	jitter: undefined,
+	retryOnTimeout: false,
 };
 
-export const normalizeRetryOptions = (retry: number | RetryOptions = {}): Required<RetryOptions> => {
+export const normalizeRetryOptions = (retry: number | RetryOptions = {}): InternalRetryOptions => {
 	if (typeof retry === 'number') {
 		return {
 			...defaultRetryOptions,

@@ -1,4 +1,5 @@
 import {HTTPError} from '../errors/HTTPError.js';
+import {NonError} from '../errors/NonError.js';
 import type {
 	Input,
 	InternalOptions,
@@ -154,12 +155,13 @@ export class Ky {
 	}
 
 	public request: Request;
-	readonly #abortController?: AbortController;
+	#abortController?: AbortController;
 	#retryCount = 0;
 	// eslint-disable-next-line @typescript-eslint/prefer-readonly -- False positive: #input is reassigned on line 202
 	#input: Input;
 	readonly #options: InternalOptions;
 	#originalRequest?: Request;
+	readonly #userProvidedAbortSignal?: AbortSignal;
 	#cachedNormalizedOptions?: NormalizedOptions;
 
 	// eslint-disable-next-line complexity
@@ -204,9 +206,9 @@ export class Ky {
 		}
 
 		if (supportsAbortController && supportsAbortSignal) {
-			const originalSignal = this.#options.signal ?? (this.#input as Request).signal;
+			this.#userProvidedAbortSignal = this.#options.signal ?? (this.#input as Request).signal;
 			this.#abortController = new globalThis.AbortController();
-			this.#options.signal = originalSignal ? AbortSignal.any([originalSignal, this.#abortController.signal]) : this.#abortController.signal;
+			this.#options.signal = this.#userProvidedAbortSignal ? AbortSignal.any([this.#userProvidedAbortSignal, this.#abortController.signal]) : this.#abortController.signal;
 		}
 
 		if (supportsRequestStreams) {
@@ -263,10 +265,52 @@ export class Ky {
 		}
 	}
 
-	#calculateRetryDelay(error: unknown) {
+	#calculateDelay(): number {
+		const retryDelay = this.#options.retry.delay(this.#retryCount);
+
+		let jitteredDelay = retryDelay;
+		if (this.#options.retry.jitter === true) {
+			jitteredDelay = Math.random() * retryDelay;
+		} else if (typeof this.#options.retry.jitter === 'function') {
+			jitteredDelay = this.#options.retry.jitter(retryDelay);
+
+			if (!Number.isFinite(jitteredDelay) || jitteredDelay < 0) {
+				jitteredDelay = retryDelay;
+			}
+		}
+
+		return Math.min(this.#options.retry.backoffLimit, jitteredDelay);
+	}
+
+	async #calculateRetryDelay(error: unknown) {
 		this.#retryCount++;
 
-		if (this.#retryCount > this.#options.retry.limit || isTimeoutError(error)) {
+		if (this.#retryCount > this.#options.retry.limit) {
+			throw error;
+		}
+
+		// Wrap non-Error throws to ensure consistent error handling
+		const errorObject = error instanceof Error ? error : new NonError(error);
+
+		// User-provided shouldRetry function takes precedence over all other checks
+		if (this.#options.retry.shouldRetry !== undefined) {
+			const result = await this.#options.retry.shouldRetry({error: errorObject, retryCount: this.#retryCount});
+
+			// Strict boolean checking - only exact true/false are handled specially
+			if (result === false) {
+				throw error;
+			}
+
+			if (result === true) {
+				// Force retry - skip all other validation and return delay
+				return this.#calculateDelay();
+			}
+
+			// If undefined or any other value, fall through to default behavior
+		}
+
+		// Default timeout behavior
+		if (isTimeoutError(error) && !this.#options.retry.retryOnTimeout) {
 			throw error;
 		}
 
@@ -289,6 +333,7 @@ export class Ky {
 				}
 
 				const max = this.#options.retry.maxRetryAfter ?? after;
+				// Don't apply jitter when server provides explicit retry timing
 				return after < max ? after : max;
 			}
 
@@ -297,20 +342,7 @@ export class Ky {
 			}
 		}
 
-		const retryDelay = this.#options.retry.delay(this.#retryCount);
-
-		let jitteredDelay = retryDelay;
-		if (this.#options.retry.jitter === true) {
-			jitteredDelay = Math.random() * retryDelay;
-		} else if (typeof this.#options.retry.jitter === 'function') {
-			jitteredDelay = this.#options.retry.jitter(retryDelay);
-
-			if (!Number.isFinite(jitteredDelay) || jitteredDelay < 0) {
-				jitteredDelay = retryDelay;
-			}
-		}
-
-		return Math.min(this.#options.retry.backoffLimit, jitteredDelay);
+		return this.#calculateDelay();
 	}
 
 	#decorateResponse(response: Response): Response {
@@ -325,12 +357,13 @@ export class Ky {
 		try {
 			return await function_();
 		} catch (error) {
-			const ms = Math.min(this.#calculateRetryDelay(error), maxSafeTimeout);
+			const ms = Math.min(await this.#calculateRetryDelay(error), maxSafeTimeout);
 			if (this.#retryCount < 1) {
 				throw error;
 			}
 
-			await delay(ms, {signal: this.#options.signal});
+			// Only use user-provided signal for delay, not our internal abortController
+			await delay(ms, this.#userProvidedAbortSignal ? {signal: this.#userProvidedAbortSignal} : {});
 
 			for (const hook of this.#options.hooks.beforeRetry) {
 				// eslint-disable-next-line no-await-in-loop
@@ -352,6 +385,14 @@ export class Ky {
 	}
 
 	async #fetch(): Promise<Response> {
+		// Reset abortController if it was aborted (happens on timeout retry)
+		if (this.#abortController?.signal.aborted) {
+			this.#abortController = new globalThis.AbortController();
+			this.#options.signal = this.#userProvidedAbortSignal ? AbortSignal.any([this.#userProvidedAbortSignal, this.#abortController.signal]) : this.#abortController.signal;
+			// Recreate request with new signal
+			this.request = new globalThis.Request(this.request, {signal: this.#options.signal});
+		}
+
 		for (const hook of this.#options.hooks.beforeRequest) {
 			// eslint-disable-next-line no-await-in-loop
 			const result = await hook(

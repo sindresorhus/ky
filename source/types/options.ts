@@ -297,7 +297,7 @@ Omit<Options, 'hooks' | 'retry'>,
 > & {
 	headers: Required<Headers>;
 	hooks: Required<Hooks>;
-	retry: Required<RetryOptions>;
+	retry: Required<Omit<RetryOptions, 'shouldRetry'>> & Pick<RetryOptions, 'shouldRetry'>;
 	prefixUrl: string;
 };
 
@@ -316,4 +316,4 @@ export interface NormalizedOptions extends RequestInit { // eslint-disable-line 
 	onUploadProgress: Options['onUploadProgress'];
 }
 
-export type {RetryOptions} from './retry.js';
+export type {RetryOptions, ShouldRetryState} from './retry.js';
