@@ -321,6 +321,7 @@ export class Ky {
 
 			const retryAfter = error.response.headers.get('Retry-After')
 				?? error.response.headers.get('RateLimit-Reset')
+				?? error.response.headers.get('X-RateLimit-Retry-After') // Symfony-based services
 				?? error.response.headers.get('X-RateLimit-Reset') // GitHub
 				?? error.response.headers.get('X-Rate-Limit-Reset'); // Twitter
 			if (retryAfter && this.#options.retry.afterStatusCodes.includes(error.response.status)) {
