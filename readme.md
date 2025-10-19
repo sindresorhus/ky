@@ -206,8 +206,10 @@ Default:
 - `backoffLimit`: `undefined`
 - `delay`: `attemptCount => 0.3 * (2 ** (attemptCount - 1)) * 1000`
 - `jitter`: `undefined`
+- `retryOnTimeout`: `false`
+- `shouldRetry`: `undefined`
 
-An object representing `limit`, `methods`, `statusCodes`, `afterStatusCodes`, and `maxRetryAfter` fields for maximum retry count, allowed methods, allowed status codes, status codes allowed to use the [`Retry-After`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Retry-After) time, and maximum [`Retry-After`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Retry-After) time.
+An object representing `limit`, `methods`, `statusCodes`, `afterStatusCodes`, `maxRetryAfter`, `backoffLimit`, `delay`, `jitter`, `retryOnTimeout`, and `shouldRetry` fields for maximum retry count, allowed methods, allowed status codes, status codes allowed to use the [`Retry-After`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Retry-After) time, maximum [`Retry-After`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Retry-After) time, backoff limit, delay calculation function, retry jitter, timeout retry behavior, and custom retry logic.
 
 If `retry` is a number, it will be used as `limit` and other defaults will remain in place.
 
@@ -225,7 +227,20 @@ The `jitter` option adds random jitter to retry delays to prevent thundering her
 
 **Note:** Jitter is not applied when the server provides a `Retry-After` header, as the server's explicit timing should be respected.
 
-Retries are not triggered following a [timeout](#timeout).
+The `retryOnTimeout` option determines whether to retry when a request times out. By default, retries are not triggered following a [timeout](#timeout).
+
+The `shouldRetry` option provides custom retry logic that **takes precedence over all other retry checks**. This function is called first, before any other retry validation.
+
+**Note:** This is different from the `beforeRetry` hook:
+- `shouldRetry`: Controls WHETHER to retry (called before the retry decision is made)
+- `beforeRetry`: Called AFTER retry is confirmed, allowing you to modify the request
+
+The function receives a state object with the error and retry count (starts at 1 for the first retry), and should return:
+- `true` to force a retry (bypasses `retryOnTimeout`, status code checks, and other validations)
+- `false` to prevent a retry (no retry will occur)
+- `undefined` to use the default retry logic (`retryOnTimeout`, status codes, etc.)
+
+**General example**
 
 ```js
 import ky from 'ky';
@@ -239,6 +254,22 @@ const json = await ky('https://example.com', {
 	}
 }).json();
 ```
+
+**Retrying on timeout:**
+
+```js
+import ky from 'ky';
+
+const json = await ky('https://example.com', {
+	timeout: 5000,
+	retry: {
+		limit: 3,
+		retryOnTimeout: true
+	}
+}).json();
+```
+
+**Using jitter to prevent thundering herd:**
 
 ```js
 import ky from 'ky';
@@ -255,6 +286,37 @@ const json = await ky('https://example.com', {
 
 		// Absolute jitter (±100ms)
 		// jitter: delay => delay + (Math.random() * 200 - 100)
+	}
+}).json();
+```
+
+**Custom retry logic:**
+
+```js
+import ky, {HTTPError} from 'ky';
+
+const json = await ky('https://example.com', {
+	retry: {
+		limit: 3,
+		shouldRetry: ({error, retryCount}) => {
+			// Retry on specific business logic errors from API
+			if (error instanceof HTTPError) {
+				const status = error.response.status;
+
+				// Retry on 429 (rate limit) but only for first 2 attempts
+				if (status === 429 && retryCount <= 2) {
+					return true;
+				}
+
+				// Don't retry on 4xx errors except rate limits
+				if (status >= 400 && status < 500) {
+					return false;
+				}
+			}
+
+			// Use default retry logic for other errors
+			return undefined;
+		}
 	}
 }).json();
 ```
