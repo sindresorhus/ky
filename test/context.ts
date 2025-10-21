@@ -3,6 +3,8 @@ import ky from '../source/index.js';
 import {createHttpTestServer} from './helpers/create-http-test-server.js';
 
 test('context is available in all hooks', async t => {
+	t.plan(4);
+
 	const server = await createHttpTestServer();
 	let requestCount = 0;
 	server.get('/', (_request, response) => {
