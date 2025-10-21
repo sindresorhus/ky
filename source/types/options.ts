@@ -233,6 +233,67 @@ export type KyOptions = {
 	```
 	*/
 	fetch?: (input: Input, init?: RequestInit) => Promise<Response>;
+
+	/**
+	User-defined data passed to hooks.
+
+	This option allows you to pass arbitrary contextual data to hooks without polluting the request itself. The context is available in all hooks and is **guaranteed to always be an object** (never `undefined`), so you can safely access properties without optional chaining.
+
+	Use cases:
+	- Pass authentication tokens or API keys to hooks
+	- Attach request metadata for logging or debugging
+	- Implement conditional logic in hooks based on the request context
+	- Pass serverless environment bindings (e.g., Cloudflare Workers)
+
+	**Note:** Context is shallow merged. Top-level properties are merged, but nested objects are replaced. Only enumerable properties are copied.
+
+	@example
+	```
+	import ky from 'ky';
+
+	// Pass data to hooks
+	const api = ky.create({
+		hooks: {
+			beforeRequest: [
+				(request, options) => {
+					const {token} = options.context;
+					if (token) {
+						request.headers.set('Authorization', `Bearer ${token}`);
+					}
+				}
+			]
+		}
+	});
+
+	await api('https://example.com', {
+		context: {
+			token: 'secret123'
+		}
+	}).json();
+
+	// Shallow merge: only top-level properties are merged
+	const instance = ky.create({
+		context: {
+			a: 1,
+			b: {
+				nested: true
+			}
+		}
+	});
+
+	const extended = instance.extend({
+		context: {
+			b: {
+				updated: true
+			},
+			c: 3
+		}
+	});
+	// Result: {a: 1, b: {updated: true}, c: 3}
+	// Note: The original `b.nested` is gone (shallow merge)
+	```
+	*/
+	context?: Record<string, unknown>;
 };
 
 /**
@@ -292,13 +353,14 @@ export interface Options extends KyOptions, Omit<RequestInit, 'headers'> { // es
 }
 
 export type InternalOptions = Required<
-Omit<Options, 'hooks' | 'retry'>,
+Omit<Options, 'hooks' | 'retry' | 'context'>,
 'fetch' | 'prefixUrl' | 'timeout'
 > & {
 	headers: Required<Headers>;
 	hooks: Required<Hooks>;
 	retry: Required<Omit<RetryOptions, 'shouldRetry'>> & Pick<RetryOptions, 'shouldRetry'>;
 	prefixUrl: string;
+	context: Record<string, unknown>;
 };
 
 /**
@@ -314,6 +376,7 @@ export interface NormalizedOptions extends RequestInit { // eslint-disable-line 
 	prefixUrl: string;
 	onDownloadProgress: Options['onDownloadProgress'];
 	onUploadProgress: Options['onUploadProgress'];
+	context: Record<string, unknown>;
 }
 
 export type {RetryOptions, ShouldRetryState} from './retry.js';
