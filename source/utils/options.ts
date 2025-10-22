@@ -1,4 +1,4 @@
-import {kyOptionKeys, requestOptionsRegistry} from '../core/constants.js';
+import {kyOptionKeys, requestOptionsRegistry, vendorSpecificOptions} from '../core/constants.js';
 import type {SearchParamsOption} from '../types/options.js';
 
 export const findUnknownOptions = (
@@ -8,7 +8,18 @@ export const findUnknownOptions = (
 	const unknownOptions: Record<string, unknown> = {};
 
 	for (const key in options) {
-		if (!(key in requestOptionsRegistry) && !(key in kyOptionKeys) && !(key in request)) {
+		// Skip inherited properties
+		if (!Object.hasOwn(options, key)) {
+			continue;
+		}
+
+		// An option is passed to fetch() if:
+		// 1. It's not a standard RequestInit option (not in requestOptionsRegistry)
+		// 2. It's not a ky-specific option (not in kyOptionKeys)
+		// 3. Either:
+		//    a. It's not on the Request object, OR
+		//    b. It's a vendor-specific option that should always be passed (in vendorSpecificOptions)
+		if (!(key in requestOptionsRegistry) && !(key in kyOptionKeys) && (!(key in request) || key in vendorSpecificOptions)) {
 			unknownOptions[key] = options[key];
 		}
 	}

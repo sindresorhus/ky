@@ -78,6 +78,13 @@ export const kyOptionKeys: KyOptionsRegistry = {
 	context: true,
 };
 
+// Vendor-specific fetch options that should always be passed to fetch()
+// even if they appear on the Request object due to vendor patching.
+// See: https://github.com/sindresorhus/ky/issues/541
+export const vendorSpecificOptions = {
+	next: true, // Next.js cache revalidation (revalidate, tags)
+} as const;
+
 // Standard RequestInit options that should NOT be passed separately to fetch()
 // because they're already applied to the Request object.
 // Note: `dispatcher` and `priority` are NOT included here - they're fetch-only
