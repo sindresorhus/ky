@@ -138,3 +138,37 @@ test('priority option is passed to fetch', async t => {
 
 	await ky(fixture, {priority: 'high', fetch: customFetch}).text();
 });
+
+test.serial('vendor-specific options like `next` are passed to fetch even when Request is patched', async t => {
+	t.plan(1);
+
+	const options = {next: {revalidate: 3600, tags: ['test']}};
+
+	// Simulate Next.js edge runtime behavior by patching Request.prototype
+	const originalDescriptor = Object.getOwnPropertyDescriptor(Request.prototype, 'next');
+
+	try {
+		// Patch Request.prototype to have a 'next' property (like Next.js does in edge runtime)
+		Object.defineProperty(Request.prototype, 'next', {
+			value: undefined,
+			writable: true,
+			enumerable: true,
+			configurable: true,
+		});
+
+		const customFetch: typeof fetch = async (request, init) => {
+			// Verify that the `next` option is still passed to fetch despite being on Request.prototype
+			t.deepEqual(init.next, options.next);
+			return new Response(request.url);
+		};
+
+		await ky(fixture, {...options, fetch: customFetch}).text();
+	} finally {
+		// Restore original state
+		if (originalDescriptor) {
+			Object.defineProperty(Request.prototype, 'next', originalDescriptor);
+		} else {
+			delete (Request.prototype as any).next;
+		}
+	}
+});
