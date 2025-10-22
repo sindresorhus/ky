@@ -830,3 +830,112 @@ test('beforeError hook receives retryCount in state parameter', async t => {
 
 	await server.close();
 });
+
+test('beforeRetry hook can return modified Request with new URL', async t => {
+	let requestCount = 0;
+
+	const server = await createHttpTestServer();
+	server.get('/', (request, response) => {
+		requestCount++;
+
+		// Check if the required query parameter is present
+		const url = new URL(request.url, `http://${request.headers.host}`);
+		const processId = url.searchParams.get('processId');
+
+		if (processId === '2222') {
+			response.end('success');
+		} else {
+			response.sendStatus(500);
+		}
+	});
+
+	const result = await ky.get(server.url, {
+		retry: {
+			limit: 1,
+		},
+		hooks: {
+			beforeRetry: [
+				({request}) => {
+					// Return a new Request with the required query parameter
+					const url = new URL(request.url);
+					url.searchParams.set('processId', '2222');
+					return new Request(url, request);
+				},
+			],
+		},
+	}).text();
+
+	t.is(result, 'success');
+	t.is(requestCount, 2); // Initial request + 1 retry
+
+	await server.close();
+});
+
+test('beforeRetry hook can return Response to skip retry', async t => {
+	let requestCount = 0;
+
+	const server = await createHttpTestServer();
+	server.get('/', (_request, response) => {
+		requestCount++;
+		response.sendStatus(500);
+	});
+
+	const result = await ky.get(server.url, {
+		retry: {
+			limit: 3,
+		},
+		hooks: {
+			beforeRetry: [
+				() => new Response('fallback', {status: 200}),
+			],
+		},
+	}).text();
+
+	t.is(result, 'fallback');
+	t.is(requestCount, 1); // Only initial request, no retry
+
+	await server.close();
+});
+
+test('beforeRetry hook returning Request/Response stops processing remaining hooks', async t => {
+	let requestCount = 0;
+	let firstHookCalled = false;
+	let secondHookCalled = false;
+
+	const server = await createHttpTestServer();
+	server.get('/', (request, response) => {
+		requestCount++;
+
+		if (request.headers['x-first-hook']) {
+			response.end('success');
+		} else {
+			response.sendStatus(500);
+		}
+	});
+
+	const result = await ky.get(server.url, {
+		retry: {
+			limit: 1,
+		},
+		hooks: {
+			beforeRetry: [
+				({request}) => {
+					firstHookCalled = true;
+					const newRequest = new Request(request.url, request);
+					newRequest.headers.set('x-first-hook', 'true');
+					return newRequest;
+				},
+				() => {
+					secondHookCalled = true;
+				},
+			],
+		},
+	}).text();
+
+	t.is(result, 'success');
+	t.true(firstHookCalled);
+	t.false(secondHookCalled);
+	t.is(requestCount, 2); // Initial request + 1 retry
+
+	await server.close();
+});

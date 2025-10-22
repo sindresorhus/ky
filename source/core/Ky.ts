@@ -355,7 +355,7 @@ export class Ky {
 		return response;
 	}
 
-	async #retry<T extends (...arguments_: any) => Promise<any>>(function_: T): Promise<ReturnType<T> | void> {
+	async #retry<T extends (...arguments_: any) => Promise<any>>(function_: T): Promise<ReturnType<T> | Response | void> {
 		try {
 			return await function_();
 		} catch (error) {
@@ -375,6 +375,17 @@ export class Ky {
 					error: error as Error,
 					retryCount: this.#retryCount,
 				});
+
+				// If a Request is returned, use it for the retry
+				if (hookResult instanceof globalThis.Request) {
+					this.request = hookResult;
+					break;
+				}
+
+				// If a Response is returned, use it and skip the retry
+				if (hookResult instanceof globalThis.Response) {
+					return hookResult;
+				}
 
 				// If `stop` is returned from the hook, the retry process is stopped
 				if (hookResult === stop) {
