@@ -1,5 +1,6 @@
 import {HTTPError} from '../errors/HTTPError.js';
 import {NonError} from '../errors/NonError.js';
+import {ForceRetryError} from '../errors/ForceRetryError.js';
 import type {
 	Input,
 	InternalOptions,
@@ -21,6 +22,7 @@ import {
 	maxSafeTimeout,
 	responseTypes,
 	stop,
+	RetryMarker,
 	supportsAbortController,
 	supportsAbortSignal,
 	supportsFormData,
@@ -44,16 +46,30 @@ export class Ky {
 			let response = await ky.#fetch();
 
 			for (const hook of ky.#options.hooks.afterResponse) {
+				// Clone the response before passing to hook so we can cancel it if needed
+				const clonedResponse = ky.#decorateResponse(response.clone());
+
 				// eslint-disable-next-line no-await-in-loop
 				const modifiedResponse = await hook(
 					ky.request,
 					ky.#getNormalizedOptions(),
-					ky.#decorateResponse(response.clone()),
+					clonedResponse,
 					{retryCount: ky.#retryCount},
 				);
 
 				if (modifiedResponse instanceof globalThis.Response) {
 					response = modifiedResponse;
+				}
+
+				if (modifiedResponse instanceof RetryMarker) {
+					// Cancel both the cloned response passed to the hook and the current response
+					// to prevent resource leaks (especially important in Deno/Bun)
+					// eslint-disable-next-line no-await-in-loop
+					await Promise.all([
+						clonedResponse.body?.cancel(),
+						response.body?.cancel(),
+					]);
+					throw new ForceRetryError(modifiedResponse.options);
 				}
 			}
 
@@ -90,8 +106,9 @@ export class Ky {
 			return response;
 		};
 
-		const isRetriableMethod = ky.#options.retry.methods.includes(ky.request.method.toLowerCase());
-		const result = (isRetriableMethod ? ky.#retry(function_) : function_())
+		// Always wrap in #retry to catch forced retries from afterResponse hooks
+		// Method retriability is checked in #calculateRetryDelay for non-forced retries
+		const result = ky.#retry(function_)
 			.finally(async () => {
 				const originalRequest = ky.#originalRequest;
 				const cleanupPromises = [];
@@ -296,6 +313,16 @@ export class Ky {
 
 		// Wrap non-Error throws to ensure consistent error handling
 		const errorObject = error instanceof Error ? error : new NonError(error);
+
+		// Handle forced retry from afterResponse hook - skip method check and shouldRetry
+		if (errorObject instanceof ForceRetryError) {
+			return errorObject.customDelay ?? this.#calculateDelay();
+		}
+
+		// Check if method is retriable for non-forced retries
+		if (!this.#options.retry.methods.includes(this.request.method.toLowerCase())) {
+			throw error;
+		}
 
 		// User-provided shouldRetry function takes precedence over all other checks
 		if (this.#options.retry.shouldRetry !== undefined) {
