@@ -1,5 +1,6 @@
 import {HTTPError} from '../errors/HTTPError.js';
 import {TimeoutError} from '../errors/TimeoutError.js';
+import {ForceRetryError} from '../errors/ForceRetryError.js';
 
 /**
 Type guard to check if an error is a Ky error (HTTPError or TimeoutError).
@@ -69,4 +70,31 @@ try {
 */
 export function isTimeoutError(error: unknown): error is TimeoutError {
 	return error instanceof TimeoutError || ((error as any)?.name === TimeoutError.name);
+}
+
+/**
+Type guard to check if an error is a ForceRetryError.
+
+@param error - The error to check
+@returns `true` if the error is a ForceRetryError, `false` otherwise
+
+@example
+```
+import ky, {isForceRetryError} from 'ky';
+
+const api = ky.extend({
+	hooks: {
+		beforeRetry: [
+			({error, retryCount}) => {
+				if (isForceRetryError(error)) {
+					console.log(`Forced retry #${retryCount}: ${error.reason}`);
+				}
+			}
+		]
+	}
+});
+```
+*/
+export function isForceRetryError(error: unknown): error is ForceRetryError {
+	return error instanceof ForceRetryError || ((error as any)?.name === ForceRetryError.name);
 }
