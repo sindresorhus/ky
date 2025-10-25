@@ -1089,6 +1089,21 @@ const response = await ky('https://example.com', {
 }).json();
 ```
 
+### Consuming Server-Sent Events (SSE)
+
+Use [`parse-sse`](https://github.com/sindresorhus/parse-sse):
+
+```js
+import ky from 'ky';
+import {parseServerSentEvents} from 'parse-sse';
+
+const response = await ky('https://api.example.com/events');
+
+for await (const event of parseServerSentEvents(response)) {
+	console.log(event.data);
+}
+```
+
 ## FAQ
 
 #### How do I use this in Node.js?
