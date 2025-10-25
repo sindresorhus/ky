@@ -1,7 +1,7 @@
 /*! MIT License © Sindre Sorhus */
 
 import {Ky} from './core/Ky.js';
-import {requestMethods, stop} from './core/constants.js';
+import {requestMethods, stop, retry} from './core/constants.js';
 import type {KyInstance} from './types/ky.js';
 import type {Input, Options} from './types/options.js';
 import {validateAndMerge} from './utils/merge.js';
@@ -26,6 +26,7 @@ const createInstance = (defaults?: Partial<Options>): KyInstance => {
 	};
 
 	ky.stop = stop;
+	ky.retry = retry;
 
 	return ky as KyInstance;
 };
@@ -63,7 +64,13 @@ export type {KyRequest} from './types/request.js';
 export type {KyResponse} from './types/response.js';
 export {HTTPError} from './errors/HTTPError.js';
 export {TimeoutError} from './errors/TimeoutError.js';
-export {isKyError, isHTTPError, isTimeoutError} from './utils/type-guards.js';
+export {ForceRetryError} from './errors/ForceRetryError.js';
+export {
+	isKyError,
+	isHTTPError,
+	isTimeoutError,
+	isForceRetryError,
+} from './utils/type-guards.js';
 
 // Intentionally not exporting this for now as it's just an implementation detail and we don't want to commit to a certain API yet at least.
 // export {NonError} from './errors/NonError.js';

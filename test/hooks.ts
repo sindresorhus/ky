@@ -939,3 +939,329 @@ test('beforeRetry hook returning Request/Response stops processing remaining hoo
 
 	await server.close();
 });
+
+test('afterResponse hook can force retry with ky.retry()', async t => {
+	let requestCount = 0;
+
+	const server = await createHttpTestServer();
+	server.get('/', (_request, response) => {
+		requestCount++;
+
+		if (requestCount === 1) {
+			// First request returns 200 with error in body
+			response.json({error: {code: 'RATE_LIMIT'}});
+		} else {
+			// Second request succeeds
+			response.json({success: true});
+		}
+	});
+
+	const result = await ky.get(server.url, {
+		retry: {
+			limit: 2,
+		},
+		hooks: {
+			afterResponse: [
+				async (_request, _options, response) => {
+					const data = await response.clone().json();
+					if (data.error?.code === 'RATE_LIMIT') {
+						return ky.retry();
+					}
+				},
+			],
+		},
+	}).json<{success?: boolean}>();
+
+	t.deepEqual(result, {success: true});
+	t.is(requestCount, 2); // Initial request + 1 retry
+
+	await server.close();
+});
+
+test('afterResponse hook can force retry with custom delay', async t => {
+	let requestCount = 0;
+	const customDelay = 100;
+	const startTime = Date.now();
+
+	const server = await createHttpTestServer();
+	server.get('/', (_request, response) => {
+		requestCount++;
+
+		if (requestCount === 1) {
+			response.json({error: {code: 'RATE_LIMIT', retryAfter: customDelay / 1000}});
+		} else {
+			response.json({success: true});
+		}
+	});
+
+	const result = await ky.get(server.url, {
+		retry: {
+			limit: 2,
+		},
+		hooks: {
+			afterResponse: [
+				async (_request, _options, response) => {
+					const data = await response.clone().json();
+					if (data.error?.code === 'RATE_LIMIT') {
+						return ky.retry({
+							delay: data.error.retryAfter * 1000,
+						});
+					}
+				},
+			],
+		},
+	}).json<{success?: boolean}>();
+
+	const elapsedTime = Date.now() - startTime;
+
+	t.deepEqual(result, {success: true});
+	t.is(requestCount, 2);
+	t.true(elapsedTime >= customDelay); // Verify custom delay was used
+
+	await server.close();
+});
+
+test('afterResponse hook forced retry respects retry limit', async t => {
+	let requestCount = 0;
+
+	const server = await createHttpTestServer();
+	server.get('/', (_request, response) => {
+		requestCount++;
+		// Always return error to trigger retry
+		response.json({error: {code: 'RATE_LIMIT'}});
+	});
+
+	await t.throwsAsync(
+		ky.get(server.url, {
+			retry: {
+				limit: 2,
+			},
+			hooks: {
+				afterResponse: [
+					async (_request, _options, response) => {
+						const data = await response.clone().json();
+						if (data.error?.code === 'RATE_LIMIT') {
+							return ky.retry();
+						}
+					},
+				],
+			},
+		}),
+		{
+			name: 'ForceRetryError',
+		},
+	);
+
+	t.is(requestCount, 3); // Initial request + 2 retries (limit reached)
+
+	await server.close();
+});
+
+test('afterResponse hook forced retry is observable in beforeRetry', async t => {
+	let requestCount = 0;
+	let beforeRetryCallCount = 0;
+	let errorName: string | undefined;
+	let errorMessage: string | undefined;
+
+	const server = await createHttpTestServer();
+	server.get('/', (_request, response) => {
+		requestCount++;
+
+		if (requestCount === 1) {
+			response.json({error: {code: 'RATE_LIMIT'}});
+		} else {
+			response.json({success: true});
+		}
+	});
+
+	await ky.get(server.url, {
+		retry: {
+			limit: 2,
+		},
+		hooks: {
+			afterResponse: [
+				async (_request, _options, response) => {
+					const data = await response.clone().json();
+					if (data.error?.code === 'RATE_LIMIT') {
+						return ky.retry({reason: 'RATE_LIMIT'});
+					}
+				},
+			],
+			beforeRetry: [
+				({error, retryCount}) => {
+					beforeRetryCallCount++;
+					errorName = error.name;
+					errorMessage = error.message;
+					t.is(retryCount, 1);
+				},
+			],
+		},
+	});
+
+	t.is(requestCount, 2);
+	t.is(beforeRetryCallCount, 1);
+	t.is(errorName, 'ForceRetryError');
+	t.is(errorMessage, 'Forced retry: RATE_LIMIT');
+
+	await server.close();
+});
+
+test('afterResponse hook forced retry skips shouldRetry check', async t => {
+	let requestCount = 0;
+	let shouldRetryCalled = false;
+
+	const server = await createHttpTestServer();
+	server.get('/', (_request, response) => {
+		requestCount++;
+
+		if (requestCount === 1) {
+			response.json({error: {code: 'CUSTOM_ERROR'}});
+		} else {
+			response.json({success: true});
+		}
+	});
+
+	const result = await ky.get(server.url, {
+		retry: {
+			limit: 2,
+			shouldRetry() {
+				shouldRetryCalled = true;
+				return false; // Would prevent retry, but ky.retry() bypasses this
+			},
+		},
+		hooks: {
+			afterResponse: [
+				async (_request, _options, response) => {
+					const data = await response.clone().json();
+					if (data.error?.code === 'CUSTOM_ERROR') {
+						return ky.retry();
+					}
+				},
+			],
+		},
+	}).json<{success?: boolean}>();
+
+	t.deepEqual(result, {success: true});
+	t.is(requestCount, 2); // Retry happened despite shouldRetry returning false
+	t.false(shouldRetryCalled); // ShouldRetry was never called because ky.retry() bypasses it
+
+	await server.close();
+});
+
+test('afterResponse hook forced retry works on non-retriable methods like POST', async t => {
+	let requestCount = 0;
+
+	const server = await createHttpTestServer();
+	server.post('/', async (request, response) => {
+		requestCount++;
+
+		if (requestCount === 1) {
+			// First request returns 200 with error in body
+			response.json({error: {code: 'RATE_LIMIT'}});
+		} else {
+			// Second request succeeds
+			response.json({success: true});
+		}
+	});
+
+	// POST is not in retry.methods by default, but ky.retry() should override this
+	const result = await ky.post(server.url, {
+		retry: {
+			limit: 2,
+		},
+		hooks: {
+			afterResponse: [
+				async (_request, _options, response) => {
+					const data = await response.clone().json();
+					if (data.error?.code === 'RATE_LIMIT') {
+						return ky.retry();
+					}
+				},
+			],
+		},
+	}).json<{success?: boolean}>();
+
+	t.deepEqual(result, {success: true});
+	t.is(requestCount, 2); // Should retry even though POST is not retriable by default
+
+	await server.close();
+});
+
+test('afterResponse hook forced retry stops processing remaining hooks', async t => {
+	let requestCount = 0;
+	let firstHookCallCount = 0;
+	let secondHookCallCount = 0;
+
+	const server = await createHttpTestServer();
+	server.get('/', (_request, response) => {
+		requestCount++;
+
+		if (requestCount === 1) {
+			response.json({error: {code: 'RATE_LIMIT'}});
+		} else {
+			response.json({success: true});
+		}
+	});
+
+	const result = await ky.get(server.url, {
+		retry: {
+			limit: 2,
+		},
+		hooks: {
+			afterResponse: [
+				async (_request, _options, response) => {
+					firstHookCallCount++;
+					const data = await response.clone().json();
+					if (data.error?.code === 'RATE_LIMIT') {
+						return ky.retry();
+					}
+				},
+				() => {
+					secondHookCallCount++;
+				},
+			],
+		},
+	}).json<{success?: boolean}>();
+
+	t.deepEqual(result, {success: true});
+	t.is(firstHookCallCount, 2); // Called on both requests
+	t.is(secondHookCallCount, 1); // Only called on second request (not first, because first hook returned ky.retry())
+
+	await server.close();
+});
+
+test('afterResponse hook forced retry works with delay: 0 (instant retry)', async t => {
+	let requestCount = 0;
+
+	const server = await createHttpTestServer();
+	server.get('/', (_request, response) => {
+		requestCount++;
+
+		if (requestCount === 1) {
+			response.json({error: {code: 'RETRY_NOW'}});
+		} else {
+			response.json({success: true});
+		}
+	});
+
+	const result = await ky.get(server.url, {
+		retry: {
+			limit: 2,
+		},
+		hooks: {
+			afterResponse: [
+				async (_request, _options, response) => {
+					const data = await response.clone().json();
+					if (data.error?.code === 'RETRY_NOW') {
+						return ky.retry({delay: 0}); // Instant retry, no delay
+					}
+				},
+			],
+		},
+	}).json<{success?: boolean}>();
+
+	t.deepEqual(result, {success: true});
+	t.is(requestCount, 2);
+
+	await server.close();
+});

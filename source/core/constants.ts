@@ -62,6 +62,85 @@ export const usualFormBoundarySize = new TextEncoder().encode('------WebKitFormB
 
 export const stop = Symbol('stop');
 
+/**
+Options for forcing a retry via `ky.retry()`.
+*/
+export type ForceRetryOptions = {
+	/**
+	Custom delay in milliseconds before retrying.
+
+	If not provided, uses the default retry delay calculation based on `retry.delay` configuration.
+
+	**Note:** Custom delays bypass jitter and `backoffLimit`. This is intentional, as custom delays often come from server responses (e.g., `Retry-After` headers) and should be respected exactly as specified.
+	*/
+	delay?: number;
+
+	/**
+	Reason for the retry.
+
+	This will be included in the error message passed to `beforeRetry` hooks, allowing you to distinguish between different types of forced retries.
+	*/
+	reason?: string;
+};
+
+/**
+Marker returned by ky.retry() to signal a forced retry from afterResponse hooks.
+*/
+export class RetryMarker {
+	constructor(public options?: ForceRetryOptions) {}
+}
+
+/**
+Force a retry from an `afterResponse` hook.
+
+This allows you to retry a request based on the response content, even if the response has a successful status code. The retry will respect the `retry.limit` option and skip the `shouldRetry` check. The forced retry is observable in `beforeRetry` hooks, where the error will be a `ForceRetryError`.
+
+@param options - Optional configuration for the retry.
+
+@example
+```
+import ky, {isForceRetryError} from 'ky';
+
+const api = ky.extend({
+	hooks: {
+		afterResponse: [
+			async (request, options, response) => {
+				// Retry based on response body content
+				if (response.status === 200) {
+					const data = await response.clone().json();
+
+					// Simple retry with default delay
+					if (data.error?.code === 'TEMPORARY_ERROR') {
+						return ky.retry();
+					}
+
+					// Retry with custom delay from API response
+					if (data.error?.code === 'RATE_LIMIT') {
+						return ky.retry({
+							delay: data.error.retryAfter * 1000,
+							reason: 'RATE_LIMIT'
+						});
+					}
+				}
+			}
+		],
+		beforeRetry: [
+			({error, retryCount}) => {
+				// Observable in beforeRetry hooks
+				if (isForceRetryError(error)) {
+					console.log(`Forced retry #${retryCount}: ${error.message}`);
+					// Example output: "Forced retry #1: Forced retry: RATE_LIMIT"
+				}
+			}
+		]
+	}
+});
+
+const response = await api.get('https://example.com/api');
+```
+*/
+export const retry = (options?: ForceRetryOptions) => new RetryMarker(options);
+
 export const kyOptionKeys: KyOptionsRegistry = {
 	json: true,
 	parseJson: true,
