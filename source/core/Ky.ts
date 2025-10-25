@@ -244,8 +244,8 @@ export class Ky {
 			const searchParams = '?' + textSearchParams;
 			const url = this.request.url.replace(/(?:\?.*?)?(?=#|$)/, searchParams);
 
-			// The spread of `this.request` is required as otherwise it misses the `duplex` option for some reason and throws.
-			this.request = new globalThis.Request(new globalThis.Request(url, {...this.request}), this.#options as RequestInit);
+			// Recreate request with the updated URL. We already have all options in this.#options, including duplex.
+			this.request = new globalThis.Request(url, this.#options as RequestInit);
 		}
 
 		// If `onUploadProgress` is passed, it uses the stream API internally
