@@ -254,12 +254,11 @@ test('form-data sets `content-length` header', async t => {
 
 	const headers = await ky.post(server.url, {body: form}).json<IncomingHttpHeaders>();
 
-	// Node 24 added some linebreaks to the end of the serialized FormData
-	if (Number.parseInt(process.versions.node, 10) < 24) {
-		t.is(headers['content-length'], '119');
-	} else {
-		t.is(headers['content-length'], '121');
-	}
+	// Undici 6.21.3+ added trailing CRLF to FormData (backported from 7.1.0)
+	// Older versions: 119 bytes (without CRLF)
+	// Newer versions: 121 bytes (with CRLF)
+	// Eventually this should only check for '121' when older Node.js versions are dropped
+	t.true(headers['content-length'] === '119' || headers['content-length'] === '121');
 });
 
 test('buffer as `options.body` sets `content-length` header', async t => {
