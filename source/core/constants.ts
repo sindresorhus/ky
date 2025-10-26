@@ -81,6 +81,39 @@ export type ForceRetryOptions = {
 	This will be included in the error message passed to `beforeRetry` hooks, allowing you to distinguish between different types of forced retries.
 	*/
 	reason?: string;
+
+	/**
+	Custom request to use for the retry.
+
+	This allows you to modify or completely replace the request during a forced retry. The custom request becomes the starting point for the retry - `beforeRetry` hooks can still further modify it if needed.
+
+	**Note:** The custom request's `signal` will be replaced with Ky's managed signal to handle timeouts and user-provided abort signals correctly. If the original request body has been consumed, you must provide a new body or clone the request before consuming.
+
+	@example
+	```
+	// Fallback to a different endpoint
+	return ky.retry({
+		request: new Request('https://backup-api.com/endpoint', {
+			method: request.method,
+			headers: request.headers,
+		}),
+		reason: 'Falling back to backup API'
+	});
+
+	// Retry with refreshed authentication token
+	const data = await response.clone().json();
+	return ky.retry({
+		request: new Request(request, {
+			headers: {
+				...Object.fromEntries(request.headers),
+				'Authorization': `Bearer ${data.newToken}`
+			}
+		}),
+		reason: 'Retrying with refreshed token'
+	});
+	```
+	*/
+	request?: Request;
 };
 
 /**
@@ -119,6 +152,30 @@ const api = ky.extend({
 						return ky.retry({
 							delay: data.error.retryAfter * 1000,
 							reason: 'RATE_LIMIT'
+						});
+					}
+
+					// Retry with a modified request (e.g., fallback endpoint)
+					if (data.error?.code === 'FALLBACK_TO_BACKUP') {
+						return ky.retry({
+							request: new Request('https://backup-api.com/endpoint', {
+								method: request.method,
+								headers: request.headers,
+							}),
+							reason: 'Switching to backup endpoint'
+						});
+					}
+
+					// Retry with refreshed authentication
+					if (data.error?.code === 'TOKEN_REFRESH' && data.newToken) {
+						return ky.retry({
+							request: new Request(request, {
+								headers: {
+									...Object.fromEntries(request.headers),
+									'Authorization': `Bearer ${data.newToken}`
+								}
+							}),
+							reason: 'Retrying with refreshed token'
 						});
 					}
 				}

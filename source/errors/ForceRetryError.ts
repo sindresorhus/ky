@@ -8,10 +8,12 @@ export class ForceRetryError extends Error {
 	override name = 'ForceRetryError' as const;
 	customDelay: number | undefined;
 	reason: string | undefined;
+	customRequest: Request | undefined;
 
 	constructor(options?: ForceRetryOptions) {
 		super(options?.reason ? `Forced retry: ${options.reason}` : 'Forced retry');
 		this.customDelay = options?.delay;
 		this.reason = options?.reason;
+		this.customRequest = options?.request;
 	}
 }

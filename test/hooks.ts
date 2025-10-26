@@ -1,6 +1,6 @@
 import test from 'ava';
 import delay from 'delay';
-import ky, {HTTPError, isHTTPError} from '../source/index.js';
+import ky, {HTTPError, isHTTPError, isForceRetryError} from '../source/index.js';
 import {type Options} from '../source/types/options.js';
 import {createHttpTestServer} from './helpers/create-http-test-server.js';
 
@@ -1262,6 +1262,453 @@ test('afterResponse hook forced retry works with delay: 0 (instant retry)', asyn
 
 	t.deepEqual(result, {success: true});
 	t.is(requestCount, 2);
+
+	await server.close();
+});
+
+test('afterResponse hook can force retry with custom request (different URL)', async t => {
+	let primaryRequestCount = 0;
+	let backupRequestCount = 0;
+
+	const server = await createHttpTestServer();
+	server.get('/primary', (_request, response) => {
+		primaryRequestCount++;
+		response.json({error: {code: 'FALLBACK_TO_BACKUP'}});
+	});
+
+	server.get('/backup', (_request, response) => {
+		backupRequestCount++;
+		response.json({success: true});
+	});
+
+	const result = await ky.get(`${server.url}/primary`, {
+		hooks: {
+			afterResponse: [
+				async (request, _options, response) => {
+					const data = await response.clone().json();
+					if (data.error?.code === 'FALLBACK_TO_BACKUP') {
+						return ky.retry({
+							request: new Request(`${server.url}/backup`, {
+								method: request.method,
+								headers: request.headers,
+							}),
+							reason: 'Switching to backup endpoint',
+						});
+					}
+				},
+			],
+		},
+	}).json<{success?: boolean}>();
+
+	t.deepEqual(result, {success: true});
+	t.is(primaryRequestCount, 1);
+	t.is(backupRequestCount, 1);
+
+	await server.close();
+});
+
+test('afterResponse hook can force retry with custom request (modified headers)', async t => {
+	const receivedHeaders: Array<string | undefined> = [];
+
+	const server = await createHttpTestServer();
+	server.get('/', (request, response) => {
+		receivedHeaders.push(request.headers['x-auth-token']);
+
+		if (receivedHeaders.length === 1) {
+			response.json({error: {code: 'TOKEN_REFRESH', newToken: 'refreshed-token-123'}});
+		} else {
+			response.json({success: true});
+		}
+	});
+
+	const result = await ky.get(server.url, {
+		headers: {'X-Auth-Token': 'original-token'},
+		hooks: {
+			afterResponse: [
+				async (request, _options, response) => {
+					const data = await response.clone().json();
+					if (data.error?.code === 'TOKEN_REFRESH' && data.error.newToken) {
+						return ky.retry({
+							request: new Request(request, {
+								headers: {
+									...Object.fromEntries(request.headers),
+									'x-auth-token': data.error.newToken,
+								},
+							}),
+							reason: 'Retrying with refreshed token',
+						});
+					}
+				},
+			],
+		},
+	}).json<{success?: boolean}>();
+
+	t.deepEqual(result, {success: true});
+	t.deepEqual(receivedHeaders, ['original-token', 'refreshed-token-123']);
+
+	await server.close();
+});
+
+test('afterResponse hook can force retry with custom request (different HTTP method)', async t => {
+	const receivedMethods: string[] = [];
+
+	const server = await createHttpTestServer();
+	server.post('/', (request, response) => {
+		receivedMethods.push(request.method);
+		if (receivedMethods.length === 1) {
+			response.json({error: {code: 'METHOD_OVERLOAD'}});
+		} else {
+			response.status(404).end();
+		}
+	});
+
+	server.put('/', (request, response) => {
+		receivedMethods.push(request.method);
+		response.json({success: true});
+	});
+
+	const result = await ky.post(server.url, {
+		hooks: {
+			afterResponse: [
+				async (request, _options, response) => {
+					const data = await response.clone().json();
+					if (data.error?.code === 'METHOD_OVERLOAD' && request.method === 'POST') {
+						return ky.retry({
+							request: new Request(request, {
+								method: 'PUT',
+							}),
+							reason: 'Switching to PUT due to POST overload',
+						});
+					}
+				},
+			],
+		},
+	}).json<{success?: boolean}>();
+
+	t.deepEqual(result, {success: true});
+	t.deepEqual(receivedMethods, ['POST', 'PUT']);
+
+	await server.close();
+});
+
+test('afterResponse hook custom request works with beforeRetry hooks', async t => {
+	let beforeRetryWasCalled = false;
+	let errorWasForceRetryError = false;
+	let errorReason;
+	const finalHeaders: Array<string | undefined> = [];
+
+	const server = await createHttpTestServer();
+	server.get('/', (request, response) => {
+		finalHeaders.push(request.headers['x-custom'], request.headers['x-retry']);
+
+		if (finalHeaders.length === 2) {
+			response.json({error: {code: 'RETRY_WITH_CUSTOM_REQUEST'}});
+		} else {
+			response.json({success: true});
+		}
+	});
+
+	const result = await ky.get(server.url, {
+		hooks: {
+			afterResponse: [
+				async (request, _options, response) => {
+					const data = await response.clone().json();
+					if (data.error?.code === 'RETRY_WITH_CUSTOM_REQUEST') {
+						return ky.retry({
+							request: new Request(request, {
+								headers: {
+									...Object.fromEntries(request.headers),
+									'X-Custom': 'from-afterResponse',
+								},
+							}),
+							reason: 'Testing hook composition',
+						});
+					}
+				},
+			],
+			beforeRetry: [
+				({request, error}) => {
+					beforeRetryWasCalled = true;
+					errorWasForceRetryError = isForceRetryError(error);
+					if (isForceRetryError(error)) {
+						errorReason = error.reason;
+						// BeforeRetry can still modify the custom request
+						return new Request(request, {
+							headers: {
+								...Object.fromEntries(request.headers),
+								'X-Retry': 'from-beforeRetry',
+							},
+						});
+					}
+				},
+			],
+		},
+	}).json<{success?: boolean}>();
+
+	t.deepEqual(result, {success: true});
+	t.true(beforeRetryWasCalled);
+	t.true(errorWasForceRetryError);
+	t.is(errorReason, 'Testing hook composition');
+	// First request has neither header, second request has both
+	t.is(finalHeaders[0], undefined); // X-Custom from first request
+	t.is(finalHeaders[1], undefined); // X-Retry from first request
+	t.is(finalHeaders[2], 'from-afterResponse'); // X-Custom from second request
+	t.is(finalHeaders[3], 'from-beforeRetry'); // X-Retry from second request
+
+	await server.close();
+});
+
+test('afterResponse hook custom request respects retry limit', async t => {
+	let attemptCount = 0;
+
+	const server = await createHttpTestServer();
+	server.get('/', (_request, response) => {
+		attemptCount++;
+		response.json({error: {code: 'ALWAYS_RETRY'}});
+	});
+
+	await t.throwsAsync(
+		ky.get(server.url, {
+			retry: {limit: 2},
+			hooks: {
+				afterResponse: [
+					async (request, _options, response) => {
+						const data = await response.clone().json();
+						if (data.error?.code === 'ALWAYS_RETRY') {
+							// Always force retry with custom request
+							return ky.retry({
+								request: new Request(request),
+								reason: 'Testing limit',
+							});
+						}
+					},
+				],
+			},
+		}),
+		{instanceOf: Error},
+	);
+
+	t.is(attemptCount, 3); // Initial + 2 retries
+
+	await server.close();
+});
+
+test('afterResponse hook custom request is observable in beforeRetry', async t => {
+	let beforeRetryCallCount = 0;
+	let observedError;
+
+	const server = await createHttpTestServer();
+	server.get('/', (_request, response) => {
+		if (beforeRetryCallCount === 0) {
+			response.json({error: {code: 'CUSTOM_REQUEST_RETRY'}});
+		} else {
+			response.json({success: true});
+		}
+	});
+
+	const result = await ky.get(server.url, {
+		hooks: {
+			afterResponse: [
+				async (request, _options, response) => {
+					const data = await response.clone().json();
+					if (data.error?.code === 'CUSTOM_REQUEST_RETRY') {
+						return ky.retry({
+							request: new Request(request),
+							reason: 'Custom request retry',
+						});
+					}
+				},
+			],
+			beforeRetry: [
+				({error}) => {
+					beforeRetryCallCount++;
+					observedError = error;
+				},
+			],
+		},
+	}).json<{success?: boolean}>();
+
+	t.deepEqual(result, {success: true});
+	t.is(beforeRetryCallCount, 1);
+	t.true(isForceRetryError(observedError));
+	t.is(observedError.reason, 'Custom request retry');
+	t.is(observedError.message, 'Forced retry: Custom request retry');
+
+	await server.close();
+});
+
+test('afterResponse hook can combine custom request with custom delay', async t => {
+	let requestCount = 0;
+	const startTime = Date.now();
+	let retryTime;
+
+	const server = await createHttpTestServer();
+	server.get('/primary', (_request, response) => {
+		requestCount++;
+		if (requestCount === 1) {
+			response.json({error: {code: 'FALLBACK_WITH_DELAY'}});
+		}
+	});
+
+	server.get('/backup', (_request, response) => {
+		requestCount++;
+		retryTime = Date.now();
+		response.json({success: true});
+	});
+
+	const result = await ky.get(`${server.url}/primary`, {
+		hooks: {
+			afterResponse: [
+				async (request, _options, response) => {
+					const data = await response.clone().json();
+					if (data.error?.code === 'FALLBACK_WITH_DELAY') {
+						return ky.retry({
+							request: new Request(`${server.url}/backup`, {
+								method: request.method,
+								headers: request.headers,
+							}),
+							delay: 100,
+							reason: 'Fallback to backup with delay',
+						});
+					}
+				},
+			],
+		},
+	}).json<{success?: boolean}>();
+
+	const elapsedTime = retryTime - startTime;
+
+	t.deepEqual(result, {success: true});
+	t.is(requestCount, 2);
+	t.true(elapsedTime >= 100); // Should have waited at least 100ms
+
+	await server.close();
+});
+
+test('afterResponse hook custom request with modified body', async t => {
+	const receivedBodies: any[] = [];
+
+	const server = await createHttpTestServer();
+	server.post('/', async (request, response) => {
+		receivedBodies.push(request.body);
+
+		if (receivedBodies.length === 1) {
+			response.json({error: {code: 'RETRY_WITH_MODIFIED_BODY'}});
+		} else {
+			response.json({success: true});
+		}
+	});
+
+	const result = await ky.post(server.url, {
+		json: {original: true},
+		hooks: {
+			afterResponse: [
+				async (request, _options, response) => {
+					const data = await response.clone().json();
+					if (data.error?.code === 'RETRY_WITH_MODIFIED_BODY') {
+						return ky.retry({
+							request: new Request(request.url, {
+								method: request.method,
+								headers: request.headers,
+								body: JSON.stringify({modified: true}),
+							}),
+							reason: 'Retrying with modified body',
+						});
+					}
+				},
+			],
+		},
+	}).json<{success?: boolean}>();
+
+	t.deepEqual(result, {success: true});
+	t.deepEqual(receivedBodies[0], {original: true});
+	t.deepEqual(receivedBodies[1], {modified: true});
+
+	await server.close();
+});
+
+test('afterResponse hook custom request with timeout configured works correctly', async t => {
+	let attemptCount = 0;
+
+	const server = await createHttpTestServer();
+	server.get('/', (_request, response) => {
+		attemptCount++;
+		if (attemptCount === 1) {
+			// First request: return error to trigger custom request retry
+			response.json({error: {code: 'NEED_FALLBACK'}});
+		} else {
+			// Second request: custom request should succeed
+			response.json({success: true});
+		}
+	});
+
+	const result = await ky.get(server.url, {
+		timeout: 1000, // Timeout configured but shouldn't trigger
+		retry: {limit: 2},
+		hooks: {
+			afterResponse: [
+				async (request, _options, response) => {
+					const data = await response.clone().json();
+					if (data.error?.code === 'NEED_FALLBACK') {
+						// Custom request should inherit proper timeout signal
+						return ky.retry({
+							request: new Request(request.url, {
+								method: request.method,
+								headers: request.headers,
+							}),
+							reason: 'Custom request with timeout',
+						});
+					}
+				},
+			],
+		},
+	}).json<{success?: boolean}>();
+
+	t.deepEqual(result, {success: true});
+	t.is(attemptCount, 2);
+
+	await server.close();
+});
+
+test('afterResponse hook custom request with aborted signal should still work', async t => {
+	let attemptCount = 0;
+
+	const server = await createHttpTestServer();
+	server.get('/', (_request, response) => {
+		attemptCount++;
+		if (attemptCount === 1) {
+			response.json({error: {code: 'NEED_CUSTOM_REQUEST'}});
+		} else {
+			response.json({success: true});
+		}
+	});
+
+	const result = await ky.get(server.url, {
+		hooks: {
+			afterResponse: [
+				async (request, _options, response) => {
+					const data = await response.clone().json();
+					if (data.error?.code === 'NEED_CUSTOM_REQUEST') {
+						// Create custom request with aborted signal
+						const abortController = new AbortController();
+						abortController.abort();
+
+						return ky.retry({
+							request: new Request(request.url, {
+								method: request.method,
+								headers: request.headers,
+								signal: abortController.signal,
+							}),
+							reason: 'Custom request with aborted signal',
+						});
+					}
+				},
+			],
+		},
+	}).json<{success?: boolean}>();
+
+	t.deepEqual(result, {success: true});
+	t.is(attemptCount, 2);
 
 	await server.close();
 });

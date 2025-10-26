@@ -183,7 +183,7 @@ export class Ky {
 	readonly #options: InternalOptions;
 	#originalRequest?: Request;
 	readonly #userProvidedAbortSignal?: AbortSignal;
-	#cachedNormalizedOptions?: NormalizedOptions;
+	#cachedNormalizedOptions: NormalizedOptions | undefined;
 
 	// eslint-disable-next-line complexity
 	constructor(input: Input, options: Options = {}) {
@@ -279,11 +279,7 @@ export class Ky {
 				throw new Error('Request streams are not supported in your environment. The `duplex` option for `Request` is not available.');
 			}
 
-			const originalBody = this.request.body;
-			if (originalBody) {
-				// Pass original body to calculate size correctly (before it becomes a stream)
-				this.request = streamRequest(this.request, this.#options.onUploadProgress, this.#options.body);
-			}
+			this.request = this.#wrapRequestWithUploadProgress(this.request, this.#options.body ?? undefined);
 		}
 	}
 
@@ -398,6 +394,16 @@ export class Ky {
 			// Only use user-provided signal for delay, not our internal abortController
 			await delay(ms, this.#userProvidedAbortSignal ? {signal: this.#userProvidedAbortSignal} : {});
 
+			// Apply custom request from forced retry before beforeRetry hooks
+			// Ensure the custom request has the correct managed signal for timeouts and user aborts
+			if (error instanceof ForceRetryError && error.customRequest) {
+				const managedRequest = this.#options.signal
+					? new globalThis.Request(error.customRequest, {signal: this.#options.signal})
+					: new globalThis.Request(error.customRequest);
+
+				this.#assignRequest(managedRequest);
+			}
+
 			for (const hook of this.#options.hooks.beforeRetry) {
 				// eslint-disable-next-line no-await-in-loop
 				const hookResult = await hook({
@@ -407,9 +413,8 @@ export class Ky {
 					retryCount: this.#retryCount,
 				});
 
-				// If a Request is returned, use it for the retry
 				if (hookResult instanceof globalThis.Request) {
-					this.request = hookResult;
+					this.#assignRequest(hookResult);
 					break;
 				}
 
@@ -445,13 +450,13 @@ export class Ky {
 				{retryCount: this.#retryCount},
 			);
 
-			if (result instanceof Request) {
-				this.request = result;
-				break;
-			}
-
 			if (result instanceof Response) {
 				return result;
+			}
+
+			if (result instanceof globalThis.Request) {
+				this.#assignRequest(result);
+				break;
 			}
 		}
 
@@ -475,5 +480,18 @@ export class Ky {
 		}
 
 		return this.#cachedNormalizedOptions;
+	}
+
+	#assignRequest(request: Request): void {
+		this.#cachedNormalizedOptions = undefined;
+		this.request = this.#wrapRequestWithUploadProgress(request);
+	}
+
+	#wrapRequestWithUploadProgress(request: Request, originalBody?: BodyInit): Request {
+		if (!this.#options.onUploadProgress || !request.body) {
+			return request;
+		}
+
+		return streamRequest(request, this.#options.onUploadProgress, originalBody ?? this.#options.body ?? undefined);
 	}
 }
