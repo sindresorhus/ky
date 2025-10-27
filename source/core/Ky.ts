@@ -59,7 +59,11 @@ export class Ky {
 
 			ky.#decorateResponse(response);
 
-			if (!response.ok && ky.#options.throwHttpErrors) {
+			if (!response.ok && (
+				typeof ky.#options.throwHttpErrors === 'function'
+					? ky.#options.throwHttpErrors(response.status)
+					: ky.#options.throwHttpErrors
+			)) {
 				let error = new HTTPError(response, ky.request, ky.#getNormalizedOptions());
 
 				for (const hook of ky.#options.hooks.beforeError) {
@@ -184,7 +188,7 @@ export class Ky {
 			// eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing
 			prefixUrl: String(options.prefixUrl || ''),
 			retry: normalizeRetryOptions(options.retry),
-			throwHttpErrors: options.throwHttpErrors !== false,
+			throwHttpErrors: options.throwHttpErrors ?? true,
 			timeout: options.timeout ?? 10_000,
 			fetch: options.fetch ?? globalThis.fetch.bind(globalThis),
 			context: options.context ?? {},

@@ -163,11 +163,13 @@ export type KyOptions = {
 
 	Setting this to `false` may be useful if you are checking for resource availability and are expecting error responses.
 
+	You can also pass a function that accepts the HTTP status code and returns a boolean for selective error handling. Note that this can violate the principle of least surprise, so it's recommended to use the boolean form unless you have a specific use case like treating 404 responses differently.
+
 	Note: If `false`, error responses are considered successful and the request will not be retried.
 
 	@default true
 	*/
-	throwHttpErrors?: boolean;
+	throwHttpErrors?: boolean | ((status: number) => boolean);
 
 	/**
 	Download progress event handler.
@@ -353,7 +355,7 @@ export interface Options extends KyOptions, Omit<RequestInit, 'headers'> { // es
 }
 
 export type InternalOptions = Required<
-Omit<Options, 'hooks' | 'retry' | 'context'>,
+Omit<Options, 'hooks' | 'retry' | 'context' | 'throwHttpErrors'>,
 'fetch' | 'prefixUrl' | 'timeout'
 > & {
 	headers: Required<Headers>;
@@ -361,6 +363,7 @@ Omit<Options, 'hooks' | 'retry' | 'context'>,
 	retry: Required<Omit<RetryOptions, 'shouldRetry'>> & Pick<RetryOptions, 'shouldRetry'>;
 	prefixUrl: string;
 	context: Record<string, unknown>;
+	throwHttpErrors: boolean | ((status: number) => boolean);
 };
 
 /**
