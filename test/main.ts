@@ -2,9 +2,11 @@ import {Buffer} from 'node:buffer';
 import test from 'ava';
 import delay from 'delay';
 import {expectTypeOf} from 'expect-type';
-import ky, {TimeoutError} from '../source/index.js';
+import ky, {HTTPError, TimeoutError} from '../source/index.js';
 import {createHttpTestServer} from './helpers/create-http-test-server.js';
 import {parseRawBody} from './helpers/parse-body.js';
+
+// TODO: When targeting Node.js 24, use `using` syntax for `createHttpTestServer` so we don't have to manually close it.
 
 const fixture = 'fixture';
 
@@ -553,6 +555,75 @@ test('throwHttpErrors:false does not suppress timeout errors', async t => {
 	);
 
 	t.is(requestCount, 1);
+
+	await server.close();
+});
+
+test('throwHttpErrors function - selective error handling', async t => {
+	const server = await createHttpTestServer();
+
+	server.get('/404', (_request, response) => {
+		response.sendStatus(404);
+	});
+
+	server.get('/500', (_request, response) => {
+		response.sendStatus(500);
+	});
+
+	// Don't throw on 404
+	const response404 = await ky.get(`${server.url}/404`, {
+		throwHttpErrors: status => status !== 404,
+	});
+	t.is(response404.status, 404);
+
+	// Throw on 500
+	await t.throwsAsync(
+		ky.get(`${server.url}/500`, {
+			throwHttpErrors: status => status !== 404,
+		}).text(),
+		{instanceOf: HTTPError},
+	);
+
+	await server.close();
+});
+
+test('throwHttpErrors preserves original type in hooks', async t => {
+	const server = await createHttpTestServer();
+
+	server.get('/', (_request, response) => {
+		response.sendStatus(200);
+	});
+
+	// Test that boolean is preserved
+	let booleanTypeInHook: unknown;
+	await ky.get(server.url, {
+		throwHttpErrors: false,
+		hooks: {
+			beforeRequest: [
+				(_request, options) => {
+					booleanTypeInHook = options.throwHttpErrors;
+				},
+			],
+		},
+	});
+	t.is(typeof booleanTypeInHook, 'boolean');
+	t.is(booleanTypeInHook, false);
+
+	// Test that function is preserved
+	let functionTypeInHook: unknown;
+	const throwFunction = (status: number) => status >= 500;
+	await ky.get(server.url, {
+		throwHttpErrors: throwFunction,
+		hooks: {
+			beforeRequest: [
+				(_request, options) => {
+					functionTypeInHook = options.throwHttpErrors;
+				},
+			],
+		},
+	});
+	t.is(typeof functionTypeInHook, 'function');
+	t.is(functionTypeInHook, throwFunction);
 
 	await server.close();
 });
