@@ -1106,6 +1106,34 @@ for await (const event of parseServerSentEvents(response)) {
 }
 ```
 
+### Extending types
+
+Ky's TypeScript types are intentionally defined as type aliases rather than interfaces to prevent global module augmentation, which can lead to type conflicts and unexpected behavior across your codebase. If you need to add custom properties to Ky's types like `KyResponse` or `HTTPError`, create local wrapper types instead:
+
+```ts
+import ky, {HTTPError} from 'ky';
+
+interface CustomError extends HTTPError {
+	customProperty: unknown;
+}
+
+const api = ky.extend({
+	hooks: {
+		beforeError: [
+			async error => {
+				(error as CustomError).customProperty = 'value';
+				return error;
+			}
+		]
+	}
+});
+
+// Use with type assertion
+const data = (error as CustomError).customProperty;
+```
+
+This approach keeps your types scoped to where they're needed without polluting the global namespace.
+
 ## FAQ
 
 #### How do I use this in Node.js?
