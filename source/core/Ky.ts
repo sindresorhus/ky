@@ -1,5 +1,6 @@
 import {HTTPError} from '../errors/HTTPError.js';
 import {NonError} from '../errors/NonError.js';
+import {ForceRetryError} from '../errors/ForceRetryError.js';
 import type {
 	Input,
 	InternalOptions,
@@ -21,6 +22,7 @@ import {
 	maxSafeTimeout,
 	responseTypes,
 	stop,
+	RetryMarker,
 	supportsAbortController,
 	supportsAbortSignal,
 	supportsFormData,
@@ -44,16 +46,30 @@ export class Ky {
 			let response = await ky.#fetch();
 
 			for (const hook of ky.#options.hooks.afterResponse) {
+				// Clone the response before passing to hook so we can cancel it if needed
+				const clonedResponse = ky.#decorateResponse(response.clone());
+
 				// eslint-disable-next-line no-await-in-loop
 				const modifiedResponse = await hook(
 					ky.request,
 					ky.#getNormalizedOptions(),
-					ky.#decorateResponse(response.clone()),
+					clonedResponse,
 					{retryCount: ky.#retryCount},
 				);
 
 				if (modifiedResponse instanceof globalThis.Response) {
 					response = modifiedResponse;
+				}
+
+				if (modifiedResponse instanceof RetryMarker) {
+					// Cancel both the cloned response passed to the hook and the current response
+					// to prevent resource leaks (especially important in Deno/Bun)
+					// eslint-disable-next-line no-await-in-loop
+					await Promise.all([
+						clonedResponse.body?.cancel(),
+						response.body?.cancel(),
+					]);
+					throw new ForceRetryError(modifiedResponse.options);
 				}
 			}
 
@@ -90,8 +106,9 @@ export class Ky {
 			return response;
 		};
 
-		const isRetriableMethod = ky.#options.retry.methods.includes(ky.request.method.toLowerCase());
-		const result = (isRetriableMethod ? ky.#retry(function_) : function_())
+		// Always wrap in #retry to catch forced retries from afterResponse hooks
+		// Method retriability is checked in #calculateRetryDelay for non-forced retries
+		const result = ky.#retry(function_)
 			.finally(async () => {
 				const originalRequest = ky.#originalRequest;
 				const cleanupPromises = [];
@@ -166,7 +183,7 @@ export class Ky {
 	readonly #options: InternalOptions;
 	#originalRequest?: Request;
 	readonly #userProvidedAbortSignal?: AbortSignal;
-	#cachedNormalizedOptions?: NormalizedOptions;
+	#cachedNormalizedOptions: NormalizedOptions | undefined;
 
 	// eslint-disable-next-line complexity
 	constructor(input: Input, options: Options = {}) {
@@ -262,11 +279,7 @@ export class Ky {
 				throw new Error('Request streams are not supported in your environment. The `duplex` option for `Request` is not available.');
 			}
 
-			const originalBody = this.request.body;
-			if (originalBody) {
-				// Pass original body to calculate size correctly (before it becomes a stream)
-				this.request = streamRequest(this.request, this.#options.onUploadProgress, this.#options.body);
-			}
+			this.request = this.#wrapRequestWithUploadProgress(this.request, this.#options.body ?? undefined);
 		}
 	}
 
@@ -296,6 +309,16 @@ export class Ky {
 
 		// Wrap non-Error throws to ensure consistent error handling
 		const errorObject = error instanceof Error ? error : new NonError(error);
+
+		// Handle forced retry from afterResponse hook - skip method check and shouldRetry
+		if (errorObject instanceof ForceRetryError) {
+			return errorObject.customDelay ?? this.#calculateDelay();
+		}
+
+		// Check if method is retriable for non-forced retries
+		if (!this.#options.retry.methods.includes(this.request.method.toLowerCase())) {
+			throw error;
+		}
 
 		// User-provided shouldRetry function takes precedence over all other checks
 		if (this.#options.retry.shouldRetry !== undefined) {
@@ -371,6 +394,16 @@ export class Ky {
 			// Only use user-provided signal for delay, not our internal abortController
 			await delay(ms, this.#userProvidedAbortSignal ? {signal: this.#userProvidedAbortSignal} : {});
 
+			// Apply custom request from forced retry before beforeRetry hooks
+			// Ensure the custom request has the correct managed signal for timeouts and user aborts
+			if (error instanceof ForceRetryError && error.customRequest) {
+				const managedRequest = this.#options.signal
+					? new globalThis.Request(error.customRequest, {signal: this.#options.signal})
+					: new globalThis.Request(error.customRequest);
+
+				this.#assignRequest(managedRequest);
+			}
+
 			for (const hook of this.#options.hooks.beforeRetry) {
 				// eslint-disable-next-line no-await-in-loop
 				const hookResult = await hook({
@@ -380,9 +413,8 @@ export class Ky {
 					retryCount: this.#retryCount,
 				});
 
-				// If a Request is returned, use it for the retry
 				if (hookResult instanceof globalThis.Request) {
-					this.request = hookResult;
+					this.#assignRequest(hookResult);
 					break;
 				}
 
@@ -418,13 +450,13 @@ export class Ky {
 				{retryCount: this.#retryCount},
 			);
 
-			if (result instanceof Request) {
-				this.request = result;
-				break;
-			}
-
 			if (result instanceof Response) {
 				return result;
+			}
+
+			if (result instanceof globalThis.Request) {
+				this.#assignRequest(result);
+				break;
 			}
 		}
 
@@ -448,5 +480,18 @@ export class Ky {
 		}
 
 		return this.#cachedNormalizedOptions;
+	}
+
+	#assignRequest(request: Request): void {
+		this.#cachedNormalizedOptions = undefined;
+		this.request = this.#wrapRequestWithUploadProgress(request);
+	}
+
+	#wrapRequestWithUploadProgress(request: Request, originalBody?: BodyInit): Request {
+		if (!this.#options.onUploadProgress || !request.body) {
+			return request;
+		}
+
+		return streamRequest(request, this.#options.onUploadProgress, originalBody ?? this.#options.body ?? undefined);
 	}
 }
