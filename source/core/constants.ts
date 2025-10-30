@@ -76,11 +76,37 @@ export type ForceRetryOptions = {
 	delay?: number;
 
 	/**
-	Reason for the retry.
+	Error code for the retry.
 
-	This will be included in the error message passed to `beforeRetry` hooks, allowing you to distinguish between different types of forced retries.
+	This machine-readable identifier will be included in the error message passed to `beforeRetry` hooks, allowing you to distinguish between different types of forced retries.
+
+	@example
+	```
+	return ky.retry({code: 'RATE_LIMIT'});
+	// Resulting error message: 'Forced retry: RATE_LIMIT'
+	```
 	*/
-	reason?: string;
+	code?: string;
+
+	/**
+	Original error that caused the retry.
+
+	This allows you to preserve the error chain when forcing a retry based on caught exceptions. The error will be set as the `cause` of the `ForceRetryError`, enabling proper error chain traversal.
+
+	@example
+	```
+	try {
+		const data = await response.clone().json();
+		validateBusinessLogic(data);
+	} catch (error) {
+		return ky.retry({
+			code: 'VALIDATION_FAILED',
+			cause: error  // Preserves original error in chain
+		});
+	}
+	```
+	*/
+	cause?: Error;
 
 	/**
 	Custom request to use for the retry.
@@ -97,7 +123,7 @@ export type ForceRetryOptions = {
 			method: request.method,
 			headers: request.headers,
 		}),
-		reason: 'Falling back to backup API'
+		code: 'BACKUP_ENDPOINT'
 	});
 
 	// Retry with refreshed authentication token
@@ -109,7 +135,7 @@ export type ForceRetryOptions = {
 				'Authorization': `Bearer ${data.newToken}`
 			}
 		}),
-		reason: 'Retrying with refreshed token'
+		code: 'TOKEN_REFRESHED'
 	});
 	```
 	*/
@@ -151,7 +177,7 @@ const api = ky.extend({
 					if (data.error?.code === 'RATE_LIMIT') {
 						return ky.retry({
 							delay: data.error.retryAfter * 1000,
-							reason: 'RATE_LIMIT'
+							code: 'RATE_LIMIT'
 						});
 					}
 
@@ -162,7 +188,7 @@ const api = ky.extend({
 								method: request.method,
 								headers: request.headers,
 							}),
-							reason: 'Switching to backup endpoint'
+							code: 'BACKUP_ENDPOINT'
 						});
 					}
 
@@ -175,7 +201,17 @@ const api = ky.extend({
 									'Authorization': `Bearer ${data.newToken}`
 								}
 							}),
-							reason: 'Retrying with refreshed token'
+							code: 'TOKEN_REFRESHED'
+						});
+					}
+
+					// Retry with cause to preserve error chain
+					try {
+						validateResponse(data);
+					} catch (error) {
+						return ky.retry({
+							code: 'VALIDATION_FAILED',
+							cause: error
 						});
 					}
 				}

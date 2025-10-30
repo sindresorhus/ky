@@ -1083,7 +1083,7 @@ test('afterResponse hook forced retry is observable in beforeRetry', async t => 
 				async (_request, _options, response) => {
 					const data = await response.clone().json();
 					if (data.error?.code === 'RATE_LIMIT') {
-						return ky.retry({reason: 'RATE_LIMIT'});
+						return ky.retry({code: 'RATE_LIMIT'});
 					}
 				},
 			],
@@ -1292,7 +1292,7 @@ test('afterResponse hook can force retry with custom request (different URL)', a
 								method: request.method,
 								headers: request.headers,
 							}),
-							reason: 'Switching to backup endpoint',
+							code: 'BACKUP_ENDPOINT',
 						});
 					}
 				},
@@ -1335,7 +1335,7 @@ test('afterResponse hook can force retry with custom request (modified headers)'
 									'x-auth-token': data.error.newToken,
 								},
 							}),
-							reason: 'Retrying with refreshed token',
+							code: 'TOKEN_REFRESHED',
 						});
 					}
 				},
@@ -1377,7 +1377,7 @@ test('afterResponse hook can force retry with custom request (different HTTP met
 							request: new Request(request, {
 								method: 'PUT',
 							}),
-							reason: 'Switching to PUT due to POST overload',
+							code: 'SWITCH_TO_PUT',
 						});
 					}
 				},
@@ -1421,7 +1421,7 @@ test('afterResponse hook custom request works with beforeRetry hooks', async t =
 									'X-Custom': 'from-afterResponse',
 								},
 							}),
-							reason: 'Testing hook composition',
+							code: 'HOOK_COMPOSITION_TEST',
 						});
 					}
 				},
@@ -1431,7 +1431,7 @@ test('afterResponse hook custom request works with beforeRetry hooks', async t =
 					beforeRetryWasCalled = true;
 					errorWasForceRetryError = isForceRetryError(error);
 					if (isForceRetryError(error)) {
-						errorReason = error.reason;
+						errorReason = error.code;
 						// BeforeRetry can still modify the custom request
 						return new Request(request, {
 							headers: {
@@ -1448,7 +1448,7 @@ test('afterResponse hook custom request works with beforeRetry hooks', async t =
 	t.deepEqual(result, {success: true});
 	t.true(beforeRetryWasCalled);
 	t.true(errorWasForceRetryError);
-	t.is(errorReason, 'Testing hook composition');
+	t.is(errorReason, 'HOOK_COMPOSITION_TEST');
 	// First request has neither header, second request has both
 	t.is(finalHeaders[0], undefined); // X-Custom from first request
 	t.is(finalHeaders[1], undefined); // X-Retry from first request
@@ -1478,7 +1478,7 @@ test('afterResponse hook custom request respects retry limit', async t => {
 							// Always force retry with custom request
 							return ky.retry({
 								request: new Request(request),
-								reason: 'Testing limit',
+								code: 'LIMIT_TEST',
 							});
 						}
 					},
@@ -1514,7 +1514,7 @@ test('afterResponse hook custom request is observable in beforeRetry', async t =
 					if (data.error?.code === 'CUSTOM_REQUEST_RETRY') {
 						return ky.retry({
 							request: new Request(request),
-							reason: 'Custom request retry',
+							code: 'CUSTOM_REQUEST',
 						});
 					}
 				},
@@ -1531,8 +1531,8 @@ test('afterResponse hook custom request is observable in beforeRetry', async t =
 	t.deepEqual(result, {success: true});
 	t.is(beforeRetryCallCount, 1);
 	t.true(isForceRetryError(observedError));
-	t.is(observedError.reason, 'Custom request retry');
-	t.is(observedError.message, 'Forced retry: Custom request retry');
+	t.is(observedError.code, 'CUSTOM_REQUEST');
+	t.is(observedError.message, 'Forced retry: CUSTOM_REQUEST');
 
 	await server.close();
 });
@@ -1568,7 +1568,7 @@ test('afterResponse hook can combine custom request with custom delay', async t 
 								headers: request.headers,
 							}),
 							delay: 100,
-							reason: 'Fallback to backup with delay',
+							code: 'BACKUP_WITH_DELAY',
 						});
 					}
 				},
@@ -1612,7 +1612,7 @@ test('afterResponse hook custom request with modified body', async t => {
 								headers: request.headers,
 								body: JSON.stringify({modified: true}),
 							}),
-							reason: 'Retrying with modified body',
+							code: 'MODIFIED_BODY',
 						});
 					}
 				},
@@ -1656,7 +1656,7 @@ test('afterResponse hook custom request with timeout configured works correctly'
 								method: request.method,
 								headers: request.headers,
 							}),
-							reason: 'Custom request with timeout',
+							code: 'CUSTOM_WITH_TIMEOUT',
 						});
 					}
 				},
@@ -1699,7 +1699,7 @@ test('afterResponse hook custom request with aborted signal should still work', 
 								headers: request.headers,
 								signal: abortController.signal,
 							}),
-							reason: 'Custom request with aborted signal',
+							code: 'CUSTOM_WITH_ABORT',
 						});
 					}
 				},
@@ -1709,6 +1709,110 @@ test('afterResponse hook custom request with aborted signal should still work', 
 
 	t.deepEqual(result, {success: true});
 	t.is(attemptCount, 2);
+
+	await server.close();
+});
+
+test('afterResponse hook can force retry with cause parameter', async t => {
+	let requestCount = 0;
+	let observedCause: Error | undefined;
+	const originalError = new Error('Original validation error');
+
+	const server = await createHttpTestServer();
+	server.get('/', (_request, response) => {
+		requestCount++;
+
+		if (requestCount === 1) {
+			response.json({error: {code: 'NEEDS_VALIDATION'}});
+		} else {
+			response.json({success: true});
+		}
+	});
+
+	const result = await ky.get(server.url, {
+		retry: {
+			limit: 2,
+		},
+		hooks: {
+			afterResponse: [
+				async (_request, _options, response) => {
+					const data = await response.clone().json();
+					if (data.error?.code === 'NEEDS_VALIDATION') {
+						return ky.retry({
+							code: 'VALIDATION_ERROR',
+							cause: originalError,
+						});
+					}
+				},
+			],
+			beforeRetry: [
+				({error}) => {
+					if (isForceRetryError(error)) {
+						observedCause = error.cause as Error;
+					}
+				},
+			],
+		},
+	}).json<{success?: boolean}>();
+
+	t.deepEqual(result, {success: true});
+	t.is(requestCount, 2);
+	t.is(observedCause, originalError);
+	t.is(observedCause?.message, 'Original validation error');
+
+	await server.close();
+});
+
+test('afterResponse hook wraps non-Error cause values in NonError', async t => {
+	let requestCount = 0;
+	let observedCause: Error | undefined;
+	const nonErrorValue = {message: 'Not an Error instance', code: 'CUSTOM'};
+
+	const server = await createHttpTestServer();
+	server.get('/', (_request, response) => {
+		requestCount++;
+
+		if (requestCount === 1) {
+			response.json({error: {code: 'NEEDS_VALIDATION'}});
+		} else {
+			response.json({success: true});
+		}
+	});
+
+	const result = await ky.get(server.url, {
+		retry: {
+			limit: 2,
+		},
+		hooks: {
+			afterResponse: [
+				async (_request, _options, response) => {
+					const data = await response.clone().json();
+					if (data.error?.code === 'NEEDS_VALIDATION') {
+						// JS users (or TS users bypassing types) can pass non-Error values
+						return ky.retry({
+							code: 'VALIDATION_ERROR',
+							cause: nonErrorValue as any, // Simulating runtime type bypass
+						});
+					}
+				},
+			],
+			beforeRetry: [
+				({error}) => {
+					if (isForceRetryError(error)) {
+						observedCause = error.cause as Error;
+					}
+				},
+			],
+		},
+	}).json<{success?: boolean}>();
+
+	t.deepEqual(result, {success: true});
+	t.is(requestCount, 2);
+	// Verify cause was wrapped in NonError
+	t.is(observedCause?.name, 'NonError');
+	t.true(observedCause instanceof Error);
+	// Verify original value is accessible via NonError.value
+	t.deepEqual((observedCause as any).value, nonErrorValue);
 
 	await server.close();
 });

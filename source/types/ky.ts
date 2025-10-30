@@ -161,7 +161,7 @@ export type KyInstance = {
 						if (data.error?.code === 'RATE_LIMIT') {
 							return ky.retry({
 								delay: data.error.retryAfter * 1000,
-								reason: 'RATE_LIMIT'
+								code: 'RATE_LIMIT'
 							});
 						}
 					}

@@ -87,7 +87,7 @@ const api = ky.extend({
 		beforeRetry: [
 			({error, retryCount}) => {
 				if (isForceRetryError(error)) {
-					console.log(`Forced retry #${retryCount}: ${error.reason}`);
+					console.log(`Forced retry #${retryCount}: ${error.code}`);
 				}
 			}
 		]
