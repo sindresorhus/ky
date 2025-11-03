@@ -378,6 +378,40 @@ test('respect maxRetryAfter', async t => {
 	t.is(requestCount, 5);
 });
 
+test('invalid Retry-After header falls back to retry delay', async t => {
+	let requestCount = 0;
+
+	const server = await createHttpTestServer(t);
+	server.get('/', (_request, response) => {
+		requestCount++;
+		if (requestCount === 1) {
+			response.writeHead(429, {
+				'Retry-After': 'not-a-valid-value',
+			});
+			response.end('');
+			return;
+		}
+
+		response.end(fixture);
+	});
+
+	const result = await Promise.race([
+		ky(server.url, {
+			timeout: false,
+			retry: {
+				limit: 1,
+				delay: () => 10,
+			},
+		}).text(),
+		delay(500).then(() => {
+			throw new Error('Retry took too long');
+		}),
+	]);
+
+	t.is(result, fixture);
+	t.is(requestCount, 2);
+});
+
 test('retry - can provide retry as number', async t => {
 	let requestCount = 0;
 
@@ -909,34 +943,60 @@ test('retryOnTimeout: false (default) - does not retry on timeout', async t => {
 	t.is(requestCount, 1); // Should not retry
 });
 
-test('retryOnTimeout: true - retries on timeout', async t => {
+test('timeout: false does not throw TimeoutError during retries', async t => {
+	let requestCount = 0;
+
+	const server = await createHttpTestServer();
+	server.get('/', (_request, response) => {
+		requestCount++;
+		if (requestCount === 1) {
+			response.sendStatus(500);
+			return;
+		}
+
+		response.end(fixture);
+	});
+
+	const result = await ky(server.url, {
+		timeout: false,
+		retry: {
+			limit: 1,
+		},
+	}).text();
+
+	t.is(result, fixture);
+	t.is(requestCount, 2);
+
+	await server.close();
+});
+
+test('retryOnTimeout: true does not exceed total timeout budget', async t => {
 	let requestCount = 0;
 
 	const server = await createHttpTestServer(t);
 	server.get('/', async (_request, response) => {
 		requestCount++;
-		if (requestCount <= 2) {
-			// Delay longer than timeout to trigger timeout
-			await delay(1000);
-			response.end(fixture);
-		} else {
-			response.end(fixture);
-		}
+		// Delay longer than timeout to trigger timeout
+		await delay(1000);
+		response.end(fixture);
 	});
 
-	const result = await ky(server.url, {
-		timeout: 500,
-		retry: {
-			limit: 3,
-			retryOnTimeout: true,
+	await t.throwsAsync(
+		ky(server.url, {
+			timeout: 500,
+			retry: {
+				limit: 3,
+				retryOnTimeout: true,
+			},
+		}).text(),
+		{
+			name: 'TimeoutError',
 		},
-	}).text();
-
-	t.is(result, fixture);
-	t.is(requestCount, 3); // Initial + 2 retries
+	);
+	t.is(requestCount, 1);
 });
 
-test('retryOnTimeout: true - respects retry limit on timeout', async t => {
+test('retryOnTimeout: true - total timeout takes precedence over retry limit', async t => {
 	let requestCount = 0;
 
 	const server = await createHttpTestServer(t);
@@ -958,36 +1018,34 @@ test('retryOnTimeout: true - respects retry limit on timeout', async t => {
 			name: 'TimeoutError',
 		},
 	);
-
-	t.is(requestCount, 3); // Initial + 2 retries
+	t.is(requestCount, 1);
 });
 
-test('shouldRetry: returns true - forces retry bypassing all checks', async t => {
+test('shouldRetry: returns true cannot exceed total timeout budget', async t => {
 	let requestCount = 0;
 
 	const server = await createHttpTestServer(t);
 	server.get('/', async (_request, response) => {
 		requestCount++;
-		if (requestCount <= 2) {
-			// Delay longer than timeout to trigger timeout
-			await delay(1000);
-			response.end(fixture);
-		} else {
-			response.end(fixture);
-		}
+		// Delay longer than timeout to trigger timeout
+		await delay(1000);
+		response.end(fixture);
 	});
 
-	const result = await ky(server.url, {
-		timeout: 500,
-		retry: {
-			limit: 3,
-			retryOnTimeout: false, // Disabled
-			shouldRetry: () => true, // But shouldRetry forces retry
+	await t.throwsAsync(
+		ky(server.url, {
+			timeout: 500,
+			retry: {
+				limit: 3,
+				retryOnTimeout: false,
+				shouldRetry: () => true,
+			},
+		}).text(),
+		{
+			name: 'TimeoutError',
 		},
-	}).text();
-
-	t.is(result, fixture);
-	t.is(requestCount, 3);
+	);
+	t.is(requestCount, 1);
 });
 
 test('shouldRetry: returns false - prevents retry', async t => {
@@ -1134,32 +1192,118 @@ test('shouldRetry: error propagates if shouldRetry throws', async t => {
 
 test('shouldRetry: works with TimeoutError', async t => {
 	let requestCount = 0;
+	const errorNames: string[] = [];
 
 	const server = await createHttpTestServer(t);
 	server.get('/', async (_request, response) => {
 		requestCount++;
-		if (requestCount <= 2) {
-			// Delay longer than timeout to trigger timeout
-			await delay(1000);
-			response.end(fixture);
-		} else {
-			response.end(fixture);
+		// Delay longer than timeout to trigger timeout
+		await delay(1000);
+		response.end(fixture);
+	});
+
+	await t.throwsAsync(
+		ky(server.url, {
+			timeout: 500,
+			retry: {
+				limit: 3,
+				async shouldRetry({error}) {
+					errorNames.push(error.name);
+					const {TimeoutError} = await import('../source/index.js');
+					return error instanceof TimeoutError;
+				},
+			},
+		}).text(),
+		{
+			name: 'TimeoutError',
+		},
+	);
+	t.deepEqual(errorNames, ['TimeoutError']);
+	t.is(requestCount, 1);
+});
+
+test('timeout budget allows retry when enough time remains', async t => {
+	let requestCount = 0;
+
+	const server = await createHttpTestServer(t);
+	server.get('/', (_request, response) => {
+		requestCount++;
+		if (requestCount === 1) {
+			response.sendStatus(500);
+			return;
 		}
+
+		response.end(fixture);
 	});
 
 	const result = await ky(server.url, {
-		timeout: 500,
+		timeout: 1000,
 		retry: {
-			limit: 3,
-			async shouldRetry({error}) {
-				const {TimeoutError} = await import('../source/index.js');
-				return error instanceof TimeoutError;
-			},
+			limit: 1,
 		},
 	}).text();
 
 	t.is(result, fixture);
-	t.is(requestCount, 3);
+	t.is(requestCount, 2);
+});
+
+test('Retry-After delay is bounded by total timeout budget', async t => {
+	let requestCount = 0;
+	const server = await createHttpTestServer(t);
+	server.get('/', (_request, response) => {
+		requestCount++;
+		response.writeHead(429, {
+			'Retry-After': 5,
+		});
+		response.end('');
+	});
+
+	let timeoutError: Error | undefined;
+	await withPerformance({
+		t,
+		expectedDuration: 1000,
+		async test() {
+			timeoutError = await t.throwsAsync(ky(server.url, {
+				timeout: 1000,
+				retry: {
+					limit: 15,
+				},
+			}).text());
+		},
+	});
+
+	t.is(timeoutError?.name, 'TimeoutError');
+	t.is(requestCount, 1);
+});
+
+test('Retry-After timestamp delay is bounded by total timeout budget', async t => {
+	let requestCount = 0;
+	const server = await createHttpTestServer(t);
+	server.get('/', (_request, response) => {
+		requestCount++;
+		const timestamp = Math.ceil(Date.now() / 1000) + 5;
+		response.writeHead(429, {
+			'Retry-After': timestamp,
+		});
+		response.end('');
+	});
+
+	let timeoutError: Error | undefined;
+	await withPerformance({
+		t,
+		expectedDuration: 1000,
+		async test() {
+			timeoutError = await t.throwsAsync(ky(server.url, {
+				timeout: 1000,
+				retry: {
+					limit: 15,
+				},
+			}).text());
+		},
+	});
+
+	t.is(timeoutError?.name, 'TimeoutError');
+	t.is(requestCount, 1);
 });
 
 test('shouldRetry: precedence over retryOnTimeout', async t => {
