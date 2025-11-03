@@ -1,6 +1,7 @@
 import {HTTPError} from '../errors/HTTPError.js';
 import {NonError} from '../errors/NonError.js';
 import {ForceRetryError} from '../errors/ForceRetryError.js';
+import {TimeoutError} from '../errors/TimeoutError.js';
 import type {
 	Input,
 	InternalOptions,
@@ -51,6 +52,11 @@ export class Ky {
 		const function_ = async (): Promise<Response> => {
 			if (typeof ky.#options.timeout === 'number' && ky.#options.timeout > maxSafeTimeout) {
 				throw new RangeError(`The \`timeout\` option cannot be greater than ${maxSafeTimeout}`);
+			}
+
+			// Track start time for total timeout across retries
+			if (ky.#startTime === undefined && typeof ky.#options.timeout === 'number') {
+				ky.#startTime = Date.now();
 			}
 
 			// Delay the fetch so that body method shortcuts can set the Accept header
@@ -210,6 +216,7 @@ export class Ky {
 	#originalRequest?: Request;
 	readonly #userProvidedAbortSignal?: AbortSignal;
 	#cachedNormalizedOptions: NormalizedOptions | undefined;
+	#startTime?: number;
 
 	// eslint-disable-next-line complexity
 	constructor(input: Input, options: Options = {}) {
@@ -328,6 +335,11 @@ export class Ky {
 		return Math.min(backoffLimit, jitteredDelay);
 	}
 
+	#clampRetryDelayToMax(retryDelay: number): number {
+		const {maxRetryAfter} = this.#options.retry;
+		return maxRetryAfter === undefined ? retryDelay : Math.min(maxRetryAfter, retryDelay);
+	}
+
 	async #calculateRetryDelay(error: unknown) {
 		this.#retryCount++;
 
@@ -389,9 +401,14 @@ export class Ky {
 					after -= Date.now();
 				}
 
-				const max = this.#options.retry.maxRetryAfter ?? after;
+				if (!Number.isFinite(after)) {
+					return this.#clampRetryDelayToMax(this.#calculateDelay());
+				}
+
+				after = Math.max(0, after);
+
 				// Don't apply jitter when server provides explicit retry timing
-				return after < max ? after : max;
+				return this.#clampRetryDelayToMax(after);
 			}
 
 			if (error.response.status === 413) {
@@ -533,13 +550,28 @@ export class Ky {
 		try {
 			return await function_();
 		} catch (error) {
-			const ms = Math.min(await this.#calculateRetryDelay(error), maxSafeTimeout);
-			if (this.#retryCount < 1) {
-				throw error;
+			const retryDelay = Math.min(await this.#calculateRetryDelay(error), maxSafeTimeout);
+
+			let delayMs = retryDelay;
+			const remainingTimeout = this.#getRemainingTimeout();
+			if (remainingTimeout !== undefined) {
+				if (remainingTimeout <= 0) {
+					throw new TimeoutError(this.request);
+				}
+
+				delayMs = Math.min(delayMs, remainingTimeout);
 			}
 
 			// Only use user-provided signal for delay, not our internal abortController
-			await delay(ms, this.#userProvidedAbortSignal ? {signal: this.#userProvidedAbortSignal} : {});
+			await delay(delayMs, this.#userProvidedAbortSignal ? {signal: this.#userProvidedAbortSignal} : {});
+
+			const remainingTimeoutAfterDelay = this.#getRemainingTimeout();
+			if (
+				remainingTimeoutAfterDelay !== undefined
+				&& remainingTimeoutAfterDelay <= 0
+			) {
+				throw new TimeoutError(this.request);
+			}
 
 			// Apply custom request from forced retry before beforeRetry hooks
 			// Ensure the custom request has the correct managed signal for timeouts and user aborts
@@ -574,6 +606,14 @@ export class Ky {
 				if (hookResult === stop) {
 					return;
 				}
+			}
+
+			const remainingTimeoutAfterBeforeRetryHooks = this.#getRemainingTimeout();
+			if (
+				remainingTimeoutAfterBeforeRetryHooks !== undefined
+				&& remainingTimeoutAfterBeforeRetryHooks <= 0
+			) {
+				throw new TimeoutError(this.request);
 			}
 
 			return this.#retry(function_);
@@ -617,7 +657,28 @@ export class Ky {
 			return this.#options.fetch(this.#originalRequest, nonRequestOptions);
 		}
 
-		return timeout(this.#originalRequest, nonRequestOptions, this.#abortController, this.#options as TimeoutOptions);
+		const remainingTimeout = this.#getRemainingTimeout() ?? this.#options.timeout;
+		if (remainingTimeout <= 0) {
+			throw new TimeoutError(this.request);
+		}
+
+		return timeout(this.#originalRequest, nonRequestOptions, this.#abortController, {
+			...this.#options,
+			timeout: remainingTimeout,
+		} as TimeoutOptions);
+	}
+
+	#getRemainingTimeout(): number | undefined {
+		if (this.#options.timeout === false) {
+			return undefined;
+		}
+
+		if (this.#startTime === undefined) {
+			return this.#options.timeout;
+		}
+
+		const elapsed = Date.now() - this.#startTime;
+		return Math.max(0, this.#options.timeout - elapsed);
 	}
 
 	#getNormalizedOptions(): NormalizedOptions {
