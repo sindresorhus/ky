@@ -1,4 +1,4 @@
-import {type stop} from '../core/constants.js';
+import {type stop, type RetryMarker} from '../core/constants.js';
 import type {KyRequest, KyResponse, HTTPError} from '../index.js';
 import type {NormalizedOptions} from './options.js';
 
@@ -43,7 +43,7 @@ export type AfterResponseHook = (
 	options: NormalizedOptions,
 	response: KyResponse,
 	state: AfterResponseState
-) => Response | void | Promise<Response | void>;
+) => Response | RetryMarker | void | Promise<Response | RetryMarker | void>;
 
 export type BeforeErrorState = {
 	/**
@@ -164,6 +164,8 @@ export type Hooks = {
 	/**
 	This hook enables you to read and optionally modify the response. The hook function receives normalized request, options, a clone of the response, and a state object. The return value of the hook function will be used by Ky as the response object if it's an instance of [`Response`](https://developer.mozilla.org/en-US/docs/Web/API/Response).
 
+	You can also force a retry by returning `ky.retry()` or `ky.retry(options)`. This is useful when you need to retry based on the response body content, even if the response has a successful status code. The retry will respect the retry limit and be observable in `beforeRetry` hooks.
+
 	@default []
 
 	@example
@@ -191,6 +193,20 @@ export type Hooks = {
 						options.headers.set('Authorization', `token ${token}`);
 
 						return ky(request, options);
+					}
+				},
+
+				// Or force retry based on response body content
+				async (request, options, response) => {
+					if (response.status === 200) {
+						const data = await response.clone().json();
+						if (data.error?.code === 'RATE_LIMIT') {
+							// Force retry with custom delay from API response
+							return ky.retry({
+								delay: data.error.retryAfter * 1000,
+								code: 'RATE_LIMIT'
+							});
+						}
 					}
 				},
 
