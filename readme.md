@@ -507,16 +507,19 @@ const response = await ky('https://example.com', {
 				return new Response('A different response', {status: 200});
 			},
 
-			// Or retry with a fresh token on a 403 error
-			async (request, options, response) => {
-				if (response.status === 403) {
-					// Get a fresh token
-					const token = await ky('https://example.com/token').text();
+			// Or retry with a fresh token on a 401 error
+			async (request, _options, response, state) => {
+				if (response.status === 401 && state.retryCount === 0) {
+					// Only refresh on first 401, not on subsequent retries
+					const {token} = await ky.post('https://example.com/auth/refresh').json();
 
-					// Retry with the token
-					request.headers.set('Authorization', `token ${token}`);
+					const headers = new Headers(request.headers);
+					headers.set('Authorization', `Bearer ${token}`);
 
-					return ky(request, options);
+					return ky.retry({
+						request: new Request(request, {headers}),
+						code: 'TOKEN_REFRESHED'
+					});
 				}
 			},
 

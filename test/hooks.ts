@@ -1816,3 +1816,270 @@ test('afterResponse hook wraps non-Error cause values in NonError', async t => {
 
 	await server.close();
 });
+
+test('afterResponse hook can retry on 401 status', async t => {
+	let requestCount = 0;
+
+	const server = await createHttpTestServer();
+	server.get('/', (_request, response) => {
+		requestCount++;
+
+		if (requestCount === 1) {
+			response.status(401).json({error: 'Unauthorized'});
+		} else {
+			response.json({success: true});
+		}
+	});
+
+	const result = await ky.get(server.url, {
+		retry: {
+			limit: 2,
+		},
+		hooks: {
+			afterResponse: [
+				async (_request, _options, response) => {
+					if (response.status === 401) {
+						return ky.retry();
+					}
+				},
+			],
+		},
+	}).json<{success?: boolean}>();
+
+	t.deepEqual(result, {success: true});
+	t.is(requestCount, 2); // Initial 401 + 1 retry
+
+	await server.close();
+});
+
+test('afterResponse hook can refresh token on 401 and retry once', async t => {
+	let requestCount = 0;
+	let refreshCount = 0;
+	let validToken = 'valid-token';
+
+	const server = await createHttpTestServer();
+
+	server.post('/auth/refresh', (_request, response) => {
+		refreshCount++;
+		validToken = `fresh-token-${refreshCount}`;
+		response.json({token: validToken});
+	});
+
+	server.get('/protected', (request, response) => {
+		requestCount++;
+		const authHeader = request.headers.authorization;
+
+		if (authHeader === `Bearer ${validToken}`) {
+			response.json({success: true});
+		} else {
+			response.status(401).json({error: 'Unauthorized'});
+		}
+	});
+
+	const api = ky.extend({
+		hooks: {
+			afterResponse: [
+				async (request, _options, response, state) => {
+					if (response.status === 401 && state.retryCount === 0) {
+						const {token} = await ky.post(`${server.url}/auth/refresh`).json<{token: string}>();
+
+						const headers = new Headers(request.headers);
+						headers.set('Authorization', `Bearer ${token}`);
+
+						return ky.retry({
+							request: new Request(request, {headers}),
+							code: 'TOKEN_REFRESHED',
+						});
+					}
+				},
+			],
+		},
+	});
+
+	const result = await api.get(`${server.url}/protected`, {
+		headers: {
+			Authorization: 'Bearer expired-token',
+		},
+		retry: {
+			limit: 2,
+		},
+	}).json<{success: boolean}>();
+
+	t.is(requestCount, 2);
+	t.is(refreshCount, 1);
+	t.deepEqual(result, {success: true});
+
+	await server.close();
+});
+
+test('afterResponse hook prevents infinite token refresh loop', async t => {
+	let requestCount = 0;
+	let refreshCount = 0;
+
+	const server = await createHttpTestServer();
+
+	server.post('/auth/refresh', (_request, response) => {
+		refreshCount++;
+		response.json({token: `invalid-${refreshCount}`});
+	});
+
+	server.get('/protected', (_request, response) => {
+		requestCount++;
+		response.status(401).json({error: 'Unauthorized'});
+	});
+
+	const api = ky.extend({
+		hooks: {
+			afterResponse: [
+				async (request, _options, response, state) => {
+					if (response.status === 401 && state.retryCount === 0) {
+						const {token} = await ky.post(`${server.url}/auth/refresh`).json<{token: string}>();
+
+						const headers = new Headers(request.headers);
+						headers.set('Authorization', `Bearer ${token}`);
+
+						return ky.retry({
+							request: new Request(request, {headers}),
+							code: 'TOKEN_REFRESHED',
+						});
+					}
+				},
+			],
+		},
+	});
+
+	await t.throwsAsync(
+		api.get(`${server.url}/protected`, {
+			headers: {
+				Authorization: 'Bearer expired-token',
+			},
+			retry: {
+				limit: 2,
+			},
+		}),
+		{
+			instanceOf: HTTPError,
+			message: /401/,
+		},
+	);
+
+	t.is(requestCount, 2);
+	t.is(refreshCount, 1);
+
+	await server.close();
+});
+
+test('afterResponse hook handles refresh endpoint failure', async t => {
+	let requestCount = 0;
+	let refreshCount = 0;
+
+	const server = await createHttpTestServer();
+
+	server.post('/auth/refresh', (_request, response) => {
+		refreshCount++;
+		response.status(500).json({error: 'Internal server error'});
+	});
+
+	server.get('/protected', (_request, response) => {
+		requestCount++;
+		response.status(401).json({error: 'Unauthorized'});
+	});
+
+	const api = ky.extend({
+		hooks: {
+			afterResponse: [
+				async (request, _options, response, state) => {
+					if (response.status === 401 && state.retryCount === 0) {
+						const {token} = await ky.post(`${server.url}/auth/refresh`).json<{token: string}>();
+
+						const headers = new Headers(request.headers);
+						headers.set('Authorization', `Bearer ${token}`);
+
+						return ky.retry({
+							request: new Request(request, {headers}),
+							code: 'TOKEN_REFRESHED',
+						});
+					}
+				},
+			],
+		},
+	});
+
+	const error = await t.throwsAsync(
+		api.get(`${server.url}/protected`, {
+			headers: {
+				Authorization: 'Bearer expired-token',
+			},
+			retry: {
+				limit: 2,
+			},
+		}),
+		{
+			instanceOf: HTTPError,
+		},
+	);
+
+	// When refresh fails, the hook throws, then Ky retries normally
+	t.regex(error!.message, /401/);
+	t.is(requestCount, 2); // Initial + 1 retry after hook failure
+	t.is(refreshCount, 1);
+
+	await server.close();
+});
+
+test('afterResponse hook handles refresh endpoint returning 401', async t => {
+	let requestCount = 0;
+	let refreshCount = 0;
+
+	const server = await createHttpTestServer();
+
+	server.post('/auth/refresh', (_request, response) => {
+		refreshCount++;
+		response.status(401).json({error: 'Refresh token expired'});
+	});
+
+	server.get('/protected', (_request, response) => {
+		requestCount++;
+		response.status(401).json({error: 'Unauthorized'});
+	});
+
+	const api = ky.extend({
+		hooks: {
+			afterResponse: [
+				async (request, _options, response, state) => {
+					if (response.status === 401 && state.retryCount === 0) {
+						const {token} = await ky.post(`${server.url}/auth/refresh`).json<{token: string}>();
+
+						const headers = new Headers(request.headers);
+						headers.set('Authorization', `Bearer ${token}`);
+
+						return ky.retry({
+							request: new Request(request, {headers}),
+							code: 'TOKEN_REFRESHED',
+						});
+					}
+				},
+			],
+		},
+	});
+
+	await t.throwsAsync(
+		api.get(`${server.url}/protected`, {
+			headers: {
+				Authorization: 'Bearer expired-token',
+			},
+			retry: {
+				limit: 2,
+			},
+		}),
+		{
+			instanceOf: HTTPError,
+			message: /401/,
+		},
+	);
+
+	t.is(requestCount, 1);
+	t.is(refreshCount, 1);
+
+	await server.close();
+});
