@@ -1,11 +1,11 @@
 import {requestMethods} from '../core/constants.js';
 import type {RetryOptions} from '../types/retry.js';
-import type {HttpMethod} from "../types/common.js";
+import type {HttpMethod, RequestHttpMethod} from "../types/common.js";
 
 export const normalizeRequestMethod = (input: string): string =>
-	requestMethods.includes(input as HttpMethod) ? input.toUpperCase() : input;
+	requestMethods.includes(input as RequestHttpMethod) ? input.toUpperCase() : input;
 
-const retryMethods = ['get', 'put', 'head', 'delete', 'options', 'trace'];
+const retryMethods: Array<HttpMethod> = ['get', 'put', 'head', 'delete', 'options', 'trace'];
 
 const retryStatusCodes = [408, 413, 429, 500, 502, 503, 504];
 

@@ -29,6 +29,7 @@ import {
 	supportsResponseStreams,
 	supportsRequestStreams,
 } from './constants.js';
+import type {HttpMethod} from "../types/common.js";
 
 export class Ky {
 	static create(input: Input, options: Options): ResponsePromise {
@@ -316,7 +317,7 @@ export class Ky {
 		}
 
 		// Check if method is retriable for non-forced retries
-		if (!this.#options.retry.methods.includes(this.request.method.toLowerCase())) {
+		if (!this.#options.retry.methods.includes(<HttpMethod>this.request.method.toLowerCase())) {
 			throw error;
 		}
 

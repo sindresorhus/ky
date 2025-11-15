@@ -1,6 +1,6 @@
 import type {Expect, Equal} from '@type-challenges/utils';
 import {type KyOptionsRegistry} from '../types/options.js';
-import type {HttpMethod} from "../types/common.js";
+import {type RequestHttpMethod} from "../types/common.js";
 
 export const supportsRequestStreams = (() => {
 	let duplexAccessed = false;
@@ -41,7 +41,7 @@ export const requestMethods = ['get', 'post', 'put', 'patch', 'head', 'delete'] 
 
 const validate = <T extends Array<true>>() => undefined as unknown as T;
 validate<[
-	Expect<Equal<typeof requestMethods[number], HttpMethod>>,
+	Expect<Equal<typeof requestMethods[number], RequestHttpMethod>>,
 ]>();
 
 export const responseTypes = {
