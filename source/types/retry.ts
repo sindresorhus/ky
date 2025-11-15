@@ -1,3 +1,5 @@
+import type {HttpMethod} from "./options";
+
 export type ShouldRetryState = {
 	/**
 	The error that caused the request to fail.
@@ -23,7 +25,7 @@ export type RetryOptions = {
 
 	@default ['get', 'put', 'head', 'delete', 'options', 'trace']
 	*/
-	methods?: string[];
+	methods?: Array<HttpMethod>;
 
 	/**
 	The HTTP status codes allowed to retry.
