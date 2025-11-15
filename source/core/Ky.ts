@@ -18,6 +18,7 @@ import delay from '../utils/delay.js';
 import {type ObjectEntries} from '../utils/types.js';
 import {findUnknownOptions, hasSearchParameters} from '../utils/options.js';
 import {isHTTPError, isTimeoutError} from '../utils/type-guards.js';
+import type {HttpMethod} from '../types/common.js';
 import {
 	maxSafeTimeout,
 	responseTypes,
@@ -29,7 +30,6 @@ import {
 	supportsResponseStreams,
 	supportsRequestStreams,
 } from './constants.js';
-import type {HttpMethod} from "../types/common.js";
 
 export class Ky {
 	static create(input: Input, options: Options): ResponsePromise {
@@ -317,7 +317,7 @@ export class Ky {
 		}
 
 		// Check if method is retriable for non-forced retries
-		if (!this.#options.retry.methods.includes(<HttpMethod>this.request.method.toLowerCase())) {
+		if (!this.#options.retry.methods.includes((this.request.method.toLowerCase() as HttpMethod))) {
 			throw error;
 		}
 

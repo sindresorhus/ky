@@ -7,5 +7,5 @@ export type LiteralUnion<LiteralType extends BaseType, BaseType extends Primitiv
 	| LiteralType
 	| (BaseType & {_?: never});
 
-export type RequestHttpMethod = 'get' | 'post' | 'put' | 'patch' | 'head' | 'delete' ;
-export type HttpMethod = RequestHttpMethod | 'options' | 'trace' ;
+export type RequestHttpMethod = 'get' | 'post' | 'put' | 'patch' | 'head' | 'delete';
+export type HttpMethod = RequestHttpMethod | 'options' | 'trace';

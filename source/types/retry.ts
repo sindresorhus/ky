@@ -1,4 +1,4 @@
-import type {HttpMethod} from "./common.js";
+import type {HttpMethod} from './common.js';
 
 export type ShouldRetryState = {
 	/**
@@ -25,7 +25,7 @@ export type RetryOptions = {
 
 	@default ['get', 'put', 'head', 'delete', 'options', 'trace']
 	*/
-	methods?: Array<HttpMethod>;
+	methods?: HttpMethod[];
 
 	/**
 	The HTTP status codes allowed to retry.
