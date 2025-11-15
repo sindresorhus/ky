@@ -1,5 +1,6 @@
 import type {Expect, Equal} from '@type-challenges/utils';
-import {type HttpMethod, type KyOptionsRegistry} from '../types/options.js';
+import {type KyOptionsRegistry} from '../types/options.js';
+import type {HttpMethod} from "../types/common.js";
 
 export const supportsRequestStreams = (() => {
 	let duplexAccessed = false;

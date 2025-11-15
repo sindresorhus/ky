@@ -1,4 +1,4 @@
-import type {LiteralUnion, Required} from './common.js';
+import type {HttpMethod, LiteralUnion, Required} from './common.js';
 import type {Hooks} from './hooks.js';
 import type {RetryOptions} from './retry.js';
 
@@ -7,8 +7,6 @@ export type SearchParamsInit = string | string[][] | Record<string, string> | UR
 
 // eslint-disable-next-line unicorn/prevent-abbreviations
 export type SearchParamsOption = SearchParamsInit | Record<string, string | number | boolean | undefined> | Array<Array<string | number | boolean>>;
-
-export type HttpMethod = 'get' | 'post' | 'put' | 'patch' | 'head' | 'delete';
 
 export type Input = string | URL | Request;
 

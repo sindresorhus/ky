@@ -1,4 +1,4 @@
-import type {HttpMethod} from "./options";
+import type {HttpMethod} from "./common.js";
 
 export type ShouldRetryState = {
 	/**

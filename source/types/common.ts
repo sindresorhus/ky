@@ -6,3 +6,5 @@ export type Required<T, K extends keyof T = keyof T> = T & {[P in K]-?: T[P]};
 export type LiteralUnion<LiteralType extends BaseType, BaseType extends Primitive> =
 	| LiteralType
 	| (BaseType & {_?: never});
+
+export type HttpMethod = 'get' | 'post' | 'put' | 'patch' | 'head' | 'delete';
