@@ -2,6 +2,7 @@ import {HTTPError} from '../errors/HTTPError.js';
 import {NonError} from '../errors/NonError.js';
 import {ForceRetryError} from '../errors/ForceRetryError.js';
 import type {
+	HttpMethod,
 	Input,
 	InternalOptions,
 	NormalizedOptions,
@@ -18,7 +19,6 @@ import delay from '../utils/delay.js';
 import {type ObjectEntries} from '../utils/types.js';
 import {findUnknownOptions, hasSearchParameters} from '../utils/options.js';
 import {isHTTPError, isTimeoutError} from '../utils/type-guards.js';
-import type {HttpMethod} from '../types/common.js';
 import {
 	maxSafeTimeout,
 	responseTypes,
