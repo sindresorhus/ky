@@ -37,6 +37,8 @@ export const normalizeRetryOptions = (retry: number | RetryOptions = {}): Intern
 		throw new Error('retry.methods must be an array');
 	}
 
+	retry.methods &&= retry.methods.map(method => method.toLowerCase());
+
 	if (retry.statusCodes && !Array.isArray(retry.statusCodes)) {
 		throw new Error('retry.statusCodes must be an array');
 	}
