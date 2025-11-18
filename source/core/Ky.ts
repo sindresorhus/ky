@@ -2,7 +2,6 @@ import {HTTPError} from '../errors/HTTPError.js';
 import {NonError} from '../errors/NonError.js';
 import {ForceRetryError} from '../errors/ForceRetryError.js';
 import type {
-	HttpMethod,
 	Input,
 	InternalOptions,
 	NormalizedOptions,
@@ -317,7 +316,7 @@ export class Ky {
 		}
 
 		// Check if method is retriable for non-forced retries
-		if (!this.#options.retry.methods.includes((this.request.method.toLowerCase() as HttpMethod))) {
+		if (!this.#options.retry.methods.includes((this.request.method.toLowerCase()))) {
 			throw error;
 		}
 
