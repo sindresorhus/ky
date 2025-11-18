@@ -316,7 +316,7 @@ export class Ky {
 		}
 
 		// Check if method is retriable for non-forced retries
-		if (!this.#options.retry.methods.includes((this.request.method.toLowerCase()))) {
+		if (!this.#options.retry.methods.includes(this.request.method.toLowerCase())) {
 			throw error;
 		}
 
