@@ -62,7 +62,7 @@ export type Hooks = {
 
 	The `state.retryCount` is `0` for the initial request and increments with each retry. This allows you to distinguish between initial requests and retries, which is useful when you need different behavior for retries (e.g., avoiding overwriting headers set in `beforeRetry`).
 
-	A [`Response`](https://developer.mozilla.org/en-US/docs/Web/API/Response) can be returned from this hook to completely avoid making a HTTP request. This can be used to mock a request, check an internal cache, etc. An **important** consideration when returning a `Response` from this hook is that all the following hooks will be skipped, so **ensure you only return a `Response` from the last hook**.
+	A [`Response`](https://developer.mozilla.org/en-US/docs/Web/API/Response) can be returned from this hook to completely avoid making an HTTP request. This can be used to mock a request, check an internal cache, etc. An **important** consideration when returning a `Response` from this hook is that all the following hooks will be skipped, so **ensure you only return a `Response` from the last hook**.
 
 	@example
 	```
@@ -229,7 +229,7 @@ export type Hooks = {
 	afterResponse?: AfterResponseHook[];
 
 	/**
-	This hook enables you to modify the `HTTPError` right before it is thrown. The hook function receives a `HTTPError` and a state object as arguments and should return an instance of `HTTPError`.
+	This hook enables you to modify the `HTTPError` right before it is thrown. The hook function receives an `HTTPError` and a state object as arguments and should return an instance of `HTTPError`.
 
 	@default []
 
