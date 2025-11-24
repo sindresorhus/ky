@@ -41,7 +41,7 @@ test('failed stream request must not cause memory leak', async t => {
 
 		await t.throwsAsync(
 			ky.post('invalid:', {
-				body: stream,
+				body: stream as unknown as BodyInit,
 			}),
 			{
 				instanceOf: TypeError,
