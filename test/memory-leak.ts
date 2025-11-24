@@ -36,9 +36,7 @@ test('shared abort signal must not cause memory leak of input', async t => {
 
 test('failed stream request must not cause memory leak', async t => {
 	async function isStreamLeaking() {
-		const stream: ReadableStream | undefined = ReadableStream.from([
-			new TextEncoder().encode('Bell is Ringing.'),
-		]);
+		const stream: ReadableStream | undefined = ReadableStream.from([new TextEncoder().encode('Bell is Ringing.')]);
 		const detector = new LeakDetector(stream);
 
 		await t.throwsAsync(
