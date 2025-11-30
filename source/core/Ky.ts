@@ -297,7 +297,9 @@ export class Ky {
 			}
 		}
 
-		return Math.min(this.#options.retry.backoffLimit, jitteredDelay);
+		// Handle undefined backoffLimit by treating it as no limit (Infinity)
+		const backoffLimit = this.#options.retry.backoffLimit ?? Number.POSITIVE_INFINITY;
+		return Math.min(backoffLimit, jitteredDelay);
 	}
 
 	async #calculateRetryDelay(error: unknown) {
