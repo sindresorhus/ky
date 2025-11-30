@@ -631,6 +631,41 @@ test('respect maximum backoffLimit', async t => {
 	await server.close();
 });
 
+test('backoffLimit: undefined treats as no limit (Infinity)', async t => {
+	const retryCount = 4;
+	let requestCount = 0;
+
+	const server = await createHttpTestServer();
+	server.get('/', (_request, response) => {
+		requestCount++;
+
+		if (requestCount === retryCount + 1) {
+			response.end(fixture);
+		} else {
+			response.sendStatus(500);
+		}
+	});
+
+	// When backoffLimit is undefined, it should behave the same as no limit
+	// (i.e., delays should not be clamped, same as default behavior)
+	await withPerformance({
+		t,
+		expectedDuration: 300 + 600 + 1200 + 2400,
+		async test() {
+			t.is(await ky(server.url, {
+				retry: {
+					limit: retryCount,
+					backoffLimit: undefined,
+				},
+			}).text(), fixture);
+		},
+	});
+
+	t.is(requestCount, 5);
+
+	await server.close();
+});
+
 test('respect custom retry.delay', async t => {
 	const retryCount = 4;
 	let requestCount = 0;
