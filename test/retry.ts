@@ -584,6 +584,27 @@ test('throws when retry.statusCodes is not an array', async t => {
 	await server.close();
 });
 
+test('retry options ignore undefined overrides and keep defaults', async t => {
+	let requestCount = 0;
+
+	const server = await createHttpTestServer();
+	server.get('/', (_request, response) => {
+		requestCount++;
+		response.sendStatus(500);
+	});
+
+	await t.throwsAsync(ky(server.url, {
+		retry: {
+			limit: undefined,
+		},
+	}).text(), {message: /Internal Server Error/});
+
+	// Default limit is 2, so request should be attempted 3 times
+	t.is(requestCount, defaultRetryCount + 1);
+
+	await server.close();
+});
+
 test('respect maximum backoffLimit', async t => {
 	const retryCount = 4;
 	let requestCount = 0;
