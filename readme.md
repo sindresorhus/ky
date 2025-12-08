@@ -159,6 +159,32 @@ Type: `object` and any other value accepted by [`JSON.stringify()`](https://deve
 
 Shortcut for sending JSON. Use this instead of the `body` option. Accepts any plain object or value, which will be `JSON.stringify()`'d and sent in the body with the correct header set.
 
+##### bearer
+
+Type: `string`
+
+Shortcut for setting the `Authorization: Bearer` header.
+
+When set, overrides any existing Authorization headers.
+
+```js
+import ky from 'ky';
+
+const response = await ky('https://example.com/api/user', {
+	bearer: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9'
+});
+```
+
+This is equivalent to:
+
+```js
+const response = await ky('https://example.com/api/user', {
+	headers: {
+		Authorization: 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9'
+	}
+});
+```
+
 ##### searchParams
 
 Type: `string | object<string, string | number | boolean | undefined> | Array<Array<string | number | boolean>> | URLSearchParams`\
