@@ -503,6 +503,32 @@ test('does retry on 408 with methods provided as array', async t => {
 	await server.close();
 });
 
+test('does retry on 408 with methods provided as uppercase array', async t => {
+	let requestCount = 0;
+
+	const server = await createHttpTestServer();
+	server.get('/', async (_request, response) => {
+		requestCount++;
+		response.sendStatus(408);
+	});
+
+	await t.throwsAsync(
+		ky(server.url, {
+			retry: {
+				limit: 3,
+				methods: ['GET'],
+			},
+		}).text(),
+		{
+			message: /Request Timeout/,
+		},
+	);
+
+	t.is(requestCount, 4);
+
+	await server.close();
+});
+
 test('does retry on 408 with statusCodes provided as array', async t => {
 	let requestCount = 0;
 
