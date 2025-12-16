@@ -3,7 +3,7 @@ import {TimeoutError} from '../errors/TimeoutError.js';
 import {ForceRetryError} from '../errors/ForceRetryError.js';
 
 /**
-Type guard to check if an error is a Ky error (HTTPError or TimeoutError).
+Type guard to check if an error is a Ky error.
 
 @param error - The error to check
 @returns `true` if the error is a Ky error, `false` otherwise
@@ -24,8 +24,8 @@ try {
 }
 ```
 */
-export function isKyError(error: unknown): error is HTTPError | TimeoutError {
-	return isHTTPError(error) || isTimeoutError(error);
+export function isKyError(error: unknown): error is HTTPError | TimeoutError | ForceRetryError {
+	return isHTTPError(error) || isTimeoutError(error) || isForceRetryError(error);
 }
 
 /**
