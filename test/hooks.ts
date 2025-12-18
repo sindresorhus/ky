@@ -1,6 +1,8 @@
 import test from 'ava';
 import delay from 'delay';
-import ky, {HTTPError, isHTTPError, isForceRetryError} from '../source/index.js';
+import ky, {
+	HTTPError, isHTTPError, isForceRetryError, TimeoutError,
+} from '../source/index.js';
 import {type Options} from '../source/types/options.js';
 import {createHttpTestServer} from './helpers/create-http-test-server.js';
 
@@ -2080,6 +2082,44 @@ test('afterResponse hook handles refresh endpoint returning 401', async t => {
 
 	t.is(requestCount, 1);
 	t.is(refreshCount, 1);
+
+	await server.close();
+});
+
+test('beforeTimeout hook is called on timeout', async t => {
+	const server = await createHttpTestServer();
+
+	server.get('/', async (_request, response) => {
+		await delay(1000);
+		response.end('ok');
+	});
+
+	let hookCalled = false;
+
+	const error = await t.throwsAsync(
+		ky.get(server.url, {
+			timeout: 100,
+			retry: 0,
+			hooks: {
+				beforeTimeout: [
+					error => {
+						hookCalled = true;
+
+						t.true(error instanceof TimeoutError);
+
+						error.message = 'Hook modified this message';
+						return error;
+					},
+				],
+			},
+		}),
+		{
+			instanceOf: TimeoutError,
+		},
+	);
+
+	t.true(hookCalled, 'Hook should be triggered');
+	t.is(error?.message, 'Hook modified this message', 'Error message should be modified by the hook');
 
 	await server.close();
 });

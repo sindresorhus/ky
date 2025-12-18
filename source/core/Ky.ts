@@ -1,6 +1,7 @@
 import {HTTPError} from '../errors/HTTPError.js';
 import {NonError} from '../errors/NonError.js';
 import {ForceRetryError} from '../errors/ForceRetryError.js';
+import {TimeoutError} from '../errors/TimeoutError.js';
 import type {
 	Input,
 	InternalOptions,
@@ -43,7 +44,23 @@ export class Ky {
 			await Promise.resolve();
 			// Before using ky.request, _fetch clones it and saves the clone for future retries to use.
 			// If retry is not needed, close the cloned request's ReadableStream for memory safety.
-			let response = await ky.#fetch();
+			let response: Response;
+			try {
+				response = await ky.#fetch();
+			} catch (error) {
+				if (error instanceof TimeoutError) {
+					let timeoutError = error;
+
+					for (const hook of ky.#options.hooks.beforeTimeout) {
+						// eslint-disable-next-line no-await-in-loop
+						timeoutError = await hook(timeoutError);
+					}
+
+					throw timeoutError;
+				}
+
+				throw error;
+			}
 
 			for (const hook of ky.#options.hooks.afterResponse) {
 				// Clone the response before passing to hook so we can cancel it if needed
@@ -198,6 +215,7 @@ export class Ky {
 					beforeRetry: [],
 					beforeError: [],
 					afterResponse: [],
+					beforeTimeout: [],
 				},
 				options.hooks,
 			),
