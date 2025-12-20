@@ -978,6 +978,39 @@ test('afterResponse hook can force retry with ky.retry()', async t => {
 	await server.close();
 });
 
+test('afterResponse hook forced retry does not await cancellation when hook clones response', async t => {
+	t.timeout(1000);
+
+	let requestCount = 0;
+
+	const customFetch = async () => {
+		requestCount++;
+
+		if (requestCount === 1) {
+			return new Response('unauthorized', {status: 401});
+		}
+
+		return new Response('ok');
+	};
+
+	const result = await ky('https://example.test', {
+		fetch: customFetch,
+		hooks: {
+			afterResponse: [
+				(_request, _options, response) => {
+					response.clone();
+					if (response.status === 401) {
+						return ky.retry();
+					}
+				},
+			],
+		},
+	}).text();
+
+	t.is(result, 'ok');
+	t.is(requestCount, 2);
+});
+
 test('afterResponse hook can force retry with custom delay', async t => {
 	let requestCount = 0;
 	const customDelay = 100;
