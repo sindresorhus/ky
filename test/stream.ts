@@ -71,6 +71,44 @@ test('POST JSON with upload progress', async t => {
 	await server.close();
 });
 
+test('onDownloadProgress cancels original response body', async t => {
+	let originalResponse: Response | undefined;
+	let didReportProgress = false;
+
+	const customFetch: typeof fetch = async request => {
+		if (!(request instanceof Request)) {
+			throw new TypeError('Expected input to be a Request');
+		}
+
+		const responseBody = new ReadableStream<Uint8Array>({
+			start(controller) {
+				controller.enqueue(new TextEncoder().encode('ok'));
+				controller.close();
+			},
+		});
+
+		const response = new Response(responseBody, {
+			headers: {
+				'content-length': '2',
+			},
+		});
+		originalResponse = response;
+
+		return response;
+	};
+
+	const responseText = await ky('https://example.com', {
+		fetch: customFetch,
+		onDownloadProgress() {
+			didReportProgress = true;
+		},
+	}).text();
+
+	t.is(responseText, 'ok');
+	t.true(originalResponse?.bodyUsed);
+	t.true(didReportProgress);
+});
+
 test('forced retry custom request keeps upload progress', async t => {
 	const server = await createHttpTestServer({bodyParser: false});
 	let requestCount = 0;

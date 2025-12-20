@@ -49,27 +49,44 @@ export class Ky {
 				// Clone the response before passing to hook so we can cancel it if needed
 				const clonedResponse = ky.#decorateResponse(response.clone());
 
-				// eslint-disable-next-line no-await-in-loop
-				const modifiedResponse = await hook(
-					ky.request,
-					ky.#getNormalizedOptions(),
-					clonedResponse,
-					{retryCount: ky.#retryCount},
-				);
-
-				if (modifiedResponse instanceof globalThis.Response) {
-					response = modifiedResponse;
+				let modifiedResponse;
+				try {
+					// eslint-disable-next-line no-await-in-loop
+					modifiedResponse = await hook(
+						ky.request,
+						ky.#getNormalizedOptions(),
+						clonedResponse,
+						{retryCount: ky.#retryCount},
+					);
+				} catch (error) {
+					// Cancel both responses to prevent memory leaks when hook throws
+					ky.#cancelResponseBody(clonedResponse);
+					ky.#cancelResponseBody(response);
+					throw error;
 				}
 
 				if (modifiedResponse instanceof RetryMarker) {
 					// Cancel both the cloned response passed to the hook and the current response to prevent resource leaks (especially important in Deno/Bun).
 					// Do not await cancellation since hooks can clone the response, leaving extra tee branches that keep cancel promises pending per the Streams spec.
-					void Promise.allSettled([
-						clonedResponse.body?.cancel(),
-						response.body?.cancel(),
-					]);
+					ky.#cancelResponseBody(clonedResponse);
+					ky.#cancelResponseBody(response);
 					throw new ForceRetryError(modifiedResponse.options);
 				}
+
+				// Determine which response to use going forward
+				const nextResponse = modifiedResponse instanceof globalThis.Response ? modifiedResponse : response;
+
+				// Cancel any response bodies we won't use to prevent memory leaks.
+				// Uses fire-and-forget since hooks may have cloned the response, creating tee branches that block cancellation.
+				if (clonedResponse !== nextResponse) {
+					ky.#cancelResponseBody(clonedResponse);
+				}
+
+				if (response !== nextResponse) {
+					ky.#cancelResponseBody(response);
+				}
+
+				response = nextResponse;
 			}
 
 			ky.#decorateResponse(response);
@@ -99,7 +116,9 @@ export class Ky {
 					throw new Error('Streams are not supported in your environment. `ReadableStream` is missing.');
 				}
 
-				return streamResponse(response.clone(), ky.#options.onDownloadProgress);
+				const progressResponse = response.clone();
+				ky.#cancelResponseBody(response);
+				return streamResponse(progressResponse, ky.#options.onDownloadProgress);
 			}
 
 			return response;
@@ -108,16 +127,12 @@ export class Ky {
 		// Always wrap in #retry to catch forced retries from afterResponse hooks
 		// Method retriability is checked in #calculateRetryDelay for non-forced retries
 		const result = ky.#retry(function_)
-			.finally(async () => {
+			.finally(() => {
 				const originalRequest = ky.#originalRequest;
 
-				if (originalRequest && !originalRequest.bodyUsed) {
-					void originalRequest.body?.cancel();
-				}
-
-				if (!ky.request.bodyUsed) {
-					void ky.request.body?.cancel();
-				}
+				// Ignore cancellation errors from already-locked or already-consumed streams.
+				ky.#cancelBody(originalRequest?.body ?? undefined);
+				ky.#cancelBody(ky.request.body ?? undefined);
 			}) as ResponsePromise;
 
 		for (const [type, mimeType] of Object.entries(responseTypes) as ObjectEntries<typeof responseTypes>) {
@@ -378,6 +393,20 @@ export class Ky {
 		}
 
 		return response;
+	}
+
+	#cancelBody(body: ReadableStream | undefined): void {
+		if (!body) {
+			return;
+		}
+
+		// Ignore cancellation failures from already-locked or already-consumed streams.
+		void body.cancel().catch(() => undefined);
+	}
+
+	#cancelResponseBody(response: Response): void {
+		// Ignore cancellation failures from already-locked or already-consumed streams.
+		this.#cancelBody(response.body ?? undefined);
 	}
 
 	async #retry<T extends (...arguments_: any) => Promise<any>>(function_: T): Promise<ReturnType<T> | Response | void> {
