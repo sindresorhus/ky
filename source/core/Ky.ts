@@ -110,17 +110,14 @@ export class Ky {
 		const result = ky.#retry(function_)
 			.finally(async () => {
 				const originalRequest = ky.#originalRequest;
-				const cleanupPromises = [];
 
 				if (originalRequest && !originalRequest.bodyUsed) {
-					cleanupPromises.push(originalRequest.body?.cancel());
+					void originalRequest.body?.cancel();
 				}
 
 				if (!ky.request.bodyUsed) {
-					cleanupPromises.push(ky.request.body?.cancel());
+					void ky.request.body?.cancel();
 				}
-
-				void Promise.allSettled(cleanupPromises);
 			}) as ResponsePromise;
 
 		for (const [type, mimeType] of Object.entries(responseTypes) as ObjectEntries<typeof responseTypes>) {
