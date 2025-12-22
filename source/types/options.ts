@@ -8,7 +8,8 @@ export type SearchParamsInit = string | string[][] | Record<string, string> | UR
 // eslint-disable-next-line unicorn/prevent-abbreviations
 export type SearchParamsOption = SearchParamsInit | Record<string, string | number | boolean | undefined> | Array<Array<string | number | boolean>>;
 
-export type HttpMethod = 'get' | 'post' | 'put' | 'patch' | 'head' | 'delete';
+export type RequestHttpMethod = 'get' | 'post' | 'put' | 'patch' | 'head' | 'delete';
+export type HttpMethod = LiteralUnion<RequestHttpMethod | 'options' | 'trace', string>;
 
 export type Input = string | URL | Request;
 
