@@ -48,5 +48,8 @@ export const normalizeRetryOptions = (retry: number | RetryOptions = {}): Intern
 	return {
 		...defaultRetryOptions,
 		...normalizedRetry,
+		methods: normalizedRetry.methods
+			? normalizedRetry.methods.map(method => method.toLowerCase())
+			: defaultRetryOptions.methods,
 	};
 };

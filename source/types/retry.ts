@@ -1,3 +1,6 @@
+import type {LiteralUnion} from './common.js';
+import type {HttpMethod} from './options.js';
+
 export type ShouldRetryState = {
 	/**
 	The error that caused the request to fail.
@@ -23,7 +26,7 @@ export type RetryOptions = {
 
 	@default ['get', 'put', 'head', 'delete', 'options', 'trace']
 	*/
-	methods?: string[];
+	methods?: Array<LiteralUnion<HttpMethod, string>>;
 
 	/**
 	The HTTP status codes allowed to retry.
