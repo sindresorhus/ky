@@ -62,10 +62,9 @@ export class Ky {
 				}
 
 				if (modifiedResponse instanceof RetryMarker) {
-					// Cancel both the cloned response passed to the hook and the current response
-					// to prevent resource leaks (especially important in Deno/Bun)
-					// eslint-disable-next-line no-await-in-loop
-					await Promise.all([
+					// Cancel both the cloned response passed to the hook and the current response to prevent resource leaks (especially important in Deno/Bun).
+					// Do not await cancellation since hooks can clone the response, leaving extra tee branches that keep cancel promises pending per the Streams spec.
+					void Promise.allSettled([
 						clonedResponse.body?.cancel(),
 						response.body?.cancel(),
 					]);
@@ -111,17 +110,14 @@ export class Ky {
 		const result = ky.#retry(function_)
 			.finally(async () => {
 				const originalRequest = ky.#originalRequest;
-				const cleanupPromises = [];
 
 				if (originalRequest && !originalRequest.bodyUsed) {
-					cleanupPromises.push(originalRequest.body?.cancel());
+					void originalRequest.body?.cancel();
 				}
 
 				if (!ky.request.bodyUsed) {
-					cleanupPromises.push(ky.request.body?.cancel());
+					void ky.request.body?.cancel();
 				}
-
-				await Promise.all(cleanupPromises);
 			}) as ResponsePromise;
 
 		for (const [type, mimeType] of Object.entries(responseTypes) as ObjectEntries<typeof responseTypes>) {
