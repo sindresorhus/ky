@@ -1,5 +1,7 @@
 import {type stop, type RetryMarker} from '../core/constants.js';
-import type {KyRequest, KyResponse, HTTPError} from '../index.js';
+import type {
+	KyRequest, KyResponse, HTTPError, TimeoutError,
+} from '../index.js';
 import type {NormalizedOptions} from './options.js';
 
 export type BeforeRequestState = {
@@ -55,6 +57,8 @@ export type BeforeErrorState = {
 };
 
 export type BeforeErrorHook = (error: HTTPError, state: BeforeErrorState) => HTTPError | Promise<HTTPError>;
+
+export type BeforeTimeoutHook = (error: TimeoutError) => TimeoutError | Promise<TimeoutError>;
 
 export type Hooks = {
 	/**
@@ -265,4 +269,33 @@ export type Hooks = {
 	```
 	*/
 	beforeError?: BeforeErrorHook[];
+
+	/**
+    This hook enables you to modify the `TimeoutError` right before it is thrown. The hook function receives a `TimeoutError` as an argument and should return an instance of `TimeoutError`.
+
+    @default []
+
+    @example
+    ```
+    import ky from 'ky';
+
+    await ky('[https://example.com](https://example.com)', {
+        timeout: 100,
+        hooks: {
+            beforeTimeout: [
+                async error => {
+                    // Log the timeout
+                    console.error('Request timed out', error);
+
+                    // Or modify the error message
+                    error.message = 'Custom timeout message';
+
+                    return error;
+                }
+            ]
+        }
+    });
+    ```
+    */
+	beforeTimeout?: BeforeTimeoutHook[];
 };
