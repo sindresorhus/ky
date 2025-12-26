@@ -4,6 +4,29 @@ import ky, {HTTPError, isHTTPError, isForceRetryError} from '../source/index.js'
 import {type Options} from '../source/types/options.js';
 import {createHttpTestServer} from './helpers/create-http-test-server.js';
 
+const createStreamBody = (text: string) => new ReadableStream<Uint8Array>({
+	start(controller) {
+		controller.enqueue(new TextEncoder().encode(text));
+		controller.close();
+	},
+});
+
+const createStreamFetch = ({
+	text = 'ok',
+	onResponse,
+}: {
+	text?: string;
+	onResponse?: (response: Response) => void;
+} = {}): typeof fetch => async request => {
+	if (!(request instanceof Request)) {
+		throw new TypeError('Expected input to be a Request');
+	}
+
+	const response = new Response(createStreamBody(text));
+	onResponse?.(response);
+	return response;
+};
+
 test('hooks can be async', async t => {
 	const server = await createHttpTestServer();
 	server.post('/', async (request, response) => {
@@ -107,6 +130,154 @@ test('afterResponse hook accept success response', async t => {
 	);
 
 	await server.close();
+});
+
+test('afterResponse hook cancels unused cloned response body', async t => {
+	const server = await createHttpTestServer();
+	server.get('/', (_request, response) => {
+		response.end('ok');
+	});
+
+	let didCancelClonedResponseBody = false;
+
+	await ky.get(server.url, {
+		hooks: {
+			afterResponse: [
+				async (_request, _options, response) => {
+					if (response.body) {
+						const originalCancel = response.body.cancel.bind(response.body);
+						response.body.cancel = async () => {
+							didCancelClonedResponseBody = true;
+							return originalCancel();
+						};
+					}
+				},
+			],
+		},
+	}).text();
+
+	t.true(didCancelClonedResponseBody);
+
+	await server.close();
+});
+
+test('afterResponse hook cancels both clone and original when it returns a new response', async t => {
+	let originalResponse: Response | undefined;
+	let clonedResponse: Response | undefined;
+
+	const customFetch = createStreamFetch({
+		onResponse(response) {
+			originalResponse = response;
+		},
+	});
+
+	const responseText = await ky('https://example.com', {
+		fetch: customFetch,
+		hooks: {
+			afterResponse: [
+				(_request, _options, response) => {
+					clonedResponse = response;
+					return new Response('replacement');
+				},
+			],
+		},
+	}).text();
+
+	t.is(responseText, 'replacement');
+	t.true(originalResponse?.bodyUsed);
+	t.true(clonedResponse?.bodyUsed);
+});
+
+test('afterResponse hook can return the provided response', async t => {
+	let originalResponse: Response | undefined;
+
+	const customFetch = createStreamFetch({
+		onResponse(response) {
+			originalResponse = response;
+		},
+	});
+
+	const responseText = await ky('https://example.com', {
+		fetch: customFetch,
+		hooks: {
+			afterResponse: [
+				(_request, _options, response) => response,
+			],
+		},
+	}).text();
+
+	t.is(responseText, 'ok');
+	t.true(originalResponse?.bodyUsed);
+});
+
+test('afterResponse hook with multiple hooks cancels all unused clones', async t => {
+	let originalResponse: Response | undefined;
+	const clones: Response[] = [];
+
+	const customFetch = createStreamFetch({
+		onResponse(response) {
+			originalResponse = response;
+		},
+	});
+
+	const responseText = await ky('https://example.com', {
+		fetch: customFetch,
+		hooks: {
+			afterResponse: [
+				(_request, _options, response) => {
+					clones.push(response);
+					// Return nothing - clone should be cancelled
+				},
+				(_request, _options, response) => {
+					clones.push(response);
+					// Return nothing - clone should be cancelled
+				},
+				(_request, _options, response) => {
+					clones.push(response);
+					// Return nothing - clone should be cancelled
+				},
+			],
+		},
+	}).text();
+
+	t.is(responseText, 'ok');
+	t.is(clones.length, 3);
+
+	// All clones should be cancelled (bodyUsed becomes true after cancel)
+	for (const clone of clones) {
+		t.true(clone.bodyUsed);
+	}
+});
+
+test('afterResponse hook cancels response bodies when it throws', async t => {
+	let originalResponse: Response | undefined;
+	let clonedResponse: Response | undefined;
+
+	const customFetch = createStreamFetch({
+		onResponse(response) {
+			originalResponse = response;
+		},
+	});
+
+	const expectError = new Error('Hook error');
+
+	await t.throwsAsync(
+		ky('https://example.com', {
+			fetch: customFetch,
+			hooks: {
+				afterResponse: [
+					(_request, _options, response) => {
+						clonedResponse = response;
+						throw expectError;
+					},
+				],
+			},
+		}).text(),
+		{is: expectError},
+	);
+
+	t.true(originalResponse?.bodyUsed);
+	t.true(clonedResponse?.bodyUsed);
 });
 
 test('afterResponse hook accept fail response', async t => {
