@@ -731,6 +731,31 @@ test('ky.create() does not mangle search params', async t => {
 	await server.close();
 });
 
+test('ky.create() with default json does not add context to merged json body', async t => {
+	const server = await createHttpTestServer();
+	server.post('/', async (request, response) => {
+		response.json(request.body);
+	});
+
+	const api = ky.create({
+		prefixUrl: server.url,
+		json: {
+			foo: 'bar',
+		},
+	});
+
+	const result = await api.post('', {
+		json: {
+			baz: 'baz',
+		},
+	}).json<Record<string, unknown>>();
+
+	t.deepEqual(result, {foo: 'bar', baz: 'baz'});
+	t.false('context' in result);
+
+	await server.close();
+});
+
 const extendHooksMacro = test.macro<[{useFunction: boolean}]>(async (t, {useFunction}) => {
 	const server = await createHttpTestServer();
 	server.get('/', (_request, response) => {

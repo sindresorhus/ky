@@ -171,9 +171,5 @@ export const deepMerge = <T>(...sources: Array<Partial<T> | undefined>): T => {
 		}
 	}
 
-	if (returnValue.context === undefined) {
-		returnValue.context = {};
-	}
-
 	return returnValue;
 };
