@@ -1007,16 +1007,17 @@ Be aware that some types of errors, such as network errors, inherently mean that
 > When catching an `HTTPError`, you must consume or cancel the `error.response` body to prevent resource leaks (especially in Deno and Bun).
 
 ```js
-import {isHTTPError} from 'ky';
+import ky, {isHTTPError} from 'ky';
 
 try {
 	await ky('https://example.com').json();
 } catch (error) {
 	if (isHTTPError(error)) {
-		// Option 1: Read the error response body
-		const errorJson = await error.response.json();
+		// If you need the error body, consume it:
+		const errorText = await error.response.text();
+		console.error(errorText);
 
-		// Option 2: Cancel the body if you don't need it
+		// If you DON'T need the body, discard it to avoid leaks (Deno/Bun):
 		// await error.response.body?.cancel();
 	}
 }
