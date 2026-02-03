@@ -6,16 +6,14 @@ import type {KyInstance} from './types/ky.js';
 import type {Input, Options} from './types/options.js';
 import {validateAndMerge} from './utils/merge.js';
 import {type Mutable} from './utils/types.js';
-
+import { grpcSupport } from './grpc-plugin';
 const createInstance = (defaults?: Partial<Options>): KyInstance => {
 	// eslint-disable-next-line @typescript-eslint/promise-function-async
-	const ky: Partial<Mutable<KyInstance>> = (input: Input, options?: Options) => Ky.create(input, validateAndMerge(defaults, options));
-
-	for (const method of requestMethods) {
-		// eslint-disable-next-line @typescript-eslint/promise-function-async
-		ky[method] = (input: Input, options?: Options) => Ky.create(input, validateAndMerge(defaults, options, {method}));
-	}
-
+const ky: Partial<Mutable<KyInstance>> = (input: Input, options?: Options) => Ky.create(input, grpcSupport(options))
+		for (const method of requestMethods) {
+			// eslint-disable-next-line @typescript-eslint/promise-function-async
+			ky[method] = (input: Input, options?: Options) => ky(input, {...options, method});
+		}
 	ky.create = (newDefaults?: Partial<Options>) => createInstance(validateAndMerge(newDefaults));
 	ky.extend = (newDefaults?: Partial<Options> | ((parentDefaults: Partial<Options>) => Partial<Options>)) => {
 		if (typeof newDefaults === 'function') {
@@ -30,11 +28,7 @@ const createInstance = (defaults?: Partial<Options>): KyInstance => {
 
 	return ky as KyInstance;
 };
-
-const ky = createInstance();
-
 export default ky;
-
 export type {KyInstance} from './types/ky.js';
 
 export type {
