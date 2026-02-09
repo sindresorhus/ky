@@ -286,11 +286,13 @@ export class Ky {
 				throw new TypeError('The `onUploadProgress` option must be a function');
 			}
 
-			if (!supportsRequestStreams) {
-				throw new Error('Request streams are not supported in your environment. The `duplex` option for `Request` is not available.');
+			// Only wrap with progress tracking when request streams are supported.
+			// When streams aren't supported (e.g., Safari, iOS WebView), we gracefully
+			// degrade by proceeding with the request without progress reporting.
+			// This avoids throwing errors in environments with partial stream support.
+			if (supportsRequestStreams) {
+				this.request = this.#wrapRequestWithUploadProgress(this.request, this.#options.body ?? undefined);
 			}
-
-			this.request = this.#wrapRequestWithUploadProgress(this.request, this.#options.body ?? undefined);
 		}
 	}
 
