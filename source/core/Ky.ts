@@ -45,6 +45,16 @@ export class Ky {
 			// If retry is not needed, close the cloned request's ReadableStream for memory safety.
 			let response = await ky.#fetch();
 
+			// When request streams aren't supported, report 100% upload progress after
+			// the request completes. This provides feedback that the upload finished.
+			if (ky.#uploadProgressFallback && ky.#options.onUploadProgress) {
+				const {totalBytes} = ky.#uploadProgressFallback;
+				ky.#options.onUploadProgress(
+					{percent: 1, transferredBytes: totalBytes, totalBytes},
+					new Uint8Array(0),
+				);
+			}
+
 			for (const hook of ky.#options.hooks.afterResponse) {
 				// Clone the response before passing to hook so we can cancel it if needed
 				const clonedResponse = ky.#decorateResponse(response.clone());
@@ -195,6 +205,9 @@ export class Ky {
 	#originalRequest?: Request;
 	readonly #userProvidedAbortSignal?: AbortSignal;
 	#cachedNormalizedOptions: NormalizedOptions | undefined;
+	// When request streams aren't supported, we track upload progress fallback info
+	// to report 100% completion after the request finishes
+	readonly #uploadProgressFallback?: {totalBytes: number};
 
 	// eslint-disable-next-line complexity
 	constructor(input: Input, options: Options = {}) {
@@ -286,12 +299,29 @@ export class Ky {
 				throw new TypeError('The `onUploadProgress` option must be a function');
 			}
 
-			// Only wrap with progress tracking when request streams are supported.
-			// When streams aren't supported (e.g., Safari, iOS WebView), we gracefully
-			// degrade by proceeding with the request without progress reporting.
-			// This avoids throwing errors in environments with partial stream support.
 			if (supportsRequestStreams) {
+				// Use streaming progress tracking
 				this.request = this.#wrapRequestWithUploadProgress(this.request, this.#options.body ?? undefined);
+			} else {
+				// When streams aren't supported (e.g., Safari, iOS WebView), we can't track
+				// incremental progress. Instead, we'll report 100% completion after the
+				// request finishes. Calculate the body size now for the callback.
+				const body = this.#options.body ?? this.request.body;
+				let totalBytes = 0;
+				if (body instanceof Blob) {
+					totalBytes = body.size;
+				} else if (body instanceof ArrayBuffer || ArrayBuffer.isView(body)) {
+					totalBytes = body.byteLength;
+				} else if (typeof body === 'string') {
+					totalBytes = new TextEncoder().encode(body).byteLength;
+				} else if (body instanceof URLSearchParams) {
+					totalBytes = new TextEncoder().encode(body.toString()).byteLength;
+				} else if (body instanceof FormData) {
+					// FormData size is hard to calculate, use 0 (unknown)
+					totalBytes = 0;
+				}
+
+				this.#uploadProgressFallback = {totalBytes};
 			}
 		}
 	}
