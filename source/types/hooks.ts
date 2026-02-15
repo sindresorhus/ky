@@ -92,7 +92,7 @@ export type Hooks = {
 
 	The hook can return a [`Request`](https://developer.mozilla.org/en-US/docs/Web/API/Request) to replace the outgoing retry request, or return a [`Response`](https://developer.mozilla.org/en-US/docs/Web/API/Response) to skip the retry and use that response instead. **Note:** Returning a request or response skips remaining `beforeRetry` hooks.
 
-	If the request received a response, the error will be of type `HTTPError` and the `Response` object will be available at `error.response`. Be aware that some types of errors, such as network errors, inherently mean that a response was not received. In that case, the error will not be an instance of `HTTPError`.
+	If the request received a response, the error will be of type `HTTPError`. The `Response` object will be available at `error.response`, and the pre-parsed response body will be available at `error.data`. Be aware that some types of errors, such as network errors, inherently mean that a response was not received. In that case, the error will not be an instance of `HTTPError`.
 
 	You can prevent Ky from retrying the request by throwing an error. Ky will not handle it in any way and the error will be propagated to the request initiator. The rest of the `beforeRetry` hooks will not be called in this case. Alternatively, you can return the [`ky.stop`](#ky.stop) symbol to do the same thing but without propagating an error (this has some limitations, see `ky.stop` docs for details).
 
@@ -118,17 +118,21 @@ export type Hooks = {
 
 	@example
 	```
-	import ky from 'ky';
+	import ky, {isHTTPError} from 'ky';
 
 	const response = await ky('https://example.com/api', {
 		hooks: {
 			beforeRetry: [
-				async ({request, error}) => {
+				({request, error}) => {
 					// Add query parameters based on error response
-					if (error.response) {
-						const body = await error.response.json();
+					if (
+						isHTTPError(error)
+						&& typeof error.data === 'object'
+						&& error.data !== null
+						&& 'processId' in error.data
+					) {
 						const url = new URL(request.url);
-						url.searchParams.set('processId', body.processId);
+						url.searchParams.set('processId', String(error.data.processId));
 						return new Request(url, request);
 					}
 				}
@@ -240,12 +244,14 @@ export type Hooks = {
 	await ky('https://example.com', {
 		hooks: {
 			beforeError: [
-				async error => {
-					const {response} = error;
-					if (response) {
-						const body = await response.json();
+				error => {
+					if (
+						typeof error.data === 'object'
+						&& error.data !== null
+						&& 'message' in error.data
+					) {
 						error.name = 'GitHubError';
-						error.message = `${body.message} (${response.status})`;
+						error.message = `${String(error.data.message)} (${error.response.status})`;
 					}
 
 					return error;

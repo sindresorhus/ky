@@ -6,6 +6,7 @@ export class HTTPError<T = unknown> extends Error {
 	public response: KyResponse<T>;
 	public request: KyRequest;
 	public options: NormalizedOptions;
+	public data: T | string | undefined;
 
 	constructor(response: Response, request: Request, options: NormalizedOptions) {
 		const code = (response.status || response.status === 0) ? response.status : '';

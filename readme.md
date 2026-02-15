@@ -381,7 +381,7 @@ The hook can return a [`Request`](https://developer.mozilla.org/en-US/docs/Web/A
 
 The `retryCount` is always `>= 1` since this hook is only called during retries, not on the initial request.
 
-If the request received a response, the error will be of type `HTTPError` and the `Response` object will be available at `error.response`. Be aware that some types of errors, such as network errors, inherently mean that a response was not received. In that case, the error will not be an instance of `HTTPError`.
+If the request received a response, the error will be of type `HTTPError`. The `Response` object will be available at `error.response`, and the pre-parsed response body will be available at `error.data`. Be aware that some types of errors, such as network errors, inherently mean that a response was not received. In that case, the error will not be an instance of `HTTPError`.
 
 You can prevent Ky from retrying the request by throwing an error. Ky will not handle it in any way and the error will be propagated to the request initiator. The rest of the `beforeRetry` hooks will not be called in this case. Alternatively, you can return the [`ky.stop`](#kystop) symbol to do the same thing but without propagating an error (this has some limitations, see `ky.stop` docs for details).
 
@@ -405,17 +405,21 @@ const response = await ky('https://example.com', {
 **Modifying the request URL:**
 
 ```js
-import ky from 'ky';
+import ky, {isHTTPError} from 'ky';
 
 const response = await ky('https://example.com/api', {
 	hooks: {
 		beforeRetry: [
-			async ({request, error}) => {
+			({request, error}) => {
 				// Add query parameters based on error response
-				if (error.response) {
-					const body = await error.response.json();
+				if (
+					isHTTPError(error)
+					&& typeof error.data === 'object'
+					&& error.data !== null
+					&& 'processId' in error.data
+				) {
 					const url = new URL(request.url);
-					url.searchParams.set('processId', body.processId);
+					url.searchParams.set('processId', String(error.data.processId));
 					return new Request(url, request);
 				}
 			}
@@ -458,12 +462,14 @@ import ky from 'ky';
 await ky('https://example.com', {
 	hooks: {
 		beforeError: [
-			async error => {
-				const {response} = error;
-				if (response) {
-					const body = await response.json();
+			error => {
+				if (
+					typeof error.data === 'object'
+					&& error.data !== null
+					&& 'message' in error.data
+				) {
 					error.name = 'GitHubError';
-					error.message = `${body.message} (${response.status})`;
+					error.message = `${String(error.data.message)} (${error.response.status})`;
 				}
 
 				return error;
@@ -1001,23 +1007,21 @@ const response = await api.get('https://example.com/api');
 
 Exposed for `instanceof` checks. The error has a `response` property with the [`Response` object](https://developer.mozilla.org/en-US/docs/Web/API/Response), `request` property with the [`Request` object](https://developer.mozilla.org/en-US/docs/Web/API/Request), and `options` property with normalized options (either passed to `ky` when creating an instance with `ky.create()` or directly when performing the request).
 
+It also has a `data` property with the pre-parsed response body. For JSON responses (based on `Content-Type`), the body is parsed using the [`parseJson` option](#parsejson) if set, or `JSON.parse` by default. For other content types, it is set as plain text. If the body is empty or parsing fails, `data` will be `undefined`. To avoid hanging or excessive buffering, `error.data` population is bounded by the request timeout and a 10 MiB response body size limit. The `data` property is populated before [`beforeError`](#hooks) hooks run, so hooks can access it.
+
 Be aware that some types of errors, such as network errors, inherently mean that a response was not received. In that case, the error will not be an instance of HTTPError and will not contain a `response` property.
 
-> [!IMPORTANT]
-> When catching an `HTTPError`, you must consume or cancel the `error.response` body to prevent resource leaks (especially in Deno and Bun).
+> [!NOTE]
+> The response body is automatically consumed when populating `error.data`, so you do not need to manually consume or cancel `error.response.body`.
 
 ```js
-import {isHTTPError} from 'ky';
+import ky, {isHTTPError} from 'ky';
 
 try {
 	await ky('https://example.com').json();
 } catch (error) {
 	if (isHTTPError(error)) {
-		// Option 1: Read the error response body
-		const errorJson = await error.response.json();
-
-		// Option 2: Cancel the body if you don't need it
-		// await error.response.body?.cancel();
+		console.log(error.data);
 	}
 }
 ```
@@ -1028,10 +1032,9 @@ You can also use the `beforeError` hook:
 await ky('https://example.com', {
 	hooks: {
 		beforeError: [
-			async error => {
-				const {response} = error;
-				if (response) {
-					error.message = `${error.message}: ${await response.text()}`;
+			error => {
+				if (error.data !== undefined) {
+					error.message = `${error.message}: ${JSON.stringify(error.data)}`;
 				}
 
 				return error;
@@ -1041,7 +1044,7 @@ await ky('https://example.com', {
 });
 ```
 
-⌨️ **TypeScript:** Accepts an optional [type parameter](https://www.typescriptlang.org/docs/handbook/2/generics.html), which defaults to [`unknown`](https://www.typescriptlang.org/docs/handbook/2/functions.html#unknown), and is passed through to the return type of `error.response.json()`.
+⌨️ **TypeScript:** Accepts an optional [type parameter](https://www.typescriptlang.org/docs/handbook/2/generics.html), which defaults to [`unknown`](https://www.typescriptlang.org/docs/handbook/2/functions.html#unknown), and is passed through to the type of `error.data`.
 
 ### TimeoutError
 
