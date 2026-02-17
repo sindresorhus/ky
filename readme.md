@@ -381,7 +381,7 @@ The hook can return a [`Request`](https://developer.mozilla.org/en-US/docs/Web/A
 
 The `retryCount` is always `>= 1` since this hook is only called during retries, not on the initial request.
 
-If the request received a response, the error will be of type `HTTPError` and the `Response` object will be available at `error.response`. Be aware that some types of errors, such as network errors, inherently mean that a response was not received. In that case, the error will not be an instance of `HTTPError`.
+If the request received a response, the error will be of type `HTTPError` and the `Response` object will be available at `error.response`. Be aware that some types of errors, such as network errors, inherently mean that a response was not received. In that case, the error will not be an instance of `HTTPError`. If you catch an `HTTPError`, consume or cancel `error.response` to avoid resource leaks (especially in Deno and Bun).
 
 You can prevent Ky from retrying the request by throwing an error. Ky will not handle it in any way and the error will be propagated to the request initiator. The rest of the `beforeRetry` hooks will not be called in this case. Alternatively, you can return the [`ky.stop`](#kystop) symbol to do the same thing but without propagating an error (this has some limitations, see `ky.stop` docs for details).
 
