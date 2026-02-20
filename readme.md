@@ -36,6 +36,9 @@ It's just a tiny package with no dependencies.
 npm install ky
 ```
 
+> [!NOTE]
+> This readme is for the next version of Ky. For the current version, [click here](https://www.npmjs.com/package/ky).
+
 ###### CDN
 
 - [jsdelivr](https://cdn.jsdelivr.net/npm/ky/+esm)
