@@ -30,6 +30,20 @@ import {
 	supportsRequestStreams,
 } from './constants.js';
 
+const maxErrorResponseBodySize = 10 * 1024 * 1024;
+
+const createTextDecoder = (contentType: string): TextDecoder => {
+	const match = /;\s*charset\s*=\s*(?:"([^"]+)"|([^;,\s]+))/i.exec(contentType);
+	const charset = match?.[1] ?? match?.[2];
+	if (charset) {
+		try {
+			return new TextDecoder(charset);
+		} catch {}
+	}
+
+	return new TextDecoder();
+};
+
 export class Ky {
 	static create(input: Input, options: Options): ResponsePromise {
 		const ky = new Ky(input, options);
@@ -97,6 +111,7 @@ export class Ky {
 					: ky.#options.throwHttpErrors
 			)) {
 				let error = new HTTPError(response, ky.request, ky.#getNormalizedOptions());
+				error.data = await ky.#getResponseData(response);
 
 				for (const hook of ky.#options.hooks.beforeError) {
 					// eslint-disable-next-line no-await-in-loop
@@ -393,6 +408,111 @@ export class Ky {
 		}
 
 		return response;
+	}
+
+	async #getResponseData(response: Response): Promise<unknown> {
+		// Even with request timeouts disabled, bound error-body reads so retries and error propagation
+		// cannot be stalled indefinitely by never-ending response streams.
+		const errorDataTimeout = this.#options.timeout === false ? 10_000 : this.#options.timeout;
+		const text = await this.#readResponseText(response, errorDataTimeout);
+
+		if (!text) {
+			return undefined;
+		}
+
+		if (!this.#isJsonContentType(response.headers.get('content-type') ?? '')) {
+			return text;
+		}
+
+		return this.#parseJson(text, errorDataTimeout);
+	}
+
+	#isJsonContentType(contentType: string): boolean {
+		// Match JSON subtypes like `json`, `problem+json`, and `vnd.api+json`.
+		const mimeType = (contentType.split(';', 1)[0] ?? '').trim().toLowerCase();
+		return /\/(?:.*[.+-])?json$/.test(mimeType);
+	}
+
+	async #readResponseText(response: Response, timeoutMs: number): Promise<string | undefined> {
+		const {body} = response;
+		if (!body) {
+			try {
+				return await response.text();
+			} catch {
+				return undefined;
+			}
+		}
+
+		let reader: ReadableStreamDefaultReader<Uint8Array>;
+		try {
+			reader = body.getReader();
+		} catch {
+			// Another consumer already locked the stream.
+			return undefined;
+		}
+
+		const decoder = createTextDecoder(response.headers.get('content-type') ?? '');
+		const chunks: string[] = [];
+		let totalBytes = 0;
+
+		const readAll = (async (): Promise<string | undefined> => {
+			try {
+				for (;;) {
+					// eslint-disable-next-line no-await-in-loop
+					const {done, value} = await reader.read();
+					if (done) {
+						break;
+					}
+
+					totalBytes += value.byteLength;
+					if (totalBytes > maxErrorResponseBodySize) {
+						void reader.cancel().catch(() => undefined);
+						return undefined;
+					}
+
+					chunks.push(decoder.decode(value, {stream: true}));
+				}
+			} catch {
+				return undefined;
+			}
+
+			chunks.push(decoder.decode());
+			return chunks.join('');
+		})();
+
+		const timeoutPromise = new Promise<undefined>(resolve => {
+			const timeoutId = setTimeout(() => {
+				resolve(undefined);
+			}, timeoutMs);
+			void readAll.finally(() => {
+				clearTimeout(timeoutId);
+			});
+		});
+
+		const result = await Promise.race([readAll, timeoutPromise]);
+		if (result === undefined) {
+			void reader.cancel().catch(() => undefined);
+		}
+
+		return result;
+	}
+
+	async #parseJson(text: string, timeoutMs: number): Promise<unknown> {
+		let timeoutId: ReturnType<typeof setTimeout> | undefined;
+		try {
+			return await Promise.race([
+				Promise.resolve().then(() => (this.#options.parseJson ?? JSON.parse)(text)),
+				new Promise<undefined>(resolve => {
+					timeoutId = setTimeout(() => {
+						resolve(undefined);
+					}, timeoutMs);
+				}),
+			]);
+		} catch {
+			return undefined;
+		} finally {
+			clearTimeout(timeoutId);
+		}
 	}
 
 	#cancelBody(body: ReadableStream | undefined): void {

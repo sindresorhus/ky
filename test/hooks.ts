@@ -103,7 +103,7 @@ test('beforeRequest hook allows modifications', async t => {
 	await server.close();
 });
 
-test('afterResponse hook accept success response', async t => {
+test('afterResponse hook accepts success response', async t => {
 	const server = await createHttpTestServer();
 	server.post('/', async (request, response) => {
 		response.json(request.body);
@@ -280,7 +280,7 @@ test('afterResponse hook cancels response bodies when it throws', async t => {
 	t.true(clonedResponse?.bodyUsed);
 });
 
-test('afterResponse hook accept fail response', async t => {
+test('afterResponse hook accepts failed response', async t => {
 	const server = await createHttpTestServer();
 	server.post('/', async (request, response) => {
 		response.status(500).send(request.body);
@@ -628,7 +628,7 @@ test('beforeRetry hook is called even if the error has no response', async t => 
 	await server.close();
 });
 
-test('beforeRetry hook with parseJson and error.response.json()', async t => {
+test('beforeRetry hook with parseJson and error.data', async t => {
 	t.plan(11);
 
 	let requestCount = 0;
@@ -637,7 +637,7 @@ test('beforeRetry hook with parseJson and error.response.json()', async t => {
 	server.get('/', async (_request, response) => {
 		requestCount++;
 		if (requestCount === 1) {
-			response.status(502).end('text');
+			response.status(502).type('application/json').send('text');
 		} else {
 			response.end('text');
 		}
@@ -657,7 +657,7 @@ test('beforeRetry hook with parseJson and error.response.json()', async t => {
 						t.true(isHTTPError(error));
 						t.is(error.message, `Request failed with status code 502 Bad Gateway: GET ${server.url}/`);
 						t.true((error as HTTPError).response instanceof Response);
-						t.deepEqual(await (error as HTTPError).response.json(), {awesome: true});
+						t.deepEqual((error as HTTPError).data, {awesome: true});
 						t.is(retryCount, 1);
 						t.is(requestCount, 1);
 					},
@@ -667,6 +667,93 @@ test('beforeRetry hook with parseJson and error.response.json()', async t => {
 		.json();
 
 	t.deepEqual(json, {awesome: true});
+	t.is(requestCount, 2);
+
+	await server.close();
+});
+
+test('beforeRetry hook with async parseJson and error.data', async t => {
+	t.plan(12);
+
+	let requestCount = 0;
+
+	const server = await createHttpTestServer();
+	server.get('/', async (_request, response) => {
+		requestCount++;
+		if (requestCount === 1) {
+			response.status(502).type('application/json').send('text');
+		} else {
+			response.end('text');
+		}
+	});
+
+	const json = await ky
+		.get(server.url, {
+			retry: 1,
+			async parseJson(text) {
+				t.is(text, 'text');
+				await Promise.resolve();
+				return {awesome: true};
+			},
+			hooks: {
+				beforeRetry: [
+					async ({error, retryCount}) => {
+						t.true(error instanceof HTTPError);
+						t.true(isHTTPError(error));
+						t.is(error.message, `Request failed with status code 502 Bad Gateway: GET ${server.url}/`);
+						t.true((error as HTTPError).response instanceof Response);
+						t.deepEqual((error as HTTPError).data, {awesome: true});
+						t.false((error as HTTPError).data instanceof Promise);
+						t.is(retryCount, 1);
+						t.is(requestCount, 1);
+					},
+				],
+			},
+		})
+		.json();
+
+	t.deepEqual(json, {awesome: true});
+	t.is(requestCount, 2);
+
+	await server.close();
+});
+
+test('beforeRetry hook gets HTTPError when async parseJson rejects', async t => {
+	t.plan(7);
+
+	let requestCount = 0;
+
+	const server = await createHttpTestServer();
+	server.get('/', async (_request, response) => {
+		requestCount++;
+		if (requestCount === 1) {
+			response.status(502).type('application/json').send('text');
+		} else {
+			response.end('ok');
+		}
+	});
+
+	const text = await ky
+		.get(server.url, {
+			retry: 1,
+			async parseJson() {
+				throw new Error('custom parse failure');
+			},
+			hooks: {
+				beforeRetry: [
+					({error, retryCount}) => {
+						t.true(error instanceof HTTPError);
+						t.true(isHTTPError(error));
+						t.is((error as HTTPError).data, undefined);
+						t.is(retryCount, 1);
+						t.is(requestCount, 1);
+					},
+				],
+			},
+		})
+		.text();
+
+	t.is(text, 'ok');
 	t.is(requestCount, 2);
 
 	await server.close();
@@ -824,13 +911,10 @@ test('beforeError can return promise which resolves to HTTPError', async t => {
 			hooks: {
 				beforeError: [
 					async (error: HTTPError) => {
-						const {response} = error;
-						const body = await response.json<{reason: string}>();
+						const body = error.data as {reason: string};
 
-						if (response?.body) {
-							error.name = 'GitHubError';
-							error.message = `${body.reason} --- (${response.status})`.trim();
-						}
+						error.name = 'GitHubError';
+						error.message = `${body.reason} --- (${error.response.status})`.trim();
 
 						return error;
 					},
