@@ -1,6 +1,11 @@
 import test from 'ava';
 import delay from 'delay';
-import ky, {HTTPError, isHTTPError, isForceRetryError} from '../source/index.js';
+import ky, {
+	HTTPError,
+	isHTTPError,
+	isForceRetryError,
+	TimeoutError,
+} from '../source/index.js';
 import {type Options} from '../source/types/options.js';
 import {createHttpTestServer} from './helpers/create-http-test-server.js';
 
@@ -524,6 +529,73 @@ test('beforeRetry hook is never called for the initial request', async t => {
 	await server.close();
 });
 
+test('beforeRequest hook on initial request cannot bypass total timeout budget', async t => {
+	let fetchCallCount = 0;
+
+	const customFetch: typeof fetch = async () => {
+		fetchCallCount++;
+		return new Response('ok');
+	};
+
+	const error = await t.throwsAsync(
+		ky('https://example.com', {
+			fetch: customFetch,
+			timeout: 100,
+			hooks: {
+				beforeRequest: [
+					async () => {
+						await delay(200);
+					},
+				],
+			},
+		}).text(),
+		{
+			name: 'TimeoutError',
+		},
+	);
+
+	t.true(error instanceof TimeoutError);
+	t.is(fetchCallCount, 0);
+});
+
+test('beforeRequest hook on retry cannot bypass total timeout budget', async t => {
+	let fetchCallCount = 0;
+
+	const customFetch: typeof fetch = async () => {
+		fetchCallCount++;
+		if (fetchCallCount === 1) {
+			return new Response('first-attempt', {status: 500});
+		}
+
+		return new Response('second-attempt-success');
+	};
+
+	await t.throwsAsync(
+		ky('https://example.com', {
+			fetch: customFetch,
+			timeout: 100,
+			retry: {
+				limit: 1,
+				delay: () => 0,
+			},
+			hooks: {
+				beforeRequest: [
+					async (_request, _options, state) => {
+						if (state.retryCount > 0) {
+							await delay(200);
+						}
+					},
+				],
+			},
+		}).text(),
+		{
+			name: 'TimeoutError',
+		},
+	);
+
+	t.is(fetchCallCount, 1);
+});
+
 test('beforeRetry hook allows modifications of non initial requests', async t => {
 	let requestCount = 0;
 
@@ -789,6 +861,45 @@ test('beforeRetry hook can cancel retries by returning `stop`', async t => {
 	t.is(requestCount, 1);
 
 	await server.close();
+});
+
+test('beforeRetry hook respects total timeout budget', async t => {
+	let fetchCallCount = 0;
+	let beforeRetryCallCount = 0;
+
+	const customFetch: typeof fetch = async () => {
+		fetchCallCount++;
+		if (fetchCallCount === 1) {
+			return new Response('first-attempt', {status: 500});
+		}
+
+		return new Response('second-attempt-success');
+	};
+
+	await t.throwsAsync(
+		ky('https://example.com', {
+			fetch: customFetch,
+			timeout: 1000,
+			retry: {
+				limit: 1,
+				delay: () => 0,
+			},
+			hooks: {
+				beforeRetry: [
+					async () => {
+						beforeRetryCallCount++;
+						await delay(2000);
+					},
+				],
+			},
+		}).text(),
+		{
+			name: 'TimeoutError',
+		},
+	);
+
+	t.is(beforeRetryCallCount, 1);
+	t.is(fetchCallCount, 1);
 });
 
 test('catches beforeRetry thrown errors', async t => {
@@ -1305,6 +1416,42 @@ test('afterResponse hook can force retry with custom delay', async t => {
 	t.deepEqual(result, {success: true});
 	t.is(requestCount, 2);
 	t.true(elapsedTime >= customDelay); // Verify custom delay was used
+
+	await server.close();
+});
+
+test('afterResponse forced retry respects total timeout budget', async t => {
+	let requestCount = 0;
+
+	const server = await createHttpTestServer();
+	server.get('/', (_request, response) => {
+		requestCount++;
+		response.json({error: {code: 'RETRY_WITH_DELAY'}});
+	});
+
+	await t.throwsAsync(
+		ky.get(server.url, {
+			timeout: 100,
+			retry: {
+				limit: 3,
+			},
+			hooks: {
+				afterResponse: [
+					async (_request, _options, response) => {
+						const data = await response.clone().json();
+						if (data.error?.code === 'RETRY_WITH_DELAY') {
+							return ky.retry({delay: 200});
+						}
+					},
+				],
+			},
+		}),
+		{
+			name: 'TimeoutError',
+		},
+	);
+
+	t.true(requestCount <= 1);
 
 	await server.close();
 });
