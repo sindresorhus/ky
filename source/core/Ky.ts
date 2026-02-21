@@ -691,7 +691,19 @@ export class Ky {
 
 	#getNormalizedOptions(): NormalizedOptions {
 		if (!this.#cachedNormalizedOptions) {
-			const {hooks, ...normalizedOptions} = this.#options;
+			// Exclude Ky-specific options that are not part of `RequestInit`.
+			const {
+				hooks,
+				json,
+				parseJson,
+				stringifyJson,
+				searchParams,
+				timeout,
+				throwHttpErrors,
+				fetch,
+				...normalizedOptions
+			} = this.#options;
+
 			this.#cachedNormalizedOptions = Object.freeze(normalizedOptions) as NormalizedOptions;
 		}
 

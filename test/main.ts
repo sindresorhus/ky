@@ -525,45 +525,6 @@ test('throwHttpErrors function - selective error handling', async t => {
 	);
 });
 
-test('throwHttpErrors preserves original type in hooks', async t => {
-	const server = await createHttpTestServer(t);
-
-	server.get('/', (_request, response) => {
-		response.sendStatus(200);
-	});
-
-	// Test that boolean is preserved
-	let booleanTypeInHook: unknown;
-	await ky.get(server.url, {
-		throwHttpErrors: false,
-		hooks: {
-			beforeRequest: [
-				({options}) => {
-					booleanTypeInHook = options.throwHttpErrors;
-				},
-			],
-		},
-	});
-	t.is(typeof booleanTypeInHook, 'boolean');
-	t.is(booleanTypeInHook, false);
-
-	// Test that function is preserved
-	let functionTypeInHook: unknown;
-	const throwFunction = (status: number) => status >= 500;
-	await ky.get(server.url, {
-		throwHttpErrors: throwFunction,
-		hooks: {
-			beforeRequest: [
-				({options}) => {
-					functionTypeInHook = options.throwHttpErrors;
-				},
-			],
-		},
-	});
-	t.is(typeof functionTypeInHook, 'function');
-	t.is(functionTypeInHook, throwFunction);
-});
-
 test('ky.create()', async t => {
 	const server = await createHttpTestServer(t);
 	server.get('/', (request, response) => {
