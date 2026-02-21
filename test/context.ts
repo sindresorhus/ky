@@ -24,17 +24,17 @@ test('context is available in all hooks', async t => {
 			retry: {limit: 0},
 			hooks: {
 				beforeRequest: [
-					(_request, options) => {
+					({options}) => {
 						t.deepEqual(options.context, context);
 					},
 				],
 				afterResponse: [
-					async (_input, options, _response) => {
+					async ({options}) => {
 						t.deepEqual(options.context, context);
 					},
 				],
 				beforeError: [
-					error => {
+					({error}) => {
 						t.deepEqual(error.options.context, context);
 						return error;
 					},
@@ -73,7 +73,7 @@ test('context works with ky.create and ky.extend', async t => {
 	await baseApi.get('', {
 		hooks: {
 			beforeRequest: [
-				(_request, options) => {
+				({options}) => {
 					t.deepEqual(options.context, {base: 'value'});
 				},
 			],
@@ -85,7 +85,7 @@ test('context works with ky.create and ky.extend', async t => {
 		context: {request: 'value'},
 		hooks: {
 			beforeRequest: [
-				(_request, options) => {
+				({options}) => {
 					t.deepEqual(options.context, {base: 'value', extended: 'value', request: 'value'});
 				},
 			],
@@ -115,7 +115,7 @@ test('context is preserved across retries', async t => {
 		retry: {limit: 2},
 		hooks: {
 			beforeRequest: [
-				(_request, options) => {
+				({options}) => {
 					t.deepEqual(options.context, context);
 					callCount++;
 				},
@@ -136,7 +136,7 @@ test('context defaults to empty object when not provided', async t => {
 
 	await ky.get(server.url, {
 		hooks: {
-			beforeRequest: [(_request, options) => t.deepEqual(options.context, {})],
+			beforeRequest: [({options}) => t.deepEqual(options.context, {})],
 		},
 	}).json();
 
@@ -168,7 +168,7 @@ test('context is shallow merged', async t => {
 	await extendedApi.get('', {
 		hooks: {
 			beforeRequest: [
-				(_request, options) => {
+				({options}) => {
 					const context = options.context as any;
 					t.is(context.auth.apiKey, 'extended');
 					t.is(context.auth.userId, undefined);

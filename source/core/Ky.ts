@@ -66,12 +66,12 @@ export class Ky {
 				let modifiedResponse;
 				try {
 					// eslint-disable-next-line no-await-in-loop
-					modifiedResponse = await hook(
-						ky.request,
-						ky.#getNormalizedOptions(),
-						clonedResponse,
-						{retryCount: ky.#retryCount},
-					);
+					modifiedResponse = await hook({
+						request: ky.request,
+						options: ky.#getNormalizedOptions(),
+						response: clonedResponse,
+						retryCount: ky.#retryCount,
+					});
 				} catch (error) {
 					// Cancel both responses to prevent memory leaks when hook throws
 					ky.#cancelResponseBody(clonedResponse);
@@ -115,7 +115,10 @@ export class Ky {
 
 				for (const hook of ky.#options.hooks.beforeError) {
 					// eslint-disable-next-line no-await-in-loop
-					error = await hook(error, {retryCount: ky.#retryCount});
+					error = await hook({
+						error,
+						retryCount: ky.#retryCount,
+					});
 				}
 
 				throw error;
@@ -591,11 +594,11 @@ export class Ky {
 
 		for (const hook of this.#options.hooks.beforeRequest) {
 			// eslint-disable-next-line no-await-in-loop
-			const result = await hook(
-				this.request,
-				this.#getNormalizedOptions(),
-				{retryCount: this.#retryCount},
-			);
+			const result = await hook({
+				request: this.request,
+				options: this.#getNormalizedOptions(),
+				retryCount: this.#retryCount,
+			});
 
 			if (result instanceof Response) {
 				return result;

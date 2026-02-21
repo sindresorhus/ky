@@ -600,7 +600,7 @@ test('throwHttpErrors preserves original type in hooks', async t => {
 		throwHttpErrors: false,
 		hooks: {
 			beforeRequest: [
-				(_request, options) => {
+				({options}) => {
 					booleanTypeInHook = options.throwHttpErrors;
 				},
 			],
@@ -616,7 +616,7 @@ test('throwHttpErrors preserves original type in hooks', async t => {
 		throwHttpErrors: throwFunction,
 		hooks: {
 			beforeRequest: [
-				(_request, options) => {
+				({options}) => {
 					functionTypeInHook = options.throwHttpErrors;
 				},
 			],
