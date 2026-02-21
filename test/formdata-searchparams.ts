@@ -3,7 +3,7 @@ import ky from '../source/index.js';
 import {createHttpTestServer} from './helpers/create-http-test-server.js';
 
 test('FormData with searchParams and onUploadProgress', async t => {
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 
 	server.post('/', (request, response) => {
 		const url = new URL(request.url!, `http://${request.headers.host}`);
@@ -52,12 +52,10 @@ test('FormData with searchParams and onUploadProgress', async t => {
 	// Check that progress callback was called
 	t.true(wasProgressCalled, 'Upload progress callback should have been called');
 	t.is(lastProgress, 1, 'Final progress should be 100%');
-
-	await server.close();
 });
 
 test('retries with FormData in afterResponse hook maintains correct boundary', async t => {
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 
 	let requestCount = 0;
 	const receivedBoundaries: string[] = [];
@@ -110,6 +108,4 @@ test('retries with FormData in afterResponse hook maintains correct boundary', a
 
 	t.is(requestCount, 2, 'Should make 2 requests');
 	t.true(result.success, 'Content-type boundary should match body boundary on retry');
-
-	await server.close();
 });

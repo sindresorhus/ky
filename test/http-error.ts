@@ -69,7 +69,7 @@ test('HTTPError provides response.json()', async t => {
 });
 
 test('HTTPError#data is populated with parsed JSON', async t => {
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	const body = {error: 'not found', code: 42};
 	server.get('/', (_request, response) => {
 		response.status(404).json(body);
@@ -77,48 +77,40 @@ test('HTTPError#data is populated with parsed JSON', async t => {
 
 	const error = await t.throwsAsync<HTTPError>(ky.get(server.url));
 	t.deepEqual(error?.data, body);
-
-	await server.close();
 });
 
 test('HTTPError#data is populated with text for non-JSON', async t => {
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/', (_request, response) => {
 		response.status(500).type('text/plain').send('Internal failure');
 	});
 
 	const error = await t.throwsAsync<HTTPError>(ky.get(server.url, {retry: 0}));
 	t.is(error?.data, 'Internal failure');
-
-	await server.close();
 });
 
 test('HTTPError#data is undefined for empty body', async t => {
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/', (_request, response) => {
 		response.status(404).end();
 	});
 
 	const error = await t.throwsAsync<HTTPError>(ky.get(server.url));
 	t.is(error?.data, undefined);
-
-	await server.close();
 });
 
 test('HTTPError#data is undefined when JSON parse fails', async t => {
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/', (_request, response) => {
 		response.status(500).type('application/json').send('not json');
 	});
 
 	const error = await t.throwsAsync<HTTPError>(ky.get(server.url, {retry: 0}));
 	t.is(error?.data, undefined);
-
-	await server.close();
 });
 
 test('HTTPError#data respects parseJson option', async t => {
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	const body = {value: 1};
 	server.get('/', (_request, response) => {
 		response.status(400).json(body);
@@ -132,12 +124,10 @@ test('HTTPError#data respects parseJson option', async t => {
 		},
 	}));
 	t.deepEqual(error?.data, {value: 1, custom: true});
-
-	await server.close();
 });
 
 test('HTTPError#data awaits async parseJson option', async t => {
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	const body = {value: 1};
 	server.get('/', (_request, response) => {
 		response.status(400).json(body);
@@ -152,12 +142,10 @@ test('HTTPError#data awaits async parseJson option', async t => {
 		},
 	}));
 	t.deepEqual(error?.data, {value: 1, custom: true});
-
-	await server.close();
 });
 
 test('HTTPError#data is undefined when async parseJson rejects', async t => {
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	const body = {value: 1};
 	server.get('/', (_request, response) => {
 		response.status(400).json(body);
@@ -170,8 +158,6 @@ test('HTTPError#data is undefined when async parseJson rejects', async t => {
 	}));
 	t.true(error instanceof HTTPError);
 	t.is(error?.data, undefined);
-
-	await server.close();
 });
 
 test('HTTPError#data does not hang when async parseJson never resolves', async t => {
@@ -195,7 +181,7 @@ test('HTTPError#data does not hang when async parseJson never resolves', async t
 });
 
 test('HTTPError#data does not call parseJson for non-JSON responses', async t => {
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/', (_request, response) => {
 		response.status(400).type('text/plain').send('plain text');
 	});
@@ -211,12 +197,10 @@ test('HTTPError#data does not call parseJson for non-JSON responses', async t =>
 
 	t.false(didCallParseJson);
 	t.is(error?.data, 'plain text');
-
-	await server.close();
 });
 
 test('HTTPError#data is available in beforeError hooks', async t => {
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	const body = {reason: 'bad request'};
 	server.get('/', (_request, response) => {
 		response.status(400).json(body);
@@ -234,12 +218,10 @@ test('HTTPError#data is available in beforeError hooks', async t => {
 		},
 	}));
 	t.deepEqual(hookData, body);
-
-	await server.close();
 });
 
 test('HTTPError#data handles non-standard JSON content types', async t => {
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	const body = {type: 'https://example.com/not-found', title: 'Not Found', status: 404};
 	server.get('/', (_request, response) => {
 		response.status(404).type('application/problem+json').send(JSON.stringify(body));
@@ -247,12 +229,10 @@ test('HTTPError#data handles non-standard JSON content types', async t => {
 
 	const error = await t.throwsAsync<HTTPError>(ky.get(server.url));
 	t.deepEqual(error?.data, body);
-
-	await server.close();
 });
 
 test('HTTPError#data parses JSON for case-insensitive content types', async t => {
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	const body = {error: 'case-insensitive'};
 	server.get('/', (_request, response) => {
 		response.status(400).set('content-type', 'Application/JSON; Charset=UTF-8').send(JSON.stringify(body));
@@ -260,12 +240,10 @@ test('HTTPError#data parses JSON for case-insensitive content types', async t =>
 
 	const error = await t.throwsAsync<HTTPError>(ky.get(server.url, {retry: 0}));
 	t.deepEqual(error?.data, body);
-
-	await server.close();
 });
 
 test('HTTPError#data does not parse non-JSON content types with json parameters', async t => {
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	const body = '{"error":"plain text"}';
 	server.get('/', (_request, response) => {
 		response.status(400).set('content-type', 'text/plain; note=json').send(body);
@@ -273,12 +251,10 @@ test('HTTPError#data does not parse non-JSON content types with json parameters'
 
 	const error = await t.throwsAsync<HTTPError>(ky.get(server.url, {retry: 0}));
 	t.is(error?.data, body);
-
-	await server.close();
 });
 
 test('HTTPError#data is text for JSON-like but non-JSON media types', async t => {
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	const body = '{"error":"sequence"}';
 	server.get('/', (_request, response) => {
 		response.status(400).set('content-type', 'application/json-seq').send(body);
@@ -286,12 +262,10 @@ test('HTTPError#data is text for JSON-like but non-JSON media types', async t =>
 
 	const error = await t.throwsAsync<HTTPError>(ky.get(server.url, {retry: 0}));
 	t.is(error?.data, body);
-
-	await server.close();
 });
 
 test('HTTPError#data is text for HTML error pages', async t => {
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	const html = '<html><body>Bad Gateway</body></html>';
 	server.get('/', (_request, response) => {
 		response.status(502).type('text/html').send(html);
@@ -299,12 +273,10 @@ test('HTTPError#data is text for HTML error pages', async t => {
 
 	const error = await t.throwsAsync<HTTPError>(ky.get(server.url, {retry: 0}));
 	t.is(error?.data, html);
-
-	await server.close();
 });
 
 test('HTTPError#data is text when no content-type header', async t => {
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/', (_request, response) => {
 		response.removeHeader('content-type');
 		response.status(500).end('plain error');
@@ -312,8 +284,6 @@ test('HTTPError#data is text when no content-type header', async t => {
 
 	const error = await t.throwsAsync<HTTPError>(ky.get(server.url, {retry: 0}));
 	t.is(error?.data, 'plain error');
-
-	await server.close();
 });
 
 test('HTTPError#data decodes stream text using response charset when provided', async t => {
@@ -364,7 +334,7 @@ test('HTTPError#data falls back to response.text() when response.body is null', 
 });
 
 test('HTTPError#data is preserved for slow error bodies when timeout is disabled', async t => {
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/', (_request, response) => {
 		response.status(500).type('application/json');
 		response.write('{"error":"');
@@ -378,12 +348,10 @@ test('HTTPError#data is preserved for slow error bodies when timeout is disabled
 		timeout: false,
 	}));
 	t.deepEqual(error?.data, {error: 'slow'});
-
-	await server.close();
 });
 
 test('HTTPError#data is preserved for slow error bodies when timeout is greater than 1 second', async t => {
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/', (_request, response) => {
 		response.status(500).type('application/json');
 		response.write('{"error":"');
@@ -397,32 +365,26 @@ test('HTTPError#data is preserved for slow error bodies when timeout is greater 
 		timeout: 2000,
 	}));
 	t.deepEqual(error?.data, {error: 'slow'});
-
-	await server.close();
 });
 
 test('response body is consumed after HTTPError is thrown', async t => {
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/', (_request, response) => {
 		response.status(500).json({error: 'fail'});
 	});
 
 	const error = await t.throwsAsync<HTTPError>(ky.get(server.url, {retry: 0}));
 	t.true(error?.response.bodyUsed);
-
-	await server.close();
 });
 
 test('HTTPError response body readers throw after data is populated', async t => {
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/', (_request, response) => {
 		response.status(500).json({error: 'fail'});
 	});
 
 	const error = await t.throwsAsync<HTTPError>(ky.get(server.url, {retry: 0}));
 	await t.throwsAsync(error!.response.json());
-
-	await server.close();
 });
 
 test('HTTPError does not hang on never-ending error response body when timeout is configured', async t => {

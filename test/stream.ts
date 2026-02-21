@@ -5,7 +5,7 @@ import {createHttpTestServer} from './helpers/create-http-test-server.js';
 import {parseRawBody, parseJsonBody} from './helpers/parse-body.js';
 
 test('POST JSON with upload progress', async t => {
-	const server = await createHttpTestServer({bodyParser: false});
+	const server = await createHttpTestServer(t, {bodyParser: false});
 	server.post('/', async (request, response) => {
 		response.json(await parseRawBody(request));
 	});
@@ -67,8 +67,6 @@ test('POST JSON with upload progress', async t => {
 		lastUpdate.totalBytes,
 		'Last update should have transferred all bytes',
 	);
-
-	await server.close();
 });
 
 test('onDownloadProgress cancels original response body', async t => {
@@ -110,7 +108,7 @@ test('onDownloadProgress cancels original response body', async t => {
 });
 
 test('forced retry custom request keeps upload progress', async t => {
-	const server = await createHttpTestServer({bodyParser: false});
+	const server = await createHttpTestServer(t, {bodyParser: false});
 	let requestCount = 0;
 
 	server.post('/', async (request, response) => {
@@ -175,12 +173,10 @@ test('forced retry custom request keeps upload progress', async t => {
 		t.true(last!.transferredBytes > 0, `Attempt ${index + 1} should have transferredBytes`);
 		t.is(last!.totalBytes, last!.transferredBytes, `Attempt ${index + 1} final totalBytes should equal transferredBytes`);
 	}
-
-	await server.close();
 });
 
 test('forced retry custom request has correct body size for upload progress', async t => {
-	const server = await createHttpTestServer({bodyParser: false});
+	const server = await createHttpTestServer(t, {bodyParser: false});
 	let requestCount = 0;
 
 	server.post('/', async (request, response) => {
@@ -229,12 +225,10 @@ test('forced retry custom request has correct body size for upload progress', as
 
 	// Verify totalBytes is non-zero (correct size calculation)
 	t.true(attemptTotalBytes[0] > 1000, `totalBytes should be > 1000 (got ${attemptTotalBytes[0]})`);
-
-	await server.close();
 });
 
 test('beforeRetry override updates upload progress after body change', async t => {
-	const server = await createHttpTestServer({bodyParser: false});
+	const server = await createHttpTestServer(t, {bodyParser: false});
 	let requestCount = 0;
 
 	server.post('/', async (request, response) => {
@@ -303,12 +297,10 @@ test('beforeRetry override updates upload progress after body change', async t =
 	t.is(secondFinal!.percent, 1);
 	t.is(secondFinal!.totalBytes, expectedUpdatedTotal, 'Retry should reflect new payload size');
 	t.is(secondFinal!.transferredBytes, expectedUpdatedTotal);
-
-	await server.close();
 });
 
 test('forced retry with custom request updates upload progress size', async t => {
-	const server = await createHttpTestServer({bodyParser: false});
+	const server = await createHttpTestServer(t, {bodyParser: false});
 	let requestCount = 0;
 
 	server.post('/', async (request, response) => {
@@ -383,12 +375,10 @@ test('forced retry with custom request updates upload progress size', async t =>
 	t.is(secondFinal!.percent, 1);
 	t.is(secondFinal!.totalBytes, expectedUpdatedTotal, 'Forced retry should reflect new payload size');
 	t.is(secondFinal!.transferredBytes, expectedUpdatedTotal);
-
-	await server.close();
 });
 
 test('POST FormData with 10MB file upload progress', async t => {
-	const server = await createHttpTestServer({bodyParser: false});
+	const server = await createHttpTestServer(t, {bodyParser: false});
 	server.post('/', async (request, response) => {
 		let totalBytes = 0;
 		for await (const chunk of request) {
@@ -453,6 +443,4 @@ test('POST FormData with 10MB file upload progress', async t => {
 		lastUpdate.totalBytes,
 		'Last update should have transferred all bytes',
 	);
-
-	await server.close();
 });

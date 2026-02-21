@@ -16,7 +16,7 @@ const echoHeaders: RequestHandler = (request, response) => {
 test.serial('works with nullish headers even in old browsers', async t => {
 	t.plan(4);
 
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/', echoHeaders);
 
 	const OriginalHeaders = Headers;
@@ -34,34 +34,28 @@ test.serial('works with nullish headers even in old browsers', async t => {
 	t.is(typeof response, 'object');
 	t.truthy(response);
 
-	await server.close();
-
 	globalThis.Headers = OriginalHeaders;
 });
 
 test('`user-agent`', async t => {
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/', echoHeaders);
 
 	const headers = await ky.get(server.url).json<IncomingHttpHeaders>();
 	t.is(headers['user-agent'], 'node');
-
-	await server.close();
 });
 
 test('`accept-encoding`', async t => {
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/', echoHeaders);
 
 	const headers = await ky.get(server.url).json<IncomingHttpHeaders>();
 
 	t.is(headers['accept-encoding'], 'gzip, deflate');
-
-	await server.close();
 });
 
 test('does not override provided `accept-encoding`', async t => {
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/', echoHeaders);
 
 	const headers = await ky
@@ -72,12 +66,10 @@ test('does not override provided `accept-encoding`', async t => {
 		})
 		.json<IncomingHttpHeaders>();
 	t.is(headers['accept-encoding'], 'gzip');
-
-	await server.close();
 });
 
 test('does not remove user headers from `url` object argument', async t => {
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/', echoHeaders);
 
 	const headers = await ky
@@ -92,12 +84,10 @@ test('does not remove user headers from `url` object argument', async t => {
 	t.is(headers['user-agent'], 'node');
 	t.is(headers['accept-encoding'], 'gzip, deflate');
 	t.is(headers['x-request-id'], 'value');
-
-	await server.close();
 });
 
 test('`accept` header with `json` option', async t => {
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/', echoHeaders);
 
 	let headers = await ky.get(server.url).json<IncomingHttpHeaders>();
@@ -112,22 +102,18 @@ test('`accept` header with `json` option', async t => {
 		.json<IncomingHttpHeaders>();
 
 	t.is(headers.accept, 'application/json');
-
-	await server.close();
 });
 
 test('`host` header', async t => {
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/', echoHeaders);
 
 	const headers = await ky.get(server.url).json<IncomingHttpHeaders>();
 	t.is(headers.host, `localhost:${server.port}`);
-
-	await server.close();
 });
 
 test('transforms names to lowercase', async t => {
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/', echoHeaders);
 
 	const headers = await ky(server.url, {
@@ -136,12 +122,10 @@ test('transforms names to lowercase', async t => {
 		},
 	}).json<IncomingHttpHeaders>();
 	t.is(headers['accept-encoding'], 'identity');
-
-	await server.close();
 });
 
 test('setting `content-length` to 0', async t => {
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.post('/', echoHeaders);
 
 	const request = ky
@@ -156,23 +140,19 @@ test('setting `content-length` to 0', async t => {
 	const error = await t.throwsAsync(request);
 
 	t.is(error.cause?.code, 'UND_ERR_REQ_CONTENT_LENGTH_MISMATCH');
-
-	await server.close();
 });
 
 test('sets `content-length` to `0` when requesting PUT with empty body', async t => {
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.put('/', echoHeaders);
 
 	const headers = await ky.put(server.url).json<IncomingHttpHeaders>();
 
 	t.is(headers['content-length'], '0');
-
-	await server.close();
 });
 
 test('json manual `content-type` header', async t => {
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.post('/', echoHeaders);
 
 	const headers = await ky
@@ -187,12 +167,10 @@ test('json manual `content-type` header', async t => {
 		.json<IncomingHttpHeaders>();
 
 	t.is(headers['content-type'], 'custom');
-
-	await server.close();
 });
 
 test('form-data manual `content-type` header', async t => {
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.post('/', echoHeaders);
 
 	const form = new FormData();
@@ -208,12 +186,10 @@ test('form-data manual `content-type` header', async t => {
 		.json<IncomingHttpHeaders>();
 
 	t.is(headers['content-type'], 'custom');
-
-	await server.close();
 });
 
 test('form-data automatic `content-type` header', async t => {
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.post('/', echoHeaders);
 
 	const form = new FormData();
@@ -227,12 +203,10 @@ test('form-data automatic `content-type` header', async t => {
 
 	// eslint-disable-next-line ava/assertion-arguments
 	t.true(headers['content-type'].startsWith('multipart/form-data; boundary='), headers['content-type']);
-
-	await server.close();
 });
 
 test('form-data manual `content-type` header with search params', async t => {
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.post('/', echoHeaders);
 
 	const form = new FormData();
@@ -249,12 +223,10 @@ test('form-data manual `content-type` header with search params', async t => {
 		.json<IncomingHttpHeaders>();
 
 	t.is(headers['content-type'], 'custom');
-
-	await server.close();
 });
 
 test('form-data automatic `content-type` header with search params', async t => {
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.post('/', echoHeaders);
 
 	const form = new FormData();
@@ -269,12 +241,10 @@ test('form-data automatic `content-type` header with search params', async t => 
 
 	// eslint-disable-next-line ava/assertion-arguments
 	t.true(headers['content-type'].startsWith('multipart/form-data; boundary='), headers['content-type']);
-
-	await server.close();
 });
 
 test('form-data sets `content-length` header', async t => {
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.post('/', echoHeaders);
 
 	const form = new FormData();
@@ -287,12 +257,10 @@ test('form-data sets `content-length` header', async t => {
 	// Newer versions: 121 bytes (with CRLF)
 	// Eventually this should only check for '121' when older Node.js versions are dropped
 	t.true(headers['content-length'] === '119' || headers['content-length'] === '121');
-
-	await server.close();
 });
 
 test('buffer as `options.body` sets `content-length` header', async t => {
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.post('/', echoHeaders);
 
 	const buffer = Buffer.from('unicorn');
@@ -303,12 +271,10 @@ test('buffer as `options.body` sets `content-length` header', async t => {
 		.json<IncomingHttpHeaders>();
 
 	t.is(Number(headers['content-length']), buffer.length);
-
-	await server.close();
 });
 
 test.failing('removes undefined value headers', async t => {
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/', echoHeaders);
 
 	const headers = await ky
@@ -322,12 +288,10 @@ test.failing('removes undefined value headers', async t => {
 
 	t.is(headers['user-agent'], 'undefined');
 	t.is(headers['unicorn'], 'unicorn');
-
-	await server.close();
 });
 
 test('non-existent headers set to undefined are omitted', async t => {
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/', echoHeaders);
 
 	const headers = await ky
@@ -341,18 +305,14 @@ test('non-existent headers set to undefined are omitted', async t => {
 
 	t.false('blah' in headers);
 	t.true('rainbow' in headers);
-
-	await server.close();
 });
 
 test('preserve port in host header if non-standard port', async t => {
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/', echoHeaders);
 
 	const body = await ky.get(server.url).json<IncomingHttpHeaders>();
 	t.is(body.host, `localhost:${server.port}`);
-
-	await server.close();
 });
 
 test('strip port in host header if explicit standard port (:80) & protocol (HTTP)', async t => {
@@ -396,7 +356,7 @@ test('strip port in host header if implicit standard port & protocol (HTTPS)', a
 });
 
 test('remove custom header by extending instance (plain objects)', async t => {
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/', echoHeaders);
 
 	const original = ky.create({
@@ -416,12 +376,10 @@ test('remove custom header by extending instance (plain objects)', async t => {
 
 	t.true('unicorn' in response);
 	t.false('rainbow' in response);
-
-	await server.close();
 });
 
 test('remove header by extending instance (Headers instance)', async t => {
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/', echoHeaders);
 
 	const original = ky.create({
@@ -442,12 +400,10 @@ test('remove header by extending instance (Headers instance)', async t => {
 
 	t.false('rainbow' in response);
 	t.true('unicorn' in response);
-
-	await server.close();
 });
 
 test('remove header by extending instance (Headers instance and plain object)', async t => {
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/', echoHeaders);
 
 	const original = ky.create({
@@ -467,12 +423,10 @@ test('remove header by extending instance (Headers instance and plain object)', 
 
 	t.false('rainbow' in response);
 	t.true('unicorn' in response);
-
-	await server.close();
 });
 
 test('remove header by extending instance (plain object and Headers instance)', async t => {
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/', echoHeaders);
 
 	const original = ky.create({
@@ -493,6 +447,4 @@ test('remove header by extending instance (plain object and Headers instance)', 
 
 	t.false('rainbow' in response);
 	t.true('unicorn' in response);
-
-	await server.close();
 });

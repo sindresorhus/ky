@@ -1,6 +1,7 @@
 import http from 'node:http';
 import type net from 'node:net';
 import {promisify} from 'node:util';
+import type {ExecutionContext} from 'ava';
 import express from 'express';
 
 export type HttpServerOptions = {
@@ -12,10 +13,19 @@ export type ExtendedHttpTestServer = {
 	url: string;
 	port: number;
 	hostname: string;
-	close: () => Promise<any>;
+	close: () => Promise<void>;
 } & express.Express;
 
-export const createHttpTestServer = async (options: HttpServerOptions = {}): Promise<ExtendedHttpTestServer> => {
+export async function createHttpTestServer(t: ExecutionContext, options?: HttpServerOptions): Promise<ExtendedHttpTestServer>;
+export async function createHttpTestServer(options?: HttpServerOptions): Promise<ExtendedHttpTestServer>;
+export async function createHttpTestServer(
+	tOrOptions?: ExecutionContext | HttpServerOptions,
+	options?: HttpServerOptions,
+): Promise<ExtendedHttpTestServer> {
+	const isExecutionContext = typeof (tOrOptions as ExecutionContext)?.teardown === 'function';
+	const t = isExecutionContext ? tOrOptions as ExecutionContext : undefined;
+	const resolvedOptions = (isExecutionContext ? options : tOrOptions as HttpServerOptions) ?? {};
+
 	const server = express() as ExtendedHttpTestServer;
 	server.http = http.createServer(server);
 
@@ -23,7 +33,7 @@ export const createHttpTestServer = async (options: HttpServerOptions = {}): Pro
 	server.http.keepAliveTimeout = 0;
 	server.http.unref();
 
-	if (options.bodyParser !== false) {
+	if (resolvedOptions.bodyParser !== false) {
 		server.use(express.json({limit: '1mb', type: 'application/json'}));
 		server.use(express.text({limit: '1mb', type: 'text/plain'}));
 		server.use(express.urlencoded({limit: '1mb', type: 'application/x-www-form-urlencoded', extended: true}));
@@ -38,8 +48,12 @@ export const createHttpTestServer = async (options: HttpServerOptions = {}): Pro
 
 	server.close = async () => {
 		server.http.closeAllConnections();
-		return promisify(server.http.close.bind(server.http))();
+		await promisify(server.http.close.bind(server.http))();
 	};
 
+	if (t) {
+		t.teardown(server.close);
+	}
+
 	return server;
-};
+}

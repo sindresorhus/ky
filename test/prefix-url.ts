@@ -3,7 +3,7 @@ import ky from '../source/index.js';
 import {createHttpTestServer} from './helpers/create-http-test-server.js';
 
 test('prefixUrl option', async t => {
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/', (_request, response) => {
 		response.end('zebra');
 	});
@@ -35,6 +35,4 @@ test('prefixUrl option', async t => {
 			message: '`input` must not begin with a slash when using `prefixUrl`',
 		},
 	);
-
-	await server.close();
 });

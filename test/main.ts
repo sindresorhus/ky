@@ -6,95 +6,79 @@ import ky, {HTTPError, TimeoutError} from '../source/index.js';
 import {createHttpTestServer} from './helpers/create-http-test-server.js';
 import {parseRawBody} from './helpers/parse-body.js';
 
-// TODO: When targeting Node.js 24, use `using` syntax for `createHttpTestServer` so we don't have to manually close it.
-
 const fixture = 'fixture';
 
 test('ky()', async t => {
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/', (_request, response) => {
 		response.end();
 	});
 
 	const {ok} = await ky(server.url);
 	t.true(ok);
-
-	await server.close();
 });
 
 test('GET request', async t => {
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/', (request, response) => {
 		response.end(request.method);
 	});
 
 	t.is(await ky(server.url).text(), 'GET');
-
-	await server.close();
 });
 
 test('POST request', async t => {
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.post('/', (request, response) => {
 		response.end(request.method);
 	});
 
 	t.is(await ky.post(server.url).text(), 'POST');
-
-	await server.close();
 });
 
 test('PUT request', async t => {
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.put('/', (request, response) => {
 		response.end(request.method);
 	});
 
 	t.is(await ky.put(server.url).text(), 'PUT');
-
-	await server.close();
 });
 
 test('PATCH request', async t => {
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.patch('/', (request, response) => {
 		response.end(request.method);
 	});
 
 	t.is(await ky.patch(server.url).text(), 'PATCH');
-
-	await server.close();
 });
 
 test('HEAD request', async t => {
 	t.plan(2);
 
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.head('/', (request, response) => {
 		response.end(request.method);
 		t.pass();
 	});
 
 	t.is(await ky.head(server.url).text(), '');
-
-	await server.close();
 });
 
 test('DELETE request', async t => {
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.delete('/', (request, response) => {
 		response.end(request.method);
 	});
 
 	t.is(await ky.delete(server.url).text(), 'DELETE');
-
-	await server.close();
 });
 
 test('POST JSON', async t => {
 	t.plan(2);
 
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.post('/', async (request, response) => {
 		t.is(request.headers['content-type'], 'application/json');
 		response.json(request.body);
@@ -107,8 +91,6 @@ test('POST JSON', async t => {
 	const responseJson = await ky.post(server.url, {json}).json();
 
 	t.deepEqual(responseJson, json);
-
-	await server.close();
 });
 
 test('cannot use `body` option with GET or HEAD method', t => {
@@ -154,7 +136,7 @@ test('cannot use `json` option with GET or HEAD method', t => {
 test('`json` option overrides the `body` option', async t => {
 	t.plan(2);
 
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.post('/', async (request, response) => {
 		t.is(request.headers['content-type'], 'application/json');
 		response.json(request.body);
@@ -172,12 +154,10 @@ test('`json` option overrides the `body` option', async t => {
 		.json();
 
 	t.deepEqual(responseJson, json);
-
-	await server.close();
 });
 
 test('custom headers', async t => {
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/', (request, response) => {
 		response.end(request.headers.unicorn);
 	});
@@ -190,14 +170,12 @@ test('custom headers', async t => {
 		}).text(),
 		fixture,
 	);
-
-	await server.close();
 });
 
 test('JSON with custom Headers instance', async t => {
 	t.plan(3);
 
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.post('/', async (request, response) => {
 		t.is(request.headers.unicorn, 'rainbow');
 		t.is(request.headers['content-type'], 'application/json');
@@ -216,14 +194,12 @@ test('JSON with custom Headers instance', async t => {
 		.json();
 
 	t.deepEqual(responseJson, json);
-
-	await server.close();
 });
 
 test('.json() with custom accept header', async t => {
 	t.plan(2);
 
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/', async (request, response) => {
 		t.is(request.headers.accept, 'foo/bar');
 		response.json({});
@@ -234,12 +210,10 @@ test('.json() with custom accept header', async t => {
 	}).json();
 
 	t.deepEqual(responseJson, {});
-
-	await server.close();
 });
 
 test('.json() when response is chunked', async t => {
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/', async (request, response) => {
 		response.write('[');
 		response.write('"one",');
@@ -252,12 +226,10 @@ test('.json() when response is chunked', async t => {
 	expectTypeOf(responseJson).toEqualTypeOf<['one', 'two']>();
 
 	t.deepEqual(responseJson, ['one', 'two']);
-
-	await server.close();
 });
 
 test('.json() with invalid JSON body', async t => {
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/', async (request, response) => {
 		t.is(request.headers.accept, 'application/json');
 		response.end('not json');
@@ -266,14 +238,12 @@ test('.json() with invalid JSON body', async t => {
 	await t.throwsAsync(ky.get(server.url).json(), {
 		message: /Unexpected token/,
 	});
-
-	await server.close();
 });
 
 test('.json() with empty body', async t => {
 	t.plan(2);
 
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/', async (request, response) => {
 		t.is(request.headers.accept, 'application/json');
 		response.end();
@@ -282,14 +252,12 @@ test('.json() with empty body', async t => {
 	const responseJson = await ky.get(server.url).json();
 
 	t.is(responseJson, '');
-
-	await server.close();
 });
 
 test('.json() with 204 response and empty body', async t => {
 	t.plan(2);
 
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/', async (request, response) => {
 		t.is(request.headers.accept, 'application/json');
 		response.status(204).end();
@@ -298,15 +266,13 @@ test('.json() with 204 response and empty body', async t => {
 	const responseJson = await ky(server.url).json();
 
 	t.is(responseJson, '');
-
-	await server.close();
 });
 
 test('timeout option', async t => {
 	t.plan(2);
 	let requestCount = 0;
 
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/', async (_request, response) => {
 		requestCount++;
 		await delay(2000);
@@ -318,14 +284,12 @@ test('timeout option', async t => {
 	});
 
 	t.is(requestCount, 1);
-
-	await server.close();
 });
 
 test('timeout:false option', async t => {
 	let requestCount = 0;
 
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/', async (_request, response) => {
 		requestCount++;
 		await delay(1000);
@@ -335,15 +299,13 @@ test('timeout:false option', async t => {
 	await t.notThrowsAsync(ky(server.url, {timeout: false}).text());
 
 	t.is(requestCount, 1);
-
-	await server.close();
 });
 
 test('invalid timeout option', async t => {
 	// #117
 	let requestCount = 0;
 
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/', async (_request, response) => {
 		requestCount++;
 		await delay(1000);
@@ -356,12 +318,10 @@ test('invalid timeout option', async t => {
 	});
 
 	t.is(requestCount, 0);
-
-	await server.close();
 });
 
 test('timeout option is cancelled when the promise is resolved', async t => {
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 
 	server.get('/', (request, response) => {
 		response.end(request.method);
@@ -374,12 +334,10 @@ test('timeout option is cancelled when the promise is resolved', async t => {
 	const duration = start - Date.now();
 
 	t.true(duration < 10);
-
-	await server.close();
 });
 
 test('searchParams option', async t => {
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 
 	server.get('/', (request, response) => {
 		response.end(request.url.slice(1));
@@ -404,12 +362,10 @@ test('searchParams option', async t => {
 	t.is(await ky(server.url, {searchParams: searchParameters}).text(), stringParameters);
 	t.is(await ky(server.url, {searchParams: stringParameters}).text(), stringParameters);
 	t.is(await ky(server.url, {searchParams: customStringParameters}).text(), customStringParameters);
-
-	await server.close();
 });
 
 test('searchParams option with undefined values', async t => {
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 
 	server.get('/', (request, response) => {
 		response.end(request.url.slice(1));
@@ -433,12 +389,10 @@ test('searchParams option with undefined values', async t => {
 
 	// Null values should be preserved as string "null"
 	t.is(await ky(server.url, {searchParams: objectWithNull}).text(), '?cats=meow&dogs=null&opossums=false');
-
-	await server.close();
 });
 
 test('merges plain object searchParams with URLSearchParams', async t => {
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/', (request, response) => {
 		response.end(request.url);
 	});
@@ -453,12 +407,10 @@ test('merges plain object searchParams with URLSearchParams', async t => {
 	t.true(url.includes('_limit_=1'), `URL should contain _limit_=1, got: ${url}`);
 	t.false(url.includes('[object Object]'), `URL should not contain [object Object], got: ${url}`);
 	t.false(url.includes('headers'), `URL should not contain 'headers', got: ${url}`);
-
-	await server.close();
 });
 
 test('merges URLSearchParams with plain object searchParams', async t => {
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/', (request, response) => {
 		response.end(request.url);
 	});
@@ -472,12 +424,10 @@ test('merges URLSearchParams with plain object searchParams', async t => {
 	t.true(url.includes('api=123'), `URL should contain api=123, got: ${url}`);
 	t.true(url.includes('_limit_=1'), `URL should contain _limit_=1, got: ${url}`);
 	t.false(url.includes('[object Object]'), `URL should not contain [object Object], got: ${url}`);
-
-	await server.close();
 });
 
 test('merges URLSearchParams with URLSearchParams', async t => {
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/', (request, response) => {
 		response.end(request.url);
 	});
@@ -491,12 +441,10 @@ test('merges URLSearchParams with URLSearchParams', async t => {
 	t.true(url.includes('api=123'), `URL should contain api=123, got: ${url}`);
 	t.true(url.includes('_limit_=1'), `URL should contain _limit_=1, got: ${url}`);
 	t.false(url.includes('[object Object]'), `URL should not contain [object Object], got: ${url}`);
-
-	await server.close();
 });
 
 test('merges searchParams with duplicate keys', async t => {
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/', (request, response) => {
 		response.end(request.url);
 	});
@@ -513,36 +461,30 @@ test('merges searchParams with duplicate keys', async t => {
 	t.deepEqual(filterValues.sort(), ['active', 'recent'], `Both filter values should be present, got: ${JSON.stringify(filterValues)}`);
 	t.is(url.searchParams.get('_limit_'), '10', `URL should contain _limit_=10, got: ${urlString}`);
 	t.false(urlString.includes('[object Object]'), `URL should not contain [object Object], got: ${urlString}`);
-
-	await server.close();
 });
 
 test('throwHttpErrors option', async t => {
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/', (_request, response) => {
 		response.sendStatus(500);
 	});
 
 	await t.notThrowsAsync(ky.get(server.url, {throwHttpErrors: false}).text());
-
-	await server.close();
 });
 
 test('throwHttpErrors option with POST', async t => {
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.post('/', (_request, response) => {
 		response.sendStatus(500);
 	});
 
 	await t.notThrowsAsync(ky.post(server.url, {throwHttpErrors: false}).text());
-
-	await server.close();
 });
 
 test('throwHttpErrors:false does not suppress timeout errors', async t => {
 	let requestCount = 0;
 
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/', async (_request, response) => {
 		requestCount++;
 		await delay(1000);
@@ -555,12 +497,10 @@ test('throwHttpErrors:false does not suppress timeout errors', async t => {
 	);
 
 	t.is(requestCount, 1);
-
-	await server.close();
 });
 
 test('throwHttpErrors function - selective error handling', async t => {
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 
 	server.get('/404', (_request, response) => {
 		response.sendStatus(404);
@@ -583,12 +523,10 @@ test('throwHttpErrors function - selective error handling', async t => {
 		}).text(),
 		{instanceOf: HTTPError},
 	);
-
-	await server.close();
 });
 
 test('throwHttpErrors preserves original type in hooks', async t => {
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 
 	server.get('/', (_request, response) => {
 		response.sendStatus(200);
@@ -624,12 +562,10 @@ test('throwHttpErrors preserves original type in hooks', async t => {
 	});
 	t.is(typeof functionTypeInHook, 'function');
 	t.is(functionTypeInHook, throwFunction);
-
-	await server.close();
 });
 
 test('ky.create()', async t => {
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/', (request, response) => {
 		response.end(`${request.headers.unicorn} - ${request.headers.rainbow}`);
 	});
@@ -651,8 +587,6 @@ test('ky.create()', async t => {
 
 	const {ok} = await extended.head(server.url);
 	t.true(ok);
-
-	await server.close();
 });
 
 test('ky.create() throws when given non-object argument', t => {
@@ -674,7 +608,7 @@ test('ky.create() throws when given non-object argument', t => {
 });
 
 test('ky.create() with deep array', async t => {
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/', (_request, response) => {
 		response.end();
 	});
@@ -714,24 +648,20 @@ test('ky.create() with deep array', async t => {
 
 	const {ok} = await extended.head(server.url);
 	t.true(ok);
-
-	await server.close();
 });
 
 test('ky.create() does not mangle search params', async t => {
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/', (request, response) => {
 		response.end(request.url);
 	});
 
 	const instance = ky.create({searchParams: {}});
 	t.is(await instance.get(server.url, {searchParams: {}}).text(), '/');
-
-	await server.close();
 });
 
 test('ky.create() with default json does not add context to merged json body', async t => {
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.post('/', async (request, response) => {
 		response.json(request.body);
 	});
@@ -751,12 +681,10 @@ test('ky.create() with default json does not add context to merged json body', a
 
 	t.deepEqual(result, {foo: 'bar', baz: 'baz'});
 	t.false('context' in result);
-
-	await server.close();
 });
 
 const extendHooksMacro = test.macro<[{useFunction: boolean}]>(async (t, {useFunction}) => {
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/', (_request, response) => {
 		response.end();
 	});
@@ -801,8 +729,6 @@ const extendHooksMacro = test.macro<[{useFunction: boolean}]>(async (t, {useFunc
 
 	const {ok} = await extended.head(server.url);
 	t.true(ok);
-
-	await server.close();
 });
 
 test('ky.extend() appends hooks', extendHooksMacro, {useFunction: false});
@@ -810,7 +736,7 @@ test('ky.extend() appends hooks', extendHooksMacro, {useFunction: false});
 test('ky.extend() with function appends hooks', extendHooksMacro, {useFunction: false});
 
 test('ky.extend() with function overrides primitives in parent defaults', async t => {
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.use((request, response) => {
 		response.end(request.url);
 	});
@@ -830,12 +756,10 @@ test('ky.extend() with function overrides primitives in parent defaults', async 
 		const {ok} = await usersApi.head(server.url);
 		t.true(ok);
 	}
-
-	await server.close();
 });
 
 test('ky.extend() with function retains parent defaults when not specified', async t => {
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.use((request, response) => {
 		response.end(request.url);
 	});
@@ -855,12 +779,10 @@ test('ky.extend() with function retains parent defaults when not specified', asy
 		const {ok} = await extendedApi.head(server.url);
 		t.true(ok);
 	}
-
-	await server.close();
 });
 
 test('ky.extend() can remove hooks', async t => {
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/', (_request, response) => {
 		response.end();
 	});
@@ -897,12 +819,10 @@ test('ky.extend() can remove hooks', async t => {
 
 	const {ok} = await extended.head(server.url);
 	t.true(ok);
-
-	await server.close();
 });
 
 test('throws DOMException/Error with name AbortError when aborted by user', async t => {
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	// eslint-disable-next-line @typescript-eslint/no-empty-function
 	server.get('/', () => {});
 
@@ -915,12 +835,10 @@ test('throws DOMException/Error with name AbortError when aborted by user', asyn
 
 	t.true(['DOMException', 'Error'].includes(error.constructor.name), `Expected DOMException or Error, got ${error.constructor.name}`);
 	t.is(error.name, 'AbortError', `Expected AbortError, got ${error.name}`);
-
-	await server.close();
 });
 
 test('throws AbortError when signal was aborted before request', async t => {
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	let requestCount = 0;
 	server.get('/', () => {
 		requestCount += 1;
@@ -937,12 +855,10 @@ test('throws AbortError when signal was aborted before request', async t => {
 	t.true(['DOMException', 'Error'].includes(error.constructor.name), `Expected DOMException or Error, got ${error.constructor.name}`);
 	t.is(error.name, 'AbortError', `Expected AbortError, got ${error.name}`);
 	t.is(requestCount, 0, 'Request count is more than 0, server received request.');
-
-	await server.close();
 });
 
 test('throws AbortError when aborted via Request', async t => {
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	// eslint-disable-next-line @typescript-eslint/no-empty-function
 	server.get('/', () => {});
 
@@ -956,12 +872,10 @@ test('throws AbortError when aborted via Request', async t => {
 
 	t.true(['DOMException', 'Error'].includes(error.constructor.name), `Expected DOMException or Error, got ${error.constructor.name}`);
 	t.is(error.name, 'AbortError', `Expected AbortError, got ${error.name}`);
-
-	await server.close();
 });
 
 test('merges signals from instance and request options', async t => {
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/', async (_request, response) => {
 		await delay(100);
 		response.end('success');
@@ -983,12 +897,10 @@ test('merges signals from instance and request options', async t => {
 	const error = (await t.throwsAsync(response))!;
 	t.true(['DOMException', 'Error'].includes(error.constructor.name));
 	t.is(error.name, 'AbortError');
-
-	await server.close();
 });
 
 test('supports Request instance as input', async t => {
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	const inputRequest = new Request(server.url, {method: 'POST'});
 
 	server.post('/', (request, response) => {
@@ -996,8 +908,6 @@ test('supports Request instance as input', async t => {
 	});
 
 	t.is(await ky(inputRequest).text(), inputRequest.method);
-
-	await server.close();
 });
 
 test('throws when input is not a string, URL, or Request', t => {
@@ -1013,7 +923,7 @@ test('throws when input is not a string, URL, or Request', t => {
 });
 
 test('options override Request instance method', async t => {
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	const inputRequest = new Request(server.url, {method: 'GET'});
 
 	server.post('/', (request, response) => {
@@ -1021,12 +931,10 @@ test('options override Request instance method', async t => {
 	});
 
 	t.is(await ky(inputRequest, {method: 'POST'}).text(), 'POST');
-
-	await server.close();
 });
 
 test('options override Request instance body', async t => {
-	const server = await createHttpTestServer({bodyParser: false});
+	const server = await createHttpTestServer(t, {bodyParser: false});
 
 	const requestBody = JSON.stringify({test: true});
 	const expectedBody = JSON.stringify({test: false});
@@ -1054,13 +962,11 @@ test('options override Request instance body', async t => {
 	});
 
 	await ky(inputRequest, {body: expectedBody});
-
-	await server.close();
 });
 
 test('POST JSON with falsey value', async t => {
 	// #222
-	const server = await createHttpTestServer({bodyParser: false});
+	const server = await createHttpTestServer(t, {bodyParser: false});
 	server.post('/', async (request, response) => {
 		response.json(await parseRawBody(request));
 	});
@@ -1069,14 +975,12 @@ test('POST JSON with falsey value', async t => {
 	const responseJson = await ky.post(server.url, {json}).json();
 
 	t.deepEqual(responseJson, json.toString());
-
-	await server.close();
 });
 
 test('parseJson option with response.json()', async t => {
 	const json = {hello: 'world'};
 
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/', async (_request, response) => {
 		response.json(json);
 	});
@@ -1096,14 +1000,12 @@ test('parseJson option with response.json()', async t => {
 		...json,
 		extra: 'extraValue',
 	});
-
-	await server.close();
 });
 
 test('parseJson option with promise.json() shortcut', async t => {
 	const json = {hello: 'world'};
 
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/', async (_request, response) => {
 		response.json(json);
 	});
@@ -1121,12 +1023,10 @@ test('parseJson option with promise.json() shortcut', async t => {
 		...json,
 		extra: 'extraValue',
 	});
-
-	await server.close();
 });
 
 test('stringifyJson option with request.json()', async t => {
-	const server = await createHttpTestServer({bodyParser: false});
+	const server = await createHttpTestServer(t, {bodyParser: false});
 
 	const json = {hello: 'world'};
 	const extra = 'extraValue';
@@ -1141,6 +1041,4 @@ test('stringifyJson option with request.json()', async t => {
 		stringifyJson: data => JSON.stringify({data, extra}),
 		json,
 	});
-
-	await server.close();
 });

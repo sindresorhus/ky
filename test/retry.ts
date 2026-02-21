@@ -12,7 +12,7 @@ const retryAfterOn413 = 2;
 test('network error', async t => {
 	let requestCount = 0;
 
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/', (_request, response) => {
 		requestCount++;
 
@@ -25,14 +25,12 @@ test('network error', async t => {
 
 	t.is(await ky(server.url).text(), fixture);
 	t.is(requestCount, defaultRetryCount + 1);
-
-	await server.close();
 });
 
 test('status code 500', async t => {
 	let requestCount = 0;
 
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/', (_request, response) => {
 		requestCount++;
 
@@ -45,14 +43,12 @@ test('status code 500', async t => {
 
 	t.is(await ky(server.url).text(), fixture);
 	t.is(requestCount, defaultRetryCount + 1);
-
-	await server.close();
 });
 
 test('only on defined status codes', async t => {
 	let requestCount = 0;
 
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/', (_request, response) => {
 		requestCount++;
 
@@ -65,14 +61,12 @@ test('only on defined status codes', async t => {
 
 	await t.throwsAsync(ky(server.url).text(), {message: /Bad Request/});
 	t.is(requestCount, 1);
-
-	await server.close();
 });
 
 test('not on POST', async t => {
 	let requestCount = 0;
 
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.post('/', (_request, response) => {
 		requestCount++;
 
@@ -87,15 +81,13 @@ test('not on POST', async t => {
 		message: /Internal Server Error/,
 	});
 	t.is(requestCount, 1);
-
-	await server.close();
 });
 
 test('respect Retry-After: 0 and retry immediately', async t => {
 	const retryCount = 4;
 	let requestCount = 0;
 
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/', (_request, response) => {
 		requestCount++;
 
@@ -121,14 +113,12 @@ test('respect Retry-After: 0 and retry immediately', async t => {
 	});
 
 	t.is(requestCount, 5);
-
-	await server.close();
 });
 
 test('RateLimit-Reset is treated the same as Retry-After', async t => {
 	let requestCount = 0;
 
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/', (_request, response) => {
 		requestCount++;
 
@@ -153,14 +143,12 @@ test('RateLimit-Reset is treated the same as Retry-After', async t => {
 	});
 
 	t.is(requestCount, 3);
-
-	await server.close();
 });
 
 test('RateLimit-Reset with time since epoch', async t => {
 	let requestCount = 0;
 
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/', (_request, response) => {
 		requestCount++;
 
@@ -186,15 +174,13 @@ test('RateLimit-Reset with time since epoch', async t => {
 	});
 
 	t.is(requestCount, 3);
-
-	await server.close();
 });
 
 test('respect 413 Retry-After', async t => {
 	const startTime = Date.now();
 	let requestCount = 0;
 
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/', (_request, response) => {
 		requestCount++;
 
@@ -211,15 +197,13 @@ test('respect 413 Retry-After', async t => {
 	const timeElapsedInMs = Number(await ky(server.url).text());
 	t.true(timeElapsedInMs >= retryAfterOn413 * 1000);
 	t.is(requestCount, retryAfterOn413 + 1);
-
-	await server.close();
 });
 
 test('respect 413 Retry-After with timestamp', async t => {
 	const startTime = Date.now();
 	let requestCount = 0;
 
-	const server = await createHttpTestServer({bodyParser: false});
+	const server = await createHttpTestServer(t, {bodyParser: false});
 	server.get('/', (_request, response) => {
 		requestCount++;
 		if (requestCount === defaultRetryCount + 1) {
@@ -237,14 +221,12 @@ test('respect 413 Retry-After with timestamp', async t => {
 	const timeElapsedInMs = Number(await ky(server.url).text());
 	t.true(timeElapsedInMs >= retryAfterOn413 * 1000);
 	t.is(requestCount, retryAfterOn413 + 1);
-
-	await server.close();
 });
 
 test('doesn\'t retry on 413 without Retry-After header', async t => {
 	let requestCount = 0;
 
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/', (_request, response) => {
 		requestCount++;
 		response.sendStatus(413);
@@ -254,15 +236,13 @@ test('doesn\'t retry on 413 without Retry-After header', async t => {
 	t.is(requestCount, 1);
 	await ky(server.url, {throwHttpErrors: false}).text();
 	t.is(requestCount, 2);
-
-	await server.close();
 });
 
 test('respect custom `afterStatusCodes` (500) with Retry-After header', async t => {
 	const startTime = Date.now();
 	let requestCount = 0;
 
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/', (_request, response) => {
 		requestCount++;
 
@@ -279,14 +259,12 @@ test('respect custom `afterStatusCodes` (500) with Retry-After header', async t 
 	const timeElapsedInMs = Number(await ky(server.url, {retry: {afterStatusCodes: [500]}}).text());
 	t.true(timeElapsedInMs >= retryAfterOn500 * 1000);
 	t.is(requestCount, retryAfterOn500 + 1);
-
-	await server.close();
 });
 
 test('respect number of retries', async t => {
 	let requestCount = 0;
 
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/', (_request, response) => {
 		requestCount++;
 		response.sendStatus(408);
@@ -303,14 +281,12 @@ test('respect number of retries', async t => {
 		},
 	);
 	t.is(requestCount, 4);
-
-	await server.close();
 });
 
 test('respect retry methods', async t => {
 	let requestCount = 0;
 
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.post('/', (_request, response) => {
 		requestCount++;
 		response.sendStatus(408);
@@ -348,15 +324,13 @@ test('respect retry methods', async t => {
 		},
 	);
 	t.is(requestCount, defaultRetryCount + 1);
-
-	await server.close();
 });
 
 test('respect maxRetryAfter', async t => {
 	const retryCount = 4;
 	let requestCount = 0;
 
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/', (_request, response) => {
 		requestCount++;
 
@@ -402,14 +376,12 @@ test('respect maxRetryAfter', async t => {
 	});
 
 	t.is(requestCount, 5);
-
-	await server.close();
 });
 
 test('retry - can provide retry as number', async t => {
 	let requestCount = 0;
 
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/', async (_request, response) => {
 		requestCount++;
 		response.sendStatus(408);
@@ -419,14 +391,12 @@ test('retry - can provide retry as number', async t => {
 		message: /Request Timeout/,
 	});
 	t.is(requestCount, 5);
-
-	await server.close();
 });
 
 test('doesn\'t retry on 413 with empty statusCodes and methods', async t => {
 	let requestCount = 0;
 
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 
 	server.get('/', async (_request, response) => {
 		requestCount++;
@@ -447,14 +417,12 @@ test('doesn\'t retry on 413 with empty statusCodes and methods', async t => {
 	);
 
 	t.is(requestCount, 1);
-
-	await server.close();
 });
 
 test('doesn\'t retry on 413 with empty methods', async t => {
 	let requestCount = 0;
 
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/', async (_request, response) => {
 		requestCount++;
 		response.sendStatus(413);
@@ -473,14 +441,12 @@ test('doesn\'t retry on 413 with empty methods', async t => {
 	);
 
 	t.is(requestCount, 1);
-
-	await server.close();
 });
 
 test('does retry on 408 with methods provided as array', async t => {
 	let requestCount = 0;
 
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/', async (_request, response) => {
 		requestCount++;
 		response.sendStatus(408);
@@ -499,14 +465,12 @@ test('does retry on 408 with methods provided as array', async t => {
 	);
 
 	t.is(requestCount, 4);
-
-	await server.close();
 });
 
 test('does retry on 408 with methods provided as uppercase array', async t => {
 	let requestCount = 0;
 
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/', async (_request, response) => {
 		requestCount++;
 		response.sendStatus(408);
@@ -525,14 +489,12 @@ test('does retry on 408 with methods provided as uppercase array', async t => {
 	);
 
 	t.is(requestCount, 4);
-
-	await server.close();
 });
 
 test('does retry on 408 with statusCodes provided as array', async t => {
 	let requestCount = 0;
 
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/', async (_request, response) => {
 		requestCount++;
 		response.sendStatus(408);
@@ -551,14 +513,12 @@ test('does retry on 408 with statusCodes provided as array', async t => {
 	);
 
 	t.is(requestCount, 4);
-
-	await server.close();
 });
 
 test('doesn\'t retry when retry.limit is set to 0', async t => {
 	let requestCount = 0;
 
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/', (_request, response) => {
 		requestCount++;
 		response.sendStatus(408);
@@ -576,12 +536,10 @@ test('doesn\'t retry when retry.limit is set to 0', async t => {
 	);
 
 	t.is(requestCount, 1);
-
-	await server.close();
 });
 
 test('throws when retry.methods is not an array', async t => {
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 
 	t.throws(() => {
 		void ky(server.url, {
@@ -591,12 +549,10 @@ test('throws when retry.methods is not an array', async t => {
 			},
 		});
 	});
-
-	await server.close();
 });
 
 test('throws when retry.statusCodes is not an array', async t => {
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 
 	t.throws(() => {
 		void ky(server.url, {
@@ -606,14 +562,12 @@ test('throws when retry.statusCodes is not an array', async t => {
 			},
 		});
 	});
-
-	await server.close();
 });
 
 test('retry options ignore undefined overrides and keep defaults', async t => {
 	let requestCount = 0;
 
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/', (_request, response) => {
 		requestCount++;
 		response.sendStatus(500);
@@ -627,15 +581,13 @@ test('retry options ignore undefined overrides and keep defaults', async t => {
 
 	// Default limit is 2, so request should be attempted 3 times
 	t.is(requestCount, defaultRetryCount + 1);
-
-	await server.close();
 });
 
 test('respect maximum backoffLimit', async t => {
 	const retryCount = 4;
 	let requestCount = 0;
 
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/', (_request, response) => {
 		requestCount++;
 
@@ -674,15 +626,13 @@ test('respect maximum backoffLimit', async t => {
 	});
 
 	t.is(requestCount, 5);
-
-	await server.close();
 });
 
 test('backoffLimit: undefined treats as no limit (Infinity)', async t => {
 	const retryCount = 4;
 	let requestCount = 0;
 
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/', (_request, response) => {
 		requestCount++;
 
@@ -709,15 +659,13 @@ test('backoffLimit: undefined treats as no limit (Infinity)', async t => {
 	});
 
 	t.is(requestCount, 5);
-
-	await server.close();
 });
 
 test('respect custom retry.delay', async t => {
 	const retryCount = 4;
 	let requestCount = 0;
 
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/', (_request, response) => {
 		requestCount++;
 
@@ -742,8 +690,6 @@ test('respect custom retry.delay', async t => {
 	});
 
 	t.is(requestCount, 5);
-
-	await server.close();
 });
 
 test('jitter: true applies full jitter to delay', async t => {
@@ -752,7 +698,7 @@ test('jitter: true applies full jitter to delay', async t => {
 	const delays: number[] = [];
 	let lastTime = Date.now();
 
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/', (_request, response) => {
 		const now = Date.now();
 		if (requestCount > 0) {
@@ -783,8 +729,6 @@ test('jitter: true applies full jitter to delay', async t => {
 	t.true(delays[0] >= 0 && delays[0] <= 450);
 	t.true(delays[1] >= 0 && delays[1] <= 900);
 	t.true(delays[2] >= 0 && delays[2] <= 1800);
-
-	await server.close();
 });
 
 test('jitter: custom function applies custom jitter', async t => {
@@ -797,7 +741,7 @@ test('jitter: custom function applies custom jitter', async t => {
 		return delay * 0.5; // Half the delay
 	};
 
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/', (_request, response) => {
 		requestCount++;
 
@@ -822,8 +766,6 @@ test('jitter: custom function applies custom jitter', async t => {
 	t.is(jitterCalls[0], 300); // First retry
 	t.is(jitterCalls[1], 600); // Second retry
 	t.is(jitterCalls[2], 1200); // Third retry
-
-	await server.close();
 });
 
 test('jitter respects backoffLimit', async t => {
@@ -832,7 +774,7 @@ test('jitter respects backoffLimit', async t => {
 	const delays: number[] = [];
 	let lastTime = Date.now();
 
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/', (_request, response) => {
 		const now = Date.now();
 		if (requestCount > 0) {
@@ -866,8 +808,6 @@ test('jitter respects backoffLimit', async t => {
 	t.true(delays[0] >= 0 && delays[0] <= 750);
 	t.true(delays[1] >= 0 && delays[1] <= 750);
 	t.true(delays[2] >= 0 && delays[2] <= 750);
-
-	await server.close();
 });
 
 test('jitter works with custom delay function', async t => {
@@ -880,7 +820,7 @@ test('jitter works with custom delay function', async t => {
 		return delay * 0.5;
 	};
 
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/', (_request, response) => {
 		requestCount++;
 
@@ -903,8 +843,6 @@ test('jitter works with custom delay function', async t => {
 	t.is(jitterCalls.length, 2);
 	t.is(jitterCalls[0], 100); // First retry with custom delay
 	t.is(jitterCalls[1], 200); // Second retry with custom delay
-
-	await server.close();
 });
 
 test('jitter is not applied when Retry-After header is present', async t => {
@@ -917,7 +855,7 @@ test('jitter is not applied when Retry-After header is present', async t => {
 		return delay * 0.5;
 	};
 
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/', (_request, response) => {
 		requestCount++;
 
@@ -943,14 +881,12 @@ test('jitter is not applied when Retry-After header is present', async t => {
 	t.is(jitterCalls.length, 0);
 	// Should have waited at least 2 seconds (1s per retry)
 	t.true(timeElapsedInMs >= 2000);
-
-	await server.close();
 });
 
 test('retryOnTimeout: false (default) - does not retry on timeout', async t => {
 	let requestCount = 0;
 
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/', async (_request, response) => {
 		requestCount++;
 		// Delay longer than timeout to trigger timeout
@@ -971,14 +907,12 @@ test('retryOnTimeout: false (default) - does not retry on timeout', async t => {
 	);
 
 	t.is(requestCount, 1); // Should not retry
-
-	await server.close();
 });
 
 test('retryOnTimeout: true - retries on timeout', async t => {
 	let requestCount = 0;
 
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/', async (_request, response) => {
 		requestCount++;
 		if (requestCount <= 2) {
@@ -1000,14 +934,12 @@ test('retryOnTimeout: true - retries on timeout', async t => {
 
 	t.is(result, fixture);
 	t.is(requestCount, 3); // Initial + 2 retries
-
-	await server.close();
 });
 
 test('retryOnTimeout: true - respects retry limit on timeout', async t => {
 	let requestCount = 0;
 
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/', async (_request, response) => {
 		requestCount++;
 		// Always timeout
@@ -1028,14 +960,12 @@ test('retryOnTimeout: true - respects retry limit on timeout', async t => {
 	);
 
 	t.is(requestCount, 3); // Initial + 2 retries
-
-	await server.close();
 });
 
 test('shouldRetry: returns true - forces retry bypassing all checks', async t => {
 	let requestCount = 0;
 
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/', async (_request, response) => {
 		requestCount++;
 		if (requestCount <= 2) {
@@ -1058,14 +988,12 @@ test('shouldRetry: returns true - forces retry bypassing all checks', async t =>
 
 	t.is(result, fixture);
 	t.is(requestCount, 3);
-
-	await server.close();
 });
 
 test('shouldRetry: returns false - prevents retry', async t => {
 	let requestCount = 0;
 
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/', (_request, response) => {
 		requestCount++;
 		response.sendStatus(500); // Normally retriable
@@ -1084,14 +1012,12 @@ test('shouldRetry: returns false - prevents retry', async t => {
 	);
 
 	t.is(requestCount, 1); // No retries
-
-	await server.close();
 });
 
 test('shouldRetry: returns undefined - uses default retry logic', async t => {
 	let requestCount = 0;
 
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/', (_request, response) => {
 		requestCount++;
 		if (requestCount <= 2) {
@@ -1110,15 +1036,13 @@ test('shouldRetry: returns undefined - uses default retry logic', async t => {
 
 	t.is(result, fixture);
 	t.is(requestCount, 3); // Default retry behavior
-
-	await server.close();
 });
 
 test('shouldRetry: receives correct state object', async t => {
 	let requestCount = 0;
 	const states: Array<{errorName: string; retryCount: number}> = [];
 
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/', (_request, response) => {
 		requestCount++;
 		if (requestCount <= 2) {
@@ -1143,14 +1067,12 @@ test('shouldRetry: receives correct state object', async t => {
 	t.is(states[0].retryCount, 1); // First retry
 	t.is(states[1].errorName, 'HTTPError');
 	t.is(states[1].retryCount, 2); // Second retry
-
-	await server.close();
 });
 
 test('shouldRetry: custom business logic with HTTPError', async t => {
 	let requestCount = 0;
 
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/', (_request, response) => {
 		requestCount++;
 		if (requestCount === 1) {
@@ -1187,12 +1109,10 @@ test('shouldRetry: custom business logic with HTTPError', async t => {
 
 	t.is(result, fixture);
 	t.is(requestCount, 3);
-
-	await server.close();
 });
 
 test('shouldRetry: error propagates if shouldRetry throws', async t => {
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/', (_request, response) => {
 		response.sendStatus(500);
 	});
@@ -1210,14 +1130,12 @@ test('shouldRetry: error propagates if shouldRetry throws', async t => {
 			message: 'shouldRetry failed',
 		},
 	);
-
-	await server.close();
 });
 
 test('shouldRetry: works with TimeoutError', async t => {
 	let requestCount = 0;
 
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/', async (_request, response) => {
 		requestCount++;
 		if (requestCount <= 2) {
@@ -1242,14 +1160,12 @@ test('shouldRetry: works with TimeoutError', async t => {
 
 	t.is(result, fixture);
 	t.is(requestCount, 3);
-
-	await server.close();
 });
 
 test('shouldRetry: precedence over retryOnTimeout', async t => {
 	let requestCount = 0;
 
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/', async (_request, response) => {
 		requestCount++;
 		// Delay longer than timeout to trigger timeout
@@ -1272,14 +1188,12 @@ test('shouldRetry: precedence over retryOnTimeout', async t => {
 	);
 
 	t.is(requestCount, 1); // No retries
-
-	await server.close();
 });
 
 test('shouldRetry: works with synchronous function', async t => {
 	let requestCount = 0;
 
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/', (_request, response) => {
 		requestCount++;
 		if (requestCount <= 2) {
@@ -1298,14 +1212,12 @@ test('shouldRetry: works with synchronous function', async t => {
 
 	t.is(result, fixture);
 	t.is(requestCount, 3);
-
-	await server.close();
 });
 
 test('shouldRetry: non-boolean return values fall through to default logic', async t => {
 	let requestCount = 0;
 
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/', (_request, response) => {
 		requestCount++;
 		if (requestCount <= 2) {
@@ -1325,12 +1237,10 @@ test('shouldRetry: non-boolean return values fall through to default logic', asy
 
 	t.is(result, fixture);
 	t.is(requestCount, 3); // Should retry using default logic
-
-	await server.close();
 });
 
 test('shouldRetry: receives proper Error instance even for HTTPError', async t => {
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/', (_request, response) => {
 		response.sendStatus(404);
 	});
@@ -1354,15 +1264,13 @@ test('shouldRetry: receives proper Error instance even for HTTPError', async t =
 
 	// Ensure shouldRetry was called
 	t.truthy(receivedError);
-
-	await server.close();
 });
 
 test('shouldRetry: combines with default status code logic when returning undefined', async t => {
 	let requestCount = 0;
 	const capturedStatuses: number[] = [];
 
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/', (_request, response) => {
 		requestCount++;
 		if (requestCount === 1) {
@@ -1396,14 +1304,12 @@ test('shouldRetry: combines with default status code logic when returning undefi
 	// Should retry on 500, then fail on 404
 	t.is(requestCount, 2);
 	t.deepEqual(capturedStatuses, [500, 404]);
-
-	await server.close();
 });
 
 test('shouldRetry: retryCount starts at 1 for first retry', async t => {
 	const retryCounts: number[] = [];
 
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/', (_request, response) => {
 		response.sendStatus(500);
 	});
@@ -1421,14 +1327,12 @@ test('shouldRetry: retryCount starts at 1 for first retry', async t => {
 	);
 
 	t.deepEqual(retryCounts, [1, 2, 3]);
-
-	await server.close();
 });
 
 test('shouldRetry: handles Promise return value correctly', async t => {
 	let requestCount = 0;
 
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/', (_request, response) => {
 		requestCount++;
 		if (requestCount <= 2) {
@@ -1447,12 +1351,10 @@ test('shouldRetry: handles Promise return value correctly', async t => {
 
 	t.is(result, fixture);
 	t.is(requestCount, 3);
-
-	await server.close();
 });
 
 test('shouldRetry: error propagates if shouldRetry returns rejected Promise', async t => {
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/', (_request, response) => {
 		response.sendStatus(500);
 	});
@@ -1469,6 +1371,4 @@ test('shouldRetry: error propagates if shouldRetry returns rejected Promise', as
 			message: 'shouldRetry Promise rejected',
 		},
 	);
-
-	await server.close();
 });

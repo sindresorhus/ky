@@ -3,7 +3,7 @@ import ky from '../source/index.js';
 import {createHttpTestServer} from './helpers/create-http-test-server.js';
 
 test('common method is normalized', async t => {
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.all('/', (_request, response) => {
 		response.end();
 	});
@@ -20,12 +20,10 @@ test('common method is normalized', async t => {
 			},
 		}),
 	);
-
-	await server.close();
 });
 
 test('method defaults to "GET"', async t => {
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.all('/', (_request, response) => {
 		response.end();
 	});
@@ -43,12 +41,10 @@ test('method defaults to "GET"', async t => {
 			},
 		}),
 	);
-
-	await server.close();
 });
 
 test.failing('custom method remains identical', async t => {
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.all('/', (_request, response) => {
 		response.end();
 	});
@@ -68,18 +64,14 @@ test.failing('custom method remains identical', async t => {
 			},
 		}),
 	);
-
-	await server.close();
 });
 
 test('shortcut headers have correct accept headers set', async t => {
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.all('/', (request, response) => {
 		t.is(request.headers.accept, 'text/*');
 		response.end('whatever');
 	});
 
 	await ky.get(server.url).text();
-
-	await server.close();
 });

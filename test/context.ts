@@ -5,7 +5,7 @@ import {createHttpTestServer} from './helpers/create-http-test-server.js';
 test('context is available in all hooks', async t => {
 	t.plan(4);
 
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	let requestCount = 0;
 	server.get('/', (_request, response) => {
 		requestCount++;
@@ -55,12 +55,10 @@ test('context is available in all hooks', async t => {
 			],
 		},
 	}).json();
-
-	await server.close();
 });
 
 test('context works with ky.create and ky.extend', async t => {
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/', (_request, response) => {
 		response.json({success: true});
 	});
@@ -91,12 +89,10 @@ test('context works with ky.create and ky.extend', async t => {
 			],
 		},
 	}).json();
-
-	await server.close();
 });
 
 test('context is preserved across retries', async t => {
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	let requestCount = 0;
 	server.get('/', (_request, response) => {
 		requestCount++;
@@ -124,12 +120,10 @@ test('context is preserved across retries', async t => {
 	}).json();
 
 	t.is(callCount, 3);
-
-	await server.close();
 });
 
 test('context defaults to empty object when not provided', async t => {
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/', (_request, response) => {
 		response.json({success: true});
 	});
@@ -139,12 +133,10 @@ test('context defaults to empty object when not provided', async t => {
 			beforeRequest: [(_request, options) => t.deepEqual(options.context, {})],
 		},
 	}).json();
-
-	await server.close();
 });
 
 test('context is shallow merged', async t => {
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/', (_request, response) => {
 		response.json({success: true});
 	});
@@ -179,6 +171,4 @@ test('context is shallow merged', async t => {
 			],
 		},
 	}).json();
-
-	await server.close();
 });
