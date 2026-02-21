@@ -42,7 +42,7 @@ test('hooks can be async', async t => {
 			json,
 			hooks: {
 				beforeRequest: [
-					async (request, options) => {
+					async ({request, options}) => {
 						await delay(100);
 						const bodyJson = JSON.parse(options.body as string);
 						bodyJson.foo = false;
@@ -88,7 +88,7 @@ test('beforeRequest hook allows modifications', async t => {
 			json,
 			hooks: {
 				beforeRequest: [
-					(request, options) => {
+					({request, options}) => {
 						const bodyJson = JSON.parse(options.body as string);
 						bodyJson.foo = false;
 						return new Request(request, {body: JSON.stringify(bodyJson)});
@@ -119,7 +119,7 @@ test('afterResponse hook accepts success response', async t => {
 				json,
 				hooks: {
 					afterResponse: [
-						async (_input, _options, response) => {
+						async ({response}) => {
 							t.is(response.status, 200);
 							t.deepEqual(await response.json(), json);
 						},
@@ -143,7 +143,7 @@ test('afterResponse hook cancels unused cloned response body', async t => {
 	await ky.get(server.url, {
 		hooks: {
 			afterResponse: [
-				async (_request, _options, response) => {
+				async ({response}) => {
 					if (response.body) {
 						const originalCancel = response.body.cancel.bind(response.body);
 						response.body.cancel = async () => {
@@ -175,7 +175,7 @@ test('afterResponse hook cancels both clone and original when it returns a new r
 		fetch: customFetch,
 		hooks: {
 			afterResponse: [
-				(_request, _options, response) => {
+				({response}) => {
 					clonedResponse = response;
 					return new Response('replacement');
 				},
@@ -201,7 +201,7 @@ test('afterResponse hook can return the provided response', async t => {
 		fetch: customFetch,
 		hooks: {
 			afterResponse: [
-				(_request, _options, response) => response,
+				({response}) => response,
 			],
 		},
 	}).text();
@@ -224,15 +224,15 @@ test('afterResponse hook with multiple hooks cancels all unused clones', async t
 		fetch: customFetch,
 		hooks: {
 			afterResponse: [
-				(_request, _options, response) => {
+				({response}) => {
 					clones.push(response);
 					// Return nothing - clone should be cancelled
 				},
-				(_request, _options, response) => {
+				({response}) => {
 					clones.push(response);
 					// Return nothing - clone should be cancelled
 				},
-				(_request, _options, response) => {
+				({response}) => {
 					clones.push(response);
 					// Return nothing - clone should be cancelled
 				},
@@ -266,7 +266,7 @@ test('afterResponse hook cancels response bodies when it throws', async t => {
 			fetch: customFetch,
 			hooks: {
 				afterResponse: [
-					(_request, _options, response) => {
+					({response}) => {
 						clonedResponse = response;
 						throw expectError;
 					},
@@ -296,7 +296,7 @@ test('afterResponse hook accepts failed response', async t => {
 				json,
 				hooks: {
 					afterResponse: [
-						async (_input, _options, response) => {
+						async ({response}) => {
 							t.is(response.status, 500);
 							t.deepEqual(await response.json(), json);
 						},
@@ -329,7 +329,7 @@ test('afterResponse hook can change response instance by sequence', async t => {
 							new Response(modifiedBody1, {
 								status: modifiedStatus1,
 							}),
-						async (_input, _options, response) => {
+						async ({response}) => {
 							t.is(response.status, modifiedStatus1);
 							t.is(await response.text(), modifiedBody1);
 
@@ -406,7 +406,7 @@ test('`afterResponse` hook gets called even if using body shortcuts', async t =>
 		.get(server.url, {
 			hooks: {
 				afterResponse: [
-					(_input, _options, response) => {
+					({response}) => {
 						called = true;
 						return response;
 					},
@@ -442,7 +442,7 @@ test('`afterResponse` hook is called with request, normalized options, and respo
 				json,
 				hooks: {
 					afterResponse: [
-						async (request, options, response) => {
+						async ({request, options, response}) => {
 							if (response.status === 403) {
 								// Retry request with valid token
 								return ky(request, {
@@ -485,7 +485,7 @@ test('afterResponse hook with parseJson and response.json()', async t => {
 			},
 			hooks: {
 				afterResponse: [
-					async (_request, _options, response) => {
+					async ({response}) => {
 						t.true(response instanceof Response);
 						t.deepEqual(await response.json(), {awesome: true});
 					},
@@ -877,7 +877,7 @@ test('runs beforeError before throwing HTTPError', async t => {
 		ky.post(server.url, {
 			hooks: {
 				beforeError: [
-					(error: HTTPError) => {
+					({error}) => {
 						const {response} = error;
 
 						if (response?.body) {
@@ -910,7 +910,7 @@ test('beforeError can return promise which resolves to HTTPError', async t => {
 		ky.post(server.url, {
 			hooks: {
 				beforeError: [
-					async (error: HTTPError) => {
+					async ({error}) => {
 						const body = error.data as {reason: string};
 
 						error.name = 'GitHubError';
@@ -950,7 +950,7 @@ test('beforeRequest hook receives retryCount parameter', async t => {
 	const result = await ky.get(server.url, {
 		hooks: {
 			beforeRequest: [
-				(request, _options, {retryCount}) => {
+				({request, retryCount}) => {
 					retryCounts.push(retryCount);
 					// Only set default token on initial request
 					if (retryCount === 0) {
@@ -985,7 +985,7 @@ test('hooks are not included in normalized options passed to hooks', async t => 
 	await ky.get(server.url, {
 		hooks: {
 			beforeRequest: [
-				(_request, options) => {
+				({options}) => {
 					// Verify hooks field is not present
 					t.false('hooks' in options);
 
@@ -1030,9 +1030,9 @@ test('afterResponse hook receives retryCount in state parameter', async t => {
 		},
 		hooks: {
 			afterResponse: [
-				(_request, _options, _response, state) => {
-					t.is(typeof state.retryCount, 'number');
-					retryCounts.push(state.retryCount);
+				({retryCount}) => {
+					t.is(typeof retryCount, 'number');
+					retryCounts.push(retryCount);
 				},
 			],
 		},
@@ -1063,11 +1063,11 @@ test('beforeError hook receives retryCount in state parameter', async t => {
 			},
 			hooks: {
 				beforeError: [
-					(error: HTTPError, state) => {
+					({error, retryCount}) => {
 						// Verify retryCount exists in state and is a number
-						t.is(typeof state.retryCount, 'number');
-						t.true(state.retryCount >= 0);
-						errorRetryCount = state.retryCount;
+						t.is(typeof retryCount, 'number');
+						t.true(retryCount >= 0);
+						errorRetryCount = retryCount;
 						return error;
 					},
 				],
@@ -1217,7 +1217,7 @@ test('afterResponse hook can force retry with ky.retry()', async t => {
 		},
 		hooks: {
 			afterResponse: [
-				async (_request, _options, response) => {
+				async ({response}) => {
 					const data = await response.clone().json();
 					if (data.error?.code === 'RATE_LIMIT') {
 						return ky.retry();
@@ -1252,7 +1252,7 @@ test('afterResponse hook forced retry does not await cancellation when hook clon
 		fetch: customFetch,
 		hooks: {
 			afterResponse: [
-				(_request, _options, response) => {
+				({response}) => {
 					response.clone();
 					if (response.status === 401) {
 						return ky.retry();
@@ -1288,7 +1288,7 @@ test('afterResponse hook can force retry with custom delay', async t => {
 		},
 		hooks: {
 			afterResponse: [
-				async (_request, _options, response) => {
+				async ({response}) => {
 					const data = await response.clone().json();
 					if (data.error?.code === 'RATE_LIMIT') {
 						return ky.retry({
@@ -1326,7 +1326,7 @@ test('afterResponse hook forced retry respects retry limit', async t => {
 			},
 			hooks: {
 				afterResponse: [
-					async (_request, _options, response) => {
+					async ({response}) => {
 						const data = await response.clone().json();
 						if (data.error?.code === 'RATE_LIMIT') {
 							return ky.retry();
@@ -1368,7 +1368,7 @@ test('afterResponse hook forced retry is observable in beforeRetry', async t => 
 		},
 		hooks: {
 			afterResponse: [
-				async (_request, _options, response) => {
+				async ({response}) => {
 					const data = await response.clone().json();
 					if (data.error?.code === 'RATE_LIMIT') {
 						return ky.retry({code: 'RATE_LIMIT'});
@@ -1419,7 +1419,7 @@ test('afterResponse hook forced retry skips shouldRetry check', async t => {
 		},
 		hooks: {
 			afterResponse: [
-				async (_request, _options, response) => {
+				async ({response}) => {
 					const data = await response.clone().json();
 					if (data.error?.code === 'CUSTOM_ERROR') {
 						return ky.retry();
@@ -1459,7 +1459,7 @@ test('afterResponse hook forced retry works on non-retriable methods like POST',
 		},
 		hooks: {
 			afterResponse: [
-				async (_request, _options, response) => {
+				async ({response}) => {
 					const data = await response.clone().json();
 					if (data.error?.code === 'RATE_LIMIT') {
 						return ky.retry();
@@ -1497,7 +1497,7 @@ test('afterResponse hook forced retry stops processing remaining hooks', async t
 		},
 		hooks: {
 			afterResponse: [
-				async (_request, _options, response) => {
+				async ({response}) => {
 					firstHookCallCount++;
 					const data = await response.clone().json();
 					if (data.error?.code === 'RATE_LIMIT') {
@@ -1538,7 +1538,7 @@ test('afterResponse hook forced retry works with delay: 0 (instant retry)', asyn
 		},
 		hooks: {
 			afterResponse: [
-				async (_request, _options, response) => {
+				async ({response}) => {
 					const data = await response.clone().json();
 					if (data.error?.code === 'RETRY_NOW') {
 						return ky.retry({delay: 0}); // Instant retry, no delay
@@ -1572,7 +1572,7 @@ test('afterResponse hook can force retry with custom request (different URL)', a
 	const result = await ky.get(`${server.url}/primary`, {
 		hooks: {
 			afterResponse: [
-				async (request, _options, response) => {
+				async ({request, response}) => {
 					const data = await response.clone().json();
 					if (data.error?.code === 'FALLBACK_TO_BACKUP') {
 						return ky.retry({
@@ -1613,7 +1613,7 @@ test('afterResponse hook can force retry with custom request (modified headers)'
 		headers: {'X-Auth-Token': 'original-token'},
 		hooks: {
 			afterResponse: [
-				async (request, _options, response) => {
+				async ({request, response}) => {
 					const data = await response.clone().json();
 					if (data.error?.code === 'TOKEN_REFRESH' && data.error.newToken) {
 						return ky.retry({
@@ -1658,7 +1658,7 @@ test('afterResponse hook can force retry with custom request (different HTTP met
 	const result = await ky.post(server.url, {
 		hooks: {
 			afterResponse: [
-				async (request, _options, response) => {
+				async ({request, response}) => {
 					const data = await response.clone().json();
 					if (data.error?.code === 'METHOD_OVERLOAD' && request.method === 'POST') {
 						return ky.retry({
@@ -1699,7 +1699,7 @@ test('afterResponse hook custom request works with beforeRetry hooks', async t =
 	const result = await ky.get(server.url, {
 		hooks: {
 			afterResponse: [
-				async (request, _options, response) => {
+				async ({request, response}) => {
 					const data = await response.clone().json();
 					if (data.error?.code === 'RETRY_WITH_CUSTOM_REQUEST') {
 						return ky.retry({
@@ -1760,7 +1760,7 @@ test('afterResponse hook custom request respects retry limit', async t => {
 			retry: {limit: 2},
 			hooks: {
 				afterResponse: [
-					async (request, _options, response) => {
+					async ({request, response}) => {
 						const data = await response.clone().json();
 						if (data.error?.code === 'ALWAYS_RETRY') {
 							// Always force retry with custom request
@@ -1797,7 +1797,7 @@ test('afterResponse hook custom request is observable in beforeRetry', async t =
 	const result = await ky.get(server.url, {
 		hooks: {
 			afterResponse: [
-				async (request, _options, response) => {
+				async ({request, response}) => {
 					const data = await response.clone().json();
 					if (data.error?.code === 'CUSTOM_REQUEST_RETRY') {
 						return ky.retry({
@@ -1847,7 +1847,7 @@ test('afterResponse hook can combine custom request with custom delay', async t 
 	const result = await ky.get(`${server.url}/primary`, {
 		hooks: {
 			afterResponse: [
-				async (request, _options, response) => {
+				async ({request, response}) => {
 					const data = await response.clone().json();
 					if (data.error?.code === 'FALLBACK_WITH_DELAY') {
 						return ky.retry({
@@ -1891,7 +1891,7 @@ test('afterResponse hook custom request with modified body', async t => {
 		json: {original: true},
 		hooks: {
 			afterResponse: [
-				async (request, _options, response) => {
+				async ({request, response}) => {
 					const data = await response.clone().json();
 					if (data.error?.code === 'RETRY_WITH_MODIFIED_BODY') {
 						return ky.retry({
@@ -1935,7 +1935,7 @@ test('afterResponse hook custom request with timeout configured works correctly'
 		retry: {limit: 2},
 		hooks: {
 			afterResponse: [
-				async (request, _options, response) => {
+				async ({request, response}) => {
 					const data = await response.clone().json();
 					if (data.error?.code === 'NEED_FALLBACK') {
 						// Custom request should inherit proper timeout signal
@@ -1974,7 +1974,7 @@ test('afterResponse hook custom request with aborted signal should still work', 
 	const result = await ky.get(server.url, {
 		hooks: {
 			afterResponse: [
-				async (request, _options, response) => {
+				async ({request, response}) => {
 					const data = await response.clone().json();
 					if (data.error?.code === 'NEED_CUSTOM_REQUEST') {
 						// Create custom request with aborted signal
@@ -2023,7 +2023,7 @@ test('afterResponse hook can force retry with cause parameter', async t => {
 		},
 		hooks: {
 			afterResponse: [
-				async (_request, _options, response) => {
+				async ({response}) => {
 					const data = await response.clone().json();
 					if (data.error?.code === 'NEEDS_VALIDATION') {
 						return ky.retry({
@@ -2073,7 +2073,7 @@ test('afterResponse hook wraps non-Error cause values in NonError', async t => {
 		},
 		hooks: {
 			afterResponse: [
-				async (_request, _options, response) => {
+				async ({response}) => {
 					const data = await response.clone().json();
 					if (data.error?.code === 'NEEDS_VALIDATION') {
 						// JS users (or TS users bypassing types) can pass non-Error values
@@ -2125,7 +2125,7 @@ test('afterResponse hook can retry on 401 status', async t => {
 		},
 		hooks: {
 			afterResponse: [
-				async (_request, _options, response) => {
+				async ({response}) => {
 					if (response.status === 401) {
 						return ky.retry();
 					}
@@ -2167,8 +2167,8 @@ test('afterResponse hook can refresh token on 401 and retry once', async t => {
 	const api = ky.extend({
 		hooks: {
 			afterResponse: [
-				async (request, _options, response, state) => {
-					if (response.status === 401 && state.retryCount === 0) {
+				async ({request, response, retryCount}) => {
+					if (response.status === 401 && retryCount === 0) {
 						const {token} = await ky.post(`${server.url}/auth/refresh`).json<{token: string}>();
 
 						const headers = new Headers(request.headers);
@@ -2219,8 +2219,8 @@ test('afterResponse hook prevents infinite token refresh loop', async t => {
 	const api = ky.extend({
 		hooks: {
 			afterResponse: [
-				async (request, _options, response, state) => {
-					if (response.status === 401 && state.retryCount === 0) {
+				async ({request, response, retryCount}) => {
+					if (response.status === 401 && retryCount === 0) {
 						const {token} = await ky.post(`${server.url}/auth/refresh`).json<{token: string}>();
 
 						const headers = new Headers(request.headers);
@@ -2276,8 +2276,8 @@ test('afterResponse hook handles refresh endpoint failure', async t => {
 	const api = ky.extend({
 		hooks: {
 			afterResponse: [
-				async (request, _options, response, state) => {
-					if (response.status === 401 && state.retryCount === 0) {
+				async ({request, response, retryCount}) => {
+					if (response.status === 401 && retryCount === 0) {
 						const {token} = await ky.post(`${server.url}/auth/refresh`).json<{token: string}>();
 
 						const headers = new Headers(request.headers);
@@ -2334,8 +2334,8 @@ test('afterResponse hook handles refresh endpoint returning 401', async t => {
 	const api = ky.extend({
 		hooks: {
 			afterResponse: [
-				async (request, _options, response, state) => {
-					if (response.status === 401 && state.retryCount === 0) {
+				async ({request, response, retryCount}) => {
+					if (response.status === 401 && retryCount === 0) {
 						const {token} = await ky.post(`${server.url}/auth/refresh`).json<{token: string}>();
 
 						const headers = new Headers(request.headers);

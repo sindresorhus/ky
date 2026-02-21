@@ -13,7 +13,7 @@ test('common method is normalized', async t => {
 			method: 'get',
 			hooks: {
 				beforeRequest: [
-					(_input, options) => {
+					({options}) => {
 						t.is(options.method, 'GET');
 					},
 				],
@@ -36,7 +36,7 @@ test('method defaults to "GET"', async t => {
 		ky(server.url, {
 			hooks: {
 				beforeRequest: [
-					(_input, options) => {
+					({options}) => {
 						t.is(options.method, 'GET');
 					},
 				],
@@ -61,7 +61,7 @@ test.failing('custom method remains identical', async t => {
 			method: 'report',
 			hooks: {
 				beforeRequest: [
-					(_input, options) => {
+					({options}) => {
 						t.is(options.method, 'report');
 					},
 				],

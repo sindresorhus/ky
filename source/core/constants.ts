@@ -163,7 +163,7 @@ import ky, {isForceRetryError} from 'ky';
 const api = ky.extend({
 	hooks: {
 		afterResponse: [
-			async (request, options, response) => {
+			async ({request, response}) => {
 				// Retry based on response body content
 				if (response.status === 200) {
 					const data = await response.clone().json();
