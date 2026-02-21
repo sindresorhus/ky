@@ -97,7 +97,7 @@ test('retries with FormData in afterResponse hook maintains correct boundary', a
 		body: formData,
 		hooks: {
 			afterResponse: [
-				async (request, options, response) => {
+				async ({request, options, response}) => {
 					if (response.status === 401) {
 						return ky(request, options);
 					}

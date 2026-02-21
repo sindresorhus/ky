@@ -258,7 +258,7 @@ export type KyOptions = {
 	const api = ky.create({
 		hooks: {
 			beforeRequest: [
-				(request, options) => {
+				({request, options}) => {
 					const {token} = options.context;
 					if (token) {
 						request.headers.set('Authorization', `Bearer ${token}`);

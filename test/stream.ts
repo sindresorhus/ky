@@ -140,7 +140,7 @@ test('forced retry custom request keeps upload progress', async t => {
 					},
 				],
 				afterResponse: [
-					async (request, _normalizedOptions, response) => {
+					async ({request, response}) => {
 						if (response.status === 500) {
 							return ky.retry({request: new Request(request)});
 						}
@@ -203,7 +203,7 @@ test('forced retry custom request has correct body size for upload progress', as
 			},
 			hooks: {
 				afterResponse: [
-					async (request, _normalizedOptions, response) => {
+					async ({request, response}) => {
 						if (response.status === 500) {
 							return ky.retry({request: new Request(request)});
 						}
@@ -334,7 +334,7 @@ test('forced retry with custom request updates upload progress size', async t =>
 					},
 				],
 				afterResponse: [
-					async (request, _normalizedOptions, response) => {
+					async ({request, response}) => {
 						if (response.status === 500) {
 							return ky.retry({
 								request: new Request(request, {body: updatedPayloadString}),

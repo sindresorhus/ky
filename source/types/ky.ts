@@ -147,7 +147,7 @@ export type KyInstance = {
 	const api = ky.extend({
 		hooks: {
 			afterResponse: [
-				async (request, options, response) => {
+				async ({response}) => {
 					// Retry based on response body content
 					if (response.status === 200) {
 						const data = await response.clone().json();

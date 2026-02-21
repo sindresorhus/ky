@@ -210,7 +210,7 @@ test('HTTPError#data is available in beforeError hooks', async t => {
 	await t.throwsAsync(ky.get(server.url, {
 		hooks: {
 			beforeError: [
-				error => {
+				({error}) => {
 					hookData = error.data;
 					return error;
 				},
@@ -487,7 +487,7 @@ test('HTTPError does not throw TypeError when error response stream is already l
 		timeout: false,
 		hooks: {
 			afterResponse: [
-				(_request, _options, response) => {
+				({response}) => {
 					void response.text();
 					return response;
 				},
