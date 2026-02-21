@@ -1,7 +1,7 @@
 import type {Options} from '../types/options.js';
 import {usualFormBoundarySize} from '../core/constants.js';
 
-// eslint-disable-next-line @typescript-eslint/ban-types
+// eslint-disable-next-line @typescript-eslint/no-restricted-types
 export const getBodySize = (body?: BodyInit | null): number => {
 	if (!body) {
 		return 0;
@@ -115,7 +115,7 @@ export const streamResponse = (response: Response, onDownloadProgress: Options['
 	);
 };
 
-// eslint-disable-next-line @typescript-eslint/ban-types
+// eslint-disable-next-line @typescript-eslint/no-restricted-types
 export const streamRequest = (request: Request, onUploadProgress: Options['onUploadProgress'], originalBody?: BodyInit | null) => {
 	if (!request.body) {
 		return request;

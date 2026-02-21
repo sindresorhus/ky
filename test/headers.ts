@@ -45,6 +45,8 @@ test('`user-agent`', async t => {
 
 	const headers = await ky.get(server.url).json<IncomingHttpHeaders>();
 	t.is(headers['user-agent'], 'node');
+
+	await server.close();
 });
 
 test('`accept-encoding`', async t => {
@@ -54,6 +56,8 @@ test('`accept-encoding`', async t => {
 	const headers = await ky.get(server.url).json<IncomingHttpHeaders>();
 
 	t.is(headers['accept-encoding'], 'gzip, deflate');
+
+	await server.close();
 });
 
 test('does not override provided `accept-encoding`', async t => {
@@ -68,6 +72,8 @@ test('does not override provided `accept-encoding`', async t => {
 		})
 		.json<IncomingHttpHeaders>();
 	t.is(headers['accept-encoding'], 'gzip');
+
+	await server.close();
 });
 
 test('does not remove user headers from `url` object argument', async t => {
@@ -86,6 +92,8 @@ test('does not remove user headers from `url` object argument', async t => {
 	t.is(headers['user-agent'], 'node');
 	t.is(headers['accept-encoding'], 'gzip, deflate');
 	t.is(headers['x-request-id'], 'value');
+
+	await server.close();
 });
 
 test('`accept` header with `json` option', async t => {
@@ -104,6 +112,8 @@ test('`accept` header with `json` option', async t => {
 		.json<IncomingHttpHeaders>();
 
 	t.is(headers.accept, 'application/json');
+
+	await server.close();
 });
 
 test('`host` header', async t => {
@@ -112,6 +122,8 @@ test('`host` header', async t => {
 
 	const headers = await ky.get(server.url).json<IncomingHttpHeaders>();
 	t.is(headers.host, `localhost:${server.port}`);
+
+	await server.close();
 });
 
 test('transforms names to lowercase', async t => {
@@ -124,6 +136,8 @@ test('transforms names to lowercase', async t => {
 		},
 	}).json<IncomingHttpHeaders>();
 	t.is(headers['accept-encoding'], 'identity');
+
+	await server.close();
 });
 
 test('setting `content-length` to 0', async t => {
@@ -142,6 +156,8 @@ test('setting `content-length` to 0', async t => {
 	const error = await t.throwsAsync(request);
 
 	t.is(error.cause?.code, 'UND_ERR_REQ_CONTENT_LENGTH_MISMATCH');
+
+	await server.close();
 });
 
 test('sets `content-length` to `0` when requesting PUT with empty body', async t => {
@@ -151,6 +167,8 @@ test('sets `content-length` to `0` when requesting PUT with empty body', async t
 	const headers = await ky.put(server.url).json<IncomingHttpHeaders>();
 
 	t.is(headers['content-length'], '0');
+
+	await server.close();
 });
 
 test('json manual `content-type` header', async t => {
@@ -169,6 +187,8 @@ test('json manual `content-type` header', async t => {
 		.json<IncomingHttpHeaders>();
 
 	t.is(headers['content-type'], 'custom');
+
+	await server.close();
 });
 
 test('form-data manual `content-type` header', async t => {
@@ -188,6 +208,8 @@ test('form-data manual `content-type` header', async t => {
 		.json<IncomingHttpHeaders>();
 
 	t.is(headers['content-type'], 'custom');
+
+	await server.close();
 });
 
 test('form-data automatic `content-type` header', async t => {
@@ -205,6 +227,8 @@ test('form-data automatic `content-type` header', async t => {
 
 	// eslint-disable-next-line ava/assertion-arguments
 	t.true(headers['content-type'].startsWith('multipart/form-data; boundary='), headers['content-type']);
+
+	await server.close();
 });
 
 test('form-data manual `content-type` header with search params', async t => {
@@ -225,6 +249,8 @@ test('form-data manual `content-type` header with search params', async t => {
 		.json<IncomingHttpHeaders>();
 
 	t.is(headers['content-type'], 'custom');
+
+	await server.close();
 });
 
 test('form-data automatic `content-type` header with search params', async t => {
@@ -243,6 +269,8 @@ test('form-data automatic `content-type` header with search params', async t => 
 
 	// eslint-disable-next-line ava/assertion-arguments
 	t.true(headers['content-type'].startsWith('multipart/form-data; boundary='), headers['content-type']);
+
+	await server.close();
 });
 
 test('form-data sets `content-length` header', async t => {
@@ -259,6 +287,8 @@ test('form-data sets `content-length` header', async t => {
 	// Newer versions: 121 bytes (with CRLF)
 	// Eventually this should only check for '121' when older Node.js versions are dropped
 	t.true(headers['content-length'] === '119' || headers['content-length'] === '121');
+
+	await server.close();
 });
 
 test('buffer as `options.body` sets `content-length` header', async t => {
@@ -273,6 +303,8 @@ test('buffer as `options.body` sets `content-length` header', async t => {
 		.json<IncomingHttpHeaders>();
 
 	t.is(Number(headers['content-length']), buffer.length);
+
+	await server.close();
 });
 
 test.failing('removes undefined value headers', async t => {
@@ -290,6 +322,8 @@ test.failing('removes undefined value headers', async t => {
 
 	t.is(headers['user-agent'], 'undefined');
 	t.is(headers['unicorn'], 'unicorn');
+
+	await server.close();
 });
 
 test('non-existent headers set to undefined are omitted', async t => {
@@ -307,6 +341,8 @@ test('non-existent headers set to undefined are omitted', async t => {
 
 	t.false('blah' in headers);
 	t.true('rainbow' in headers);
+
+	await server.close();
 });
 
 test('preserve port in host header if non-standard port', async t => {
@@ -315,6 +351,8 @@ test('preserve port in host header if non-standard port', async t => {
 
 	const body = await ky.get(server.url).json<IncomingHttpHeaders>();
 	t.is(body.host, `localhost:${server.port}`);
+
+	await server.close();
 });
 
 test('strip port in host header if explicit standard port (:80) & protocol (HTTP)', async t => {

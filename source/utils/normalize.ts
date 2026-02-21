@@ -43,9 +43,7 @@ export const normalizeRetryOptions = (retry: number | RetryOptions = {}): Intern
 		throw new Error('retry.statusCodes must be an array');
 	}
 
-	const normalizedRetry = Object.fromEntries(
-		Object.entries(retry).filter(([, value]) => value !== undefined),
-	) as RetryOptions;
+	const normalizedRetry = Object.fromEntries(Object.entries(retry).filter(([, value]) => value !== undefined)) as RetryOptions;
 
 	return {
 		...defaultRetryOptions,

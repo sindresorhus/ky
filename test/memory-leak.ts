@@ -11,9 +11,7 @@ test('shared abort signal must not cause memory leak of input', async t => {
 	});
 
 	async function isKyLeaking(api: KyInstance) {
-		let url: URL | undefined = new URL(
-			`${server.url.toString()}?id=${Math.random()}`,
-		);
+		let url: URL | undefined = new URL(`${server.url.toString()}?id=${Math.random()}`);
 		const detector = new LeakDetector(url);
 
 		await api.get(url);

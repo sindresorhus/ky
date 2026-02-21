@@ -193,9 +193,7 @@ export class Ky {
 	static #normalizeSearchParams(searchParams: SearchParamsOption): SearchParamsOption {
 		// Filter out undefined values from plain objects
 		if (searchParams && typeof searchParams === 'object' && !Array.isArray(searchParams) && !(searchParams instanceof URLSearchParams)) {
-			return Object.fromEntries(
-				Object.entries(searchParams).filter(([, value]) => value !== undefined),
-			);
+			return Object.fromEntries(Object.entries(searchParams).filter(([, value]) => value !== undefined));
 		}
 
 		return searchParams;
@@ -391,7 +389,7 @@ export class Ky {
 
 				const max = this.#options.retry.maxRetryAfter ?? after;
 				// Don't apply jitter when server provides explicit retry timing
-				return after < max ? after : max;
+				return Math.min(after, max);
 			}
 
 			if (error.response.status === 413) {

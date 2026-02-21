@@ -1,6 +1,6 @@
 import {Buffer} from 'node:buffer';
+import {setTimeout as delay} from 'node:timers/promises';
 import test from 'ava';
-import delay from 'delay';
 import {expectTypeOf} from 'expect-type';
 import ky, {HTTPError, TimeoutError} from '../source/index.js';
 import {createHttpTestServer} from './helpers/create-http-test-server.js';
@@ -179,7 +179,7 @@ test('`json` option overrides the `body` option', async t => {
 test('custom headers', async t => {
 	const server = await createHttpTestServer();
 	server.get('/', (request, response) => {
-		response.end(request.headers['unicorn']);
+		response.end(request.headers.unicorn);
 	});
 
 	t.is(
@@ -199,7 +199,7 @@ test('JSON with custom Headers instance', async t => {
 
 	const server = await createHttpTestServer();
 	server.post('/', async (request, response) => {
-		t.is(request.headers['unicorn'], 'rainbow');
+		t.is(request.headers.unicorn, 'rainbow');
 		t.is(request.headers['content-type'], 'application/json');
 		response.json(request.body);
 	});
@@ -631,8 +631,7 @@ test('throwHttpErrors preserves original type in hooks', async t => {
 test('ky.create()', async t => {
 	const server = await createHttpTestServer();
 	server.get('/', (request, response) => {
-		// eslint-disable-next-line @typescript-eslint/restrict-template-expressions
-		response.end(`${request.headers['unicorn']} - ${request.headers['rainbow']}`);
+		response.end(`${request.headers.unicorn} - ${request.headers.rainbow}`);
 	});
 
 	const extended = ky.create({
@@ -916,6 +915,8 @@ test('throws DOMException/Error with name AbortError when aborted by user', asyn
 
 	t.true(['DOMException', 'Error'].includes(error.constructor.name), `Expected DOMException or Error, got ${error.constructor.name}`);
 	t.is(error.name, 'AbortError', `Expected AbortError, got ${error.name}`);
+
+	await server.close();
 });
 
 test('throws AbortError when signal was aborted before request', async t => {
@@ -936,6 +937,8 @@ test('throws AbortError when signal was aborted before request', async t => {
 	t.true(['DOMException', 'Error'].includes(error.constructor.name), `Expected DOMException or Error, got ${error.constructor.name}`);
 	t.is(error.name, 'AbortError', `Expected AbortError, got ${error.name}`);
 	t.is(requestCount, 0, 'Request count is more than 0, server received request.');
+
+	await server.close();
 });
 
 test('throws AbortError when aborted via Request', async t => {
@@ -953,6 +956,8 @@ test('throws AbortError when aborted via Request', async t => {
 
 	t.true(['DOMException', 'Error'].includes(error.constructor.name), `Expected DOMException or Error, got ${error.constructor.name}`);
 	t.is(error.name, 'AbortError', `Expected AbortError, got ${error.name}`);
+
+	await server.close();
 });
 
 test('merges signals from instance and request options', async t => {
@@ -1032,10 +1037,10 @@ test('options override Request instance body', async t => {
 	});
 
 	server.post('/', (request, response) => {
-		// eslint-disable-next-line @typescript-eslint/ban-types
+		// eslint-disable-next-line @typescript-eslint/no-restricted-types
 		const body: Buffer[] = [];
 
-		// eslint-disable-next-line @typescript-eslint/ban-types
+		// eslint-disable-next-line @typescript-eslint/no-restricted-types
 		request.on('data', (chunk: Buffer) => {
 			body.push(chunk);
 		});

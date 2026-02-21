@@ -143,10 +143,14 @@ export type ForceRetryOptions = {
 };
 
 /**
-Marker returned by ky.retry() to signal a forced retry from afterResponse hooks.
+Marker returned by `ky.retry()` to signal a forced retry from `afterResponse` hooks.
 */
 export class RetryMarker {
-	constructor(public options?: ForceRetryOptions) {}
+	options: ForceRetryOptions | undefined;
+
+	constructor(options?: ForceRetryOptions) {
+		this.options = options;
+	}
 }
 
 /**

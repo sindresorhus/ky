@@ -10,7 +10,7 @@ import {
 
 type Run = (t: ExecutionContext, page: Page) => Promise<void>;
 
-const PWDEBUG = Boolean(process.env['PWDEBUG']);
+const PWDEBUG = Boolean(process.env.PWDEBUG);
 const DEFAULT_BROWSERS = [chromium, firefox, webkit];
 
 export const browserTest = (title: string, browserTypes: BrowserType[], run: Run) => {

@@ -356,7 +356,7 @@ export interface Options extends KyOptions, Omit<RequestInit, 'headers'> { // es
 }
 
 export type InternalOptions = Required<
-Omit<Options, 'hooks' | 'retry' | 'context' | 'throwHttpErrors'>,
+	Omit<Options, 'hooks' | 'retry' | 'context' | 'throwHttpErrors'>,
 'fetch' | 'prefixUrl' | 'timeout'
 > & {
 	headers: Required<Headers>;

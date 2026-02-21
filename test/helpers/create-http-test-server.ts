@@ -1,11 +1,10 @@
 import http from 'node:http';
 import type net from 'node:net';
+import {promisify} from 'node:util';
 import express from 'express';
-import pify from 'pify';
-import bodyParser from 'body-parser';
 
 export type HttpServerOptions = {
-	bodyParser?: express.NextFunction | false;
+	bodyParser?: false;
 };
 
 export type ExtendedHttpTestServer = {
@@ -21,46 +20,26 @@ export const createHttpTestServer = async (options: HttpServerOptions = {}): Pro
 	server.http = http.createServer(server);
 
 	server.set('etag', false);
+	server.http.keepAliveTimeout = 0;
+	server.http.unref();
 
 	if (options.bodyParser !== false) {
-		server.use(
-			bodyParser.json({
-				limit: '1mb',
-				type: 'application/json',
-				...options.bodyParser,
-			}),
-		);
-		server.use(
-			bodyParser.text({
-				limit: '1mb',
-				type: 'text/plain',
-				...options.bodyParser,
-			}),
-		);
-		server.use(
-			bodyParser.urlencoded({
-				limit: '1mb',
-				type: 'application/x-www-form-urlencoded',
-				extended: true,
-				...options.bodyParser,
-			}),
-		);
-		server.use(
-			bodyParser.raw({
-				limit: '1mb',
-				type: 'application/octet-stream',
-				...options.bodyParser,
-			}),
-		);
+		server.use(express.json({limit: '1mb', type: 'application/json'}));
+		server.use(express.text({limit: '1mb', type: 'text/plain'}));
+		server.use(express.urlencoded({limit: '1mb', type: 'application/x-www-form-urlencoded', extended: true}));
+		server.use(express.raw({limit: '1mb', type: 'application/octet-stream'}));
 	}
 
-	await pify(server.http.listen.bind(server.http))();
+	await promisify(server.http.listen.bind(server.http))();
 
 	server.port = (server.http.address() as net.AddressInfo).port;
 	server.url = `http://localhost:${server.port}`;
 	server.hostname = 'localhost';
 
-	server.close = async () => pify(server.http.close.bind(server.http))();
+	server.close = async () => {
+		server.http.closeAllConnections();
+		return promisify(server.http.close.bind(server.http))();
+	};
 
 	return server;
 };

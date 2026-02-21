@@ -1,5 +1,5 @@
+import {setTimeout as delay} from 'node:timers/promises';
 import test from 'ava';
-import delay from 'delay';
 import ky, {HTTPError, isHTTPError, isForceRetryError} from '../source/index.js';
 import {type Options} from '../source/types/options.js';
 import {createHttpTestServer} from './helpers/create-http-test-server.js';
@@ -503,7 +503,7 @@ test('beforeRetry hook is never called for the initial request', async t => {
 	const fixture = 'fixture';
 	const server = await createHttpTestServer();
 	server.get('/', async (request, response) => {
-		response.end(request.headers['unicorn']);
+		response.end(request.headers.unicorn);
 	});
 
 	t.not(
@@ -533,7 +533,7 @@ test('beforeRetry hook allows modifications of non initial requests', async t =>
 		requestCount++;
 
 		if (requestCount > 1) {
-			response.end(request.headers['unicorn']);
+			response.end(request.headers.unicorn);
 		} else {
 			response.sendStatus(408);
 		}
@@ -565,7 +565,7 @@ test('beforeRetry hook is called with error and retryCount', async t => {
 		requestCount++;
 
 		if (requestCount > 1) {
-			response.end(request.headers['unicorn']);
+			response.end(request.headers.unicorn);
 		} else {
 			response.sendStatus(408);
 		}
@@ -767,7 +767,7 @@ test('beforeRetry hook can cancel retries by returning `stop`', async t => {
 		requestCount++;
 
 		if (requestCount > 2) {
-			response.end(request.headers['unicorn']);
+			response.end(request.headers.unicorn);
 		} else {
 			response.sendStatus(408);
 		}
@@ -799,7 +799,7 @@ test('catches beforeRetry thrown errors', async t => {
 		requestCount++;
 
 		if (requestCount > 1) {
-			response.end(request.headers['unicorn']);
+			response.end(request.headers.unicorn);
 		} else {
 			response.sendStatus(408);
 		}
@@ -820,6 +820,8 @@ test('catches beforeRetry thrown errors', async t => {
 		}),
 		{message: errorString},
 	);
+
+	await server.close();
 });
 
 test('catches beforeRetry promise rejections', async t => {
@@ -830,7 +832,7 @@ test('catches beforeRetry promise rejections', async t => {
 		requestCount++;
 
 		if (requestCount > 1) {
-			response.end(request.headers['unicorn']);
+			response.end(request.headers.unicorn);
 		} else {
 			response.sendStatus(408);
 		}
@@ -851,6 +853,8 @@ test('catches beforeRetry promise rejections', async t => {
 		}),
 		{message: errorString},
 	);
+
+	await server.close();
 });
 
 test('hooks beforeRequest returning Response skips HTTP Request', async t => {
