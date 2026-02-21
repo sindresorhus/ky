@@ -59,6 +59,19 @@ export class Ky {
 			// If retry is not needed, close the cloned request's ReadableStream for memory safety.
 			let response = await ky.#fetch();
 
+			// When request streams aren't supported, report 100% upload progress after
+			// the request completes. This provides feedback that the upload finished.
+			// Only emit when:
+			// 1. An actual network request was made (not short-circuited by beforeRequest hook)
+			// 2. There was actually a body to upload (uploadProgressFallback is set)
+			if (ky.#actualFetchMade && ky.#uploadProgressFallback && ky.#options.onUploadProgress) {
+				const {totalBytes} = ky.#uploadProgressFallback;
+				ky.#options.onUploadProgress(
+					{percent: 1, transferredBytes: totalBytes, totalBytes},
+					new Uint8Array(0),
+				);
+			}
+
 			for (const hook of ky.#options.hooks.afterResponse) {
 				// Clone the response before passing to hook so we can cancel it if needed
 				const clonedResponse = ky.#decorateResponse(response.clone());
@@ -210,6 +223,11 @@ export class Ky {
 	#originalRequest?: Request;
 	readonly #userProvidedAbortSignal?: AbortSignal;
 	#cachedNormalizedOptions: NormalizedOptions | undefined;
+	// When request streams aren't supported, we track upload progress fallback info
+	// to report 100% completion after the request finishes
+	readonly #uploadProgressFallback?: {totalBytes: number};
+	// Track whether the actual network request was made (vs beforeRequest returning early)
+	#actualFetchMade = false;
 
 	// eslint-disable-next-line complexity
 	constructor(input: Input, options: Options = {}) {
@@ -301,11 +319,33 @@ export class Ky {
 				throw new TypeError('The `onUploadProgress` option must be a function');
 			}
 
-			if (!supportsRequestStreams) {
-				throw new Error('Request streams are not supported in your environment. The `duplex` option for `Request` is not available.');
-			}
+			if (supportsRequestStreams) {
+				// Use streaming progress tracking
+				this.request = this.#wrapRequestWithUploadProgress(this.request, this.#options.body ?? undefined);
+			} else {
+				// When streams aren't supported (e.g., Safari, iOS WebView), we can't track
+				// incremental progress. Instead, we'll report 100% completion after the
+				// request finishes. Calculate the body size now for the callback.
+				// Only set this when there's actually a body to upload (skip GET/HEAD/etc.).
+				const body = this.#options.body ?? this.request.body;
+				if (body) {
+					let totalBytes = 0;
+					if (body instanceof Blob) {
+						totalBytes = body.size;
+					} else if (body instanceof ArrayBuffer || ArrayBuffer.isView(body)) {
+						totalBytes = body.byteLength;
+					} else if (typeof body === 'string') {
+						totalBytes = new TextEncoder().encode(body).byteLength;
+					} else if (body instanceof URLSearchParams) {
+						totalBytes = new TextEncoder().encode(body.toString()).byteLength;
+					} else if (body instanceof FormData) {
+						// FormData size is hard to calculate, use 0 (unknown)
+						totalBytes = 0;
+					}
 
-			this.request = this.#wrapRequestWithUploadProgress(this.request, this.#options.body ?? undefined);
+					this.#uploadProgressFallback = {totalBytes};
+				}
+			}
 		}
 	}
 
@@ -612,6 +652,9 @@ export class Ky {
 		// Cloning is done here to prepare in advance for retries
 		this.#originalRequest = this.request;
 		this.request = this.#originalRequest.clone();
+
+		// Mark that we're making an actual network request (not short-circuited by beforeRequest)
+		this.#actualFetchMade = true;
 
 		if (this.#options.timeout === false) {
 			return this.#options.fetch(this.#originalRequest, nonRequestOptions);
