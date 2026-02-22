@@ -1,6 +1,6 @@
 import {setTimeout as delay} from 'node:timers/promises';
 import test from 'ava';
-import ky from '../source/index.js';
+import ky, {TimeoutError} from '../source/index.js';
 import {createHttpTestServer} from './helpers/create-http-test-server.js';
 import {withPerformance} from './helpers/with-performance.js';
 
@@ -1209,7 +1209,6 @@ test('shouldRetry: works with TimeoutError', async t => {
 				limit: 3,
 				async shouldRetry({error}) {
 					errorNames.push(error.name);
-					const {TimeoutError} = await import('../source/index.js');
 					return error instanceof TimeoutError;
 				},
 			},
