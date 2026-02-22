@@ -435,7 +435,7 @@ test('`afterResponse` hook is called with request, normalized options, and respo
 								return ky(request, {
 									...options,
 									json: {
-										...(options as Options).json as Record<string, unknown>,
+										...json,
 										token: 'valid:token',
 									},
 								});
@@ -1043,18 +1043,31 @@ test('beforeRequest hook receives retryCount parameter', async t => {
 	t.is(result, 'token refreshed-token');
 });
 
-test('hooks are not included in normalized options passed to hooks', async t => {
+test('Ky-specific options are not included in normalized options passed to hooks', async t => {
 	const server = await createHttpTestServer(t);
-	server.get('/', (_request, response) => {
+	server.post('/', (_request, response) => {
 		response.end('ok');
 	});
 
-	await ky.get(server.url, {
+	await ky.post(server.url, {
+		json: {key: 'value'},
+		searchParams: {foo: 'bar'},
+		parseJson: JSON.parse,
+		stringifyJson: JSON.stringify,
+		timeout: 5000,
+		throwHttpErrors: false,
 		hooks: {
 			beforeRequest: [
 				({options}) => {
-					// Verify hooks field is not present
+					// Verify Ky-specific properties are not present
 					t.false('hooks' in options);
+					t.false('json' in options);
+					t.false('parseJson' in options);
+					t.false('stringifyJson' in options);
+					t.false('searchParams' in options);
+					t.false('timeout' in options);
+					t.false('throwHttpErrors' in options);
+					t.false('fetch' in options);
 
 					// Verify options object is frozen (can't add/modify properties)
 					t.throws(() => {
