@@ -2,7 +2,9 @@ import {setTimeout as delay} from 'node:timers/promises';
 import test from 'ava';
 import ky, {
 	HTTPError,
+	KyError,
 	isHTTPError,
+	isTimeoutError,
 	isForceRetryError,
 	TimeoutError,
 } from '../source/index.js';
@@ -866,6 +868,7 @@ test('beforeRetry hook respects total timeout budget', async t => {
 
 test('catches beforeRetry thrown errors', async t => {
 	let requestCount = 0;
+	let beforeErrorHookCalled = false;
 
 	const server = await createHttpTestServer(t);
 	server.get('/', async (request, response) => {
@@ -881,7 +884,7 @@ test('catches beforeRetry thrown errors', async t => {
 	const errorString = 'oops';
 	const error = new Error(errorString);
 
-	await t.throwsAsync(
+	const thrownError = await t.throwsAsync(
 		ky.get(server.url, {
 			hooks: {
 				beforeRetry: [
@@ -889,14 +892,24 @@ test('catches beforeRetry thrown errors', async t => {
 						throw error;
 					},
 				],
+				beforeError: [
+					() => {
+						beforeErrorHookCalled = true;
+						return new Error('beforeError should not run');
+					},
+				],
 			},
 		}),
 		{message: errorString},
 	);
+
+	t.is(thrownError, error);
+	t.false(beforeErrorHookCalled);
 });
 
 test('catches beforeRetry promise rejections', async t => {
 	let requestCount = 0;
+	let beforeErrorHookCalled = false;
 
 	const server = await createHttpTestServer(t);
 	server.get('/', async (request, response) => {
@@ -912,7 +925,7 @@ test('catches beforeRetry promise rejections', async t => {
 	const errorString = 'oops';
 	const error = new Error(errorString);
 
-	await t.throwsAsync(
+	const thrownError = await t.throwsAsync(
 		ky.get(server.url, {
 			hooks: {
 				beforeRetry: [
@@ -920,10 +933,214 @@ test('catches beforeRetry promise rejections', async t => {
 						throw error;
 					},
 				],
+				beforeError: [
+					() => {
+						beforeErrorHookCalled = true;
+						return new Error('beforeError should not run');
+					},
+				],
 			},
 		}),
 		{message: errorString},
 	);
+
+	t.is(thrownError, error);
+	t.false(beforeErrorHookCalled);
+});
+
+test('beforeError runs when beforeRetry rethrows the request error', async t => {
+	let beforeErrorHookCalled = false;
+	let beforeErrorRetryCount = -1;
+
+	const server = await createHttpTestServer(t);
+	server.get('/', (_request, response) => {
+		response.sendStatus(408);
+	});
+
+	const thrownError = await t.throwsAsync(
+		ky.get(server.url, {
+			hooks: {
+				beforeRetry: [
+					({error}) => {
+						throw error;
+					},
+				],
+				beforeError: [
+					({error, retryCount}) => {
+						beforeErrorHookCalled = true;
+						beforeErrorRetryCount = retryCount;
+						error.message = 'modified-by-beforeError';
+						return error;
+					},
+				],
+			},
+		}),
+		{message: 'modified-by-beforeError'},
+	);
+
+	t.true(beforeErrorHookCalled);
+	t.is(beforeErrorRetryCount, 0);
+	t.true(isHTTPError(thrownError));
+});
+
+test('beforeError is not called when beforeRetry throws non-Error', async t => {
+	let beforeErrorHookCalled = false;
+
+	const server = await createHttpTestServer(t);
+	server.get('/', (_request, response) => {
+		response.sendStatus(408);
+	});
+
+	let thrownError: unknown;
+	try {
+		await ky.get(server.url, {
+			hooks: {
+				beforeRetry: [
+					() => {
+						throw 'oops' as unknown as Error;
+					},
+				],
+				beforeError: [
+					() => {
+						beforeErrorHookCalled = true;
+						return new Error('beforeError should not run');
+					},
+				],
+			},
+		});
+	} catch (error) {
+		thrownError = error;
+	}
+
+	t.is(thrownError, 'oops');
+	t.false(beforeErrorHookCalled);
+});
+
+test('beforeError runs when beforeRetry rethrows TimeoutError', async t => {
+	let beforeErrorHookCalled = false;
+	let beforeRetryHookCalled = false;
+
+	const customFetch: typeof fetch = async request => {
+		throw new TimeoutError(request as Request);
+	};
+
+	const thrownError = await t.throwsAsync(
+		ky('https://example.com', {
+			fetch: customFetch,
+			timeout: 1000,
+			retry: {
+				limit: 1,
+				delay: () => 0,
+				retryOnTimeout: true,
+			},
+			hooks: {
+				beforeRetry: [
+					({error}) => {
+						beforeRetryHookCalled = true;
+						t.true(isTimeoutError(error));
+						throw error;
+					},
+				],
+				beforeError: [
+					({error}) => {
+						beforeErrorHookCalled = true;
+						if (isTimeoutError(error)) {
+							error.message = 'timeout-modified-by-beforeError';
+						}
+
+						return error;
+					},
+				],
+			},
+		}).text(),
+		{message: 'timeout-modified-by-beforeError'},
+	);
+
+	t.true(beforeRetryHookCalled);
+	t.true(beforeErrorHookCalled);
+	t.true(isTimeoutError(thrownError));
+});
+
+test('beforeError runs when beforeRetry rethrows ForceRetryError', async t => {
+	let beforeErrorHookCalled = false;
+	let beforeRetryHookCalled = false;
+
+	const server = await createHttpTestServer(t);
+	server.get('/', (_request, response) => {
+		response.sendStatus(200);
+	});
+
+	const thrownError = await t.throwsAsync(
+		ky.get(server.url, {
+			retry: {
+				limit: 1,
+				delay: () => 0,
+			},
+			hooks: {
+				afterResponse: [
+					() => ky.retry(),
+				],
+				beforeRetry: [
+					({error}) => {
+						beforeRetryHookCalled = true;
+						t.true(isForceRetryError(error));
+						throw error;
+					},
+				],
+				beforeError: [
+					({error}) => {
+						beforeErrorHookCalled = true;
+						if (isForceRetryError(error)) {
+							error.message = 'force-retry-modified-by-beforeError';
+						}
+
+						return error;
+					},
+				],
+			},
+		}),
+		{message: 'force-retry-modified-by-beforeError'},
+	);
+
+	t.true(beforeRetryHookCalled);
+	t.true(beforeErrorHookCalled);
+	t.true(isForceRetryError(thrownError));
+});
+
+test('beforeError runs when beforeRetry rethrows network errors', async t => {
+	let beforeErrorHookCalled = false;
+
+	const customFetch: typeof fetch = async () => {
+		throw new TypeError('network-down');
+	};
+
+	const thrownError = await t.throwsAsync(
+		ky('https://example.com', {
+			fetch: customFetch,
+			retry: {
+				limit: 1,
+				delay: () => 0,
+			},
+			hooks: {
+				beforeRetry: [
+					({error}) => {
+						throw error;
+					},
+				],
+				beforeError: [
+					({error}) => {
+						beforeErrorHookCalled = true;
+						error.message = 'network-modified-by-beforeError';
+						return error;
+					},
+				],
+			},
+		}),
+		{message: 'network-modified-by-beforeError'},
+	);
+
+	t.true(beforeErrorHookCalled);
+	t.true(thrownError instanceof TypeError);
 });
 
 test('hooks beforeRequest returning Response skips HTTP Request', async t => {
@@ -951,11 +1168,13 @@ test('runs beforeError before throwing HTTPError', async t => {
 			hooks: {
 				beforeError: [
 					({error}) => {
-						const {response} = error;
+						if (isHTTPError(error)) {
+							const {response} = error;
 
-						if (response?.body) {
-							error.name = 'GitHubError';
-							error.message = `${response.statusText} --- (${response.status})`.trim();
+							if (response?.body) {
+								error.name = 'GitHubError';
+								error.message = `${response.statusText} --- (${response.status})`.trim();
+							}
 						}
 
 						return error;
@@ -982,10 +1201,12 @@ test('beforeError can return promise which resolves to HTTPError', async t => {
 			hooks: {
 				beforeError: [
 					async ({error}) => {
-						const body = error.data as {reason: string};
+						if (isHTTPError(error)) {
+							const body = error.data as {reason: string};
 
-						error.name = 'GitHubError';
-						error.message = `${body.reason} --- (${error.response.status})`.trim();
+							error.name = 'GitHubError';
+							error.message = `${body.reason} --- (${error.response.status})`.trim();
+						}
 
 						return error;
 					},
@@ -1158,6 +1379,412 @@ test('beforeError hook receives retryCount in state parameter', async t => {
 
 	// Should have made 3 requests total (initial + 2 retries)
 	t.is(requestCount, 3);
+});
+
+test('beforeError hook receives TimeoutError', async t => {
+	let receivedError: Error | undefined;
+
+	await t.throwsAsync(
+		ky('https://example.com', {
+			timeout: 1,
+			async fetch() {
+				await new Promise(resolve => {
+					setTimeout(resolve, 1000);
+				});
+				return new Response('ok');
+			},
+			hooks: {
+				beforeError: [
+					({error}) => {
+						receivedError = error;
+						return error;
+					},
+				],
+			},
+		}),
+		{
+			name: 'TimeoutError',
+		},
+	);
+
+	t.truthy(receivedError);
+	t.true(receivedError instanceof TimeoutError);
+	t.true(isTimeoutError(receivedError));
+	t.true(receivedError instanceof KyError);
+});
+
+test('beforeError hook can modify TimeoutError', async t => {
+	await t.throwsAsync(
+		ky('https://example.com', {
+			timeout: 1,
+			async fetch() {
+				await new Promise(resolve => {
+					setTimeout(resolve, 1000);
+				});
+				return new Response('ok');
+			},
+			hooks: {
+				beforeError: [
+					({error}) => {
+						if (isTimeoutError(error)) {
+							error.name = 'CustomTimeoutError';
+							error.message = 'Custom timeout message';
+						}
+
+						return error;
+					},
+				],
+			},
+		}),
+		{
+			name: 'CustomTimeoutError',
+			message: 'Custom timeout message',
+		},
+	);
+});
+
+test('beforeError hook receives network errors', async t => {
+	let receivedError: Error | undefined;
+	let receivedRetryCount: number | undefined;
+
+	await t.throwsAsync(
+		ky('https://example.com', {
+			retry: 0,
+			async fetch() {
+				throw new TypeError('Failed to fetch');
+			},
+			hooks: {
+				beforeError: [
+					({error, retryCount}) => {
+						receivedError = error;
+						receivedRetryCount = retryCount;
+						return error;
+					},
+				],
+			},
+		}),
+	);
+
+	t.truthy(receivedError);
+	t.is(receivedError!.message, 'Failed to fetch');
+	t.is(receivedRetryCount, 0);
+});
+
+test('beforeError hook retryCount reflects actual retry count for network errors', async t => {
+	let errorRetryCount: number | undefined;
+
+	await t.throwsAsync(
+		ky('https://example.com', {
+			retry: {
+				limit: 2,
+				delay: () => 0,
+			},
+			async fetch() {
+				throw new TypeError('Failed to fetch');
+			},
+			hooks: {
+				beforeError: [
+					({error, retryCount}) => {
+						errorRetryCount = retryCount;
+						return error;
+					},
+				],
+			},
+		}),
+	);
+
+	t.is(errorRetryCount, 2);
+});
+
+test('beforeError hook retryCount reflects actual retry count for TimeoutError', async t => {
+	let errorRetryCount: number | undefined;
+
+	await t.throwsAsync(
+		ky('https://example.com', {
+			timeout: 50,
+			retry: {
+				limit: 2,
+				retryOnTimeout: true,
+				delay: () => 0,
+			},
+			async fetch() {
+				await new Promise(resolve => {
+					setTimeout(resolve, 2000);
+				});
+				return new Response('ok');
+			},
+			hooks: {
+				beforeError: [
+					({error, retryCount}) => {
+						errorRetryCount = retryCount;
+						return error;
+					},
+				],
+			},
+		}),
+		{
+			name: 'TimeoutError',
+		},
+	);
+
+	// The 50ms total timeout budget is exhausted before any retry can complete,
+	// so retryCount is 0.
+	t.is(errorRetryCount, 0);
+});
+
+test('beforeError hook can replace error with a different type', async t => {
+	class CustomError extends Error {
+		override name = 'CustomError';
+		code: string;
+
+		constructor(message: string, code: string) {
+			super(message);
+			this.code = code;
+		}
+	}
+
+	const error = await t.throwsAsync(
+		ky('https://example.com', {
+			retry: 0,
+			async fetch() {
+				throw new TypeError('Failed to fetch');
+			},
+			hooks: {
+				beforeError: [
+					() => new CustomError('Connection failed', 'NETWORK_ERROR'),
+				],
+			},
+		}),
+	);
+
+	t.true(error instanceof CustomError);
+	t.is(error!.message, 'Connection failed');
+	t.is((error as CustomError).code, 'NETWORK_ERROR');
+});
+
+test('beforeError hooks chain correctly - second hook receives error from first', async t => {
+	const hookOrder: string[] = [];
+
+	await t.throwsAsync(
+		ky('https://example.com', {
+			retry: 0,
+			async fetch() {
+				return new Response('', {status: 500});
+			},
+			hooks: {
+				beforeError: [
+					({error}) => {
+						hookOrder.push('first');
+						if (isHTTPError(error)) {
+							error.message = 'modified by first hook';
+						}
+
+						return error;
+					},
+					({error}) => {
+						hookOrder.push('second');
+						t.is(error.message, 'modified by first hook');
+						return error;
+					},
+				],
+			},
+		}),
+		{
+			message: 'modified by first hook',
+		},
+	);
+
+	t.deepEqual(hookOrder, ['first', 'second']);
+});
+
+test('beforeError hooks are not called for non-Error throws', async t => {
+	let hookCalled = false;
+
+	try {
+		await ky('https://example.com', {
+			retry: 0,
+			async fetch() {
+				// eslint-disable-next-line @typescript-eslint/only-throw-error
+				throw 'network down';
+			},
+			hooks: {
+				beforeError: [
+					({error}) => {
+						hookCalled = true;
+						return error;
+					},
+				],
+			},
+		});
+		t.fail('Should have thrown');
+	} catch (error) {
+		t.is(error, 'network down');
+	}
+
+	t.false(hookCalled);
+});
+
+test('beforeError hook receives ForceRetryError when retry limit is exhausted', async t => {
+	let hookCalled = false;
+	let receivedError: Error | undefined;
+
+	const server = await createHttpTestServer(t);
+	server.get('/', (_request, response) => {
+		response.end('ok');
+	});
+
+	const error = await t.throwsAsync(
+		ky.get(server.url, {
+			retry: {
+				limit: 1,
+			},
+			hooks: {
+				afterResponse: [
+					() => ky.retry(),
+				],
+				beforeError: [
+					({error}) => {
+						hookCalled = true;
+						receivedError = error;
+						return error;
+					},
+				],
+			},
+		}),
+	);
+
+	t.true(hookCalled);
+	t.true(isForceRetryError(receivedError));
+	t.true(isForceRetryError(error));
+});
+
+test('beforeError hook that throws replaces the original error', async t => {
+	const error = await t.throwsAsync(
+		ky('https://example.com', {
+			retry: 0,
+			async fetch() {
+				return new Response('', {status: 500});
+			},
+			hooks: {
+				beforeError: [
+					() => {
+						throw new RangeError('hook blew up');
+					},
+				],
+			},
+		}),
+	);
+
+	t.true(error instanceof RangeError);
+	t.is(error!.message, 'hook blew up');
+});
+
+test('beforeError hook that throws asynchronously replaces the original error', async t => {
+	const error = await t.throwsAsync(
+		ky('https://example.com', {
+			retry: 0,
+			async fetch() {
+				return new Response('', {status: 500});
+			},
+			hooks: {
+				beforeError: [
+					async () => {
+						await Promise.resolve();
+						throw new RangeError('async hook blew up');
+					},
+				],
+			},
+		}),
+	);
+
+	t.true(error instanceof RangeError);
+	t.is(error!.message, 'async hook blew up');
+});
+
+test('beforeError hooks from ky.extend() are merged and called in order', async t => {
+	const hookOrder: string[] = [];
+
+	const api = ky.extend({
+		hooks: {
+			beforeError: [
+				({error}) => {
+					hookOrder.push('parent');
+					return error;
+				},
+			],
+		},
+	});
+
+	await t.throwsAsync(
+		api('https://example.com', {
+			retry: 0,
+			async fetch() {
+				return new Response('', {status: 500});
+			},
+			hooks: {
+				beforeError: [
+					({error}) => {
+						hookOrder.push('child');
+						return error;
+					},
+				],
+			},
+		}),
+	);
+
+	t.deepEqual(hookOrder, ['parent', 'child']);
+});
+
+test('beforeError hook receives errors thrown by beforeRequest hooks', async t => {
+	let receivedError: Error | undefined;
+	const beforeRequestError = new Error('beforeRequest hook failed');
+
+	await t.throwsAsync(
+		ky('https://example.com', {
+			retry: 0,
+			async fetch() {
+				return new Response('ok');
+			},
+			hooks: {
+				beforeRequest: [
+					() => {
+						throw beforeRequestError;
+					},
+				],
+				beforeError: [
+					({error}) => {
+						receivedError = error;
+						return error;
+					},
+				],
+			},
+		}),
+	);
+
+	t.is(receivedError, beforeRequestError);
+});
+
+test('beforeError hook is not called when throwHttpErrors is false', async t => {
+	let hookCalled = false;
+
+	const response = await ky('https://example.com', {
+		throwHttpErrors: false,
+		retry: 0,
+		async fetch() {
+			return new Response('', {status: 500});
+		},
+		hooks: {
+			beforeError: [
+				({error}) => {
+					hookCalled = true;
+					return error;
+				},
+			],
+		},
+	});
+
+	t.is(response.status, 500);
+	t.false(hookCalled);
 });
 
 test('beforeRetry hook can return modified Request with new URL', async t => {

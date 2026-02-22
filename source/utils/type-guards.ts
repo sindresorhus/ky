@@ -1,3 +1,4 @@
+import {KyError} from '../errors/KyError.js';
 import {HTTPError} from '../errors/HTTPError.js';
 import {TimeoutError} from '../errors/TimeoutError.js';
 import {ForceRetryError} from '../errors/ForceRetryError.js';
@@ -24,8 +25,8 @@ try {
 }
 ```
 */
-export function isKyError(error: unknown): error is HTTPError | TimeoutError | ForceRetryError {
-	return isHTTPError(error) || isTimeoutError(error) || isForceRetryError(error);
+export function isKyError(error: unknown): error is KyError {
+	return error instanceof KyError || isHTTPError(error) || isTimeoutError(error) || isForceRetryError(error);
 }
 
 /**

@@ -1,5 +1,5 @@
 import test from 'ava';
-import ky from '../source/index.js';
+import ky, {isHTTPError} from '../source/index.js';
 import {createHttpTestServer} from './helpers/create-http-test-server.js';
 
 test('context is available in all hooks', async t => {
@@ -35,7 +35,10 @@ test('context is available in all hooks', async t => {
 				],
 				beforeError: [
 					({error}) => {
-						t.deepEqual(error.options.context, context);
+						if (isHTTPError(error)) {
+							t.deepEqual(error.options.context, context);
+						}
+
 						return error;
 					},
 				],

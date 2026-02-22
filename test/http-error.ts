@@ -1,6 +1,6 @@
 import test from 'ava';
 import {expectTypeOf} from 'expect-type';
-import ky, {HTTPError} from '../source/index.js';
+import ky, {HTTPError, isHTTPError} from '../source/index.js';
 import {type Mutable} from '../source/utils/types.js';
 import {createHttpTestServer} from './helpers/create-http-test-server.js';
 
@@ -211,7 +211,10 @@ test('HTTPError#data is available in beforeError hooks', async t => {
 		hooks: {
 			beforeError: [
 				({error}) => {
-					hookData = error.data;
+					if (isHTTPError(error)) {
+						hookData = error.data;
+					}
+
 					return error;
 				},
 			],
