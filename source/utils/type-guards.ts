@@ -6,6 +6,8 @@ import {ForceRetryError} from '../errors/ForceRetryError.js';
 /**
 Type guard to check if an error is a Ky error.
 
+Note: `SchemaValidationError` is intentionally not considered a Ky error. `KyError` covers failures in Ky's HTTP lifecycle (bad status, timeout, retry), while schema validation errors originate from the user-provided schema, not from Ky itself.
+
 @param error - The error to check
 @returns `true` if the error is a Ky error, `false` otherwise
 
