@@ -13,7 +13,8 @@ type Run = (t: ExecutionContext, page: Page) => Promise<void>;
 const PWDEBUG = Boolean(process.env.PWDEBUG);
 const DEFAULT_BROWSERS = [chromium, firefox, webkit];
 const BROWSER_TEST_TIMEOUT_MS = 20_000;
-const BROWSER_CLEANUP_TIMEOUT_MS = 5000;
+const BROWSER_CLEANUP_TIMEOUT_MS = process.env.CI ? 20_000 : 5000;
+const BROWSER_TOTAL_TIMEOUT_MS = BROWSER_TEST_TIMEOUT_MS + BROWSER_CLEANUP_TIMEOUT_MS;
 
 export const promiseWithTimeout = async <Value>(
 	promise: Promise<Value>,
@@ -38,7 +39,7 @@ export const promiseWithTimeout = async <Value>(
 export const browserTest = (title: string, browserTypes: BrowserType[], run: Run) => {
 	for (const browserType of browserTypes) {
 		test.serial(`${browserType.name()} - ${title}`, async t => {
-			t.timeout(BROWSER_TEST_TIMEOUT_MS);
+			t.timeout(BROWSER_TOTAL_TIMEOUT_MS);
 
 			const browser = await promiseWithTimeout(
 				browserType.launch({devtools: PWDEBUG}),
