@@ -195,13 +195,15 @@ export class Ky {
 				const response = await result;
 
 				if (type === 'json') {
+					// Ky intentionally returns `undefined` for 204/empty bodies on the shortcut for
+					// ergonomic "no content" handling.
 					if (response.status === 204) {
-						return '';
+						return undefined;
 					}
 
 					const text = await response.text();
 					if (text === '') {
-						return '';
+						return undefined;
 					}
 
 					if (options.parseJson) {
