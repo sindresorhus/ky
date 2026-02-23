@@ -551,7 +551,7 @@ test('beforeRequest hook on retry cannot bypass total timeout budget', async t =
 	await t.throwsAsync(
 		ky('https://example.com', {
 			fetch: customFetch,
-			timeout: 100,
+			timeout: 500,
 			retry: {
 				limit: 1,
 				delay: () => 0,
@@ -560,7 +560,7 @@ test('beforeRequest hook on retry cannot bypass total timeout budget', async t =
 				beforeRequest: [
 					async ({retryCount}) => {
 						if (retryCount > 0) {
-							await delay(200);
+							await delay(1000);
 						}
 					},
 				],
@@ -1411,6 +1411,43 @@ test('beforeError hook receives TimeoutError', async t => {
 	t.true(receivedError instanceof TimeoutError);
 	t.true(isTimeoutError(receivedError));
 	t.true(receivedError instanceof KyError);
+});
+
+test('beforeError receives TimeoutError when beforeRequest consumes remaining timeout budget (gh-508)', async t => {
+	let receivedError: Error | undefined;
+	let fetchCallCount = 0;
+
+	const customFetch: typeof fetch = async () => {
+		fetchCallCount++;
+		return new Response('ok');
+	};
+
+	await t.throwsAsync(
+		ky('https://example.com', {
+			fetch: customFetch,
+			timeout: 100,
+			hooks: {
+				beforeRequest: [
+					async () => {
+						await delay(200);
+					},
+				],
+				beforeError: [
+					({error}) => {
+						receivedError = error;
+						return error;
+					},
+				],
+			},
+		}).text(),
+		{
+			name: 'TimeoutError',
+		},
+	);
+
+	t.true(receivedError instanceof TimeoutError);
+	t.true(isTimeoutError(receivedError));
+	t.is(fetchCallCount, 0);
 });
 
 test('beforeError hook can modify TimeoutError', async t => {

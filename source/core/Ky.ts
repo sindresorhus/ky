@@ -56,7 +56,7 @@ export class Ky {
 
 			// Track start time for total timeout across retries
 			if (ky.#startTime === undefined && typeof ky.#options.timeout === 'number') {
-				ky.#startTime = Date.now();
+				ky.#startTime = ky.#getCurrentTime();
 			}
 
 			// Delay the fetch so that body method shortcuts can set the Accept header
@@ -716,8 +716,12 @@ export class Ky {
 			return this.#options.timeout;
 		}
 
-		const elapsed = Date.now() - this.#startTime;
+		const elapsed = this.#getCurrentTime() - this.#startTime;
 		return Math.max(0, this.#options.timeout - elapsed);
+	}
+
+	#getCurrentTime(): number {
+		return globalThis.performance?.now() ?? Date.now();
 	}
 
 	#getNormalizedOptions(): NormalizedOptions {
