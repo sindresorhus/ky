@@ -100,6 +100,28 @@ test('options are correctly passed to Fetch #2', async t => {
 	t.deepEqual(json.json, fixture);
 });
 
+test('post with json does not hang when custom fetch consumes request body', async t => {
+	const fixture = {x: true};
+
+	const customFetch: typeof fetch = async request => {
+		t.is(request.method, 'POST');
+		const parsedBody = await request.json();
+
+		return new Response(JSON.stringify({ok: true, parsedBody}), {
+			headers: {
+				'content-type': 'application/json',
+			},
+		});
+	};
+
+	const json = await ky.post('https://example.com/endpoint', {
+		json: fixture,
+		fetch: customFetch,
+	}).json();
+
+	t.deepEqual(json, {ok: true, parsedBody: fixture});
+});
+
 test('unknown options are passed to fetch', async t => {
 	t.plan(1);
 
