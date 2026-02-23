@@ -223,7 +223,7 @@ test('.json() when response is chunked', async t => {
 
 	const responseJson = await ky.get<['one', 'two']>(server.url).json();
 
-	expectTypeOf(responseJson).toEqualTypeOf<['one', 'two']>();
+	expectTypeOf(responseJson).toEqualTypeOf<['one', 'two'] | undefined>();
 
 	t.deepEqual(responseJson, ['one', 'two']);
 });
@@ -249,9 +249,10 @@ test('.json() with empty body', async t => {
 		response.end();
 	});
 
-	const responseJson = await ky.get(server.url).json();
+	const responseJson = await ky.get<{foo: string}>(server.url).json();
+	expectTypeOf(responseJson).toEqualTypeOf<{foo: string} | undefined>();
 
-	t.is(responseJson, '');
+	t.is(responseJson, undefined);
 });
 
 test('.json() with 204 response and empty body', async t => {
@@ -265,7 +266,43 @@ test('.json() with 204 response and empty body', async t => {
 
 	const responseJson = await ky(server.url).json();
 
-	t.is(responseJson, '');
+	t.is(responseJson, undefined);
+});
+
+test('.json() with 204 response does not call parseJson', async t => {
+	const server = await createHttpTestServer(t);
+	server.get('/', async (_request, response) => {
+		response.status(204).end();
+	});
+
+	let parseJsonCalled = false;
+	const result = await ky(server.url, {
+		parseJson(text) {
+			parseJsonCalled = true;
+			return JSON.parse(text);
+		},
+	}).json();
+
+	t.is(result, undefined);
+	t.false(parseJsonCalled);
+});
+
+test('.json() with empty body does not call parseJson', async t => {
+	const server = await createHttpTestServer(t);
+	server.get('/', async (_request, response) => {
+		response.end();
+	});
+
+	let parseJsonCalled = false;
+	const result = await ky(server.url, {
+		parseJson(text) {
+			parseJsonCalled = true;
+			return JSON.parse(text);
+		},
+	}).json();
+
+	t.is(result, undefined);
+	t.false(parseJsonCalled);
 });
 
 test('timeout option', async t => {
