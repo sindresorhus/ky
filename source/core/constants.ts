@@ -239,6 +239,7 @@ const response = await api.get('https://example.com/api');
 export const retry = (options?: ForceRetryOptions) => new RetryMarker(options);
 
 export const kyOptionKeys: KyOptionsRegistry = {
+	bearer: true,
 	json: true,
 	parseJson: true,
 	stringifyJson: true,

@@ -32,6 +32,20 @@ Custom Ky options
 
 export type KyOptions = {
 	/**
+	Shortcut for setting the `Authorization: Bearer` header.
+
+	When set, overrides any existing Authorization headers.
+
+	@example
+	```
+	import ky from 'ky';
+
+	const response = await ky('https://example.com', {bearer: 'token123'});
+	```
+	*/
+	bearer?: string;
+
+	/**
 	Shortcut for sending JSON. Use this instead of the `body` option.
 
 	Accepts any plain object or value, which will be `JSON.stringify()`'d and sent in the body with the correct header set.

@@ -274,6 +274,10 @@ export class Ky {
 			this.#options.duplex = 'half';
 		}
 
+		if (this.#options.bearer) {
+			this.#options.headers.set('authorization', `Bearer ${this.#options.bearer}`);
+		}
+
 		if (this.#options.json !== undefined) {
 			this.#options.body = this.#options.stringifyJson?.(this.#options.json) ?? JSON.stringify(this.#options.json);
 			this.#options.headers.set('content-type', this.#options.headers.get('content-type') ?? 'application/json');
