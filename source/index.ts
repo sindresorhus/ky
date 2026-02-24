@@ -60,9 +60,15 @@ export type {
 } from './types/hooks.js';
 
 export type {ResponsePromise} from './types/ResponsePromise.js';
+export type {
+	StandardSchemaV1,
+	StandardSchemaV1InferOutput,
+	StandardSchemaV1Issue,
+} from './types/standard-schema.js';
 export type {KyRequest} from './types/request.js';
 export type {KyResponse} from './types/response.js';
 export {HTTPError} from './errors/HTTPError.js';
+export {SchemaValidationError} from './errors/SchemaValidationError.js';
 export {TimeoutError} from './errors/TimeoutError.js';
 export {ForceRetryError} from './errors/ForceRetryError.js';
 export {

@@ -116,7 +116,27 @@ const user2 = await ky<User>('/api/users/2').json();
 const user3 = await ky('/api/users/3').json<User>();
 
 console.log([user1, user2, user3]);
+```
 
+You can also get the response body as JSON and validate it with a Standard Schema compatible validator (for example, Zod 3.24+). This throws a `SchemaValidationError` when validation fails.
+
+```ts
+import ky, {SchemaValidationError} from 'ky';
+import {z} from 'zod';
+
+const userSchema = z.object({name: z.string()});
+
+try {
+	const user = await ky('/api/user').json(userSchema);
+	console.log(user.name);
+} catch (error) {
+	if (error instanceof SchemaValidationError) {
+		console.error(error.issues);
+	}
+}
+```
+
+```ts
 // Get raw bytes (when supported by the runtime)
 const bytes = await ky('/api/file').bytes();
 console.log(bytes instanceof Uint8Array);
@@ -1048,6 +1068,10 @@ await ky('https://example.com', {
 ```
 
 ⌨️ **TypeScript:** Accepts an optional [type parameter](https://www.typescriptlang.org/docs/handbook/2/generics.html), which defaults to [`unknown`](https://www.typescriptlang.org/docs/handbook/2/functions.html#unknown), and is passed through to the type of `error.data`.
+
+### SchemaValidationError
+
+The error thrown when [Standard Schema](https://github.com/standard-schema/standard-schema) validation fails in `.json(schema)`. It has an `issues` property with the validation issues from the schema.
 
 ### TimeoutError
 

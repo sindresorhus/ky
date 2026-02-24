@@ -1,6 +1,7 @@
 import {HTTPError} from '../errors/HTTPError.js';
 import {NonError} from '../errors/NonError.js';
 import {ForceRetryError} from '../errors/ForceRetryError.js';
+import {SchemaValidationError} from '../errors/SchemaValidationError.js';
 import {TimeoutError} from '../errors/TimeoutError.js';
 import type {
 	Input,
@@ -11,6 +12,7 @@ import type {
 	SearchParamsOption,
 } from '../types/options.js';
 import {type ResponsePromise} from '../types/ResponsePromise.js';
+import type {StandardSchemaV1} from '../types/standard-schema.js';
 import {streamRequest, streamResponse} from '../utils/body.js';
 import {mergeHeaders, mergeHooks} from '../utils/merge.js';
 import {normalizeRequestMethod, normalizeRetryOptions} from '../utils/normalize.js';
@@ -43,6 +45,36 @@ const createTextDecoder = (contentType: string): TextDecoder => {
 	}
 
 	return new TextDecoder();
+};
+
+const validateJsonWithSchema = async (jsonValue: unknown, schema: StandardSchemaV1): Promise<unknown> => {
+	if (
+		(
+			typeof schema !== 'object'
+			&& typeof schema !== 'function'
+		)
+		|| schema === null
+	) {
+		throw new TypeError('The `schema` argument must follow the Standard Schema specification');
+	}
+
+	const standardSchema = schema['~standard'];
+
+	if (
+		typeof standardSchema !== 'object'
+		|| standardSchema === null
+		|| typeof standardSchema.validate !== 'function'
+	) {
+		throw new TypeError('The `schema` argument must follow the Standard Schema specification');
+	}
+
+	const validationResult = await standardSchema.validate(jsonValue);
+
+	if (validationResult.issues) {
+		throw new SchemaValidationError(validationResult.issues);
+	}
+
+	return validationResult.value;
 };
 
 export class Ky {
@@ -168,32 +200,26 @@ export class Ky {
 				continue;
 			}
 
-			result[type] = async () => {
+			result[type] = async (schema?: StandardSchemaV1) => {
 				// eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing
 				ky.request.headers.set('accept', ky.request.headers.get('accept') || mimeType);
 
 				const response = await result;
 
-				if (type === 'json') {
-					// Ky intentionally returns `undefined` for 204/empty bodies on the shortcut for
-					// ergonomic "no content" handling.
-					if (response.status === 204) {
-						return undefined;
-					}
-
-					const text = await response.text();
-					if (text === '') {
-						return undefined;
-					}
-
-					if (options.parseJson) {
-						return options.parseJson(text);
-					}
-
-					return JSON.parse(text);
+				if (type !== 'json') {
+					return response[type]();
 				}
 
-				return response[type]();
+				const text = response.status === 204 ? '' : await response.text();
+				if (text === '') {
+					return schema === undefined ? undefined : validateJsonWithSchema(undefined, schema);
+				}
+
+				const jsonValue = options.parseJson
+					? await options.parseJson(text)
+					: JSON.parse(text);
+
+				return schema === undefined ? jsonValue : validateJsonWithSchema(jsonValue, schema);
 			};
 		}
 

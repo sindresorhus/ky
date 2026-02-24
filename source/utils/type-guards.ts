@@ -1,6 +1,7 @@
 import {HTTPError} from '../errors/HTTPError.js';
 import {TimeoutError} from '../errors/TimeoutError.js';
 import {ForceRetryError} from '../errors/ForceRetryError.js';
+import {SchemaValidationError} from '../errors/SchemaValidationError.js';
 
 /**
 Type guard to check if an error is a Ky error.
@@ -24,8 +25,12 @@ try {
 }
 ```
 */
-export function isKyError(error: unknown): error is HTTPError | TimeoutError | ForceRetryError {
-	return isHTTPError(error) || isTimeoutError(error) || isForceRetryError(error);
+export function isKyError(error: unknown): error is HTTPError | TimeoutError | ForceRetryError | SchemaValidationError {
+	return isHTTPError(error)
+		|| isTimeoutError(error)
+		|| isForceRetryError(error)
+		|| error instanceof SchemaValidationError
+		|| ((error as any)?.name === SchemaValidationError.name);
 }
 
 /**

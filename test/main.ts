@@ -2,11 +2,47 @@ import {Buffer} from 'node:buffer';
 import {setTimeout as delay} from 'node:timers/promises';
 import test from 'ava';
 import {expectTypeOf} from 'expect-type';
-import ky, {HTTPError, TimeoutError} from '../source/index.js';
+import ky, {
+	HTTPError,
+	SchemaValidationError,
+	TimeoutError,
+	isKyError,
+	type StandardSchemaV1,
+} from '../source/index.js';
 import {createHttpTestServer} from './helpers/create-http-test-server.js';
 import {parseRawBody} from './helpers/parse-body.js';
 
 const fixture = 'fixture';
+
+type TestSchemaResult<Output> = {value: Output} | {issues: Array<{message: string}>};
+
+const createSchema = <Output>(
+	validate: (value: unknown) => TestSchemaResult<Output> | Promise<TestSchemaResult<Output>>,
+): StandardSchemaV1<unknown, Output> => ({
+	'~standard': {
+		version: 1,
+		vendor: 'test',
+		validate,
+	},
+});
+
+const isObjectWithValue = (value: unknown): value is {value: unknown} => (
+	typeof value === 'object'
+	&& value !== null
+	&& 'value' in value
+);
+
+const createSchemaCallTracker = () => {
+	let isSchemaCalled = false;
+
+	return {
+		schema: createSchema(() => {
+			isSchemaCalled = true;
+			return {value: {value: 1}};
+		}),
+		isSchemaCalled: () => isSchemaCalled,
+	};
+};
 
 test('ky()', async t => {
 	const server = await createHttpTestServer(t);
@@ -303,6 +339,305 @@ test('.json() with empty body does not call parseJson', async t => {
 
 	t.is(result, undefined);
 	t.false(parseJsonCalled);
+});
+
+test('.json(schema) returns validated output and infers type', async t => {
+	const server = await createHttpTestServer(t);
+	server.get('/', (_request, response) => {
+		response.json({value: 1});
+	});
+
+	const schema = createSchema<{value: number}>(value => {
+		if (
+			isObjectWithValue(value)
+			&& typeof value.value === 'number'
+		) {
+			return {value: {value: value.value}};
+		}
+
+		return {issues: [{message: 'Expected {value:number}'}]};
+	});
+
+	const responseJson = await ky.get(server.url).json(schema);
+
+	expectTypeOf(responseJson).toEqualTypeOf<{value: number}>();
+	t.deepEqual(responseJson, {value: 1});
+});
+
+test('.json(schema) accepts schema with typed input generic', async t => {
+	const server = await createHttpTestServer(t);
+	server.get('/', (_request, response) => {
+		response.json('1');
+	});
+
+	const schema: StandardSchemaV1<string, number> = {
+		'~standard': {
+			version: 1,
+			vendor: 'test',
+			validate(value) {
+				if (typeof value === 'string') {
+					return {value: Number(value)};
+				}
+
+				return {issues: [{message: 'Expected string'}]};
+			},
+		},
+	};
+
+	const responseJson = await ky.get(server.url).json(schema);
+
+	expectTypeOf(responseJson).toEqualTypeOf<number>();
+	t.is(responseJson, 1);
+});
+
+test('.json(schema) accepts callable schema objects', async t => {
+	const server = await createHttpTestServer(t);
+	server.get('/', (_request, response) => {
+		response.json({value: 1});
+	});
+
+	const schema: StandardSchemaV1<unknown, {value: number}> = Object.assign(
+		() => undefined,
+		{
+			'~standard': {
+				version: 1 as const,
+				vendor: 'test',
+				validate(value: unknown) {
+					if (
+						isObjectWithValue(value)
+						&& typeof value.value === 'number'
+					) {
+						return {value: {value: value.value}};
+					}
+
+					return {issues: [{message: 'Expected {value:number}'}]};
+				},
+			},
+		},
+	);
+
+	const responseJson = await ky.get(server.url).json(schema);
+
+	t.deepEqual(responseJson, {value: 1});
+});
+
+test('.json(schema) throws SchemaValidationError when validation fails', async t => {
+	const server = await createHttpTestServer(t);
+	server.get('/', (_request, response) => {
+		response.json({value: 'invalid'});
+	});
+
+	const issues = [{message: 'Expected {value:number}'}];
+	const schema = createSchema<{value: number}>(() => ({issues}));
+
+	const error = await t.throwsAsync(ky.get(server.url).json(schema), {
+		instanceOf: SchemaValidationError,
+		message: 'Response schema validation failed',
+	});
+
+	t.true(isKyError(error));
+	t.deepEqual(error?.issues, issues);
+});
+
+test('.json(schema) throws TypeError for invalid schema objects', async t => {
+	const server = await createHttpTestServer(t);
+	server.get('/', (_request, response) => {
+		response.json({value: 1});
+	});
+
+	const invalidSchema = {'~standard': {}} as unknown as StandardSchemaV1;
+
+	await t.throwsAsync(ky.get(server.url).json(invalidSchema), {
+		instanceOf: TypeError,
+		message: 'The `schema` argument must follow the Standard Schema specification',
+	});
+});
+
+test('.json(schema) throws TypeError for null schema values', async t => {
+	const server = await createHttpTestServer(t);
+	server.get('/', (_request, response) => {
+		response.json({value: 1});
+	});
+
+	const invalidSchema = null as unknown as StandardSchemaV1;
+
+	await t.throwsAsync(ky.get(server.url).json(invalidSchema), {
+		instanceOf: TypeError,
+		message: 'The `schema` argument must follow the Standard Schema specification',
+	});
+});
+
+test('.json(schema) allows schema output transformations', async t => {
+	const server = await createHttpTestServer(t);
+	server.get('/', (_request, response) => {
+		response.json({value: '1'});
+	});
+
+	const schema = createSchema<{value: number}>(value => {
+		if (
+			isObjectWithValue(value)
+			&& typeof value.value === 'string'
+		) {
+			return {value: {value: Number(value.value)}};
+		}
+
+		return {issues: [{message: 'Expected {value:string}'}]};
+	});
+
+	const responseJson = await ky.get(server.url).json(schema);
+
+	t.deepEqual(responseJson, {value: 1});
+});
+
+test('.json(schema) supports async validation', async t => {
+	const server = await createHttpTestServer(t);
+	server.get('/', (_request, response) => {
+		response.json({value: 1});
+	});
+
+	const schema = createSchema<{value: number}>(async value => {
+		await delay(1);
+
+		if (
+			isObjectWithValue(value)
+			&& typeof value.value === 'number'
+		) {
+			return {value: {value: value.value}};
+		}
+
+		return {issues: [{message: 'Expected {value:number}'}]};
+	});
+
+	const responseJson = await ky.get(server.url).json(schema);
+
+	t.deepEqual(responseJson, {value: 1});
+});
+
+test('.json(schema) validates empty body values as undefined', async t => {
+	const server = await createHttpTestServer(t);
+	server.get('/', (_request, response) => {
+		response.end();
+	});
+
+	const issues = [{message: 'Expected non-empty JSON'}];
+	let validatedValue: unknown = Symbol('unset');
+	const schema = createSchema<unknown>(value => {
+		validatedValue = value;
+		return {issues};
+	});
+
+	const error = await t.throwsAsync(ky.get(server.url).json(schema), {
+		instanceOf: SchemaValidationError,
+		message: 'Response schema validation failed',
+	});
+
+	t.is(validatedValue, undefined);
+	t.deepEqual(error?.issues, issues);
+});
+
+test('.json(schema) validates 204 responses as undefined', async t => {
+	const server = await createHttpTestServer(t);
+	server.get('/', (_request, response) => {
+		response.status(204).end();
+	});
+
+	const issues = [{message: 'Expected non-empty JSON'}];
+	let validatedValue: unknown = Symbol('unset');
+	const schema = createSchema<unknown>(value => {
+		validatedValue = value;
+		return {issues};
+	});
+
+	const error = await t.throwsAsync(ky.get(server.url).json(schema), {
+		instanceOf: SchemaValidationError,
+		message: 'Response schema validation failed',
+	});
+
+	t.is(validatedValue, undefined);
+	t.deepEqual(error?.issues, issues);
+});
+
+test('.json(schema) with invalid JSON body throws parse error before validation', async t => {
+	const server = await createHttpTestServer(t);
+	server.get('/', (_request, response) => {
+		response.end('not json');
+	});
+
+	const {schema, isSchemaCalled} = createSchemaCallTracker();
+
+	await t.throwsAsync(ky.get(server.url).json(schema), {
+		message: /Unexpected token/,
+	});
+
+	t.false(isSchemaCalled());
+});
+
+test('.json(schema) does not run validation for HTTP errors', async t => {
+	const server = await createHttpTestServer(t);
+	server.get('/', (_request, response) => {
+		response.status(500).json({value: 1});
+	});
+
+	const {schema, isSchemaCalled} = createSchemaCallTracker();
+
+	await t.throwsAsync(ky.get(server.url).json(schema), {
+		instanceOf: HTTPError,
+	});
+
+	t.false(isSchemaCalled());
+});
+
+test('.json(schema) accepts empty body when schema validates it', async t => {
+	const server = await createHttpTestServer(t);
+	server.get('/', (_request, response) => {
+		response.end();
+	});
+
+	const schema = createSchema<string>(value => ({
+		value: value === undefined ? 'empty:undefined' : 'non-empty',
+	}));
+
+	const responseJson = await ky.get(server.url).json(schema);
+
+	t.is(responseJson, 'empty:undefined');
+});
+
+test('.json(schema) runs validation when throwHttpErrors is false', async t => {
+	const server = await createHttpTestServer(t);
+	server.get('/', (_request, response) => {
+		response.status(500).json({error: 'server error'});
+	});
+
+	const schema = createSchema<{error: string}>(value => {
+		if (
+			typeof value === 'object'
+			&& value !== null
+			&& 'error' in value
+		) {
+			return {value: value as {error: string}};
+		}
+
+		return {issues: [{message: 'Expected {error:string}'}]};
+	});
+
+	const responseJson = await ky.get(server.url, {throwHttpErrors: false}).json(schema);
+
+	t.deepEqual(responseJson, {error: 'server error'});
+});
+
+test('.json(schema) propagates errors thrown by validate()', async t => {
+	const server = await createHttpTestServer(t);
+	server.get('/', (_request, response) => {
+		response.json({value: 1});
+	});
+
+	const schema = createSchema<unknown>(() => {
+		throw new Error('validate exploded');
+	});
+
+	await t.throwsAsync(ky.get(server.url).json(schema), {
+		message: 'validate exploded',
+	});
 });
 
 test('timeout option', async t => {
@@ -1021,6 +1356,59 @@ test('parseJson option with promise.json() shortcut', async t => {
 		...json,
 		extra: 'extraValue',
 	});
+});
+
+test('parseJson option runs before .json(schema) validation', async t => {
+	const server = await createHttpTestServer(t);
+	server.get('/', (_request, response) => {
+		response.json({value: '1'});
+	});
+
+	const schema = createSchema<{value: number}>(value => {
+		if (
+			isObjectWithValue(value)
+			&& typeof value.value === 'number'
+		) {
+			return {value: {value: value.value}};
+		}
+
+		return {issues: [{message: 'Expected parsed number'}]};
+	});
+
+	const responseJson = await ky
+		.get(server.url, {
+			parseJson(text) {
+				const parsed = JSON.parse(text) as {value: string};
+				return {value: Number(parsed.value)};
+			},
+		})
+		.json(schema);
+
+	t.deepEqual(responseJson, {value: 1});
+});
+
+test('parseJson option errors are thrown before .json(schema) validation', async t => {
+	const server = await createHttpTestServer(t);
+	server.get('/', (_request, response) => {
+		response.json({value: '1'});
+	});
+
+	const {schema, isSchemaCalled} = createSchemaCallTracker();
+
+	await t.throwsAsync(
+		ky
+			.get(server.url, {
+				parseJson() {
+					throw new Error('parseJson failed');
+				},
+			})
+			.json(schema),
+		{
+			message: 'parseJson failed',
+		},
+	);
+
+	t.false(isSchemaCalled());
 });
 
 test('stringifyJson option with request.json()', async t => {
