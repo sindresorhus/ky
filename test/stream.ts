@@ -423,11 +423,11 @@ test('POST FormData with 10MB file upload progress', async t => {
 	for (let i = 1; i < data.length - 1; i++) {
 		t.true(
 			data[i].percent >= data[i - 1].percent,
-			`Update ${i} should have higher or equal percent than previous`,
+			`Update ${i} should have higher or equal percent than previous (${data[i].percent} < ${data[i - 1].percent})`,
 		);
 		t.true(
 			data[i].transferredBytes >= data[i - 1].transferredBytes,
-			`Update ${i} should have more or equal transferred bytes than previous`,
+			`Update ${i} should have more or equal transferred bytes than previous (${data[i].transferredBytes} < ${data[i - 1].transferredBytes})`,
 		);
 	}
 
