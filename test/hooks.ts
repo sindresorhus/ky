@@ -11,6 +11,12 @@ import ky, {
 import {type Options} from '../source/types/options.js';
 import {createHttpTestServer} from './helpers/create-http-test-server.js';
 
+const withHeader = (request: Request, name: string, value: string) => {
+	const headers = new Headers(request.headers);
+	headers.set(name, value);
+	return new Request(request, {headers});
+};
+
 const createStreamBody = (text: string) => new ReadableStream<Uint8Array>({
 	start(controller) {
 		controller.enqueue(new TextEncoder().encode(text));
@@ -1141,6 +1147,76 @@ test('beforeError runs when beforeRetry rethrows network errors', async t => {
 
 	t.true(beforeErrorHookCalled);
 	t.true(thrownError instanceof TypeError);
+});
+
+test('hooks beforeRequest returning Request continues running remaining hooks', async t => {
+	let capturedRequest: Request | undefined;
+
+	await ky.get('https://example.com', {
+		async fetch(request) {
+			capturedRequest = request as Request;
+			return new Response('ok');
+		},
+		hooks: {
+			beforeRequest: [
+				({request}) => withHeader(request, 'x-hook-1', 'hook-1'),
+				({request}) => {
+					// Verify hook 2 receives the updated request produced by hook 1
+					t.is(request.headers.get('x-hook-1'), 'hook-1');
+					return withHeader(request, 'x-hook-2', 'hook-2');
+				},
+			],
+		},
+	});
+
+	t.truthy(capturedRequest);
+	t.is(capturedRequest!.headers.get('x-hook-1'), 'hook-1');
+	t.is(capturedRequest!.headers.get('x-hook-2'), 'hook-2');
+});
+
+test('hooks beforeRequest returning Request then non-returning hook both run', async t => {
+	let capturedRequest: Request | undefined;
+	let hook2Ran = false;
+
+	await ky.get('https://example.com', {
+		async fetch(request) {
+			capturedRequest = request as Request;
+			return new Response('ok');
+		},
+		hooks: {
+			beforeRequest: [
+				({request}) => withHeader(request, 'x-hook-1', 'hook-1'),
+				() => {
+					hook2Ran = true;
+				},
+			],
+		},
+	});
+
+	t.truthy(capturedRequest);
+	t.true(hook2Ran);
+	t.is(capturedRequest!.headers.get('x-hook-1'), 'hook-1');
+});
+
+test('hooks beforeRequest returning Request then Response skips HTTP request', async t => {
+	const expectedResponse = 'intercepted';
+	let fetchCalled = false;
+
+	const response = await ky.get('https://example.com', {
+		async fetch() {
+			fetchCalled = true;
+			return new Response('should not reach');
+		},
+		hooks: {
+			beforeRequest: [
+				({request}) => withHeader(request, 'x-hook-1', 'hook-1'),
+				() => new Response(expectedResponse, {status: 200}),
+			],
+		},
+	}).text();
+
+	t.false(fetchCalled);
+	t.is(response, expectedResponse);
 });
 
 test('hooks beforeRequest returning Response skips HTTP Request', async t => {

@@ -65,7 +65,7 @@ export type Hooks = {
 
 	The `retryCount` is `0` for the initial request and increments with each retry. This allows you to distinguish between initial requests and retries, which is useful when you need different behavior for retries (e.g., avoiding overwriting headers set in `beforeRetry`).
 
-	A [`Response`](https://developer.mozilla.org/en-US/docs/Web/API/Response) can be returned from this hook to completely avoid making an HTTP request. This can be used to mock a request, check an internal cache, etc. An **important** consideration when returning a `Response` from this hook is that all the following hooks will be skipped, so **ensure you only return a `Response` from the last hook**.
+	A [`Request`](https://developer.mozilla.org/en-US/docs/Web/API/Request) can be returned from this hook to replace the outgoing request; remaining hooks will still run with the updated request. A [`Response`](https://developer.mozilla.org/en-US/docs/Web/API/Response) can be returned to completely avoid making an HTTP request, in which case remaining `beforeRequest` hooks are skipped. This can be used to mock a request, check an internal cache, etc.
 
 	@example
 	```
