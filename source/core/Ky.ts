@@ -336,8 +336,6 @@ export class Ky {
 			if (!supportsRequestStreams) {
 				throw new Error('Request streams are not supported in your environment. The `duplex` option for `Request` is not available.');
 			}
-
-			this.request = this.#wrapRequestWithUploadProgress(this.request, this.#options.body ?? undefined);
 		}
 	}
 
@@ -685,22 +683,23 @@ export class Ky {
 
 			if (result instanceof globalThis.Request) {
 				this.#assignRequest(result);
-				break;
 			}
 		}
 
 		const nonRequestOptions = findUnknownOptions(this.request, this.#options);
+		const retryRequest = this.#options.retry.limit > 0 ? this.request.clone() : undefined;
+		const request = this.#wrapRequestWithUploadProgress(this.request, this.#options.body ?? undefined);
 
 		// Cloning is done here to prepare in advance for retries.
 		// Skip cloning when retries are disabled — cloning a streaming body calls ReadableStream#tee()
 		// which buffers the entire stream in memory, causing excessive memory usage for large uploads.
-		this.#originalRequest = this.request;
-		if (this.#options.retry.limit > 0) {
-			this.request = this.#originalRequest.clone();
+		this.#originalRequest = request;
+		if (retryRequest) {
+			this.request = retryRequest;
 		}
 
 		if (this.#options.timeout === false) {
-			return this.#options.fetch(this.#originalRequest, nonRequestOptions);
+			return this.#options.fetch(request, nonRequestOptions);
 		}
 
 		const remainingTimeout = this.#getRemainingTimeout() ?? this.#options.timeout;
@@ -708,7 +707,7 @@ export class Ky {
 			throw new TimeoutError(this.request);
 		}
 
-		return timeout(this.#originalRequest, nonRequestOptions, this.#abortController, {
+		return timeout(request, nonRequestOptions, this.#abortController, {
 			...this.#options,
 			timeout: remainingTimeout,
 		} as TimeoutOptions);
@@ -754,7 +753,7 @@ export class Ky {
 
 	#assignRequest(request: Request): void {
 		this.#cachedNormalizedOptions = undefined;
-		this.request = this.#wrapRequestWithUploadProgress(request);
+		this.request = request;
 	}
 
 	#wrapRequestWithUploadProgress(request: Request, originalBody?: BodyInit): Request {
