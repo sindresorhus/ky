@@ -61,8 +61,6 @@ export class Ky {
 
 			// Delay the fetch so that body method shortcuts can set the Accept header
 			await Promise.resolve();
-			// Before using ky.request, _fetch clones it and saves the clone for future retries to use.
-			// If retry is not needed, close the cloned request's ReadableStream for memory safety.
 			let response = await ky.#fetch();
 
 			for (const hook of ky.#options.hooks.afterResponse) {
@@ -175,7 +173,10 @@ export class Ky {
 
 				// Ignore cancellation errors from already-locked or already-consumed streams.
 				ky.#cancelBody(originalRequest?.body ?? undefined);
-				ky.#cancelBody(ky.request.body ?? undefined);
+				// Only cancel the current request body if it's distinct from the original (i.e. it was cloned for retries).
+				if (ky.request !== originalRequest) {
+					ky.#cancelBody(ky.request.body ?? undefined);
+				}
 			}
 		})() as ResponsePromise;
 
@@ -690,9 +691,13 @@ export class Ky {
 
 		const nonRequestOptions = findUnknownOptions(this.request, this.#options);
 
-		// Cloning is done here to prepare in advance for retries
+		// Cloning is done here to prepare in advance for retries.
+		// Skip cloning when retries are disabled — cloning a streaming body calls ReadableStream#tee()
+		// which buffers the entire stream in memory, causing excessive memory usage for large uploads.
 		this.#originalRequest = this.request;
-		this.request = this.#originalRequest.clone();
+		if (this.#options.retry.limit > 0) {
+			this.request = this.#originalRequest.clone();
+		}
 
 		if (this.#options.timeout === false) {
 			return this.#options.fetch(this.#originalRequest, nonRequestOptions);

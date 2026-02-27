@@ -2,6 +2,7 @@ import {setTimeout as delay} from 'node:timers/promises';
 import test from 'ava';
 import ky, {TimeoutError} from '../source/index.js';
 import {createHttpTestServer} from './helpers/create-http-test-server.js';
+import {parseRawBody} from './helpers/parse-body.js';
 import {withPerformance} from './helpers/with-performance.js';
 
 const fixture = 'fixture';
@@ -570,6 +571,96 @@ test('doesn\'t retry when retry.limit is set to 0', async t => {
 	);
 
 	t.is(requestCount, 1);
+});
+
+test('streaming body POST succeeds when retry.limit is 0', async t => {
+	const server = await createHttpTestServer(t, {bodyParser: false});
+	server.post('/', async (request, response) => {
+		response.send(await parseRawBody(request));
+	});
+
+	const body = 'hello stream';
+	const stream = new ReadableStream({
+		start(controller) {
+			controller.enqueue(new TextEncoder().encode(body));
+			controller.close();
+		},
+	});
+
+	const result = await ky.post(server.url, {
+		// @ts-expect-error - Types are outdated.
+		duplex: 'half',
+		body: stream,
+		retry: {limit: 0},
+	}).text();
+
+	t.is(result, body);
+});
+
+test('streaming body is canceled once when retry.limit is 0 and fetch throws', async t => {
+	let cancelCount = 0;
+	const stream = new ReadableStream({
+		start(controller) {
+			controller.enqueue(new TextEncoder().encode('cancel me'));
+		},
+		cancel() {
+			cancelCount++;
+		},
+	});
+
+	const expectedError = new Error('fetch failed');
+	let fetchCallCount = 0;
+	await t.throwsAsync(ky.post('https://example.com', {
+		// @ts-expect-error - Types are outdated.
+		duplex: 'half',
+		body: stream,
+		retry: {limit: 0},
+		async fetch() {
+			fetchCallCount++;
+			throw expectedError;
+		},
+	}).text(), {
+		is: expectedError,
+	});
+
+	t.is(fetchCallCount, 1);
+	t.is(cancelCount, 1);
+});
+
+test('streaming body POST retries and succeeds when retry.limit is above 0', async t => {
+	let requestCount = 0;
+	const server = await createHttpTestServer(t, {bodyParser: false});
+	server.post('/', async (request, response) => {
+		requestCount++;
+		if (requestCount === 1) {
+			response.sendStatus(408);
+			return;
+		}
+
+		response.send(await parseRawBody(request));
+	});
+
+	const body = 'retry stream body';
+	const stream = new ReadableStream({
+		start(controller) {
+			controller.enqueue(new TextEncoder().encode(body));
+			controller.close();
+		},
+	});
+
+	const result = await ky.post(server.url, {
+		// @ts-expect-error - Types are outdated.
+		duplex: 'half',
+		body: stream,
+		retry: {
+			limit: 1,
+			methods: ['post'],
+			statusCodes: [408],
+		},
+	}).text();
+
+	t.is(result, body);
+	t.is(requestCount, 2);
 });
 
 test('throws when retry.methods is not an array', async t => {
