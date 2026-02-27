@@ -62,6 +62,7 @@ export type {
 export type {ResponsePromise} from './types/ResponsePromise.js';
 export type {KyRequest} from './types/request.js';
 export type {KyResponse} from './types/response.js';
+export {KyError} from './errors/KyError.js';
 export {HTTPError} from './errors/HTTPError.js';
 export {TimeoutError} from './errors/TimeoutError.js';
 export {ForceRetryError} from './errors/ForceRetryError.js';

@@ -455,33 +455,32 @@ const response = await ky('https://example.com/api', {
 Type: `Function[]`\
 Default: `[]`
 
-This hook enables you to modify the `HTTPError` right before it is thrown. The hook function receives a state object with an `HTTPError` and retry count, and should return an instance of `HTTPError`.
+This hook enables you to modify any error right before it is thrown. The hook function receives a state object with an error and retry count, and should return an `Error` instance.
+
+This hook is called for all error types, including `HTTPError`, `TimeoutError`, `ForceRetryError` (when retry limit is exceeded via `ky.retry()`), and network errors. Use type guards like `isHTTPError()` or `isTimeoutError()` to handle specific error types.
 
 The `retryCount` is `0` for the initial request and increments with each retry. This allows you to distinguish between the initial request and retries, which is useful when you need different error handling based on retry attempts (e.g., showing different error messages on the final attempt).
 
 ```js
-import ky from 'ky';
+import ky, {isHTTPError, isTimeoutError} from 'ky';
 
 await ky('https://example.com', {
 	hooks: {
 		beforeError: [
 			({error}) => {
-				if (
-					typeof error.data === 'object'
-					&& error.data !== null
-					&& 'message' in error.data
-				) {
-					error.name = 'GitHubError';
-					error.message = `${String(error.data.message)} (${error.response.status})`;
+				if (isHTTPError(error)) {
+					if (
+						typeof error.data === 'object'
+						&& error.data !== null
+						&& 'message' in error.data
+					) {
+						error.name = 'GitHubError';
+						error.message = `${String(error.data.message)} (${error.response.status})`;
+					}
 				}
 
-				return error;
-			},
-
-			// Or show different message based on retry count
-			({error, retryCount}) => {
-				if (retryCount === error.options.retry.limit) {
-					error.message = `${error.message} (failed after ${retryCount} retries)`;
+				if (isTimeoutError(error)) {
+					error.message = `Request to ${error.request.url} timed out`;
 				}
 
 				return error;
@@ -1006,6 +1005,24 @@ const api = ky.extend({
 const response = await api.get('https://example.com/api');
 ```
 
+### KyError
+
+Base class for all Ky-specific errors. `HTTPError`, `TimeoutError`, and `ForceRetryError` extend this class.
+
+You can use `instanceof KyError` to check if an error originated from Ky, or use the `isKyError()` type guard for cross-realm compatibility and TypeScript type narrowing.
+
+```js
+import ky, {isKyError} from 'ky';
+
+try {
+	await ky('https://example.com').json();
+} catch (error) {
+	if (isKyError(error)) {
+		console.log('Ky error:', error.message);
+	}
+}
+```
+
 ### HTTPError
 
 Exposed for `instanceof` checks. The error has a `response` property with the [`Response` object](https://developer.mozilla.org/en-US/docs/Web/API/Response), `request` property with the [`Request` object](https://developer.mozilla.org/en-US/docs/Web/API/Request), and `options` property with normalized options (either passed to `ky` when creating an instance with `ky.create()` or directly when performing the request).
@@ -1032,11 +1049,13 @@ try {
 You can also use the `beforeError` hook:
 
 ```js
+import ky, {isHTTPError} from 'ky';
+
 await ky('https://example.com', {
 	hooks: {
 		beforeError: [
 			({error}) => {
-				if (error.data !== undefined) {
+				if (isHTTPError(error) && error.data !== undefined) {
 					error.message = `${error.message}: ${JSON.stringify(error.data)}`;
 				}
 
@@ -1272,7 +1291,7 @@ for await (const event of parseServerSentEvents(response)) {
 Ky's TypeScript types are intentionally defined as type aliases rather than interfaces to prevent global module augmentation, which can lead to type conflicts and unexpected behavior across your codebase. If you need to add custom properties to Ky's types like `KyResponse` or `HTTPError`, create local wrapper types instead:
 
 ```ts
-import ky, {HTTPError} from 'ky';
+import ky, {HTTPError, isHTTPError} from 'ky';
 
 interface CustomError extends HTTPError {
 	customProperty: unknown;
@@ -1282,7 +1301,10 @@ const api = ky.extend({
 	hooks: {
 		beforeError: [
 			async ({error}) => {
-				(error as CustomError).customProperty = 'value';
+				if (isHTTPError(error)) {
+					(error as CustomError).customProperty = 'value';
+				}
+
 				return error;
 			}
 		]

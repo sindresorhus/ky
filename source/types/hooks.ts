@@ -1,5 +1,5 @@
 import {type stop, type RetryMarker} from '../core/constants.js';
-import type {KyRequest, KyResponse, HTTPError} from '../index.js';
+import type {KyRequest, KyResponse} from '../index.js';
 import type {NormalizedOptions} from './options.js';
 
 export type BeforeRequestState = {
@@ -45,7 +45,8 @@ export type AfterResponseState = {
 export type AfterResponseHook = (state: AfterResponseState) => Response | RetryMarker | void | Promise<Response | RetryMarker | void>;
 
 export type BeforeErrorState = {
-	error: HTTPError;
+	// `Error` (not `KyError`) because this receives all errors, including non-Ky ones like network `TypeError`s.
+	error: Error;
 
 	/**
 	The number of retries attempted. `0` for the initial request, increments with each retry.
@@ -55,7 +56,8 @@ export type BeforeErrorState = {
 	retryCount: number;
 };
 
-export type BeforeErrorHook = (state: BeforeErrorState) => HTTPError | Promise<HTTPError>;
+// Returns `Error` to allow replacing Ky errors with custom non-Ky error types.
+export type BeforeErrorHook = (state: BeforeErrorState) => Error | Promise<Error>;
 
 export type Hooks = {
 	/**
@@ -236,7 +238,9 @@ export type Hooks = {
 	afterResponse?: AfterResponseHook[];
 
 	/**
-	This hook enables you to modify the `HTTPError` right before it is thrown. The hook function receives a state object with an `HTTPError` and retry count, and should return an instance of `HTTPError`.
+	This hook enables you to modify any error right before it is thrown. The hook function receives a state object with an error and retry count, and should return an `Error` instance.
+
+	This hook is called for all error types, including `HTTPError`, `TimeoutError`, `ForceRetryError` (when retry limit is exceeded via `ky.retry()`), and network errors. Use type guards like `isHTTPError()` or `isTimeoutError()` to handle specific error types.
 
 	The `retryCount` is `0` for the initial request and increments with each retry. This allows you to distinguish between the initial request and retries, which is useful when you need different error handling based on retry attempts (e.g., showing different error messages on the final attempt).
 
@@ -244,28 +248,25 @@ export type Hooks = {
 
 	@example
 	```
-	import ky from 'ky';
+	import ky, {isHTTPError, isTimeoutError} from 'ky';
 
 	await ky('https://example.com', {
 		hooks: {
 			beforeError: [
 				({error}) => {
-					if (
-						typeof error.data === 'object'
-						&& error.data !== null
-						&& 'message' in error.data
-					) {
-						error.name = 'GitHubError';
-						error.message = `${String(error.data.message)} (${error.response.status})`;
+					if (isHTTPError(error)) {
+						if (
+							typeof error.data === 'object'
+							&& error.data !== null
+							&& 'message' in error.data
+						) {
+							error.name = 'GitHubError';
+							error.message = `${String(error.data.message)} (${error.response.status})`;
+						}
 					}
 
-					return error;
-				},
-
-				// Or show different message based on retry count
-				({error, retryCount}) => {
-					if (retryCount === error.options.retry.limit) {
-						error.message = `${error.message} (failed after ${retryCount} retries)`;
+					if (isTimeoutError(error)) {
+						error.message = `Request to ${error.request.url} timed out`;
 					}
 
 					return error;

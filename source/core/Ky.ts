@@ -56,7 +56,7 @@ export class Ky {
 
 			// Track start time for total timeout across retries
 			if (ky.#startTime === undefined && typeof ky.#options.timeout === 'number') {
-				ky.#startTime = Date.now();
+				ky.#startTime = ky.#getCurrentTime();
 			}
 
 			// Delay the fetch so that body method shortcuts can set the Accept header
@@ -116,16 +116,8 @@ export class Ky {
 					? ky.#options.throwHttpErrors(response.status)
 					: ky.#options.throwHttpErrors
 			)) {
-				let error = new HTTPError(response, ky.request, ky.#getNormalizedOptions());
+				const error = new HTTPError(response, ky.request, ky.#getNormalizedOptions());
 				error.data = await ky.#getResponseData(response);
-
-				for (const hook of ky.#options.hooks.beforeError) {
-					// eslint-disable-next-line no-await-in-loop
-					error = await hook({
-						error,
-						retryCount: ky.#retryCount,
-					});
-				}
 
 				throw error;
 			}
@@ -150,14 +142,42 @@ export class Ky {
 
 		// Always wrap in #retry to catch forced retries from afterResponse hooks
 		// Method retriability is checked in #calculateRetryDelay for non-forced retries
-		const result = ky.#retry(function_)
-			.finally(() => {
+		const result = (async () => {
+			try {
+				return await ky.#retry(function_);
+			} catch (error: unknown) {
+				// Non-Error throws (e.g. thrown strings) pass through unchanged
+				if (!(error instanceof Error)) {
+					throw error;
+				}
+
+				// Errors thrown by beforeRetry hooks must propagate unchanged.
+				if (ky.#beforeRetryHookErrors.has(error)) {
+					throw error;
+				}
+
+				// #calculateRetryDelay increments #retryCount before deciding whether to retry,
+				// so the count is always 1 higher than the number of retries actually performed.
+				const retryCount = Math.max(0, ky.#retryCount - 1);
+
+				let processedError: Error = error;
+				for (const hook of ky.#options.hooks.beforeError) {
+					// eslint-disable-next-line no-await-in-loop
+					processedError = await hook({
+						error: processedError,
+						retryCount,
+					});
+				}
+
+				throw processedError;
+			} finally {
 				const originalRequest = ky.#originalRequest;
 
 				// Ignore cancellation errors from already-locked or already-consumed streams.
 				ky.#cancelBody(originalRequest?.body ?? undefined);
 				ky.#cancelBody(ky.request.body ?? undefined);
-			}) as ResponsePromise;
+			}
+		})() as ResponsePromise;
 
 		for (const [type, mimeType] of Object.entries(responseTypes) as ObjectEntries<typeof responseTypes>) {
 			// Only expose `.bytes()` when the environment implements it.
@@ -218,6 +238,7 @@ export class Ky {
 	readonly #options: InternalOptions;
 	#originalRequest?: Request;
 	readonly #userProvidedAbortSignal?: AbortSignal;
+	readonly #beforeRetryHookErrors = new WeakSet<Error>();
 	#cachedNormalizedOptions: NormalizedOptions | undefined;
 	#startTime?: number;
 
@@ -594,13 +615,23 @@ export class Ky {
 			}
 
 			for (const hook of this.#options.hooks.beforeRetry) {
-				// eslint-disable-next-line no-await-in-loop
-				const hookResult = await hook({
-					request: this.request,
-					options: this.#getNormalizedOptions(),
-					error: error as Error,
-					retryCount: this.#retryCount,
-				});
+				let hookResult: Awaited<ReturnType<typeof hook>>;
+				try {
+					// eslint-disable-next-line no-await-in-loop
+					hookResult = await hook({
+						request: this.request,
+						options: this.#getNormalizedOptions(),
+						error: error as Error,
+						retryCount: this.#retryCount,
+					});
+				} catch (hookError) {
+					// Preserve the original request error path (`throw error`) so beforeError hooks can still run.
+					if (hookError instanceof Error && hookError !== error) {
+						this.#beforeRetryHookErrors.add(hookError);
+					}
+
+					throw hookError;
+				}
 
 				if (hookResult instanceof globalThis.Request) {
 					this.#assignRequest(hookResult);
@@ -687,8 +718,12 @@ export class Ky {
 			return this.#options.timeout;
 		}
 
-		const elapsed = Date.now() - this.#startTime;
+		const elapsed = this.#getCurrentTime() - this.#startTime;
 		return Math.max(0, this.#options.timeout - elapsed);
+	}
+
+	#getCurrentTime(): number {
+		return globalThis.performance?.now() ?? Date.now();
 	}
 
 	#getNormalizedOptions(): NormalizedOptions {
