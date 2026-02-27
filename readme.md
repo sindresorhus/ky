@@ -325,6 +325,9 @@ const json = await ky('https://example.com', {
 ```
 
 > [!NOTE]
+> When retries are enabled, Ky clones the request body before each attempt using [`tee()`](https://developer.mozilla.org/en-US/docs/Web/API/ReadableStream/tee), which buffers the entire `ReadableStream` in memory. Set `retry: {limit: 0}` if you're uploading large streaming bodies and don't need retries.
+
+> [!NOTE]
 > Chromium-based browsers automatically retry `408 Request Timeout` responses at the network layer for keep-alive connections. This means requests may be retried by both the browser and ky. If you want to avoid duplicate retries, you can either set `keepalive: false` in your request options (though this may impact performance for multiple requests) or remove `408` from the retry status codes.
 
 ##### timeout
@@ -1270,6 +1273,29 @@ const response = await ky('https://example.com', {
 	dispatcher: proxyAgent
 }).json();
 ```
+
+### Streaming request bodies
+
+To send a [`ReadableStream`](https://developer.mozilla.org/en-US/docs/Web/API/ReadableStream) as the request body, you must pass `duplex: 'half'` per the [Fetch spec](https://fetch.spec.whatwg.org/#dom-requestinit-duplex). Ky can't set this automatically as it changes request semantics for all requests, not just streaming ones.
+
+```js
+import ky from 'ky';
+
+const stream = new ReadableStream({
+	start(controller) {
+		controller.enqueue(new TextEncoder().encode('hello'));
+		controller.close();
+	},
+});
+
+const response = await ky.post('https://example.com/upload', {
+	body: stream,
+	duplex: 'half',
+});
+```
+
+> [!NOTE]
+> When retries are enabled (the default), Ky buffers the entire streaming body in memory to support replaying it. Set `retry: {limit: 0}` to skip this if retries aren't needed.
 
 ### Consuming Server-Sent Events (SSE)
 
