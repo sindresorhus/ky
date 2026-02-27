@@ -107,7 +107,8 @@ test('context is preserved across retries', async t => {
 	});
 
 	const context = {id: 'session'};
-	let callCount = 0;
+	let beforeRequestCallCount = 0;
+	let beforeRetryCallCount = 0;
 
 	await ky.get(server.url, {
 		context,
@@ -116,13 +117,20 @@ test('context is preserved across retries', async t => {
 			beforeRequest: [
 				({options}) => {
 					t.deepEqual(options.context, context);
-					callCount++;
+					beforeRequestCallCount++;
+				},
+			],
+			beforeRetry: [
+				({options}) => {
+					t.deepEqual(options.context, context);
+					beforeRetryCallCount++;
 				},
 			],
 		},
 	}).json();
 
-	t.is(callCount, 3);
+	t.is(beforeRequestCallCount, 1);
+	t.is(beforeRetryCallCount, 2);
 });
 
 test('context defaults to empty object when not provided', async t => {

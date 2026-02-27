@@ -7,11 +7,9 @@ export type BeforeRequestState = {
 	options: NormalizedOptions;
 
 	/**
-	The number of retries attempted. `0` for the initial request, increments with each retry.
-
-	This allows you to distinguish between initial requests and retries, which is useful when you need different behavior for retries (e.g., avoiding overwriting headers set in `beforeRetry`).
+	The number of retries attempted. Always `0`, since `beforeRequest` hooks run once before retry handling begins.
 	*/
-	retryCount: number;
+	retryCount: 0;
 };
 
 export type BeforeRequestHook = (state: BeforeRequestState) => Request | Response | void | Promise<Request | Response | void>;
@@ -63,9 +61,11 @@ export type Hooks = {
 	/**
 	This hook enables you to modify the request right before it is sent. Ky will make no further changes to the request after this. The hook function receives a state object with the normalized request, options, and retry count. You could, for example, modify `request.headers` here.
 
-	The `retryCount` is `0` for the initial request and increments with each retry. This allows you to distinguish between initial requests and retries, which is useful when you need different behavior for retries (e.g., avoiding overwriting headers set in `beforeRetry`).
+	The `retryCount` is always `0`, since `beforeRequest` hooks run once before retry handling begins.
 
 	A [`Request`](https://developer.mozilla.org/en-US/docs/Web/API/Request) can be returned from this hook to replace the outgoing request; remaining hooks will still run with the updated request. A [`Response`](https://developer.mozilla.org/en-US/docs/Web/API/Response) can be returned to completely avoid making an HTTP request, in which case remaining `beforeRequest` hooks are skipped. This can be used to mock a request, check an internal cache, etc.
+
+	Any error thrown by `beforeRequest` hooks is treated as fatal and will not trigger Ky's retry logic.
 
 	@example
 	```
@@ -74,12 +74,8 @@ export type Hooks = {
 	const response = await ky('https://example.com', {
 		hooks: {
 			beforeRequest: [
-				({request, retryCount}) => {
-					// Only set default auth header on initial request, not on retries
-					// (retries may have refreshed token set by beforeRetry)
-					if (retryCount === 0) {
-						request.headers.set('Authorization', 'token initial-token');
-					}
+				({request}) => {
+					request.headers.set('Authorization', 'token initial-token');
 				}
 			]
 		}
@@ -195,6 +191,8 @@ export type Hooks = {
 	The `retryCount` is `0` for the initial request and increments with each retry. This allows you to distinguish between initial requests and retries, which is useful when you need different behavior for retries (e.g., showing a notification only on the final retry).
 
 	You can also force a retry by returning `ky.retry()` or `ky.retry(options)`. This is useful when you need to retry based on the response body content, even if the response has a successful status code. The retry will respect the retry limit and be observable in `beforeRetry` hooks.
+
+	Any non-`ky.retry()` error thrown by `afterResponse` hooks is treated as fatal and will not trigger Ky's retry logic.
 
 	@default []
 

@@ -119,7 +119,7 @@ test('multiple beforeRequest Request hooks do not duplicate upload progress even
 		response.json(await parseJsonBody<Record<string, unknown>>(request));
 	});
 
-	const completedUploadProgressEventsPerAttempt: number[] = [];
+	const completedUploadProgressEventsPerAttempt: number[] = [0];
 	const payload = {test: 'retry'};
 	const responseJson = await ky
 		.post(server.url, {
@@ -131,7 +131,6 @@ test('multiple beforeRequest Request hooks do not duplicate upload progress even
 			hooks: {
 				beforeRequest: [
 					({request}) => {
-						completedUploadProgressEventsPerAttempt.push(0);
 						const headers = new Headers(request.headers);
 						headers.set('x-hook-1', 'hook-1');
 						return new Request(request, {headers});
@@ -140,6 +139,11 @@ test('multiple beforeRequest Request hooks do not duplicate upload progress even
 						const headers = new Headers(request.headers);
 						headers.set('x-hook-2', 'hook-2');
 						return new Request(request, {headers});
+					},
+				],
+				beforeRetry: [
+					() => {
+						completedUploadProgressEventsPerAttempt.push(0);
 					},
 				],
 			},
@@ -442,8 +446,14 @@ test('retry with beforeRequest body changes tracks per-attempt upload progress',
 				({request, retryCount}) => {
 					currentAttempt = retryCount;
 					eventsByAttempt[currentAttempt] = [];
-					const body = retryCount === 0 ? firstAttemptBody : secondAttemptBody;
-					return new Request(request, {body});
+					return new Request(request, {body: firstAttemptBody});
+				},
+			],
+			beforeRetry: [
+				({request}) => {
+					currentAttempt = 1;
+					eventsByAttempt[currentAttempt] = [];
+					return new Request(request, {body: secondAttemptBody});
 				},
 			],
 		},
@@ -577,6 +587,11 @@ test('forced retry custom request keeps upload progress', async t => {
 						attemptEvents.push([]);
 					},
 				],
+				beforeRetry: [
+					() => {
+						attemptEvents.push([]);
+					},
+				],
 				afterResponse: [
 					async ({request, response}) => {
 						if (response.status === 500) {
@@ -700,7 +715,10 @@ test('beforeRetry override updates upload progress after body change', async t =
 					},
 				],
 				beforeRetry: [
-					({request}) => new Request(request, {body: updatedPayloadString}),
+					({request}) => {
+						attempts.push([]);
+						return new Request(request, {body: updatedPayloadString});
+					},
 				],
 			},
 			onUploadProgress(progress) {
@@ -767,6 +785,11 @@ test('forced retry with custom request updates upload progress size', async t =>
 			},
 			hooks: {
 				beforeRequest: [
+					() => {
+						attempts.push([]);
+					},
+				],
+				beforeRetry: [
 					() => {
 						attempts.push([]);
 					},

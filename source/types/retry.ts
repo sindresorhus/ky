@@ -126,7 +126,7 @@ export type RetryOptions = {
 	/**
 	A function to determine whether a retry should be attempted.
 
-	This function takes precedence over all other retry checks and is called first, before any other retry validation.
+	This function takes precedence over the default retry checks (`retryOnTimeout`, status code checks, etc.) for retriable methods. It is only called after the retry limit and method checks pass.
 
 	**Note:** This is different from the `beforeRetry` hook:
 	- `shouldRetry`: Controls WHETHER to retry (called before the retry decision is made)

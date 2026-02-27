@@ -82,7 +82,7 @@ export class Ky {
 	static create(input: Input, options: Options): ResponsePromise {
 		const ky = new Ky(input, options);
 
-		const function_ = async (): Promise<Response> => {
+		const function_ = async (): Promise<Response | void> => {
 			if (typeof ky.#options.timeout === 'number' && ky.#options.timeout > maxSafeTimeout) {
 				throw new RangeError(`The \`timeout\` option cannot be greater than ${maxSafeTimeout}`);
 			}
@@ -94,64 +94,62 @@ export class Ky {
 
 			// Delay the fetch so that body method shortcuts can set the Accept header
 			await Promise.resolve();
-			let response = await ky.#fetch();
+			const beforeRequestResponse = await ky.#runBeforeRequestHooks();
+			let response = beforeRequestResponse ?? await ky.#retry(async () => ky.#fetch());
+			let responseFromHook = beforeRequestResponse !== undefined
+				|| ky.#consumeReturnedResponseFromBeforeRetryHook();
+			if (!(response instanceof globalThis.Response)) {
+				return response;
+			}
 
-			for (const hook of ky.#options.hooks.afterResponse) {
-				// Clone the response before passing to hook so we can cancel it if needed
-				const clonedResponse = ky.#decorateResponse(response.clone());
-
-				let modifiedResponse;
+			for (;;) {
 				try {
 					// eslint-disable-next-line no-await-in-loop
-					modifiedResponse = await hook({
-						request: ky.request,
-						options: ky.#getNormalizedOptions(),
-						response: clonedResponse,
-						retryCount: ky.#retryCount,
-					});
+					response = await ky.#runAfterResponseHooks(response);
 				} catch (error) {
-					// Cancel both responses to prevent memory leaks when hook throws
-					ky.#cancelResponseBody(clonedResponse);
-					ky.#cancelResponseBody(response);
-					throw error;
+					if (!(error instanceof ForceRetryError)) {
+						throw error;
+					}
+
+					// eslint-disable-next-line no-await-in-loop
+					const retriedResponse = await ky.#retryFromError(error, async () => ky.#fetch());
+					if (!(retriedResponse instanceof globalThis.Response)) {
+						return retriedResponse;
+					}
+
+					response = retriedResponse;
+					responseFromHook = ky.#consumeReturnedResponseFromBeforeRetryHook();
+					continue;
 				}
 
-				if (modifiedResponse instanceof RetryMarker) {
-					// Cancel both the cloned response passed to the hook and the current response to prevent resource leaks (especially important in Deno/Bun).
-					// Do not await cancellation since hooks can clone the response, leaving extra tee branches that keep cancel promises pending per the Streams spec.
-					ky.#cancelResponseBody(clonedResponse);
-					ky.#cancelResponseBody(response);
-					throw new ForceRetryError(modifiedResponse.options);
+				if (!response.ok && (
+					typeof ky.#options.throwHttpErrors === 'function'
+						? ky.#options.throwHttpErrors(response.status)
+						: ky.#options.throwHttpErrors
+				)) {
+					const error = new HTTPError(response, ky.request, ky.#getNormalizedOptions());
+					// eslint-disable-next-line no-await-in-loop
+					error.data = await ky.#getResponseData(response);
+
+					if (responseFromHook) {
+						throw error;
+					}
+
+					// eslint-disable-next-line no-await-in-loop
+					const retriedResponse = await ky.#retryFromError(error, async () => ky.#fetch());
+					if (!(retriedResponse instanceof globalThis.Response)) {
+						return retriedResponse;
+					}
+
+					response = retriedResponse;
+					responseFromHook = ky.#consumeReturnedResponseFromBeforeRetryHook();
+					continue;
 				}
 
-				// Determine which response to use going forward
-				const nextResponse = modifiedResponse instanceof globalThis.Response ? modifiedResponse : response;
-
-				// Cancel any response bodies we won't use to prevent memory leaks.
-				// Uses fire-and-forget since hooks may have cloned the response, creating tee branches that block cancellation.
-				if (clonedResponse !== nextResponse) {
-					ky.#cancelResponseBody(clonedResponse);
-				}
-
-				if (response !== nextResponse) {
-					ky.#cancelResponseBody(response);
-				}
-
-				response = nextResponse;
+				break;
 			}
 
 			ky.#decorateResponse(response);
-
-			if (!response.ok && (
-				typeof ky.#options.throwHttpErrors === 'function'
-					? ky.#options.throwHttpErrors(response.status)
-					: ky.#options.throwHttpErrors
-			)) {
-				const error = new HTTPError(response, ky.request, ky.#getNormalizedOptions());
-				error.data = await ky.#getResponseData(response);
-
-				throw error;
-			}
 
 			// If `onDownloadProgress` is passed, it uses the stream API internally
 			if (ky.#options.onDownloadProgress) {
@@ -171,11 +169,9 @@ export class Ky {
 			return response;
 		};
 
-		// Always wrap in #retry to catch forced retries from afterResponse hooks
-		// Method retriability is checked in #calculateRetryDelay for non-forced retries
 		const result = (async () => {
 			try {
-				return await ky.#retry(function_);
+				return await function_();
 			} catch (error: unknown) {
 				// Non-Error throws (e.g. thrown strings) pass through unchanged
 				if (!(error instanceof Error)) {
@@ -187,16 +183,12 @@ export class Ky {
 					throw error;
 				}
 
-				// #calculateRetryDelay increments #retryCount before deciding whether to retry,
-				// so the count is always 1 higher than the number of retries actually performed.
-				const retryCount = Math.max(0, ky.#retryCount - 1);
-
 				let processedError: Error = error;
 				for (const hook of ky.#options.hooks.beforeError) {
 					// eslint-disable-next-line no-await-in-loop
 					const hookResult: unknown = await hook({
 						error: processedError,
-						retryCount,
+						retryCount: ky.#retryCount,
 					});
 
 					// Only overwrite if the hook returns a valid Error instance.
@@ -274,6 +266,7 @@ export class Ky {
 	readonly #beforeRetryHookErrors = new WeakSet<Error>();
 	#cachedNormalizedOptions: NormalizedOptions | undefined;
 	#startTime?: number;
+	#returnedResponseFromBeforeRetryHook = false;
 
 	// eslint-disable-next-line complexity
 	constructor(input: Input, options: Options = {}) {
@@ -382,7 +375,7 @@ export class Ky {
 	}
 
 	#calculateDelay(): number {
-		const retryDelay = this.#options.retry.delay(this.#retryCount);
+		const retryDelay = this.#options.retry.delay(this.#retryCount + 1);
 
 		let jitteredDelay = retryDelay;
 		if (this.#options.retry.jitter === true) {
@@ -406,9 +399,7 @@ export class Ky {
 	}
 
 	async #calculateRetryDelay(error: unknown) {
-		this.#retryCount++;
-
-		if (this.#retryCount > this.#options.retry.limit) {
+		if (this.#retryCount >= this.#options.retry.limit) {
 			throw error;
 		}
 
@@ -425,9 +416,9 @@ export class Ky {
 			throw error;
 		}
 
-		// User-provided shouldRetry function takes precedence over all other checks
+		// User-provided shouldRetry function takes precedence over default checks (retryOnTimeout, status codes, etc.)
 		if (this.#options.retry.shouldRetry !== undefined) {
-			const result = await this.#options.retry.shouldRetry({error: errorObject, retryCount: this.#retryCount});
+			const result = await this.#options.retry.shouldRetry({error: errorObject, retryCount: this.#retryCount + 1});
 
 			// Strict boolean checking - only exact true/false are handled specially
 			if (result === false) {
@@ -611,112 +602,13 @@ export class Ky {
 		this.#cancelBody(response.body ?? undefined);
 	}
 
-	async #retry<T extends (...arguments_: any) => Promise<any>>(function_: T): Promise<ReturnType<T> | Response | void> {
-		try {
-			return await function_();
-		} catch (error) {
-			const retryDelay = Math.min(await this.#calculateRetryDelay(error), maxSafeTimeout);
-			const delayOptions = this.#userProvidedAbortSignal ? {signal: this.#userProvidedAbortSignal} : {};
-
-			let delayMs = retryDelay;
-			const remainingTimeout = this.#getRemainingTimeout();
-			if (remainingTimeout !== undefined) {
-				if (remainingTimeout <= 0) {
-					throw new TimeoutError(this.request);
-				}
-
-				// If waiting would consume all remaining budget, time out without starting another request.
-				if (delayMs >= remainingTimeout) {
-					await delay(remainingTimeout, delayOptions);
-					throw new TimeoutError(this.request);
-				}
-
-				delayMs = Math.min(delayMs, remainingTimeout);
-			}
-
-			// Only use user-provided signal for delay, not our internal abortController
-			await delay(delayMs, delayOptions);
-
-			const remainingTimeoutAfterDelay = this.#getRemainingTimeout();
-			if (
-				remainingTimeoutAfterDelay !== undefined
-				&& remainingTimeoutAfterDelay <= 0
-			) {
-				throw new TimeoutError(this.request);
-			}
-
-			// Apply custom request from forced retry before beforeRetry hooks
-			// Ensure the custom request has the correct managed signal for timeouts and user aborts
-			if (error instanceof ForceRetryError && error.customRequest) {
-				const managedRequest = this.#options.signal
-					? new globalThis.Request(error.customRequest, {signal: this.#options.signal})
-					: new globalThis.Request(error.customRequest);
-
-				this.#assignRequest(managedRequest);
-			}
-
-			for (const hook of this.#options.hooks.beforeRetry) {
-				let hookResult: Awaited<ReturnType<typeof hook>>;
-				try {
-					// eslint-disable-next-line no-await-in-loop
-					hookResult = await hook({
-						request: this.request,
-						options: this.#getNormalizedOptions(),
-						error: error as Error,
-						retryCount: this.#retryCount,
-					});
-				} catch (hookError) {
-					// Preserve the original request error path (`throw error`) so beforeError hooks can still run.
-					if (hookError instanceof Error && hookError !== error) {
-						this.#beforeRetryHookErrors.add(hookError);
-					}
-
-					throw hookError;
-				}
-
-				if (hookResult instanceof globalThis.Request) {
-					this.#assignRequest(hookResult);
-					break;
-				}
-
-				// If a Response is returned, use it and skip the retry
-				if (hookResult instanceof globalThis.Response) {
-					return hookResult;
-				}
-
-				// If `stop` is returned from the hook, the retry process is stopped
-				if (hookResult === stop) {
-					return;
-				}
-			}
-
-			const remainingTimeoutAfterBeforeRetryHooks = this.#getRemainingTimeout();
-			if (
-				remainingTimeoutAfterBeforeRetryHooks !== undefined
-				&& remainingTimeoutAfterBeforeRetryHooks <= 0
-			) {
-				throw new TimeoutError(this.request);
-			}
-
-			return this.#retry(function_);
-		}
-	}
-
-	async #fetch(): Promise<Response> {
-		// Reset abortController if it was aborted (happens on timeout retry)
-		if (this.#abortController?.signal.aborted) {
-			this.#abortController = new globalThis.AbortController();
-			this.#options.signal = this.#userProvidedAbortSignal ? AbortSignal.any([this.#userProvidedAbortSignal, this.#abortController.signal]) : this.#abortController.signal;
-			// Recreate request with new signal
-			this.request = new globalThis.Request(this.request, {signal: this.#options.signal});
-		}
-
+	async #runBeforeRequestHooks(): Promise<Response | undefined> {
 		for (const hook of this.#options.hooks.beforeRequest) {
 			// eslint-disable-next-line no-await-in-loop
 			const result = await hook({
 				request: this.request,
 				options: this.#getNormalizedOptions(),
-				retryCount: this.#retryCount,
+				retryCount: 0,
 			});
 
 			if (result instanceof Response) {
@@ -726,6 +618,169 @@ export class Ky {
 			if (result instanceof globalThis.Request) {
 				this.#assignRequest(result);
 			}
+		}
+
+		return undefined;
+	}
+
+	async #runAfterResponseHooks(response: Response): Promise<Response> {
+		for (const hook of this.#options.hooks.afterResponse) {
+			// Clone the response before passing to hook so we can cancel it if needed
+			const clonedResponse = this.#decorateResponse(response.clone());
+
+			let modifiedResponse;
+			try {
+				// eslint-disable-next-line no-await-in-loop
+				modifiedResponse = await hook({
+					request: this.request,
+					options: this.#getNormalizedOptions(),
+					response: clonedResponse,
+					retryCount: this.#retryCount,
+				});
+			} catch (error) {
+				// Cancel both responses to prevent memory leaks when hook throws
+				this.#cancelResponseBody(clonedResponse);
+				this.#cancelResponseBody(response);
+				throw error;
+			}
+
+			if (modifiedResponse instanceof RetryMarker) {
+				// Cancel both the cloned response passed to the hook and the current response to prevent resource leaks (especially important in Deno/Bun).
+				// Do not await cancellation since hooks can clone the response, leaving extra tee branches that keep cancel promises pending per the Streams spec.
+				this.#cancelResponseBody(clonedResponse);
+				this.#cancelResponseBody(response);
+				throw new ForceRetryError(modifiedResponse.options);
+			}
+
+			// Determine which response to use going forward
+			const nextResponse = modifiedResponse instanceof globalThis.Response ? modifiedResponse : response;
+
+			// Cancel any response bodies we won't use to prevent memory leaks.
+			// Uses fire-and-forget since hooks may have cloned the response, creating tee branches that block cancellation.
+			if (clonedResponse !== nextResponse) {
+				this.#cancelResponseBody(clonedResponse);
+			}
+
+			if (response !== nextResponse) {
+				this.#cancelResponseBody(response);
+			}
+
+			response = nextResponse;
+		}
+
+		return response;
+	}
+
+	async #retry<T extends (...arguments_: any) => Promise<any>>(function_: T): Promise<ReturnType<T> | Response | void> {
+		try {
+			return await function_();
+		} catch (error) {
+			return this.#retryFromError(error, function_);
+		}
+	}
+
+	async #retryFromError<T extends (...arguments_: any) => Promise<any>>(error: unknown, function_: T): Promise<ReturnType<T> | Response | void> {
+		this.#returnedResponseFromBeforeRetryHook = false;
+
+		const retryDelay = Math.min(await this.#calculateRetryDelay(error), maxSafeTimeout);
+		const delayOptions = this.#userProvidedAbortSignal ? {signal: this.#userProvidedAbortSignal} : {};
+
+		const remainingTimeout = this.#getRemainingTimeout();
+		if (remainingTimeout !== undefined) {
+			if (remainingTimeout <= 0) {
+				throw new TimeoutError(this.request);
+			}
+
+			// If waiting would consume all remaining budget, time out without starting another request.
+			if (retryDelay >= remainingTimeout) {
+				await delay(remainingTimeout, delayOptions);
+				throw new TimeoutError(this.request);
+			}
+		}
+
+		// Only use user-provided signal for delay, not our internal abortController
+		await delay(retryDelay, delayOptions);
+
+		const remainingTimeoutAfterDelay = this.#getRemainingTimeout();
+		if (
+			remainingTimeoutAfterDelay !== undefined
+			&& remainingTimeoutAfterDelay <= 0
+		) {
+			throw new TimeoutError(this.request);
+		}
+
+		// Apply custom request from forced retry before beforeRetry hooks
+		// Ensure the custom request has the correct managed signal for timeouts and user aborts
+		if (error instanceof ForceRetryError && error.customRequest) {
+			const managedRequest = this.#options.signal
+				? new globalThis.Request(error.customRequest, {signal: this.#options.signal})
+				: new globalThis.Request(error.customRequest);
+
+			this.#assignRequest(managedRequest);
+		}
+
+		for (const hook of this.#options.hooks.beforeRetry) {
+			let hookResult: Awaited<ReturnType<typeof hook>>;
+			try {
+				// eslint-disable-next-line no-await-in-loop
+				hookResult = await hook({
+					request: this.request,
+					options: this.#getNormalizedOptions(),
+					error: error as Error,
+					retryCount: this.#retryCount + 1,
+				});
+			} catch (hookError) {
+				// Preserve the original request error path (`throw error`) so beforeError hooks can still run.
+				if (hookError instanceof Error && hookError !== error) {
+					this.#beforeRetryHookErrors.add(hookError);
+				}
+
+				throw hookError;
+			}
+
+			if (hookResult instanceof globalThis.Request) {
+				this.#assignRequest(hookResult);
+				break;
+			}
+
+			// If a Response is returned, use it and skip the retry
+			if (hookResult instanceof globalThis.Response) {
+				this.#returnedResponseFromBeforeRetryHook = true;
+				this.#retryCount++;
+				return hookResult;
+			}
+
+			// If `stop` is returned from the hook, the retry process is stopped
+			if (hookResult === stop) {
+				return;
+			}
+		}
+
+		const remainingTimeoutAfterBeforeRetryHooks = this.#getRemainingTimeout();
+		if (
+			remainingTimeoutAfterBeforeRetryHooks !== undefined
+			&& remainingTimeoutAfterBeforeRetryHooks <= 0
+		) {
+			throw new TimeoutError(this.request);
+		}
+
+		this.#retryCount++;
+		return this.#retry(function_);
+	}
+
+	#consumeReturnedResponseFromBeforeRetryHook(): boolean {
+		const value = this.#returnedResponseFromBeforeRetryHook;
+		this.#returnedResponseFromBeforeRetryHook = false;
+		return value;
+	}
+
+	async #fetch(): Promise<Response> {
+		// Reset abortController if it was aborted (happens on timeout retry)
+		if (this.#abortController?.signal.aborted) {
+			this.#abortController = new globalThis.AbortController();
+			this.#options.signal = this.#userProvidedAbortSignal ? AbortSignal.any([this.#userProvidedAbortSignal, this.#abortController.signal]) : this.#abortController.signal;
+			// Recreate request with new signal
+			this.request = new globalThis.Request(this.request, {signal: this.#options.signal});
 		}
 
 		const nonRequestOptions = findUnknownOptions(this.request, this.#options);
