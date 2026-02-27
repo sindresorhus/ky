@@ -86,6 +86,27 @@ export type Hooks = {
 	});
 	```
 
+	**Modifying the request URL:**
+
+	@example
+	```
+	import ky from 'ky';
+
+	const api = ky.extend({
+		hooks: {
+			beforeRequest: [
+				({request}) => {
+					const url = new URL(request.url);
+					url.searchParams.set('token', 'secret-token');
+					return new Request(url, request);
+				}
+			]
+		}
+	});
+
+	const response = await api.get('https://example.com/api/users');
+	```
+
 	@default []
 	*/
 	beforeRequest?: BeforeRequestHook[];

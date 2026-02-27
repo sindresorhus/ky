@@ -1919,6 +1919,31 @@ test('beforeError hook is not called when throwHttpErrors is false', async t => 
 	t.false(hookCalled);
 });
 
+test('beforeRequest hook can return modified Request with new URL', async t => {
+	const server = await createHttpTestServer(t);
+	server.get('/', (request, response) => {
+		if (request.query.token === 'secret') {
+			response.end('success');
+		} else {
+			response.sendStatus(403);
+		}
+	});
+
+	const result = await ky.get(server.url, {
+		hooks: {
+			beforeRequest: [
+				({request}) => {
+					const url = new URL(request.url);
+					url.searchParams.set('token', 'secret');
+					return new Request(url, request);
+				},
+			],
+		},
+	}).text();
+
+	t.is(result, 'success');
+});
+
 test('beforeRetry hook can return modified Request with new URL', async t => {
 	let requestCount = 0;
 

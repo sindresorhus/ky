@@ -402,6 +402,26 @@ const api = ky.extend({
 const response = await api.get('https://example.com/api/users');
 ```
 
+**Modifying the request URL:**
+
+```js
+import ky from 'ky';
+
+const api = ky.extend({
+	hooks: {
+		beforeRequest: [
+			({request}) => {
+				const url = new URL(request.url);
+				url.searchParams.set('token', 'secret-token');
+				return new Request(url, request);
+			}
+		]
+	}
+});
+
+const response = await api.get('https://example.com/api/users');
+```
+
 ###### hooks.beforeRetry
 
 Type: `Function[]`\
