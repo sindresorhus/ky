@@ -34,6 +34,4 @@ test('prefix option', async t => {
 	t.is(await ky('', {prefix: server.url}).text(), '/');
 	t.is(await ky('', {prefix: `${server.url}/`}).text(), '/');
 	t.is(await ky('', {prefix: new URL(server.url)}).text(), '/');
-
-	await server.close();
 });
