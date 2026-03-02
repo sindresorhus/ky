@@ -34,4 +34,13 @@ test('prefix option', async t => {
 	t.is(await ky('', {prefix: server.url}).text(), '/');
 	t.is(await ky('', {prefix: `${server.url}/`}).text(), '/');
 	t.is(await ky('', {prefix: new URL(server.url)}).text(), '/');
+
+	t.throws(
+		() => {
+			void ky('/unicorn', {prefixUrl: `${server.url}/api`});
+		},
+		{
+			message: 'The `prefixUrl` option has been renamed `prefix` in v2 and enhanced to allow slashes in input. See also the new `baseUrl` option for improved flexibility with standard URL resolution: https://github.com/sindresorhus/ky#baseurl',
+		},
+	);
 });

@@ -274,6 +274,10 @@ export class Ky {
 		}
 
 		if (typeof this.#input === 'string') {
+			if ((this.#options as any).prefixUrl) {
+				throw new Error('The `prefixUrl` option has been renamed `prefix` in v2 and enhanced to allow slashes in input. See also the new `baseUrl` option for improved flexibility with standard URL resolution: https://github.com/sindresorhus/ky#baseurl');
+			}
+
 			if (this.#options.prefix) {
 				this.#options.prefix += this.#options.prefix.endsWith('/') ? '' : '/';
 
