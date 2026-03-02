@@ -1311,7 +1311,7 @@ test('beforeError ignores non-Error return values from hooks', async t => {
 				],
 			},
 		}),
-		{ instanceOf: HTTPError },
+		{instanceOf: HTTPError},
 	);
 });
 
