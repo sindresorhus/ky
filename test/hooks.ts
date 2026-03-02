@@ -1296,6 +1296,25 @@ test('beforeError can return promise which resolves to HTTPError', async t => {
 	);
 });
 
+test('beforeError ignores non-Error return values from hooks', async t => {
+	const server = await createHttpTestServer(t);
+
+	server.post('/', (_request, response) => {
+		response.status(500).send();
+	});
+
+	await t.throwsAsync(
+		ky.post(server.url, {
+			hooks: {
+				beforeError: [
+					(() => undefined as unknown as Error) as any,
+				],
+			},
+		}),
+		{instanceOf: HTTPError},
+	);
+});
+
 test('beforeRequest hook receives retryCount parameter', async t => {
 	let requestCount = 0;
 	const retryCounts: number[] = [];
