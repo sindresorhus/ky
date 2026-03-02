@@ -67,7 +67,7 @@ test('context works with ky.create and ky.extend', async t => {
 	});
 
 	const baseApi = ky.create({
-		prefixUrl: server.url,
+		prefix: server.url,
 		context: {base: 'value'},
 	});
 
@@ -145,7 +145,7 @@ test('context is shallow merged', async t => {
 	});
 
 	const baseApi = ky.create({
-		prefixUrl: server.url,
+		prefix: server.url,
 		context: {
 			auth: {apiKey: 'base', userId: 'user-123'},
 			settings: {timeout: 5000},

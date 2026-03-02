@@ -3,7 +3,7 @@ import ky from '../source/index.js';
 import {createHttpTestServer} from './helpers/create-http-test-server.js';
 
 test('prefix option', async t => {
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/', (_request, response) => {
 		response.end('/');
 	});

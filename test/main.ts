@@ -665,7 +665,7 @@ test('ky.create() with default json does not add context to merged json body', a
 	});
 
 	const api = ky.create({
-		prefixUrl: server.url,
+		prefix: server.url,
 		json: {
 			foo: 'bar',
 		},
