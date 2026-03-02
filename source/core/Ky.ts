@@ -161,10 +161,15 @@ export class Ky {
 				let processedError: Error = error;
 				for (const hook of ky.#options.hooks.beforeError) {
 					// eslint-disable-next-line no-await-in-loop
-					processedError = await hook({
+					const hookResult: unknown = await hook({
 						error: processedError,
 						retryCount,
 					});
+
+					// Only overwrite if the hook returns a valid Error instance.
+					if (hookResult instanceof Error) {
+						processedError = hookResult;
+					}
 				}
 
 				throw processedError;
