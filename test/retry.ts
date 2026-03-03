@@ -1037,7 +1037,7 @@ test('retryOnTimeout: false (default) - does not retry on timeout', async t => {
 test('timeout: false does not throw TimeoutError during retries', async t => {
 	let requestCount = 0;
 
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/', (_request, response) => {
 		requestCount++;
 		if (requestCount === 1) {
@@ -1057,8 +1057,6 @@ test('timeout: false does not throw TimeoutError during retries', async t => {
 
 	t.is(result, fixture);
 	t.is(requestCount, 2);
-
-	await server.close();
 });
 
 test('retryOnTimeout: true does not exceed total timeout budget', async t => {

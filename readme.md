@@ -278,14 +278,14 @@ The `jitter` option adds random jitter to retry delays to prevent thundering her
 
 The `retryOnTimeout` option determines whether to retry when a request times out. By default, retries are not triggered following a [timeout](#timeout).
 
-The `shouldRetry` option provides custom retry logic that **takes precedence over all other retry checks**. This function is called first, before any other retry validation.
+The `shouldRetry` option provides custom retry logic that **takes precedence over the default retry checks** (`retryOnTimeout`, status code checks, etc.) for retriable methods. It is only called after the retry limit and method checks pass.
 
 **Note:** This is different from the `beforeRetry` hook:
 - `shouldRetry`: Controls WHETHER to retry (called before the retry decision is made)
 - `beforeRetry`: Called AFTER retry is confirmed, allowing you to modify the request
 
 The function receives a state object with the error and retry count (starts at 1 for the first retry), and should return:
-- `true` to force a retry (bypasses `retryOnTimeout`, status code checks, and other validations)
+- `true` to force a retry (bypasses `retryOnTimeout`, status code checks, and other default validations)
 - `false` to prevent a retry (no retry will occur)
 - `undefined` to use the default retry logic (`retryOnTimeout`, status codes, etc.)
 
@@ -387,7 +387,7 @@ If set to `false`, there will be no timeout.
 ##### hooks
 
 Type: `object<string, Function[]>`\
-Default: `{beforeRequest: [], beforeRetry: [], afterResponse: []}`
+Default: `{beforeRequest: [], beforeRetry: [], beforeError: [], afterResponse: []}`
 
 Hooks allow modifications during the request lifecycle. Hook functions may be async and are run serially.
 
@@ -398,9 +398,11 @@ Default: `[]`
 
 This hook enables you to modify the request right before it is sent. Ky will make no further changes to the request after this. The hook function receives a state object with the normalized request, options, and retry count. You could, for example, modify the `request.headers` here.
 
-The `retryCount` is `0` for the initial request and increments with each retry. This allows you to distinguish between initial requests and retries, which is useful when you need different behavior for retries (e.g., avoiding overwriting headers set in `beforeRetry`).
+The `retryCount` is always `0`, since `beforeRequest` hooks run once before retry handling begins.
 
 The hook can return a [`Request`](https://developer.mozilla.org/en-US/docs/Web/API/Request) to replace the outgoing request (remaining hooks will still run with the updated request). It can also return a [`Response`](https://developer.mozilla.org/en-US/docs/Web/API/Response) to completely avoid making an HTTP request, in which case remaining `beforeRequest` hooks are skipped. This can be used to mock a request, check an internal cache, etc.
+
+Any error thrown by `beforeRequest` hooks is treated as fatal and will not trigger Ky's retry logic.
 
 ```js
 import ky from 'ky';
@@ -408,12 +410,8 @@ import ky from 'ky';
 const api = ky.extend({
 	hooks: {
 		beforeRequest: [
-			({request, retryCount}) => {
-				// Only set default auth header on initial request, not on retries
-				// (retries may have refreshed token set by beforeRetry)
-				if (retryCount === 0) {
-					request.headers.set('Authorization', 'token initial-token');
-				}
+			({request}) => {
+				request.headers.set('Authorization', 'token initial-token');
 			}
 		]
 	}
@@ -567,6 +565,8 @@ Default: `[]`
 This hook enables you to read and optionally modify the response. The hook function receives a state object with the normalized request, options, a clone of the response, and retry count. The return value of the hook function will be used by Ky as the response object if it's an instance of [`Response`](https://developer.mozilla.org/en-US/docs/Web/API/Response).
 
 You can also force a retry by returning [`ky.retry(options)`](#kyretryoptions). This is useful when you need to retry based on the response body content, even if the response has a successful status code. The retry will respect the `retry.limit` option and be observable in `beforeRetry` hooks.
+
+Any non-`ky.retry()` error thrown by `afterResponse` hooks is treated as fatal and will not trigger Ky's retry logic.
 
 The `retryCount` is `0` for the initial request and increments with each retry. This allows you to distinguish between initial requests and retries, which is useful when you need different behavior for retries (e.g., showing a notification only on the final retry).
 
