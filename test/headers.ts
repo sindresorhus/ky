@@ -448,3 +448,155 @@ test('remove header by extending instance (plain object and Headers instance)', 
 	t.false('rainbow' in response);
 	t.true('unicorn' in response);
 });
+
+test('bearer option - sets Authorization header', async t => {
+	const server = await createHttpTestServer();
+	server.get('/', echoHeaders);
+
+	const headers = await ky.get(server.url, {
+		bearer: 'token123',
+	}).json<IncomingHttpHeaders>();
+
+	t.is(headers.authorization, 'Bearer token123');
+
+	await server.close();
+});
+
+test('bearer option - works with ky.extend()', async t => {
+	const server = await createHttpTestServer();
+	server.get('/', echoHeaders);
+
+	const api = ky.extend({
+		bearer: 'token123',
+	});
+
+	const headers = await api.get(server.url).json<IncomingHttpHeaders>();
+
+	t.is(headers.authorization, 'Bearer token123');
+
+	await server.close();
+});
+
+test('bearer option - can be overridden in extended instance', async t => {
+	const server = await createHttpTestServer();
+	server.get('/', echoHeaders);
+
+	const api = ky.extend({
+		bearer: 'old-token',
+	});
+
+	const extended = api.extend({
+		bearer: 'new-token',
+	});
+
+	const headers = await extended.get(server.url).json<IncomingHttpHeaders>();
+
+	t.is(headers.authorization, 'Bearer new-token');
+
+	await server.close();
+});
+
+test('bearer option - in call overrides Authorization header from base', async t => {
+	const server = await createHttpTestServer();
+	server.get('/', echoHeaders);
+
+	const api = ky.extend({
+		headers: {
+			authorization: 'Bearer old-token',
+		},
+	});
+
+	const headers = await api.get(server.url, {
+		bearer: 'new-token',
+	}).json<IncomingHttpHeaders>();
+
+	t.is(headers.authorization, 'Bearer new-token');
+
+	await server.close();
+});
+
+test('bearer option - can be disabled with undefined', async t => {
+	const server = await createHttpTestServer();
+	server.get('/', echoHeaders);
+
+	const api = ky.extend({
+		bearer: 'token123',
+	});
+
+	const headers = await api.get(server.url, {
+		bearer: undefined,
+		headers: {
+			authorization: 'Custom auth',
+		},
+	}).json<IncomingHttpHeaders>();
+
+	t.is(headers.authorization, 'Custom auth');
+
+	await server.close();
+});
+
+test('bearer option - empty string does not set header', async t => {
+	const server = await createHttpTestServer();
+	server.get('/', echoHeaders);
+
+	const headers = await ky.get(server.url, {
+		bearer: '',
+	}).json<IncomingHttpHeaders>();
+
+	t.is(headers.authorization, undefined);
+
+	await server.close();
+});
+
+test('bearer option - works in multiple extend chain', async t => {
+	const server = await createHttpTestServer();
+	server.get('/', echoHeaders);
+
+	const api1 = ky.extend({bearer: 'token1'});
+	const api2 = api1.extend({bearer: 'token2'});
+	const api3 = api2.extend({bearer: 'token3'});
+
+	const headers = await api3.get(server.url).json<IncomingHttpHeaders>();
+
+	t.is(headers.authorization, 'Bearer token3');
+
+	await server.close();
+});
+
+test('bearer option - overrides Authorization header from Request input', async t => {
+	const server = await createHttpTestServer();
+	server.get('/', echoHeaders);
+
+	const request = new Request(server.url, {
+		headers: {
+			Authorization: 'Bearer old-token',
+		},
+	});
+
+	const headers = await ky(request, {
+		bearer: 'new-token',
+	}).json<IncomingHttpHeaders>();
+
+	t.is(headers.authorization, 'Bearer new-token');
+
+	await server.close();
+});
+
+test('bearer option - handles mixed-case Authorization header from base', async t => {
+	const server = await createHttpTestServer();
+	server.get('/', echoHeaders);
+
+	const api = ky.extend({
+		headers: {
+			Authorization: 'Bearer old-token',
+		},
+	});
+
+	const headers = await api.get(server.url, {
+		bearer: 'new-token',
+	}).json<IncomingHttpHeaders>();
+
+	t.is(headers.authorization, 'Bearer new-token');
+
+	await server.close();
+});
