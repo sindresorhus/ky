@@ -95,13 +95,13 @@ export type KyOptions = {
 	searchParams?: SearchParamsOption;
 
 	/**
-	A prefix to prepend to the `input` URL when making the request. It can be any valid URL, either relative or absolute. A trailing slash `/` is optional and will be added automatically, if needed, when it is joined with `input`. Only takes effect when `input` is a string. The `input` argument cannot start with a slash `/` when using this option.
+	A base URL to [resolve](https://developer.mozilla.org/en-US/docs/Web/API/URL_API/Resolving_relative_references) the `input` against. When the `input` (after applying the `prefix` option) is only a relative URL, such as `'users'`, `'/users'`,  or `'//my-site.com'`, it will be resolved against the `baseUrl` to determine the destination of the request. Otherwise, the `input` is absolute, such as `'https://my-site.com'`, and it will bypass the `baseUrl`.
 
 	Useful when used with [`ky.extend()`](#kyextenddefaultoptions) to create niche-specific Ky-instances.
 
-	Notes:
-	 - After `prefixUrl` and `input` are joined, the result is resolved against the [base URL](https://developer.mozilla.org/en-US/docs/Web/API/Node/baseURI) of the page (if any).
-	 - Leading slashes in `input` are disallowed when using this option to enforce consistency and avoid confusion about how the `input` URL is handled, given that `input` will not follow the normal URL resolution rules when `prefixUrl` is being used, which changes the meaning of a leading slash.
+	If the `baseUrl` itself is relative, it will be resolved against the environment's base URL, such as [`document.baseURI`](https://developer.mozilla.org/en-US/docs/Web/API/Node/baseURI) in browsers or `location.href` in Deno (see the `--location` flag).
+
+	**Tip:** When setting a `baseUrl` that has a path, we recommend that it include a trailing slash `/`, as in `'/api/'` rather than `/api`. This ensures more intuitive behavior for page-relative `input` URLs, such as `'users'` or `'./users'`, where they will _extend_ from the full path of the `baseUrl` rather than _replacing_ its last path segment.
 
 	@example
 	```
@@ -109,14 +109,40 @@ export type KyOptions = {
 
 	// On https://example.com
 
-	const response = await ky('unicorn', {prefixUrl: '/api'});
-	//=> 'https://example.com/api/unicorn'
+	const response = await ky('users', {baseUrl: '/api/'});
+	//=> 'https://example.com/api/users'
 
-	const response = await ky('unicorn', {prefixUrl: 'https://cats.com'});
-	//=> 'https://cats.com/unicorn'
+	const response = await ky('/users', {baseUrl: '/api/'});
+	//=> 'https://example.com/users'
 	```
 	*/
-	prefixUrl?: URL | string;
+	baseUrl?: URL | string;
+
+	/**
+	A prefix to prepend to the `input` before making the request (and before it is resolved against the `baseUrl`). It can be any valid path or URL, either relative or absolute. A trailing slash `/` is optional and will be added automatically, if needed, when it is joined with `input`. Only takes effect when `input` is a string.
+
+	Useful when used with [`ky.extend()`](#kyextenddefaultoptions) to create niche-specific Ky-instances.
+
+	*In most cases, you should use the `baseUrl` option instead, as it is more consistent with web standards. However, `prefix` is useful if you want origin-relative `input` URLs, such as `/users`, to be treated as if they were page-relative. In other words, the leading slash of the `input` will essentially be ignored, because the `prefix` will become part of the `input` before URL resolution happens.*
+
+	Notes:
+ 	 - The `prefix` and `input` are joined with a slash `/`, which is deduplicated with any adjacent slashes already present in `prefix` or `input`.
+	 - After `prefix` and `input` are joined, the result is resolved against the `baseUrl` option, if present.
+
+	@example
+	```
+	import ky from 'ky';
+
+	// On https://example.com
+
+	const response = await ky('users', {prefix: '/api/'});
+	//=> 'https://example.com/api/users'
+
+	const response = await ky('/users', {prefix: '/api/'});
+	//=> 'https://example.com/api/users'
+	```
+	*/
+	prefix?: URL | string;
 
 	/**
 	An object representing `limit`, `methods`, `statusCodes`, `afterStatusCodes`, and `maxRetryAfter` fields for maximum retry count, allowed methods, allowed status codes, status codes allowed to use the [`Retry-After`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Retry-After) time, and maximum [`Retry-After`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Retry-After) time.
@@ -357,12 +383,12 @@ export interface Options extends KyOptions, Omit<RequestInit, 'headers'> { // es
 
 export type InternalOptions = Required<
 	Omit<Options, 'hooks' | 'retry' | 'context' | 'throwHttpErrors'>,
-'fetch' | 'prefixUrl' | 'timeout'
+'fetch' | 'prefix' | 'timeout'
 > & {
 	headers: Required<Headers>;
 	hooks: Required<Hooks>;
 	retry: Required<Omit<RetryOptions, 'shouldRetry'>> & Pick<RetryOptions, 'shouldRetry'>;
-	prefixUrl: string;
+	prefix: string;
 	context: Record<string, unknown>;
 	throwHttpErrors: boolean | ((status: number) => boolean);
 };
@@ -377,7 +403,7 @@ export interface NormalizedOptions extends RequestInit { // eslint-disable-line 
 
 	// Extended from custom `KyOptions`, but ensured to be set (not optional).
 	retry: RetryOptions;
-	prefixUrl: string;
+	prefix: string;
 	onDownloadProgress: Options['onDownloadProgress'];
 	onUploadProgress: Options['onUploadProgress'];
 	context: Record<string, unknown>;

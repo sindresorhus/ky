@@ -266,7 +266,7 @@ export class Ky {
 			),
 			method: normalizeRequestMethod(options.method ?? (this.#input as Request).method ?? 'GET'),
 			// eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing
-			prefixUrl: String(options.prefixUrl || ''),
+			prefix: String(options.prefix || ''),
 			retry: normalizeRetryOptions(options.retry),
 			throwHttpErrors: options.throwHttpErrors ?? true,
 			timeout: options.timeout ?? 10_000,
@@ -278,16 +278,24 @@ export class Ky {
 			throw new TypeError('`input` must be a string, URL, or Request');
 		}
 
-		if (this.#options.prefixUrl && typeof this.#input === 'string') {
-			if (this.#input.startsWith('/')) {
-				throw new Error('`input` must not begin with a slash when using `prefixUrl`');
+		if (typeof this.#input === 'string') {
+			if ((this.#options as any).prefixUrl) {
+				throw new Error('The `prefixUrl` option has been renamed `prefix` in v2 and enhanced to allow slashes in input. See also the new `baseUrl` option for improved flexibility with standard URL resolution: https://github.com/sindresorhus/ky#baseurl');
 			}
 
-			if (!this.#options.prefixUrl.endsWith('/')) {
-				this.#options.prefixUrl += '/';
+			if (this.#options.prefix) {
+				this.#options.prefix += this.#options.prefix.endsWith('/') ? '' : '/';
+
+				if (this.#input.startsWith('/')) {
+					this.#input = this.#input.slice(1);
+				}
+
+				this.#input = this.#options.prefix + this.#input;
 			}
 
-			this.#input = this.#options.prefixUrl + this.#input;
+			if (this.#options.baseUrl) {
+				this.#input = new URL(this.#input, (new Request(this.#options.baseUrl ?? '')).url);
+			}
 		}
 
 		if (supportsAbortController && supportsAbortSignal) {

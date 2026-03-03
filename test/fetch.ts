@@ -72,7 +72,7 @@ test('fetch option takes a custom fetch function', async t => {
 		}).text(),
 		`${fixture}?new#hash`,
 	);
-	t.is(await ky('unicorn', {fetch: customFetch, prefixUrl: `${fixture}/api/`}).text(), `${fixture}/api/unicorn`);
+	t.is(await ky('unicorn', {fetch: customFetch, prefix: `${fixture}/api/`}).text(), `${fixture}/api/unicorn`);
 });
 
 test('options are correctly passed to Fetch #1', async t => {

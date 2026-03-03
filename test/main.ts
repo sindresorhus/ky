@@ -665,7 +665,7 @@ test('ky.create() with default json does not add context to merged json body', a
 	});
 
 	const api = ky.create({
-		prefixUrl: server.url,
+		baseUrl: server.url,
 		json: {
 			foo: 'bar',
 		},
@@ -739,8 +739,8 @@ test('ky.extend() with function overrides primitives in parent defaults', async 
 		response.end(request.url);
 	});
 
-	const api = ky.create({prefixUrl: `${server.url}/api`});
-	const usersApi = api.extend(options => ({prefixUrl: `${options.prefixUrl!.toString()}/users`}));
+	const api = ky.create({prefix: `${server.url}/api`});
+	const usersApi = api.extend(options => ({prefix: `${options.prefix!.toString()}/users`}));
 
 	t.is(await usersApi.get('123').text(), '/api/users/123');
 	t.is(await api.get('version').text(), '/api/version');
@@ -762,7 +762,7 @@ test('ky.extend() with function retains parent defaults when not specified', asy
 		response.end(request.url);
 	});
 
-	const api = ky.create({prefixUrl: `${server.url}/api`});
+	const api = ky.create({baseUrl: `${server.url}/api/`});
 	const extendedApi = api.extend(() => ({}));
 
 	t.is(await api.get('version').text(), '/api/version');

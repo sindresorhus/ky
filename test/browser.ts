@@ -47,7 +47,37 @@ test.afterEach(async () => {
 	await server.close();
 });
 
-defaultBrowsersTest('prefixUrl option', async (t: ExecutionContext, page: Page) => {
+defaultBrowsersTest('baseUrl option', async (t: ExecutionContext, page: Page) => {
+	server.get('/', (_request, response) => {
+		response.end('zebra');
+	});
+
+	server.get('/unicorn', (_request, response) => {
+		response.end('charlie');
+	});
+
+	server.get('/api/unicorn', (_request, response) => {
+		response.end('rainbow');
+	});
+
+	await page.goto(server.url);
+	await addKyScriptToPage(page);
+
+	const results = await page.evaluate(async (url: string) => Promise.all([
+		globalThis.ky(`${url}/api/unicorn`).text(),
+		// @ts-expect-error unsupported {baseUrl: null} type
+		globalThis.ky(`${url}/api/unicorn`, {baseUrl: null}).text(),
+		globalThis.ky('api/unicorn', {baseUrl: url}).text(),
+		globalThis.ky('unicorn', {baseUrl: `${url}/api`}).text(),
+		globalThis.ky('/unicorn', {baseUrl: `${url}/api`}).text(),
+		globalThis.ky('unicorn', {baseUrl: `${url}/api/`}).text(),
+		globalThis.ky('/unicorn', {baseUrl: `${url}/api/`}).text(),
+	]), server.url);
+
+	t.deepEqual(results, ['rainbow', 'rainbow', 'rainbow', 'charlie', 'charlie', 'rainbow', 'charlie']);
+});
+
+defaultBrowsersTest('prefix option', async (t: ExecutionContext, page: Page) => {
 	server.get('/', (_request, response) => {
 		response.end('zebra');
 	});
@@ -59,20 +89,18 @@ defaultBrowsersTest('prefixUrl option', async (t: ExecutionContext, page: Page) 
 	await page.goto(server.url);
 	await addKyScriptToPage(page);
 
-	await t.throwsAsync(
-		page.evaluate(async () => globalThis.ky('/foo', {prefixUrl: '/'})),
-		{message: /`input` must not begin with a slash when using `prefixUrl`/},
-	);
-
 	const results = await page.evaluate(async (url: string) => Promise.all([
 		globalThis.ky(`${url}/api/unicorn`).text(),
-		// @ts-expect-error unsupported {prefixUrl: null} type
-		globalThis.ky(`${url}/api/unicorn`, {prefixUrl: null}).text(),
-		globalThis.ky('api/unicorn', {prefixUrl: url}).text(),
-		globalThis.ky('api/unicorn', {prefixUrl: `${url}/`}).text(),
+		// @ts-expect-error unsupported {prefix: null} type
+		globalThis.ky(`${url}/api/unicorn`, {prefix: null}).text(),
+		globalThis.ky('api/unicorn', {prefix: url}).text(),
+		globalThis.ky('unicorn', {prefix: `${url}/api`}).text(),
+		globalThis.ky('/unicorn', {prefix: `${url}/api`}).text(),
+		globalThis.ky('unicorn', {prefix: `${url}/api/`}).text(),
+		globalThis.ky('/unicorn', {prefix: `${url}/api/`}).text(),
 	]), server.url);
 
-	t.deepEqual(results, ['rainbow', 'rainbow', 'rainbow', 'rainbow']);
+	t.deepEqual(results, ['rainbow', 'rainbow', 'rainbow', 'rainbow', 'rainbow', 'rainbow', 'rainbow']);
 });
 
 defaultBrowsersTest('aborting a request', async (t: ExecutionContext, page: Page) => {

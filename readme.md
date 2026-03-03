@@ -25,7 +25,7 @@ It's just a tiny package with no dependencies.
 - Retries failed requests
 - JSON option
 - Timeout support
-- URL prefix option
+- Base URL option
 - Instances with custom defaults
 - Hooks
 - TypeScript niceties (e.g. `.json()` supports generics and defaults to `unknown`, not `any`)
@@ -139,7 +139,7 @@ Type: `string` | `URL` | `Request`
 
 Same as [`fetch` input](https://developer.mozilla.org/en-US/docs/Web/API/Request/Request#input).
 
-When using a [`Request`](https://developer.mozilla.org/en-US/docs/Web/API/Request) instance as `input`, any URL altering options (such as `prefixUrl`) will be ignored.
+When using a [`Request`](https://developer.mozilla.org/en-US/docs/Web/API/Request) instance as `input`, any URL altering options (such as `baseUrl`) will be ignored.
 
 #### options
 
@@ -173,29 +173,55 @@ Accepts any value supported by [`URLSearchParams()`](https://developer.mozilla.o
 
 When passing an object, `undefined` values are automatically filtered out, while `null` values are preserved and converted to the string `'null'`.
 
-##### prefixUrl
+##### baseUrl
 
 Type: `string | URL`
 
-A prefix to prepend to the `input` URL when making the request. It can be any valid URL, either relative or absolute. A trailing slash `/` is optional and will be added automatically, if needed, when it is joined with `input`. Only takes effect when `input` is a string. The `input` argument cannot start with a slash `/` when using this option.
+A base URL to [resolve](https://developer.mozilla.org/en-US/docs/Web/API/URL_API/Resolving_relative_references) the `input` against. When the `input` (after applying the `prefix` option) is only a relative URL, such as `'users'`, `'/users'`,  or `'//my-site.com'`, it will be resolved against the `baseUrl` to determine the destination of the request. Otherwise, the `input` is absolute, such as `'https://my-site.com'`, and it will bypass the `baseUrl`.
 
 Useful when used with [`ky.extend()`](#kyextenddefaultoptions) to create niche-specific Ky-instances.
+
+If the `baseUrl` itself is relative, it will be resolved against the environment's base URL, such as [`document.baseURI`](https://developer.mozilla.org/en-US/docs/Web/API/Node/baseURI) in browsers or `location.href` in Deno (see the `--location` flag).
+
+**Tip:** When setting a `baseUrl` that has a path, we recommend that it include a trailing slash `/`, as in `'/api/'` rather than `/api`. This ensures more intuitive behavior for page-relative `input` URLs, such as `'users'` or `'./users'`, where they will _extend_ from the full path of the `baseUrl` rather than _replacing_ its last path segment.
 
 ```js
 import ky from 'ky';
 
 // On https://example.com
 
-const response = await ky('unicorn', {prefixUrl: '/api'});
-//=> 'https://example.com/api/unicorn'
+const response = await ky('users', {baseUrl: '/api/'});
+//=> 'https://example.com/api/users'
 
-const response2 = await ky('unicorn', {prefixUrl: 'https://cats.com'});
-//=> 'https://cats.com/unicorn'
+const response = await ky('/users', {baseUrl: '/api/'});
+//=> 'https://example.com/users'
+```
+
+##### prefix
+
+Type: `string | URL`
+
+A prefix to prepend to the `input` before making the request (and before it is resolved against the `baseUrl`). It can be any valid path or URL, either relative or absolute. A trailing slash `/` is optional and will be added automatically, if needed, when it is joined with `input`. Only takes effect when `input` is a string.
+
+Useful when used with [`ky.extend()`](#kyextenddefaultoptions) to create niche-specific Ky-instances.
+
+*In most cases, you should use the `baseUrl` option instead, as it is more consistent with web standards. However, `prefix` is useful if you want origin-relative `input` URLs, such as `/users`, to be treated as if they were page-relative. In other words, the leading slash of the `input` will essentially be ignored, because the `prefix` will become part of the `input` before URL resolution happens.*
+
+```js
+import ky from 'ky';
+
+// On https://example.com
+
+const response = await ky('users', {prefix: '/api/'});
+//=> 'https://example.com/api/users'
+
+const response = await ky('/users', {prefix: '/api/'});
+//=> 'https://example.com/api/users'
 ```
 
 Notes:
- - After `prefixUrl` and `input` are joined, the result is resolved against the [base URL](https://developer.mozilla.org/en-US/docs/Web/API/Node/baseURI) of the page (if any).
- - Leading slashes in `input` are disallowed when using this option to enforce consistency and avoid confusion about how the `input` URL is handled, given that `input` will not follow the normal URL resolution rules when `prefixUrl` is being used, which changes the meaning of a leading slash.
+ - The `prefix` and `input` are joined with a slash `/`, which is deduplicated with any adjacent slashes already present in `prefix` or `input`.
+ - After `prefix` and `input` are joined, the result is resolved against the `baseUrl` option, if present.
 
 ##### retry
 
@@ -808,9 +834,9 @@ You can also refer to parent defaults by providing a function to `.extend()`.
 ```js
 import ky from 'ky';
 
-const api = ky.create({prefixUrl: 'https://example.com/api'});
+const api = ky.create({prefix: 'https://example.com/api'});
 
-const usersApi = api.extend((options) => ({prefixUrl: `${options.prefixUrl}/users`}));
+const usersApi = api.extend((options) => ({prefix: `${options.prefix}/users`}));
 
 const response = await usersApi.get('123');
 //=> 'https://example.com/api/users/123'
@@ -828,12 +854,12 @@ import ky from 'ky';
 
 // On https://my-site.com
 
-const api = ky.create({prefixUrl: 'https://example.com/api'});
+const api = ky.create({baseUrl: 'https://example.com/api/'});
 
 const response = await api.get('users/123');
 //=> 'https://example.com/api/users/123'
 
-const response = await api.get('/status', {prefixUrl: ''});
+const response = await api.get('status', {baseUrl: ''});
 //=> 'https://my-site.com/status'
 ```
 
