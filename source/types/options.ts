@@ -248,17 +248,26 @@ export type KyOptions = {
 	Has to be fully compatible with the [Fetch API](https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API) standard.
 
 	Use-cases:
-	1. Use custom `fetch` implementations like [`isomorphic-unfetch`](https://www.npmjs.com/package/isomorphic-unfetch).
-	2. Use the `fetch` wrapper function provided by some frameworks that use server-side rendering (SSR).
+	1. Use the `fetch` wrapper function provided by some frameworks that use server-side rendering (SSR).
+	2. Add custom instrumentation or logging to all requests.
 
 	@default fetch
 
 	@example
 	```
 	import ky from 'ky';
-	import fetch from 'isomorphic-unfetch';
 
-	const json = await ky('https://example.com', {fetch}).json();
+	const api = ky.create({
+		fetch: async (request, init) => {
+			const start = performance.now();
+			const response = await fetch(request, init);
+			const duration = performance.now() - start;
+			console.log(`${request.method} ${request.url} - ${response.status} (${Math.round(duration)}ms)`);
+			return response;
+		}
+	});
+
+	const json = await api('https://example.com').json();
 	```
 	*/
 	fetch?: (input: Input, init?: RequestInit) => Promise<Response>;
@@ -394,7 +403,7 @@ export type InternalOptions = Required<
 };
 
 /**
-Normalized options passed to the `fetch` call and the `beforeRequest` hooks.
+Normalized options passed to the `fetch` call and hooks.
 */
 export interface NormalizedOptions extends RequestInit { // eslint-disable-line @typescript-eslint/consistent-type-definitions -- This must stay an interface so that it can be extended outside of Ky for use in `ky.create`.
 	// Extended from `RequestInit`, but ensured to be set (not optional).

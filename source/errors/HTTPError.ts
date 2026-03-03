@@ -3,6 +3,11 @@ import type {KyRequest} from '../types/request.js';
 import type {KyResponse} from '../types/response.js';
 import {KyError} from './KyError.js';
 
+/**
+Error thrown when the response has a non-2xx status code and `throwHttpErrors` is enabled.
+
+The error has a `response` property with the `Response` object, a `request` property with the `Request` object, and a `data` property with the pre-parsed response body.
+*/
 export class HTTPError<T = unknown> extends KyError {
 	override name = 'HTTPError' as const;
 	response: KyResponse<T>;

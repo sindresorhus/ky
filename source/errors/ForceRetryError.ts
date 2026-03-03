@@ -3,8 +3,9 @@ import {KyError} from './KyError.js';
 import {NonError} from './NonError.js';
 
 /**
-Internal error used to signal a forced retry from afterResponse hooks.
-This is thrown when a user returns ky.retry() from an afterResponse hook.
+Error used to signal a forced retry from `afterResponse` hooks.
+
+This is thrown when `ky.retry()` is returned from an `afterResponse` hook. It is observable in `beforeRetry` and `beforeError` hooks via the `isForceRetryError()` type guard.
 */
 export class ForceRetryError extends KyError {
 	override name = 'ForceRetryError' as const;

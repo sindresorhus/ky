@@ -39,8 +39,8 @@ export const mergeHooks = (original: Hooks = {}, incoming: Hooks = {}): Required
 	{
 		beforeRequest: newHookValue(original, incoming, 'beforeRequest'),
 		beforeRetry: newHookValue(original, incoming, 'beforeRetry'),
-		afterResponse: newHookValue(original, incoming, 'afterResponse'),
 		beforeError: newHookValue(original, incoming, 'beforeError'),
+		afterResponse: newHookValue(original, incoming, 'afterResponse'),
 	}
 );
 

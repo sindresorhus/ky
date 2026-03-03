@@ -396,7 +396,7 @@ Hooks allow modifications during the request lifecycle. Hook functions may be as
 Type: `Function[]`\
 Default: `[]`
 
-This hook enables you to modify the request right before it is sent. Ky will make no further changes to the request after this. The hook function receives a state object with the normalized request, options, and retry count. You could, for example, modify the `request.headers` here.
+This hook enables you to modify the request right before it is sent. Ky will make no further changes to the request after this. The hook function receives a state object with the normalized request, options, and retry count. You could, for example, modify `request.headers` here.
 
 The `retryCount` is always `0`, since `beforeRequest` hooks run once before retry handling begins.
 
@@ -445,11 +445,11 @@ const response = await api.get('https://example.com/api/users');
 Type: `Function[]`\
 Default: `[]`
 
-This hook enables you to modify the request right before retry. Ky will make no further changes to the request after this. The hook function receives a state object with the normalized request, options, an error instance, and the retry count. You could, for example, modify `request.headers` here.
+This hook enables you to modify the request right before retry. Ky will make no further changes to the request after this. The hook function receives a state object with the normalized request, options, an error instance, and retry count. You could, for example, modify `request.headers` here.
 
 The hook can return a [`Request`](https://developer.mozilla.org/en-US/docs/Web/API/Request) to replace the outgoing retry request, or return a [`Response`](https://developer.mozilla.org/en-US/docs/Web/API/Response) to skip the retry and use that response instead. **Note:** Returning a request or response skips remaining `beforeRetry` hooks.
 
-The `retryCount` is always `>= 1` since this hook is only called during retries, not on the initial request.
+The `retryCount` is always `>= 1`, since this hook is only called during retries, not on the initial request.
 
 If the request received a response, the error will be of type `HTTPError`. The `Response` object will be available at `error.response`, and the pre-parsed response body will be available at `error.data`. Be aware that some types of errors, such as network errors, inherently mean that a response was not received. In that case, the error will not be an instance of `HTTPError`.
 
@@ -522,7 +522,7 @@ const response = await ky('https://example.com/api', {
 Type: `Function[]`\
 Default: `[]`
 
-This hook enables you to modify any error right before it is thrown. The hook function receives a state object with the request, options, error, and retry count, and should return an `Error` instance.
+This hook enables you to modify any error right before it is thrown. The hook function receives a state object with the normalized request, options, error, and retry count, and should return an `Error` instance.
 
 This hook is called for all error types, including `HTTPError`, `TimeoutError`, `ForceRetryError` (when retry limit is exceeded via `ky.retry()`), and network errors. Use type guards like `isHTTPError()` or `isTimeoutError()` to handle specific error types.
 
@@ -567,7 +567,7 @@ You can also force a retry by returning [`ky.retry(options)`](#kyretryoptions). 
 
 Any non-`ky.retry()` error thrown by `afterResponse` hooks is treated as fatal and will not trigger Ky's retry logic.
 
-The `retryCount` is `0` for the initial request and increments with each retry. This allows you to distinguish between initial requests and retries, which is useful when you need different behavior for retries (e.g., showing a notification only on the final retry).
+The `retryCount` is `0` for the initial request and increments with each retry. This allows you to distinguish between the initial request and retries, which is useful when you need different behavior for retries (e.g., showing a notification only on the final retry).
 
 ```js
 import ky from 'ky';
@@ -746,14 +746,23 @@ User-defined `fetch` function.
 Has to be fully compatible with the [Fetch API](https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API) standard.
 
 Use-cases:
-1. Use custom `fetch` implementations like [`isomorphic-unfetch`](https://www.npmjs.com/package/isomorphic-unfetch).
-2. Use the `fetch` wrapper function provided by some frameworks that use server-side rendering (SSR).
+1. Use the `fetch` wrapper function provided by some frameworks that use server-side rendering (SSR).
+2. Add custom instrumentation or logging to all requests.
 
 ```js
 import ky from 'ky';
-import fetch from 'isomorphic-unfetch';
 
-const json = await ky('https://example.com', {fetch}).json();
+const api = ky.create({
+	fetch: async (request, init) => {
+		const start = performance.now();
+		const response = await fetch(request, init);
+		const duration = performance.now() - start;
+		console.log(`${request.method} ${request.url} - ${response.status} (${Math.round(duration)}ms)`);
+		return response;
+	}
+});
+
+const json = await api('https://example.com').json();
 ```
 
 ##### context
@@ -941,7 +950,7 @@ const text = await ky('https://example.com', options).text();
 
 Force a retry from an `afterResponse` hook.
 
-This allows you to retry a request based on the response content, even if the response has a successful status code. The retry will respect the `retry.limit` option and skip the `shouldRetry` check. The forced retry is observable in `beforeRetry` hooks, where the error will be a `ForceRetryError` with the error name `'ForceRetryError'`.
+This allows you to retry a request based on the response content, even if the response has a successful status code. The retry will respect the `retry.limit` option and skip the `shouldRetry` check. The forced retry is observable in `beforeRetry` hooks, where the error will be a `ForceRetryError`.
 
 #### options
 
@@ -1303,7 +1312,6 @@ import {ProxyAgent} from 'undici';
 const proxyAgent = new ProxyAgent('http://proxy.example.com:8080');
 
 const response = await ky('https://example.com', {
-	// @ts-expect-error - dispatcher is not in the type definition, but it's passed through to fetch.
 	dispatcher: proxyAgent
 }).json();
 ```
@@ -1317,7 +1325,6 @@ import {EnvHttpProxyAgent} from 'undici';
 const proxyAgent = new EnvHttpProxyAgent();
 
 const api = ky.extend({
-	// @ts-expect-error - dispatcher is not in the type definition, but it's passed through to fetch.
 	dispatcher: proxyAgent
 });
 
@@ -1342,7 +1349,6 @@ const agent = new Agent({
 });
 
 const response = await ky('https://example.com', {
-	// @ts-expect-error - dispatcher is not in the type definition, but it's passed through to fetch.
 	dispatcher: agent
 }).json();
 ```
@@ -1359,7 +1365,6 @@ const proxyAgent = new ProxyAgent({
 });
 
 const response = await ky('https://example.com', {
-	// @ts-expect-error - dispatcher is not in the type definition, but it's passed through to fetch.
 	dispatcher: proxyAgent
 }).json();
 ```
@@ -1437,7 +1442,7 @@ This approach keeps your types scoped to where they're needed without polluting 
 
 #### How do I use this in Node.js?
 
-Node.js 18 and later supports `fetch` natively, so you can just use this package directly.
+Node.js supports `fetch` natively, so you can just use this package directly.
 
 #### How do I use this with a web app (React, Vue.js, etc.) that uses server-side rendering (SSR)?
 
@@ -1445,7 +1450,7 @@ Same as above.
 
 #### How do I test a browser library that uses this?
 
-Either use a test runner that can run in the browser, like Mocha, or use [AVA](https://avajs.dev) with `ky-universal`. [Read more.](https://github.com/sindresorhus/ky-universal#faq)
+Use a test runner that can run in the browser, like [Vitest](https://vitest.dev/guide/browser/) or [Playwright](https://playwright.dev).
 
 #### How do I use this without a bundler like Webpack?
 
@@ -1462,17 +1467,13 @@ console.log(json.title);
 </script>
 ```
 
-#### How is it different from [`got`](https://github.com/sindresorhus/got)
+#### How is it different from [`got`](https://github.com/sindresorhus/got)?
 
 Got is maintained by the same people as Ky, so you probably want Ky instead. It's smaller, works in the browser too, and is more stable since it's built on Fetch.
 
 #### How is it different from [`axios`](https://github.com/axios/axios)?
 
-See my answer [here](https://twitter.com/sindresorhus/status/1037763588826398720).
-
-#### How is it different from [`r2`](https://github.com/mikeal/r2)?
-
-See my answer in [#10](https://github.com/sindresorhus/ky/issues/10).
+Axios predates the Fetch API and has a lot of legacy baggage. Ky is built on Fetch, which means it's smaller, more standards-compliant, and works everywhere Fetch does (browsers, Node.js, Bun, Deno). Ky also has a more modern API with better TypeScript support.
 
 #### What does `ky` mean?
 
@@ -1486,7 +1487,7 @@ The latest version of Chrome, Firefox, and Safari.
 
 ## Node.js support
 
-Node.js 18 and later.
+Node.js 22 and later.
 
 ## Related
 

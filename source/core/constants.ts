@@ -60,6 +60,9 @@ export const maxSafeTimeout = 2_147_483_647;
 // Size in bytes of a typical form boundary, used to help estimate upload size
 export const usualFormBoundarySize = new TextEncoder().encode('------WebKitFormBoundaryaxpyiPgbbPti10Rw').length;
 
+/**
+Symbol that can be returned by a `beforeRetry` hook to stop retrying without throwing an error.
+*/
 export const stop = Symbol('stop');
 
 /**
