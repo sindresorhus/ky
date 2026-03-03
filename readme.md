@@ -522,19 +522,19 @@ const response = await ky('https://example.com/api', {
 Type: `Function[]`\
 Default: `[]`
 
-This hook enables you to modify any error right before it is thrown. The hook function receives a state object with an error and retry count, and should return an `Error` instance.
+This hook enables you to modify any error right before it is thrown. The hook function receives a state object with the request, options, error, and retry count, and should return an `Error` instance.
 
 This hook is called for all error types, including `HTTPError`, `TimeoutError`, `ForceRetryError` (when retry limit is exceeded via `ky.retry()`), and network errors. Use type guards like `isHTTPError()` or `isTimeoutError()` to handle specific error types.
 
 The `retryCount` is `0` for the initial request and increments with each retry. This allows you to distinguish between the initial request and retries, which is useful when you need different error handling based on retry attempts (e.g., showing different error messages on the final attempt).
 
 ```js
-import ky, {isHTTPError, isTimeoutError} from 'ky';
+import ky, {isHTTPError} from 'ky';
 
 await ky('https://example.com', {
 	hooks: {
 		beforeError: [
-			({error}) => {
+			({request, options, error}) => {
 				if (isHTTPError(error)) {
 					if (
 						typeof error.data === 'object'
@@ -546,9 +546,8 @@ await ky('https://example.com', {
 					}
 				}
 
-				if (isTimeoutError(error)) {
-					error.message = `Request to ${error.request.url} timed out`;
-				}
+				// `request` and `options` are always available
+				console.log(`Request to ${request.url} failed`, options.context);
 
 				return error;
 			}

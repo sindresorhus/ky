@@ -187,6 +187,8 @@ export class Ky {
 				for (const hook of ky.#options.hooks.beforeError) {
 					// eslint-disable-next-line no-await-in-loop
 					const hookResult: unknown = await hook({
+						request: ky.request,
+						options: ky.#getNormalizedOptions(),
 						error: processedError,
 						retryCount: ky.#retryCount,
 					});
