@@ -116,7 +116,27 @@ const user2 = await ky<User>('/api/users/2').json();
 const user3 = await ky('/api/users/3').json<User>();
 
 console.log([user1, user2, user3]);
+```
 
+You can also get the response body as JSON and validate it with a Standard Schema compatible validator (for example, Zod 3.24+). This throws a `SchemaValidationError` when validation fails.
+
+```ts
+import ky, {SchemaValidationError} from 'ky';
+import {z} from 'zod';
+
+const userSchema = z.object({name: z.string()});
+
+try {
+	const user = await ky('/api/user').json(userSchema);
+	console.log(user.name);
+} catch (error) {
+	if (error instanceof SchemaValidationError) {
+		console.error(error.issues);
+	}
+}
+```
+
+```ts
 // Get raw bytes (when supported by the runtime)
 const bytes = await ky('/api/file').bytes();
 console.log(bytes instanceof Uint8Array);
@@ -1060,6 +1080,9 @@ Base class for all Ky-specific errors. `HTTPError`, `TimeoutError`, and `ForceRe
 
 You can use `instanceof KyError` to check if an error originated from Ky, or use the `isKyError()` type guard for cross-realm compatibility and TypeScript type narrowing.
 
+> [!NOTE]
+> `SchemaValidationError` is intentionally not considered a Ky error. `KyError` covers failures in Ky's HTTP lifecycle (bad status, timeout, retry), while schema validation errors originate from the user-provided schema, not from Ky itself.
+
 ```js
 import ky, {isKyError} from 'ky';
 
@@ -1116,6 +1139,28 @@ await ky('https://example.com', {
 ```
 
 ⌨️ **TypeScript:** Accepts an optional [type parameter](https://www.typescriptlang.org/docs/handbook/2/generics.html), which defaults to [`unknown`](https://www.typescriptlang.org/docs/handbook/2/functions.html#unknown), and is passed through to the type of `error.data`.
+
+### SchemaValidationError
+
+The error thrown when [Standard Schema](https://github.com/standard-schema/standard-schema) validation fails in `.json(schema)`. It has an `issues` property with the validation issues from the schema.
+
+This error intentionally does not extend `KyError` because it does not represent a failure in Ky's HTTP lifecycle. The request succeeded; the user's schema rejected the data. As such, it is not matched by `isKyError()`.
+
+```js
+import ky, {SchemaValidationError} from 'ky';
+import {z} from 'zod';
+
+const userSchema = z.object({name: z.string()});
+
+try {
+	const user = await ky('/api/user').json(userSchema);
+	console.log(user.name);
+} catch (error) {
+	if (error instanceof SchemaValidationError) {
+		console.error(error.issues);
+	}
+}
+```
 
 ### TimeoutError
 
