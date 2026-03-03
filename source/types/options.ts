@@ -126,7 +126,7 @@ export type KyOptions = {
 	*In most cases, you should use the `baseUrl` option instead, as it is more consistent with web standards. However, `prefix` is useful if you want origin-relative `input` URLs, such as `/users`, to be treated as if they were page-relative. In other words, the leading slash of the `input` will essentially be ignored, because the `prefix` will become part of the `input` before URL resolution happens.*
 
 	Notes:
- 	 - The `prefix` and `input` are joined with a slash `/`, which is deduplicated with any adjacent slashes already present in `prefix` or `input`.
+ 	 - The `prefix` and `input` are joined with a slash `/`, and slashes are normalized at the join boundary by trimming trailing slashes from `prefix` and leading slashes from `input`.
 	 - After `prefix` and `input` are joined, the result is resolved against the `baseUrl` option, if present.
 
 	@example

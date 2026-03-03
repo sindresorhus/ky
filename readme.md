@@ -220,7 +220,7 @@ const response = await ky('/users', {prefix: '/api/'});
 ```
 
 Notes:
- - The `prefix` and `input` are joined with a slash `/`, which is deduplicated with any adjacent slashes already present in `prefix` or `input`.
+ - The `prefix` and `input` are joined with a slash `/`, and slashes are normalized at the join boundary by trimming trailing slashes from `prefix` and leading slashes from `input`.
  - After `prefix` and `input` are joined, the result is resolved against the `baseUrl` option, if present.
 
 ##### retry

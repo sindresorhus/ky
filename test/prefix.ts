@@ -28,16 +28,60 @@ test('prefix option', async t => {
 	t.is(await ky('foo/bar', {prefix: new URL(server.url)}).text(), '/foo/bar');
 	t.is(await ky('/bar', {prefix: `${server.url}/foo/`}).text(), '/foo/bar');
 	t.is(await ky('/bar', {prefix: `${server.url}/foo`}).text(), '/foo/bar');
+	t.is(await ky('//bar', {prefix: `${server.url}/foo`}).text(), '/foo/bar');
+	t.is(await ky('/bar', {prefix: `${server.url}/foo//`}).text(), '/foo/bar');
 	t.is(await ky('bar', {prefix: `${server.url}/foo/`}).text(), '/foo/bar');
 	t.is(await ky('bar', {prefix: `${server.url}/foo`}).text(), '/foo/bar');
 	t.is(await ky('bar', {prefix: new URL(`${server.url}/foo`)}).text(), '/foo/bar');
 	t.is(await ky('', {prefix: server.url}).text(), '/');
 	t.is(await ky('', {prefix: `${server.url}/`}).text(), '/');
 	t.is(await ky('', {prefix: new URL(server.url)}).text(), '/');
+	t.is(
+		await ky(
+			'bar',
+			Object.assign(
+				Object.create({prefixUrl: `${server.url}/api`}),
+				{prefix: `${server.url}/foo`},
+			),
+		).text(),
+		'/foo/bar',
+	);
+	t.throws(
+		() => {
+			void ky(`${server.url}/unicorn`, {prefixUrl: ''});
+		},
+		{
+			message: 'The `prefixUrl` option has been renamed `prefix` in v2 and enhanced to allow slashes in input. See also the new `baseUrl` option for improved flexibility with standard URL resolution: https://github.com/sindresorhus/ky#baseurl',
+		},
+	);
+	t.throws(
+		() => {
+			void ky(`${server.url}/unicorn`, {prefixUrl: undefined});
+		},
+		{
+			message: 'The `prefixUrl` option has been renamed `prefix` in v2 and enhanced to allow slashes in input. See also the new `baseUrl` option for improved flexibility with standard URL resolution: https://github.com/sindresorhus/ky#baseurl',
+		},
+	);
 
 	t.throws(
 		() => {
 			void ky('/unicorn', {prefixUrl: `${server.url}/api`});
+		},
+		{
+			message: 'The `prefixUrl` option has been renamed `prefix` in v2 and enhanced to allow slashes in input. See also the new `baseUrl` option for improved flexibility with standard URL resolution: https://github.com/sindresorhus/ky#baseurl',
+		},
+	);
+	t.throws(
+		() => {
+			void ky(new Request(`${server.url}/unicorn`), {prefixUrl: `${server.url}/api`});
+		},
+		{
+			message: 'The `prefixUrl` option has been renamed `prefix` in v2 and enhanced to allow slashes in input. See also the new `baseUrl` option for improved flexibility with standard URL resolution: https://github.com/sindresorhus/ky#baseurl',
+		},
+	);
+	t.throws(
+		() => {
+			void ky(new URL(`${server.url}/unicorn`), {prefixUrl: `${server.url}/api`});
 		},
 		{
 			message: 'The `prefixUrl` option has been renamed `prefix` in v2 and enhanced to allow slashes in input. See also the new `baseUrl` option for improved flexibility with standard URL resolution: https://github.com/sindresorhus/ky#baseurl',

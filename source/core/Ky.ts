@@ -32,6 +32,7 @@ import {
 } from './constants.js';
 
 const maxErrorResponseBodySize = 10 * 1024 * 1024;
+const prefixUrlRenamedErrorMessage = 'The `prefixUrl` option has been renamed `prefix` in v2 and enhanced to allow slashes in input. See also the new `baseUrl` option for improved flexibility with standard URL resolution: https://github.com/sindresorhus/ky#baseurl';
 
 const createTextDecoder = (contentType: string): TextDecoder => {
 	const match = /;\s*charset\s*=\s*(?:"([^"]+)"|([^;,\s]+))/i.exec(contentType);
@@ -251,6 +252,9 @@ export class Ky {
 	// eslint-disable-next-line complexity
 	constructor(input: Input, options: Options = {}) {
 		this.#input = input;
+		if (Object.hasOwn(options, 'prefixUrl')) {
+			throw new Error(prefixUrlRenamedErrorMessage);
+		}
 
 		this.#options = {
 			...options,
@@ -279,22 +283,21 @@ export class Ky {
 		}
 
 		if (typeof this.#input === 'string') {
-			if ((this.#options as any).prefixUrl) {
-				throw new Error('The `prefixUrl` option has been renamed `prefix` in v2 and enhanced to allow slashes in input. See also the new `baseUrl` option for improved flexibility with standard URL resolution: https://github.com/sindresorhus/ky#baseurl');
-			}
-
 			if (this.#options.prefix) {
-				this.#options.prefix += this.#options.prefix.endsWith('/') ? '' : '/';
-
-				if (this.#input.startsWith('/')) {
-					this.#input = this.#input.slice(1);
-				}
-
-				this.#input = this.#options.prefix + this.#input;
+				const normalizedPrefix = this.#options.prefix.replace(/\/+$/, '');
+				const normalizedInput = this.#input.replace(/^\/+/, '');
+				this.#input = `${normalizedPrefix}/${normalizedInput}`;
 			}
 
 			if (this.#options.baseUrl) {
-				this.#input = new URL(this.#input, (new Request(this.#options.baseUrl ?? '')).url);
+				let absoluteInput: URL | undefined;
+				try {
+					absoluteInput = new URL(this.#input);
+				} catch {}
+
+				if (!absoluteInput) {
+					this.#input = new URL(this.#input, (new Request(this.#options.baseUrl)).url);
+				}
 			}
 		}
 
