@@ -8,7 +8,7 @@ import ky, {
 	isForceRetryError,
 	TimeoutError,
 } from '../source/index.js';
-import {type Options} from '../source/types/options.js';
+import {type Options, type NormalizedOptions} from '../source/types/options.js';
 import {createHttpTestServer} from './helpers/create-http-test-server.js';
 
 const withHeader = (request: Request, name: string, value: string) => {
@@ -1942,6 +1942,141 @@ test('beforeError hook is not called when throwHttpErrors is false', async t => 
 
 	t.is(response.status, 500);
 	t.false(hookCalled);
+});
+
+test('beforeError receives request and options for HTTPError', async t => {
+	let receivedRequest: Request | undefined;
+	let receivedOptions: NormalizedOptions | undefined;
+
+	await t.throwsAsync(
+		ky('https://example.com', {
+			retry: 0,
+			async fetch() {
+				return new Response('', {status: 500});
+			},
+			hooks: {
+				beforeError: [
+					({request, options, error}) => {
+						receivedRequest = request;
+						receivedOptions = options;
+						return error;
+					},
+				],
+			},
+		}),
+	);
+
+	t.true(receivedRequest?.url.includes('example.com'));
+	t.is(receivedOptions?.method, 'GET');
+});
+
+test('beforeError receives request and options for network TypeError', async t => {
+	let receivedRequest: Request | undefined;
+	let receivedOptions: NormalizedOptions | undefined;
+
+	await t.throwsAsync(
+		ky('https://example.com', {
+			retry: 0,
+			async fetch() {
+				throw new TypeError('Failed to fetch');
+			},
+			hooks: {
+				beforeError: [
+					({request, options, error}) => {
+						receivedRequest = request;
+						receivedOptions = options;
+						return error;
+					},
+				],
+			},
+		}),
+	);
+
+	t.true(receivedRequest?.url.includes('example.com'));
+	t.is(receivedOptions?.method, 'GET');
+});
+
+test('beforeError receives request and options for TimeoutError', async t => {
+	let receivedRequest: Request | undefined;
+	let receivedOptions: NormalizedOptions | undefined;
+
+	await t.throwsAsync(
+		ky('https://example.com', {
+			timeout: 1,
+			retry: 0,
+			async fetch() {
+				await delay(100);
+				return new Response('ok');
+			},
+			hooks: {
+				beforeError: [
+					({request, options, error}) => {
+						receivedRequest = request;
+						receivedOptions = options;
+						return error;
+					},
+				],
+			},
+		}),
+	);
+
+	t.true(receivedRequest?.url.includes('example.com'));
+	t.is(receivedOptions?.method, 'GET');
+});
+
+test('beforeError receives options.context', async t => {
+	let receivedContext: unknown;
+
+	await t.throwsAsync(
+		ky('https://example.com', {
+			retry: 0,
+			context: {userId: '123', action: 'test'},
+			async fetch() {
+				return new Response('', {status: 500});
+			},
+			hooks: {
+				beforeError: [
+					({options, error}) => {
+						receivedContext = options.context;
+						return error;
+					},
+				],
+			},
+		}),
+	);
+
+	t.deepEqual(receivedContext, {userId: '123', action: 'test'});
+});
+
+test('beforeError receives request and options when beforeRequest hook throws', async t => {
+	let receivedRequest: Request | undefined;
+	let receivedOptions: NormalizedOptions | undefined;
+
+	await t.throwsAsync(
+		ky('https://example.com', {
+			retry: 0,
+			async fetch() {
+				return new Response('ok');
+			},
+			hooks: {
+				beforeRequest: [
+					() => {
+						throw new Error('beforeRequest failed');
+					},
+				],
+				beforeError: [
+					({request, options, error}) => {
+						receivedRequest = request;
+						receivedOptions = options;
+						return error;
+					},
+				],
+			},
+		}),
+	);
+
+	t.true(receivedRequest?.url.includes('example.com'));
+	t.is(receivedOptions?.method, 'GET');
 });
 
 test('beforeRequest hook can return modified Request with new URL', async t => {

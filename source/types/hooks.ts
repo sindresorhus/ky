@@ -43,6 +43,9 @@ export type AfterResponseState = {
 export type AfterResponseHook = (state: AfterResponseState) => Response | RetryMarker | void | Promise<Response | RetryMarker | void>;
 
 export type BeforeErrorState = {
+	request: KyRequest;
+	options: NormalizedOptions;
+
 	// `Error` (not `KyError`) because this receives all errors, including non-Ky ones like network `TypeError`s.
 	error: Error;
 
@@ -257,7 +260,7 @@ export type Hooks = {
 	afterResponse?: AfterResponseHook[];
 
 	/**
-	This hook enables you to modify any error right before it is thrown. The hook function receives a state object with an error and retry count, and should return an `Error` instance.
+	This hook enables you to modify any error right before it is thrown. The hook function receives a state object with the request, options, error, and retry count, and should return an `Error` instance.
 
 	This hook is called for all error types, including `HTTPError`, `TimeoutError`, `ForceRetryError` (when retry limit is exceeded via `ky.retry()`), and network errors. Use type guards like `isHTTPError()` or `isTimeoutError()` to handle specific error types.
 
@@ -267,12 +270,12 @@ export type Hooks = {
 
 	@example
 	```
-	import ky, {isHTTPError, isTimeoutError} from 'ky';
+	import ky, {isHTTPError} from 'ky';
 
 	await ky('https://example.com', {
 		hooks: {
 			beforeError: [
-				({error}) => {
+				({request, options, error}) => {
 					if (isHTTPError(error)) {
 						if (
 							typeof error.data === 'object'
@@ -284,9 +287,8 @@ export type Hooks = {
 						}
 					}
 
-					if (isTimeoutError(error)) {
-						error.message = `Request to ${error.request.url} timed out`;
-					}
+					// `request` and `options` are always available
+					console.log(`Request to ${request.url} failed`, options.context);
 
 					return error;
 				}
