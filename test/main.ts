@@ -437,6 +437,42 @@ test('searchParams option with undefined values', async t => {
 	await server.close();
 });
 
+test('merges searchParams with input URL', async t => {
+	const server = await createHttpTestServer();
+	server.get('/', (request, response) => {
+		response.end(request.url);
+	});
+
+	const response = await ky(`${server.url}?foo=1`, {
+		searchParams: {bar: '2'},
+	});
+
+	const url = await response.text();
+	t.true(url.includes('foo=1'), `URL should contain foo=1, got: ${url}`);
+	t.true(url.includes('bar=2'), `URL should contain bar=2, got: ${url}`);
+
+	await server.close();
+});
+
+test('searchParams with undefined deletes input URL searchParams', async t => {
+	const server = await createHttpTestServer();
+	server.get('/', (request, response) => {
+		response.end(request.url);
+	});
+
+	const response = await ky(`${server.url}?foo=1&bar=2`, {
+		// @ts-expect-error - we test that explicitly undefined value is handled
+		searchParams: {foo: undefined, baz: '3'},
+	});
+
+	const url = await response.text();
+	t.false(url.includes('foo=1'), `URL should not contain foo=1, got: ${url}`);
+	t.true(url.includes('bar=2'), `URL should contain bar=2, got: ${url}`);
+	t.true(url.includes('baz=3'), `URL should contain baz=3, got: ${url}`);
+
+	await server.close();
+});
+
 test('merges plain object searchParams with URLSearchParams', async t => {
 	const server = await createHttpTestServer();
 	server.get('/', (request, response) => {

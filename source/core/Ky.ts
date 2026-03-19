@@ -257,16 +257,31 @@ export class Ky {
 		this.request = new globalThis.Request(this.#input, this.#options);
 
 		if (hasSearchParameters(this.#options.searchParams)) {
-			// eslint-disable-next-line unicorn/prevent-abbreviations
-			const textSearchParams = typeof this.#options.searchParams === 'string'
-				? this.#options.searchParams.replace(/^\?/, '')
-				: new URLSearchParams(Ky.#normalizeSearchParams(this.#options.searchParams) as unknown as SearchParamsInit).toString();
-			// eslint-disable-next-line unicorn/prevent-abbreviations
-			const searchParams = '?' + textSearchParams;
-			const url = this.request.url.replace(/(?:\?.*?)?(?=#|$)/, searchParams);
+			const url = new URL(this.request.url);
+
+			const optionsSearchParameters = typeof this.#options.searchParams === 'string'
+				? new URLSearchParams(this.#options.searchParams.replace(/^\?/, ''))
+				: new URLSearchParams(Ky.#normalizeSearchParams(this.#options.searchParams) as unknown as SearchParamsInit);
+
+			for (const [key, value] of optionsSearchParameters.entries()) {
+				url.searchParams.append(key, value);
+			}
+
+			if (
+				this.#options.searchParams
+				&& typeof this.#options.searchParams === 'object'
+				&& !Array.isArray(this.#options.searchParams)
+				&& !(this.#options.searchParams instanceof URLSearchParams)
+			) {
+				for (const [key, value] of Object.entries(this.#options.searchParams)) {
+					if (value === undefined) {
+						url.searchParams.delete(key);
+					}
+				}
+			}
 
 			// Recreate request with the updated URL. We already have all options in this.#options, including duplex.
-			this.request = new globalThis.Request(url, this.#options as RequestInit);
+			this.request = new globalThis.Request(url.toString(), this.#options as RequestInit);
 		}
 
 		// If `onUploadProgress` is passed, it uses the stream API internally

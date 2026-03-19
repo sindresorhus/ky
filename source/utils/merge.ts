@@ -66,7 +66,9 @@ const appendSearchParameters = (target: any, source: any): URLSearchParams => {
 			}
 		} else if (isObject(input)) {
 			for (const [key, value] of Object.entries(input)) {
-				if (value !== undefined) {
+				if (value === undefined) {
+					result.delete(key);
+				} else {
 					result.append(key, String(value));
 				}
 			}
