@@ -259,12 +259,17 @@ export class Ky {
 		if (hasSearchParameters(this.#options.searchParams)) {
 			const url = new URL(this.request.url);
 
-			const optionsSearchParameters = typeof this.#options.searchParams === 'string'
-				? new URLSearchParams(this.#options.searchParams.replace(/^\?/, ''))
-				: new URLSearchParams(Ky.#normalizeSearchParams(this.#options.searchParams) as unknown as SearchParamsInit);
+			if (typeof this.#options.searchParams === 'string') {
+				const stringSearchParameters = this.#options.searchParams.replace(/^\?/, '');
+				if (stringSearchParameters !== '') {
+					url.search = url.search ? `${url.search}&${stringSearchParameters}` : `?${stringSearchParameters}`;
+				}
+			} else {
+				const optionsSearchParameters = new URLSearchParams(Ky.#normalizeSearchParams(this.#options.searchParams) as unknown as SearchParamsInit);
 
-			for (const [key, value] of optionsSearchParameters.entries()) {
-				url.searchParams.append(key, value);
+				for (const [key, value] of optionsSearchParameters.entries()) {
+					url.searchParams.append(key, value);
+				}
 			}
 
 			if (
