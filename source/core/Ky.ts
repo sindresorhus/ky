@@ -11,7 +11,7 @@ import type {
 } from '../types/options.js';
 import {type ResponsePromise} from '../types/ResponsePromise.js';
 import {streamRequest, streamResponse} from '../utils/body.js';
-import {mergeHeaders, mergeHooks} from '../utils/merge.js';
+import {mergeHeaders, mergeHooks, deletedParametersSymbol} from '../utils/merge.js';
 import {normalizeRequestMethod, normalizeRetryOptions} from '../utils/normalize.js';
 import timeout, {type TimeoutOptions} from '../utils/timeout.js';
 import delay from '../utils/delay.js';
@@ -282,6 +282,13 @@ export class Ky {
 					if (value === undefined) {
 						url.searchParams.delete(key);
 					}
+				}
+			}
+
+			const deleted = (this.#options.searchParams as any)?.[deletedParametersSymbol] as Set<string> | undefined;
+			if (deleted) {
+				for (const key of deleted) {
+					url.searchParams.delete(key);
 				}
 			}
 
