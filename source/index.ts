@@ -70,11 +70,13 @@ export type {KyResponse} from './types/response.js';
 export {KyError} from './errors/KyError.js';
 export {HTTPError} from './errors/HTTPError.js';
 export {SchemaValidationError} from './errors/SchemaValidationError.js';
+export {NetworkError} from './errors/NetworkError.js';
 export {TimeoutError} from './errors/TimeoutError.js';
 export {ForceRetryError} from './errors/ForceRetryError.js';
 export {
 	isKyError,
 	isHTTPError,
+	isNetworkError,
 	isTimeoutError,
 	isForceRetryError,
 } from './utils/type-guards.js';

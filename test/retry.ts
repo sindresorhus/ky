@@ -1,6 +1,11 @@
 import {setTimeout as delay} from 'node:timers/promises';
 import test from 'ava';
-import ky, {TimeoutError} from '../source/index.js';
+import ky, {
+	NetworkError,
+	TimeoutError,
+	isKyError,
+	isNetworkError,
+} from '../source/index.js';
 import {createHttpTestServer} from './helpers/create-http-test-server.js';
 import {parseRawBody} from './helpers/parse-body.js';
 import {withPerformance} from './helpers/with-performance.js';
@@ -1603,4 +1608,214 @@ test('shouldRetry: error propagates if shouldRetry returns rejected Promise', as
 			message: 'shouldRetry Promise rejected',
 		},
 	);
+});
+
+test('NetworkError wraps fetch network errors', async t => {
+	const error = await t.throwsAsync(
+		ky('https://example.com', {
+			retry: 0,
+			async fetch() {
+				throw new TypeError('Failed to fetch');
+			},
+		}),
+	);
+
+	t.true(error instanceof NetworkError);
+	t.true(isNetworkError(error));
+	t.true(isKyError(error));
+	t.is(error.name, 'NetworkError');
+	t.true(error.request.url.includes('example.com'));
+	t.true(error.cause instanceof TypeError);
+	t.is((error.cause as TypeError).message, 'Failed to fetch');
+	t.is(error.message, 'Request failed due to a network error: GET https://example.com/');
+});
+
+test('non-network TypeError is not retried', async t => {
+	let fetchCallCount = 0;
+
+	await t.throwsAsync(
+		ky('https://example.com', {
+			retry: {
+				limit: 2,
+				delay: () => 0,
+			},
+			async fetch() {
+				fetchCallCount++;
+				throw new TypeError('Cannot read properties of undefined');
+			},
+		}),
+		{instanceOf: TypeError},
+	);
+
+	t.is(fetchCallCount, 1);
+});
+
+test('shouldRetry can force retry of non-network errors', async t => {
+	let fetchCallCount = 0;
+
+	await t.throwsAsync(
+		ky('https://example.com', {
+			retry: {
+				limit: 2,
+				delay: () => 0,
+				shouldRetry: () => true,
+			},
+			async fetch() {
+				fetchCallCount++;
+				throw new TypeError('Cannot read properties of undefined');
+			},
+		}),
+		{instanceOf: TypeError},
+	);
+
+	// 1 initial + 2 retries
+	t.is(fetchCallCount, 3);
+});
+
+test('NetworkError is retried by default', async t => {
+	let fetchCallCount = 0;
+
+	const result = await ky('https://example.com', {
+		retry: {
+			limit: 2,
+			delay: () => 0,
+		},
+		async fetch() {
+			fetchCallCount++;
+			if (fetchCallCount <= 2) {
+				throw new TypeError('Failed to fetch');
+			}
+
+			return new Response('ok');
+		},
+	}).text();
+
+	t.is(result, 'ok');
+	t.is(fetchCallCount, 3);
+});
+
+test('NetworkError is not retried for non-retriable method (POST)', async t => {
+	let fetchCallCount = 0;
+
+	const error = await t.throwsAsync(
+		ky.post('https://example.com', {
+			retry: {
+				limit: 2,
+				delay: () => 0,
+			},
+			async fetch() {
+				fetchCallCount++;
+				throw new TypeError('Failed to fetch');
+			},
+		}),
+	);
+
+	t.true(isNetworkError(error));
+	t.is(fetchCallCount, 1);
+});
+
+test('shouldRetry receives NetworkError (not raw TypeError)', async t => {
+	let receivedError: Error | undefined;
+
+	await t.throwsAsync(
+		ky('https://example.com', {
+			retry: {
+				limit: 1,
+				delay: () => 0,
+				shouldRetry({error}) {
+					receivedError = error;
+					return false;
+				},
+			},
+			async fetch() {
+				throw new TypeError('Failed to fetch');
+			},
+		}),
+	);
+
+	t.true(isNetworkError(receivedError));
+	t.true(receivedError!.cause instanceof TypeError);
+});
+
+test('non-network TypeError is not wrapped in NetworkError', async t => {
+	const error = await t.throwsAsync(
+		ky('https://example.com', {
+			retry: 0,
+			async fetch() {
+				throw new TypeError('Cannot read properties of undefined');
+			},
+		}),
+	);
+
+	t.true(error instanceof TypeError);
+	t.false(isNetworkError(error));
+	t.is(error.message, 'Cannot read properties of undefined');
+});
+
+test('shouldRetry returning undefined for NetworkError falls through to default retry', async t => {
+	let fetchCallCount = 0;
+
+	const result = await ky('https://example.com', {
+		retry: {
+			limit: 2,
+			delay: () => 0,
+			shouldRetry() {
+				return undefined;
+			},
+		},
+		async fetch() {
+			fetchCallCount++;
+			if (fetchCallCount <= 2) {
+				throw new TypeError('Failed to fetch');
+			}
+
+			return new Response('ok');
+		},
+	}).text();
+
+	t.is(result, 'ok');
+	t.is(fetchCallCount, 3);
+});
+
+test('beforeError hook receives NetworkError with cause chain', async t => {
+	let receivedError: Error | undefined;
+
+	await t.throwsAsync(
+		ky('https://example.com', {
+			retry: 0,
+			async fetch() {
+				throw new TypeError('Failed to fetch');
+			},
+			hooks: {
+				beforeError: [
+					({error}) => {
+						receivedError = error;
+						return error;
+					},
+				],
+			},
+		}),
+	);
+
+	t.true(receivedError instanceof NetworkError);
+	t.true(isNetworkError(receivedError));
+	t.is(receivedError!.name, 'NetworkError');
+	t.true(receivedError!.cause instanceof TypeError);
+	t.is((receivedError!.cause as TypeError).message, 'Failed to fetch');
+});
+
+test('NetworkError is thrown when timeout is disabled', async t => {
+	const error = await t.throwsAsync(
+		ky('https://example.com', {
+			timeout: false,
+			retry: 0,
+			async fetch() {
+				throw new TypeError('Failed to fetch');
+			},
+		}),
+	);
+
+	t.true(isNetworkError(error));
+	t.is(error.name, 'NetworkError');
+	t.true(error.cause instanceof TypeError);
 });

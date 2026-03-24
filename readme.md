@@ -262,6 +262,8 @@ An object representing `limit`, `methods`, `statusCodes`, `afterStatusCodes`, `m
 
 If `retry` is a number, it will be used as `limit` and other defaults will remain in place.
 
+Network errors (e.g., DNS failures, connection refused, offline) are automatically retried for retriable methods. Only errors recognized as network errors are retried; other errors (e.g., programming bugs) are thrown immediately. Use `shouldRetry` to customize this behavior.
+
 If the response provides an HTTP status contained in `afterStatusCodes`, Ky will wait until the date, timeout, or timestamp given in the [`Retry-After`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Retry-After) header has passed to retry the request. If `Retry-After` is missing, the non-standard [`RateLimit-Reset`](https://www.ietf.org/archive/id/draft-polli-ratelimit-headers-05.html#section-3.3) header is used in its place as a fallback. If the provided status code is not in the list, the [`Retry-After`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Retry-After) header will be ignored.
 
 If `maxRetryAfter` is set to `undefined`, it will use `options.timeout`. If [`Retry-After`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Retry-After) header is greater than `maxRetryAfter`, it will use `maxRetryAfter`.
@@ -287,7 +289,7 @@ The `shouldRetry` option provides custom retry logic that **takes precedence ove
 The function receives a state object with the error and retry count (starts at 1 for the first retry), and should return:
 - `true` to force a retry (bypasses `retryOnTimeout`, status code checks, and other default validations)
 - `false` to prevent a retry (no retry will occur)
-- `undefined` to use the default retry logic (`retryOnTimeout`, status codes, etc.)
+- `undefined` to use the default retry logic (`retryOnTimeout`, status codes, network errors). Unrecognized error types are not retried.
 
 **General example**
 
@@ -451,7 +453,7 @@ The hook can return a [`Request`](https://developer.mozilla.org/en-US/docs/Web/A
 
 The `retryCount` is always `>= 1`, since this hook is only called during retries, not on the initial request.
 
-If the request received a response, the error will be of type `HTTPError`. The `Response` object will be available at `error.response`, and the pre-parsed response body will be available at `error.data`. Be aware that some types of errors, such as network errors, inherently mean that a response was not received. In that case, the error will not be an instance of `HTTPError`.
+If the request received a response, the error will be of type `HTTPError`. The `Response` object will be available at `error.response`, and the pre-parsed response body will be available at `error.data`. Be aware that some types of errors, such as network errors, inherently mean that a response was not received. In that case, the error will be an instance of `NetworkError` instead of `HTTPError`.
 
 You can prevent Ky from retrying the request by throwing an error. Ky will not handle it in any way and the error will be propagated to the request initiator. The rest of the `beforeRetry` hooks will not be called in this case. Alternatively, you can return the [`ky.stop`](#kystop) symbol to do the same thing but without propagating an error (this has some limitations, see `ky.stop` docs for details).
 
@@ -524,7 +526,7 @@ Default: `[]`
 
 This hook enables you to modify any error right before it is thrown. The hook function receives a state object with the normalized request, options, error, and retry count, and should return an `Error` instance.
 
-This hook is called for all error types, including `HTTPError`, `TimeoutError`, `ForceRetryError` (when retry limit is exceeded via `ky.retry()`), and network errors. Use type guards like `isHTTPError()` or `isTimeoutError()` to handle specific error types.
+This hook is called for all error types, including `HTTPError`, `NetworkError`, `TimeoutError`, and `ForceRetryError` (when retry limit is exceeded via `ky.retry()`). Use type guards like `isHTTPError()`, `isNetworkError()`, or `isTimeoutError()` to handle specific error types.
 
 The `retryCount` is `0` for the initial request and increments with each retry. This allows you to distinguish between the initial request and retries, which is useful when you need different error handling based on retry attempts (e.g., showing different error messages on the final attempt).
 
@@ -1084,7 +1086,7 @@ const response = await api.get('https://example.com/api');
 
 ### KyError
 
-Base class for all Ky-specific errors. `HTTPError`, `TimeoutError`, and `ForceRetryError` extend this class.
+Base class for all Ky-specific errors. `HTTPError`, `NetworkError`, `TimeoutError`, and `ForceRetryError` extend this class.
 
 You can use `instanceof KyError` to check if an error originated from Ky, or use the `isKyError()` type guard for cross-realm compatibility and TypeScript type narrowing.
 
@@ -1109,7 +1111,7 @@ Exposed for `instanceof` checks. The error has a `response` property with the [`
 
 It also has a `data` property with the pre-parsed response body. For JSON responses (based on `Content-Type`), the body is parsed using the [`parseJson` option](#parsejson) if set, or `JSON.parse` by default. For other content types, it is set as plain text. If the body is empty or parsing fails, `data` will be `undefined`. To avoid hanging or excessive buffering, `error.data` population is bounded by the request timeout and a 10 MiB response body size limit. The `data` property is populated before [`beforeError`](#hooks) hooks run, so hooks can access it.
 
-Be aware that some types of errors, such as network errors, inherently mean that a response was not received. In that case, the error will not be an instance of HTTPError and will not contain a `response` property.
+Be aware that some types of errors, such as network errors, inherently mean that a response was not received. In that case, the error will be an instance of [`NetworkError`](#networkerror) instead of `HTTPError` and will not contain a `response` property.
 
 > [!NOTE]
 > The response body is automatically consumed when populating `error.data`, so you do not need to manually consume or cancel `error.response.body`.
@@ -1173,6 +1175,28 @@ try {
 ### TimeoutError
 
 The error thrown when the request times out. It has a `request` property with the [`Request` object](https://developer.mozilla.org/en-US/docs/Web/API/Request).
+
+### NetworkError
+
+The error thrown when a network error occurs during the request (e.g., DNS failure, connection refused, offline). It has a `request` property with the [`Request` object](https://developer.mozilla.org/en-US/docs/Web/API/Request). The original error is available via the standard `cause` property.
+
+Network errors are automatically retried (for [retriable methods](#retry)).
+
+> [!NOTE]
+> Network errors are detected using runtime-specific heuristics. Unrecognized runtimes may produce errors that are not wrapped in `NetworkError`. Use the [`shouldRetry`](#retry) option to handle such cases.
+
+```js
+import ky, {isNetworkError} from 'ky';
+
+try {
+	await ky('https://example.com').json();
+} catch (error) {
+	if (isNetworkError(error)) {
+		console.log('Network error:', error.message);
+		console.log('Original error:', error.cause);
+	}
+}
+```
 
 ## Tips
 

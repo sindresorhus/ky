@@ -1,7 +1,7 @@
 import {ReadableStream} from 'node:stream/web';
 import test from 'ava';
 import LeakDetector from 'jest-leak-detector';
-import ky, {type KyInstance} from '../source/index.js';
+import ky, {NetworkError, type KyInstance} from '../source/index.js';
 import {createHttpTestServer} from './helpers/create-http-test-server.js';
 
 test('shared abort signal must not cause memory leak of input', async t => {
@@ -41,8 +41,7 @@ test('failed stream request must not cause memory leak', async t => {
 				body: stream,
 			}),
 			{
-				instanceOf: TypeError,
-				message: 'fetch failed',
+				instanceOf: NetworkError,
 			},
 		);
 

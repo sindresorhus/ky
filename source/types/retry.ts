@@ -42,7 +42,7 @@ export type RetryOptions = {
 	afterStatusCodes?: number[];
 
 	/**
-	If the `Retry-After` header is greater than `maxRetryAfter`, the request will be canceled.
+	If the `Retry-After` header is greater than `maxRetryAfter`, it will use `maxRetryAfter`.
 
 	@default Infinity
 	*/
@@ -135,7 +135,7 @@ export type RetryOptions = {
 	Should return:
 	- `true` to force a retry (bypasses `retryOnTimeout`, status code checks, and other validations)
 	- `false` to prevent a retry (no retry will occur)
-	- `undefined` to use the default retry logic (`retryOnTimeout`, status codes, etc.)
+	- `undefined` to use the default retry logic (`retryOnTimeout`, status codes, network errors). Unrecognized error types are not retried.
 
 	@example
 	```
