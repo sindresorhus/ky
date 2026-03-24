@@ -4269,3 +4269,368 @@ test('second afterResponse hook does not run when first throws, and no retry occ
 	t.false(secondHookCalled);
 	t.is(requestCount, 1);
 });
+
+// Init hook tests
+
+test('init hook can modify searchParams', async t => {
+	const server = await createHttpTestServer(t);
+	server.get('/', (request, response) => {
+		response.end(request.query.apiKey);
+	});
+
+	const result = await ky.get(server.url, {
+		hooks: {
+			init: [
+				options => {
+					options.searchParams = {apiKey: 'secret123'};
+				},
+			],
+		},
+	}).text();
+
+	t.is(result, 'secret123');
+});
+
+test('init hook can modify json body', async t => {
+	const server = await createHttpTestServer(t);
+	server.post('/', async (request, response) => {
+		response.json(request.body);
+	});
+
+	const result = await ky.post(server.url, {
+		json: {original: true},
+		hooks: {
+			init: [
+				options => {
+					options.json = {modified: true};
+				},
+			],
+		},
+	}).json<{modified: boolean}>();
+
+	t.true(result.modified);
+});
+
+test('init hook can modify headers', async t => {
+	const server = await createHttpTestServer(t);
+	server.get('/', (request, response) => {
+		response.end(request.headers['x-custom']);
+	});
+
+	const result = await ky.get(server.url, {
+		hooks: {
+			init: [
+				options => {
+					options.headers = {'x-custom': 'added-by-init'};
+				},
+			],
+		},
+	}).text();
+
+	t.is(result, 'added-by-init');
+});
+
+test('init hooks run in order from extend chain', async t => {
+	const order: number[] = [];
+
+	const api = ky.extend({
+		hooks: {
+			init: [
+				() => {
+					order.push(1);
+				},
+			],
+		},
+	}).extend({
+		hooks: {
+			init: [
+				() => {
+					order.push(2);
+				},
+			],
+		},
+	});
+
+	await api.get('https://example.com', {
+		fetch: async () => new Response('ok'),
+	});
+
+	t.deepEqual(order, [1, 2]);
+});
+
+test('init hooks run before beforeRequest hooks', async t => {
+	const order: string[] = [];
+
+	await ky.get('https://example.com', {
+		fetch: async () => new Response('ok'),
+		hooks: {
+			init: [
+				() => {
+					order.push('init');
+				},
+			],
+			beforeRequest: [
+				() => {
+					order.push('beforeRequest');
+				},
+			],
+		},
+	});
+
+	t.deepEqual(order, ['init', 'beforeRequest']);
+});
+
+test('init hook can modify timeout', async t => {
+	await t.throwsAsync(
+		ky.get('https://example.com', {
+			async fetch() {
+				await delay(200);
+				return new Response('ok');
+			},
+			hooks: {
+				init: [
+					options => {
+						options.timeout = 50;
+					},
+				],
+			},
+		}),
+		{instanceOf: TimeoutError},
+	);
+});
+
+test('init hook can modify retry', async t => {
+	let fetchCount = 0;
+
+	await t.throwsAsync(
+		ky.get('https://example.com', {
+			async fetch() {
+				fetchCount++;
+				return new Response('error', {status: 500});
+			},
+			hooks: {
+				init: [
+					options => {
+						options.retry = 0;
+					},
+				],
+			},
+		}),
+	);
+
+	t.is(fetchCount, 1);
+});
+
+test('init hook that throws propagates synchronously', t => {
+	t.throws(
+		() => {
+			void ky.get('https://example.com', {
+				hooks: {
+					init: [
+						() => {
+							throw new Error('init failed');
+						},
+					],
+				},
+			});
+		},
+		{message: 'init failed'},
+	);
+});
+
+test('init hook works with ky.create()', async t => {
+	const called: string[] = [];
+
+	const api = ky.create({
+		hooks: {
+			init: [
+				() => {
+					called.push('init');
+				},
+			],
+		},
+	});
+
+	await api.get('https://example.com', {
+		fetch: async () => new Response('ok'),
+	});
+
+	t.deepEqual(called, ['init']);
+});
+
+test('init hooks can be cleared by extending with undefined', async t => {
+	const called: string[] = [];
+
+	const base = ky.extend({
+		hooks: {
+			init: [
+				() => {
+					called.push('init');
+				},
+			],
+		},
+	});
+
+	const cleared = base.extend({
+		hooks: {
+			init: undefined,
+		},
+	});
+
+	await cleared.get('https://example.com', {
+		fetch: async () => new Response('ok'),
+	});
+
+	t.deepEqual(called, []);
+});
+
+test('multiple init hooks on the same call see each other\'s mutations', async t => {
+	t.plan(1);
+
+	await ky.get('https://example.com', {
+		fetch: async () => new Response('ok'),
+		hooks: {
+			init: [
+				options => {
+					options.headers = {'x-first': 'one'};
+				},
+				options => {
+					// Second hook should see the headers set by the first hook
+					t.is((options.headers as Record<string, string>)['x-first'], 'one');
+				},
+			],
+		},
+	});
+});
+
+test('init hook sees per-request options merged with defaults', async t => {
+	t.plan(2);
+
+	const api = ky.extend({
+		headers: {'x-default': 'from-defaults'},
+	});
+
+	await api.get('https://example.com', {
+		fetch: async () => new Response('ok'),
+		headers: {'x-request': 'from-request'},
+		hooks: {
+			init: [
+				options => {
+					t.is((options.headers as Headers).get('x-default'), 'from-defaults');
+					t.is((options.headers as Headers).get('x-request'), 'from-request');
+				},
+			],
+		},
+	});
+});
+
+test('init hook error is not caught by beforeError hooks', t => {
+	let beforeErrorCalled = false;
+
+	t.throws(
+		() => {
+			void ky.get('https://example.com', {
+				hooks: {
+					init: [
+						() => {
+							throw new Error('init boom');
+						},
+					],
+					beforeError: [
+						({error}) => {
+							beforeErrorCalled = true;
+							return error;
+						},
+					],
+				},
+			});
+		},
+		{message: 'init boom'},
+	);
+
+	t.false(beforeErrorCalled);
+});
+
+test('init hook runs on every request from the same instance', async t => {
+	let callCount = 0;
+
+	const api = ky.extend({
+		hooks: {
+			init: [
+				() => {
+					callCount++;
+				},
+			],
+		},
+	});
+
+	await api.get('https://example.com', {
+		fetch: async () => new Response('ok'),
+	});
+
+	await api.get('https://example.com', {
+		fetch: async () => new Response('ok'),
+	});
+
+	t.is(callCount, 2);
+});
+
+test('init hook runs only once even with retries', async t => {
+	let initCount = 0;
+	let fetchCount = 0;
+
+	await t.throwsAsync(
+		ky.get('https://example.com', {
+			retry: 2,
+			async fetch() {
+				fetchCount++;
+				return new Response('error', {status: 500});
+			},
+			hooks: {
+				init: [
+					() => {
+						initCount++;
+					},
+				],
+			},
+		}),
+	);
+
+	t.is(initCount, 1);
+	t.is(fetchCount, 3);
+});
+
+test('init hook can modify context visible to other hooks', async t => {
+	t.plan(1);
+
+	await ky.get('https://example.com', {
+		fetch: async () => new Response('ok'),
+		hooks: {
+			init: [
+				options => {
+					options.context = {userId: 42};
+				},
+			],
+			beforeRequest: [
+				({options}) => {
+					t.is((options.context as Record<string, unknown>).userId, 42);
+				},
+			],
+		},
+	});
+});
+
+test('init hook works with ky() direct call', async t => {
+	t.plan(1);
+
+	await ky('https://example.com', {
+		fetch: async () => new Response('ok'),
+		hooks: {
+			init: [
+				() => {
+					t.pass();
+				},
+			],
+		},
+	});
+});

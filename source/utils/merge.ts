@@ -37,6 +37,7 @@ function newHookValue<K extends keyof Hooks>(original: Hooks, incoming: Hooks, p
 
 export const mergeHooks = (original: Hooks = {}, incoming: Hooks = {}): Required<Hooks> => (
 	{
+		init: newHookValue(original, incoming, 'init'),
 		beforeRequest: newHookValue(original, incoming, 'beforeRequest'),
 		beforeRetry: newHookValue(original, incoming, 'beforeRetry'),
 		beforeError: newHookValue(original, incoming, 'beforeError'),
