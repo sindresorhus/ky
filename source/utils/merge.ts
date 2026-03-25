@@ -136,7 +136,7 @@ export const deepMerge = <T>(...sources: Array<Partial<T> | undefined>): T => {
 					continue;
 				}
 
-				if (isObject(value) && key in returnValue) {
+				if (isObject(value) && !Array.isArray(value) && key in returnValue) {
 					value = deepMerge(returnValue[key], value);
 				}
 

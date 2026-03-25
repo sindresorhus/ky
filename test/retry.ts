@@ -1819,3 +1819,103 @@ test('NetworkError is thrown when timeout is disabled', async t => {
 	t.is(error.name, 'NetworkError');
 	t.true(error.cause instanceof TypeError);
 });
+
+test('ky.extend() replaces retry.methods instead of concatenating', async t => {
+	let requestCount = 0;
+
+	const server = await createHttpTestServer(t);
+	server.get('/', (_request, response) => {
+		requestCount++;
+		response.sendStatus(500);
+	});
+
+	// Base instance retries on GET
+	const api = ky.create({
+		retry: {
+			limit: 2,
+			methods: ['get'],
+			statusCodes: [500],
+		},
+	});
+
+	// Extended instance should ONLY retry on POST, not GET
+	const extended = api.extend({
+		retry: {
+			methods: ['post'],
+		},
+	});
+
+	await t.throwsAsync(extended.get(server.url).text(), {
+		message: /Internal Server Error/,
+	});
+
+	// Should be 1 request (no retries) since GET is not in the extended methods list
+	t.is(requestCount, 1);
+});
+
+test('ky.extend() replaces retry.statusCodes instead of concatenating', async t => {
+	let requestCount = 0;
+
+	const server = await createHttpTestServer(t);
+	server.get('/', (_request, response) => {
+		requestCount++;
+		response.sendStatus(429);
+	});
+
+	// Base instance retries on 429 and 500
+	const api = ky.create({
+		retry: {
+			limit: 2,
+			statusCodes: [429, 500],
+		},
+	});
+
+	// Extended instance should ONLY retry on 503, not 429
+	const extended = api.extend({
+		retry: {
+			statusCodes: [503],
+		},
+	});
+
+	await t.throwsAsync(extended.get(server.url).text(), {
+		message: /Too Many Requests/,
+	});
+
+	// Should be 1 request (no retries) since 429 is not in the extended statusCodes list
+	t.is(requestCount, 1);
+});
+
+test('ky.extend() replaces retry.afterStatusCodes instead of concatenating', async t => {
+	let requestCount = 0;
+
+	const server = await createHttpTestServer(t);
+	server.get('/', (_request, response) => {
+		requestCount++;
+		if (requestCount <= 2) {
+			response.writeHead(429, {'Retry-After': '0'});
+			response.end('');
+		} else {
+			response.end(fixture);
+		}
+	});
+
+	// Base instance uses Retry-After for 429
+	const api = ky.create({
+		retry: {
+			limit: 2,
+			afterStatusCodes: [429],
+		},
+	});
+
+	// Extended instance should only use Retry-After for 503, not 429
+	const extended = api.extend({
+		retry: {
+			afterStatusCodes: [503],
+		},
+	});
+
+	// 429 is still in the default statusCodes, so it retries - but now without Retry-After handling
+	// The retry delay should use the default exponential backoff, not the Retry-After: 0 header
+	t.is(await extended.get(server.url).text(), fixture);
+	t.is(requestCount, 3);
+});
