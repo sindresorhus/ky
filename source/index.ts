@@ -81,6 +81,7 @@ export {
 	isTimeoutError,
 	isForceRetryError,
 } from './utils/type-guards.js';
+export {replaceOption} from './utils/merge.js';
 
 // Intentionally not exporting this for now as it's just an implementation detail and we don't want to commit to a certain API yet at least.
 // export {NonError} from './errors/NonError.js';

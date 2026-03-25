@@ -7,6 +7,7 @@ import ky, {
 	SchemaValidationError,
 	TimeoutError,
 	isKyError,
+	replaceOption,
 	type StandardSchemaV1,
 } from '../source/index.js';
 import {createHttpTestServer} from './helpers/create-http-test-server.js';
@@ -1152,6 +1153,411 @@ test('ky.extend() can remove hooks', async t => {
 
 	const {ok} = await extended.head(server.url);
 	t.true(ok);
+});
+
+test('ky.extend() with replaceOption replaces hooks instead of appending', async t => {
+	const server = await createHttpTestServer(t);
+	server.get('/', (_request, response) => {
+		response.end();
+	});
+
+	const callOrder: string[] = [];
+
+	const base = ky.create({
+		hooks: {
+			beforeRequest: [
+				() => {
+					callOrder.push('base');
+				},
+			],
+		},
+	});
+
+	const extended = base.extend({
+		hooks: replaceOption({
+			beforeRequest: [
+				() => {
+					callOrder.push('extended');
+				},
+			],
+		}),
+	});
+
+	await extended(server.url);
+
+	t.deepEqual(callOrder, ['extended']);
+});
+
+test('ky.extend() with replaceOption replaces headers instead of merging', async t => {
+	const server = await createHttpTestServer(t);
+	server.get('/', (request, response) => {
+		response.json({
+			unicorn: request.headers.unicorn ?? null,
+			rainbow: request.headers.rainbow ?? null,
+		});
+	});
+
+	const base = ky.create({
+		headers: {unicorn: 'unicorn', rainbow: 'rainbow'},
+	});
+
+	const extended = base.extend({
+		headers: replaceOption({unicorn: 'new-unicorn'}),
+	});
+
+	const json = await extended(server.url).json<Record<string, string | undefined>>();
+
+	t.is(json.unicorn, 'new-unicorn');
+	t.is(json.rainbow, null);
+});
+
+test('ky.extend() with replaceOption replaces searchParams instead of appending', async t => {
+	const server = await createHttpTestServer(t);
+	server.get('/', (request, response) => {
+		response.end(request.url);
+	});
+
+	const base = ky.create({
+		searchParams: {a: '1', b: '2'},
+	});
+
+	const extended = base.extend({
+		searchParams: replaceOption({c: '3'}),
+	});
+
+	const text = await extended(server.url).text();
+
+	t.true(text.includes('c=3'));
+	t.false(text.includes('a=1'));
+	t.false(text.includes('b=2'));
+});
+
+test('ky.extend() with replaceOption works with function form', async t => {
+	const server = await createHttpTestServer(t);
+	server.get('/', (_request, response) => {
+		response.end();
+	});
+
+	const callOrder: string[] = [];
+
+	const base = ky.create({
+		hooks: {
+			beforeRequest: [
+				() => {
+					callOrder.push('base');
+				},
+			],
+		},
+	});
+
+	const extended = base.extend(() => ({
+		hooks: replaceOption({
+			beforeRequest: [
+				() => {
+					callOrder.push('extended');
+				},
+			],
+		}),
+	}));
+
+	await extended(server.url);
+
+	t.deepEqual(callOrder, ['extended']);
+});
+
+test('ky.extend() with replaceOption followed by normal extend appends correctly', async t => {
+	const server = await createHttpTestServer(t);
+	server.get('/', (_request, response) => {
+		response.end();
+	});
+
+	const callOrder: string[] = [];
+
+	const base = ky.create({
+		hooks: {
+			beforeRequest: [
+				() => {
+					callOrder.push('base');
+				},
+			],
+		},
+	});
+
+	const replaced = base.extend({
+		hooks: replaceOption({
+			beforeRequest: [
+				() => {
+					callOrder.push('replaced');
+				},
+			],
+		}),
+	});
+
+	const extended = replaced.extend({
+		hooks: {
+			beforeRequest: [
+				() => {
+					callOrder.push('appended');
+				},
+			],
+		},
+	});
+
+	await extended(server.url);
+
+	t.deepEqual(callOrder, ['replaced', 'appended']);
+});
+
+test('ky.extend() with replaceOption discards all parent hook types', async t => {
+	const server = await createHttpTestServer(t);
+	server.get('/', (_request, response) => {
+		response.end();
+	});
+
+	const callOrder: string[] = [];
+
+	const base = ky.create({
+		hooks: {
+			beforeRequest: [
+				() => {
+					callOrder.push('beforeRequest');
+				},
+			],
+			afterResponse: [
+				() => {
+					callOrder.push('afterResponse');
+				},
+			],
+		},
+	});
+
+	// Replace hooks with only beforeRequest — afterResponse from parent should be gone
+	const extended = base.extend({
+		hooks: replaceOption({
+			beforeRequest: [
+				() => {
+					callOrder.push('replaced');
+				},
+			],
+		}),
+	});
+
+	await extended(server.url);
+
+	t.deepEqual(callOrder, ['replaced']);
+});
+
+test('ky.extend() with consecutive replaceOption calls each fully replace', async t => {
+	const server = await createHttpTestServer(t);
+	server.get('/', (_request, response) => {
+		response.end();
+	});
+
+	const callOrder: string[] = [];
+
+	const base = ky.create({
+		hooks: {
+			beforeRequest: [
+				() => {
+					callOrder.push('base');
+				},
+			],
+		},
+	});
+
+	const first = base.extend({
+		hooks: replaceOption({
+			beforeRequest: [
+				() => {
+					callOrder.push('first');
+				},
+			],
+		}),
+	});
+
+	const second = first.extend({
+		hooks: replaceOption({
+			beforeRequest: [
+				() => {
+					callOrder.push('second');
+				},
+			],
+		}),
+	});
+
+	await second(server.url);
+
+	t.deepEqual(callOrder, ['second']);
+});
+
+test('ky.extend() with replaceOption on headers followed by normal extend merges correctly', async t => {
+	const server = await createHttpTestServer(t);
+	server.get('/', (request, response) => {
+		response.json({
+			unicorn: request.headers.unicorn ?? null,
+			rainbow: request.headers.rainbow ?? null,
+			star: request.headers.star ?? null,
+		});
+	});
+
+	const base = ky.create({
+		headers: {unicorn: 'unicorn', rainbow: 'rainbow'},
+	});
+
+	const replaced = base.extend({
+		headers: replaceOption({star: 'star'}),
+	});
+
+	// Normal extend after replace should merge with the replaced set
+	const extended = replaced.extend({
+		headers: {unicorn: 'new-unicorn'},
+	});
+
+	const json = await extended(server.url).json<Record<string, string | undefined>>();
+
+	t.is(json.unicorn, 'new-unicorn');
+	t.is(json.rainbow, null);
+	t.is(json.star, 'star');
+});
+
+test('ky.extend() with replaceOption({}) clears headers', async t => {
+	const server = await createHttpTestServer(t);
+	server.get('/', (request, response) => {
+		response.json({
+			unicorn: request.headers.unicorn ?? null,
+		});
+	});
+
+	const base = ky.create({
+		headers: {unicorn: 'unicorn'},
+	});
+
+	const extended = base.extend({
+		headers: replaceOption({}),
+	});
+
+	const json = await extended(server.url).json<Record<string, string | undefined>>();
+
+	t.is(json.unicorn, null);
+});
+
+test('ky.extend() with replaceOption on multiple options at once', async t => {
+	const server = await createHttpTestServer(t);
+	server.get('/', (request, response) => {
+		response.json({
+			unicorn: request.headers.unicorn ?? null,
+			url: request.url,
+		});
+	});
+
+	const callOrder: string[] = [];
+
+	const base = ky.create({
+		headers: {unicorn: 'unicorn'},
+		searchParams: {a: '1'},
+		hooks: {
+			beforeRequest: [
+				() => {
+					callOrder.push('base');
+				},
+			],
+		},
+	});
+
+	const extended = base.extend({
+		headers: replaceOption({accept: 'text/plain'}),
+		searchParams: replaceOption({b: '2'}),
+		hooks: replaceOption({
+			beforeRequest: [
+				() => {
+					callOrder.push('extended');
+				},
+			],
+		}),
+	});
+
+	const json = await extended(server.url).json<Record<string, string | undefined>>();
+
+	t.is(json.unicorn, null);
+	t.true(json.url!.includes('b=2'));
+	t.false(json.url!.includes('a=1'));
+	t.deepEqual(callOrder, ['extended']);
+});
+
+test('ky.extend() with replaceOption replaces context instead of merging', async t => {
+	const server = await createHttpTestServer(t);
+	server.get('/', (_request, response) => {
+		response.end();
+	});
+
+	let capturedContext: Record<string, unknown> | undefined;
+
+	const base = ky.create({
+		context: {a: 1, b: 2},
+		hooks: {
+			beforeRequest: [
+				({options}) => {
+					capturedContext = options.context;
+				},
+			],
+		},
+	});
+
+	const extended = base.extend({
+		context: replaceOption({c: 3}),
+	});
+
+	await extended(server.url);
+
+	t.deepEqual(capturedContext, {c: 3});
+});
+
+test('ky.extend() with replaceOption({}) clears hooks', async t => {
+	const server = await createHttpTestServer(t);
+	server.get('/', (_request, response) => {
+		response.end();
+	});
+
+	const callOrder: string[] = [];
+
+	const base = ky.create({
+		hooks: {
+			beforeRequest: [
+				() => {
+					callOrder.push('base');
+				},
+			],
+		},
+	});
+
+	const extended = base.extend({
+		hooks: replaceOption({}),
+	});
+
+	await extended(server.url);
+
+	t.deepEqual(callOrder, []);
+});
+
+test('ky.extend() with replaceOption replaces retry instead of merging', async t => {
+	const server = await createHttpTestServer(t);
+	let requestCount = 0;
+	server.get('/', (_request, response) => {
+		requestCount++;
+		response.sendStatus(500);
+	});
+
+	const base = ky.create({
+		retry: {limit: 3, delay: () => 1},
+	});
+
+	const extended = base.extend({
+		retry: replaceOption({limit: 0}),
+	});
+
+	await t.throwsAsync(extended(server.url));
+
+	t.is(requestCount, 1);
 });
 
 test('throws DOMException/Error with name AbortError when aborted by user', async t => {
