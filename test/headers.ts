@@ -139,7 +139,8 @@ test('setting `content-length` to 0', async t => {
 
 	const error = await t.throwsAsync(request);
 
-	t.is(error.cause?.code, 'UND_ERR_REQ_CONTENT_LENGTH_MISMATCH');
+	// The undici TypeError ("fetch failed") is wrapped in NetworkError, so the undici cause is one level deeper
+	t.is(error.cause?.cause?.code, 'UND_ERR_REQ_CONTENT_LENGTH_MISMATCH');
 });
 
 test('sets `content-length` to `0` when requesting PUT with empty body', async t => {

@@ -4,6 +4,7 @@ import ky, {
 	HTTPError,
 	KyError,
 	isHTTPError,
+	isNetworkError,
 	isTimeoutError,
 	isForceRetryError,
 	TimeoutError,
@@ -660,7 +661,7 @@ test('beforeRetry hook is called even if the error has no response', async t => 
 			async fetch(request) {
 				if (requestCount === 0) {
 					requestCount++;
-					throw new Error('simulated network failure');
+					throw new TypeError('Failed to fetch');
 				}
 
 				return globalThis.fetch(request);
@@ -668,7 +669,7 @@ test('beforeRetry hook is called even if the error has no response', async t => 
 			hooks: {
 				beforeRetry: [
 					({error, retryCount}) => {
-						t.is(error.message, 'simulated network failure');
+						t.true(isNetworkError(error));
 						// @ts-expect-error
 						t.is(error.response, undefined);
 						t.is(retryCount, 1);
@@ -1122,7 +1123,7 @@ test('beforeError runs when beforeRetry rethrows network errors', async t => {
 	let beforeErrorHookCalled = false;
 
 	const customFetch: typeof fetch = async () => {
-		throw new TypeError('network-down');
+		throw new TypeError('Failed to fetch');
 	};
 
 	const thrownError = await t.throwsAsync(
@@ -1151,7 +1152,7 @@ test('beforeError runs when beforeRetry rethrows network errors', async t => {
 	);
 
 	t.true(beforeErrorHookCalled);
-	t.true(thrownError instanceof TypeError);
+	t.true(isNetworkError(thrownError));
 });
 
 test('hooks beforeRequest returning Request continues running remaining hooks', async t => {
@@ -1623,7 +1624,7 @@ test('beforeError hook receives network errors', async t => {
 	);
 
 	t.truthy(receivedError);
-	t.is(receivedError!.message, 'Failed to fetch');
+	t.true(isNetworkError(receivedError));
 	t.is(receivedRetryCount, 0);
 });
 
@@ -1970,7 +1971,7 @@ test('beforeError receives request and options for HTTPError', async t => {
 	t.is(receivedOptions?.method, 'GET');
 });
 
-test('beforeError receives request and options for network TypeError', async t => {
+test('beforeError receives request and options for NetworkError', async t => {
 	let receivedRequest: Request | undefined;
 	let receivedOptions: NormalizedOptions | undefined;
 
@@ -2185,7 +2186,7 @@ test('beforeRetry Response with non-ok status does not re-enter retry loop', asy
 			},
 			async fetch() {
 				fetchCallCount++;
-				throw new TypeError('network down');
+				throw new TypeError('Failed to fetch');
 			},
 			hooks: {
 				beforeRetry: [
@@ -3915,7 +3916,7 @@ test('throwHttpErrors: false bypasses throw for beforeRetry non-ok Response', as
 		},
 		async fetch() {
 			fetchCallCount++;
-			throw new TypeError('network down');
+			throw new TypeError('Failed to fetch');
 		},
 		hooks: {
 			beforeRetry: [() => new Response('retry-fallback', {status: 502})],
@@ -4085,7 +4086,7 @@ test('beforeRetry ok Response flows through afterResponse hooks', async t => {
 			delay: () => 0,
 		},
 		async fetch() {
-			throw new TypeError('network down');
+			throw new TypeError('Failed to fetch');
 		},
 		hooks: {
 			beforeRetry: [() => new Response('from-hook', {status: 200})],

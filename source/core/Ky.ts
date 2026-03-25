@@ -1,4 +1,5 @@
 import {HTTPError} from '../errors/HTTPError.js';
+import {NetworkError} from '../errors/NetworkError.js';
 import {NonError} from '../errors/NonError.js';
 import {ForceRetryError} from '../errors/ForceRetryError.js';
 import {SchemaValidationError} from '../errors/SchemaValidationError.js';
@@ -20,7 +21,8 @@ import timeout, {type TimeoutOptions} from '../utils/timeout.js';
 import delay from '../utils/delay.js';
 import {type ObjectEntries} from '../utils/types.js';
 import {findUnknownOptions, hasSearchParameters} from '../utils/options.js';
-import {isHTTPError, isTimeoutError} from '../utils/type-guards.js';
+import isRawNetworkError from '../utils/is-network-error.js';
+import {isHTTPError, isNetworkError, isTimeoutError} from '../utils/type-guards.js';
 import {
 	maxSafeTimeout,
 	responseTypes,
@@ -441,8 +443,12 @@ export class Ky {
 		}
 
 		// Default timeout behavior
-		if (isTimeoutError(error) && !this.#options.retry.retryOnTimeout) {
-			throw error;
+		if (isTimeoutError(error)) {
+			if (!this.#options.retry.retryOnTimeout) {
+				throw error;
+			}
+
+			return this.#calculateDelay();
 		}
 
 		if (isHTTPError(error)) {
@@ -477,6 +483,13 @@ export class Ky {
 			if (error.response.status === 413) {
 				throw error;
 			}
+
+			return this.#calculateDelay();
+		}
+
+		// Only retry known retriable error types. Unknown errors (e.g., programming bugs) are not retried.
+		if (!isNetworkError(error)) {
+			throw error;
 		}
 
 		return this.#calculateDelay();
@@ -802,19 +815,27 @@ export class Ky {
 			this.request = retryRequest;
 		}
 
-		if (this.#options.timeout === false) {
-			return this.#options.fetch(request, nonRequestOptions);
-		}
+		try {
+			if (this.#options.timeout === false) {
+				return await this.#options.fetch(request, nonRequestOptions);
+			}
 
-		const remainingTimeout = this.#getRemainingTimeout() ?? this.#options.timeout;
-		if (remainingTimeout <= 0) {
-			throw new TimeoutError(this.request);
-		}
+			const remainingTimeout = this.#getRemainingTimeout() ?? this.#options.timeout;
+			if (remainingTimeout <= 0) {
+				throw new TimeoutError(this.request);
+			}
 
-		return timeout(request, nonRequestOptions, this.#abortController, {
-			...this.#options,
-			timeout: remainingTimeout,
-		} as TimeoutOptions);
+			return await timeout(request, nonRequestOptions, this.#abortController, {
+				...this.#options,
+				timeout: remainingTimeout,
+			} as TimeoutOptions);
+		} catch (error) {
+			if (isRawNetworkError(error)) {
+				throw new NetworkError(this.request, {cause: error as Error});
+			}
+
+			throw error;
+		}
 	}
 
 	#getRemainingTimeout(): number | undefined {
