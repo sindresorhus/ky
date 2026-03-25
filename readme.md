@@ -387,9 +387,37 @@ If set to `false`, there will be no timeout.
 ##### hooks
 
 Type: `object<string, Function[]>`\
-Default: `{beforeRequest: [], beforeRetry: [], beforeError: [], afterResponse: []}`
+Default: `{init: [], beforeRequest: [], beforeRetry: [], beforeError: [], afterResponse: []}`
 
-Hooks allow modifications during the request lifecycle. Hook functions may be async and are run serially.
+Hooks allow modifications during the request lifecycle. Hook functions may be async and are run serially, unless otherwise noted.
+
+###### hooks.init
+
+Type: `Function[]`\
+Default: `[]`
+
+This hook enables you to modify the options before they are used to construct the request. The hook function receives the mutable options object and can modify it in place. You could, for example, modify `searchParams`, `headers`, or `json` here.
+
+Unlike other hooks, `init` hooks are synchronous. Any error thrown will propagate synchronously and will not be caught by `beforeError` hooks.
+
+A common use case is to add a search parameter to every request:
+
+```js
+import ky from 'ky';
+
+const api = ky.extend({
+	hooks: {
+		init: [
+			options => {
+				options.searchParams = {apiKey: getApiKey()};
+			},
+		],
+	},
+});
+
+const response = await api.get('https://example.com/api/users');
+// URL: https://example.com/api/users?apiKey=123
+```
 
 ###### hooks.beforeRequest
 

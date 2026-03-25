@@ -80,6 +80,10 @@ const validateJsonWithSchema = async (jsonValue: unknown, schema: StandardSchema
 
 export class Ky {
 	static create(input: Input, options: Options): ResponsePromise {
+		for (const hook of options.hooks?.init ?? []) {
+			hook(options);
+		}
+
 		const ky = new Ky(input, options);
 
 		const function_ = async (): Promise<Response | void> => {
@@ -282,6 +286,7 @@ export class Ky {
 			headers: mergeHeaders((this.#input as Request).headers, options.headers),
 			hooks: mergeHooks(
 				{
+					init: [],
 					beforeRequest: [],
 					beforeRetry: [],
 					beforeError: [],

@@ -1,6 +1,31 @@
 import {type stop, type RetryMarker} from '../core/constants.js';
 import type {KyRequest, KyResponse} from '../index.js';
-import type {NormalizedOptions} from './options.js';
+import type {NormalizedOptions, Options} from './options.js';
+
+/**
+This hook enables you to modify the options before they are used to construct the request. The hook function receives the mutable options object and can modify it in place. You could, for example, modify `searchParams`, `headers`, or `json` here.
+
+Unlike other hooks, `init` hooks are synchronous. Any error thrown will propagate synchronously and will not be caught by `beforeError` hooks.
+
+@example
+```
+import ky from 'ky';
+
+const api = ky.extend({
+	hooks: {
+		init: [
+			options => {
+				options.searchParams = {apiKey: getApiKey()};
+			},
+		],
+	},
+});
+
+const response = await api.get('https://example.com/api/users');
+// URL: https://example.com/api/users?apiKey=123
+```
+*/
+export type InitHook = (options: Options) => void;
 
 export type BeforeRequestState = {
 	request: KyRequest;
@@ -61,6 +86,35 @@ export type AfterResponseState = {
 export type AfterResponseHook = (state: AfterResponseState) => Response | RetryMarker | void | Promise<Response | RetryMarker | void>;
 
 export type Hooks = {
+	/**
+	This hook enables you to modify the options before they are used to construct the request. The hook function receives the mutable options object and can modify it in place. You could, for example, modify `searchParams`, `headers`, or `json` here.
+
+	Unlike other hooks, `init` hooks are synchronous. Any error thrown will propagate synchronously and will not be caught by `beforeError` hooks.
+
+	A common use case is to add a search parameter to every request:
+
+	@example
+	```
+	import ky from 'ky';
+
+	const api = ky.extend({
+		hooks: {
+			init: [
+				options => {
+					options.searchParams = {apiKey: getApiKey()};
+				},
+			],
+		},
+	});
+
+	const response = await api.get('https://example.com/api/users');
+	// URL: https://example.com/api/users?apiKey=123
+	```
+
+	@default []
+	*/
+	init?: InitHook[];
+
 	/**
 	This hook enables you to modify the request right before it is sent. Ky will make no further changes to the request after this. The hook function receives a state object with the normalized request, options, and retry count. You could, for example, modify `request.headers` here.
 
