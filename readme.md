@@ -926,6 +926,26 @@ const response = await api.get('version');
 //=> 'https://example.com/api/version'
 ```
 
+By default, `.extend()` deep-merges options: hooks are appended, headers are merged, and search parameters are accumulated. Use [`replaceOption`](#replaceoption) when you want to fully replace a merged property instead.
+
+```js
+import ky, {replaceOption} from 'ky';
+
+const api = ky.create({
+	hooks: {
+		beforeRequest: [addAuth, addTracking],
+	},
+});
+
+// Appends as expected
+const extended = api.extend({hooks: {beforeRequest: [logRequest]}});
+// extended hooks.beforeRequest is [addAuth, addTracking, logRequest]
+
+// Replaces instead of appending
+const replaced = api.extend({hooks: replaceOption({beforeRequest: [onlyThis]})});
+// replaced hooks.beforeRequest is [onlyThis]
+```
+
 ### ky.create(defaultOptions)
 
 Create a new Ky instance with complete new defaults.
@@ -1227,6 +1247,24 @@ try {
 		console.log('Original error:', error.cause);
 	}
 }
+```
+
+### replaceOption
+
+Wraps a value so that [`ky.extend()`](#kyextenddefaultoptions) will replace the parent value instead of merging with it. Works with hooks, headers, search parameters, context, and any other deep-merged option.
+
+```js
+import ky, {replaceOption} from 'ky';
+
+const api = ky.create({
+	headers: {authorization: 'Bearer token', 'x-custom': 'value'},
+});
+
+// Replace all headers instead of merging
+const publicApi = api.extend({
+	headers: replaceOption({accept: 'application/json'}),
+});
+// Headers are now just {accept: 'application/json'}
 ```
 
 ## Tips
