@@ -840,7 +840,7 @@ export class Ky {
 			return undefined;
 		}
 
-		if (this.#startTime === undefined) {
+		if (this.#startTime === undefined || this.#options.retry.resetTimeout) {
 			return this.#options.timeout;
 		}
 

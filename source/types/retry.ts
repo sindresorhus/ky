@@ -124,6 +124,31 @@ export type RetryOptions = {
 	retryOnTimeout?: boolean;
 
 	/**
+	Whether to reset the timeout for each retry attempt.
+
+	By default, the `timeout` option is a total timeout across all retries. When `resetTimeout` is `true`, each retry attempt gets the full `timeout` value instead of the remaining budget.
+
+	If you need both per-request timeout and a total timeout cap, combine `resetTimeout: true` with `signal: AbortSignal.timeout(totalMs)`.
+
+	@default false
+
+	@example
+	```
+	import ky from 'ky';
+
+	const json = await ky('https://example.com', {
+		timeout: 5000,
+		retry: {
+			limit: 3,
+			retryOnTimeout: true,
+			resetTimeout: true
+		}
+	}).json();
+	```
+	*/
+	resetTimeout?: boolean;
+
+	/**
 	A function to determine whether a retry should be attempted.
 
 	This function takes precedence over the default retry checks (`retryOnTimeout`, status code checks, etc.) for retriable methods. It is only called after the retry limit and method checks pass.

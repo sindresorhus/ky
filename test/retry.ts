@@ -1610,6 +1610,92 @@ test('shouldRetry: error propagates if shouldRetry returns rejected Promise', as
 	);
 });
 
+test('resetTimeout: true - each retry gets the full timeout', async t => {
+	let requestCount = 0;
+
+	const server = await createHttpTestServer(t);
+	server.get('/', async (_request, response) => {
+		requestCount++;
+		if (requestCount <= 2) {
+			await delay(600);
+			response.end(fixture);
+			return;
+		}
+
+		response.end(fixture);
+	});
+
+	const result = await ky(server.url, {
+		timeout: 500,
+		retry: {
+			limit: 3,
+			retryOnTimeout: true,
+			resetTimeout: true,
+			delay: () => 0,
+		},
+	}).text();
+
+	t.is(result, fixture);
+	t.is(requestCount, 3);
+});
+
+test('resetTimeout: true - works with HTTP error retries that consume timeout budget', async t => {
+	let requestCount = 0;
+
+	const server = await createHttpTestServer(t);
+	server.get('/', async (_request, response) => {
+		requestCount++;
+		if (requestCount <= 2) {
+			// Each failed request takes 600ms, consuming most of a 1000ms budget.
+			// Without resetTimeout, the first retry would have only ~400ms left and time out.
+			await delay(600);
+			response.sendStatus(500);
+			return;
+		}
+
+		response.end(fixture);
+	});
+
+	const result = await ky(server.url, {
+		timeout: 1000,
+		retry: {
+			limit: 3,
+			resetTimeout: true,
+			delay: () => 0,
+		},
+	}).text();
+
+	t.is(result, fixture);
+	t.is(requestCount, 3);
+});
+
+test('resetTimeout: true does not imply retryOnTimeout', async t => {
+	let requestCount = 0;
+
+	const server = await createHttpTestServer(t);
+	server.get('/', async (_request, response) => {
+		requestCount++;
+		await delay(600);
+		response.end(fixture);
+	});
+
+	await t.throwsAsync(
+		ky(server.url, {
+			timeout: 500,
+			retry: {
+				limit: 3,
+				resetTimeout: true,
+				// `retryOnTimeout` defaults to false
+			},
+		}).text(),
+		{
+			name: 'TimeoutError',
+		},
+	);
+
+	t.is(requestCount, 1);
+});
+
 test('NetworkError wraps fetch network errors', async t => {
 	const error = await t.throwsAsync(
 		ky('https://example.com', {

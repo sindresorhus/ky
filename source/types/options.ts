@@ -161,7 +161,7 @@ export type KyOptions = {
 	prefix?: URL | string;
 
 	/**
-	An object representing `limit`, `methods`, `statusCodes`, `afterStatusCodes`, `maxRetryAfter`, `backoffLimit`, `delay`, `jitter`, `retryOnTimeout`, and `shouldRetry` fields for maximum retry count, allowed methods, allowed status codes, status codes allowed to use the [`Retry-After`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Retry-After) time, maximum [`Retry-After`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Retry-After) time, backoff limit, delay calculation function, retry jitter, timeout retry behavior, and custom retry logic.
+	An object representing `limit`, `methods`, `statusCodes`, `afterStatusCodes`, `maxRetryAfter`, `backoffLimit`, `delay`, `jitter`, `retryOnTimeout`, `resetTimeout`, and `shouldRetry` fields for maximum retry count, allowed methods, allowed status codes, status codes allowed to use the [`Retry-After`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Retry-After) time, maximum [`Retry-After`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Retry-After) time, backoff limit, delay calculation function, retry jitter, timeout retry behavior, timeout reset behavior, and custom retry logic.
 
 	If `retry` is a number, it will be used as `limit` and other defaults will remain in place.
 
@@ -187,7 +187,8 @@ export type KyOptions = {
 	retry?: RetryOptions | number;
 
 	/**
-	Timeout in milliseconds for getting a response, including any retries. Can not be greater than 2147483647.
+	Timeout in milliseconds for getting a response, including any retries. Cannot be greater than 2147483647. Use `retry.resetTimeout` to give each retry attempt the full timeout instead of sharing a single budget across all attempts.
+
 	If set to `false`, there will be no timeout.
 
 	@default 10000
