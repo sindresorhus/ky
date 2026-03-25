@@ -353,7 +353,8 @@ browserTest('onUploadProgress is silently ignored when request streams are unsup
 		response.end();
 	});
 
-	server.post('/', (_request, response) => {
+	server.post('/', (request, response) => {
+		t.is(request.body, 'hello');
 		response.end('ok');
 	});
 
@@ -361,18 +362,23 @@ browserTest('onUploadProgress is silently ignored when request streams are unsup
 	await addKyScriptToPage(page);
 
 	const result = await page.evaluate(async (url: string) => {
+		let progressCalled = false;
+
 		const text = await globalThis
 			.ky(url, {
 				method: 'post',
 				body: 'hello',
-				onUploadProgress() {}, // eslint-disable-line @typescript-eslint/no-empty-function
+				onUploadProgress() {
+					progressCalled = true;
+				},
 			})
 			.text();
 
-		return text;
+		return {text, progressCalled};
 	}, server.url);
 
-	t.is(result, 'ok');
+	t.is(result.text, 'ok');
+	t.false(result.progressCalled);
 });
 
 defaultBrowsersTest('FormData with searchParams', async (t: ExecutionContext, page: Page) => {
