@@ -676,7 +676,7 @@ Type: `Function`
 Download progress event handler.
 
 The function receives these arguments:
-- `progress` is an object with the these properties:
+- `progress` is an object with these properties:
 - - `percent` is a number between 0 and 1 representing the progress percentage.
 - - `transferredBytes` is the number of bytes transferred so far.
 - - `totalBytes` is the total number of bytes to be transferred. This is an estimate and may be 0 if the total size cannot be determined.
@@ -701,8 +701,11 @@ Type: `Function`
 
 Upload progress event handler.
 
+> [!NOTE]
+> Requires [request stream support](https://caniuse.com/wf-fetch-request-streams). In unsupported environments, this handler is silently ignored.
+
 The function receives these arguments:
-- `progress` is an object with the these properties:
+- `progress` is an object with these properties:
 - - `percent` is a number between 0 and 1 representing the progress percentage.
 - - `transferredBytes` is the number of bytes transferred so far.
 - - `totalBytes` is the total number of bytes to be transferred. This is an estimate and may be 0 if the total size cannot be determined.
