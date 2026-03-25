@@ -575,6 +575,136 @@ test('merges searchParams with duplicate keys', async t => {
 	await server.close();
 });
 
+test('deletes merged search params even when all additions are removed by undefined', async t => {
+	const server = await createHttpTestServer();
+
+	server.get('/', (request, response) => {
+		response.end(request.url);
+	});
+
+	const api = ky.create({searchParams: {foo: '1', bar: '2'}});
+	const response = await api.get(server.url + '?foo=from-url&bar=from-url&keep=1', {
+		// @ts-expect-error - testing undefined value
+		searchParams: {foo: undefined, bar: undefined},
+	});
+
+	const url = new URL(await response.text(), server.url);
+	t.false(url.searchParams.has('foo'));
+	t.false(url.searchParams.has('bar'));
+	t.is(url.searchParams.get('keep'), '1');
+
+	await server.close();
+});
+
+test('request searchParams undefined removes merged keys but keeps unrelated values', async t => {
+	const server = await createHttpTestServer();
+
+	server.get('/', (request, response) => {
+		response.end(request.url);
+	});
+
+	const api = ky.extend({searchParams: {foo: '1', bar: '2'}}).extend({searchParams: {baz: '3'}});
+
+	const response = await api.get(server.url + '?bar=from-url&keep=1', {
+		// @ts-expect-error - testing undefined value
+		searchParams: {foo: undefined, extra: '4'},
+	});
+
+	const url = new URL(await response.text(), server.url);
+	t.false(url.searchParams.has('foo'));
+	t.is(url.searchParams.get('baz'), '3');
+	t.is(url.searchParams.get('bar'), 'from-url');
+	t.is(url.searchParams.get('extra'), '4');
+	t.is(url.searchParams.get('keep'), '1');
+
+	await server.close();
+});
+
+test('string searchParams merge keeps duplicates across input URL and defaults', async t => {
+	const server = await createHttpTestServer();
+
+	server.get('/', (request, response) => {
+		response.end(request.url);
+	});
+
+	const api = ky.create({searchParams: new URLSearchParams({filter: 'active'})});
+	const response = await api.get(server.url + '?filter=old&sort=old', {
+		searchParams: 'filter=recent&sort=new',
+	});
+
+	const url = new URL(await response.text(), server.url);
+	t.deepEqual(url.searchParams.getAll('filter').sort(), ['active', 'old', 'recent']);
+	t.deepEqual(url.searchParams.getAll('sort').sort(), ['new', 'old']);
+
+	await server.close();
+});
+
+// TODO: Enable once `init` hooks are implemented
+test.skip('init hook can delete merged search params via undefined', async t => {
+	const server = await createHttpTestServer();
+
+	server.get('/', (request, response) => {
+		response.end(request.url);
+	});
+
+	const response = await ky.get(server.url + '?token=from-url', {
+		hooks: {
+			init: [
+				options => {
+					// @ts-expect-error - testing undefined value
+					options.searchParams = {token: undefined};
+				},
+			],
+		},
+	});
+
+	const url = new URL(await response.text(), server.url);
+	t.false(url.searchParams.has('token'));
+
+	await server.close();
+});
+
+test('ky.extend() searchParams layer deletion propagates through merged instances', async t => {
+	const server = await createHttpTestServer();
+
+	server.get('/', (request, response) => {
+		response.end(request.url);
+	});
+
+	const api = ky.extend({searchParams: {foo: '1'}})
+		.extend({searchParams: {bar: '2'}});
+	const response = await api.get(server.url + '?bar=from-url', {
+		// @ts-expect-error - testing undefined value
+		searchParams: {foo: undefined},
+	});
+
+	const url = new URL(await response.text(), server.url);
+	t.false(url.searchParams.has('foo'));
+	t.is(url.searchParams.get('bar'), 'from-url');
+
+	await server.close();
+});
+
+test('searchParams option merges with existing query when hash is present', async t => {
+	const customFetch: typeof fetch = async input => {
+		if (!(input instanceof Request)) {
+			throw new TypeError('Expected to have input as request');
+		}
+
+		return new Response(input.url);
+	};
+
+	const url = 'https://example.com/unicorn';
+
+	t.is(
+		await ky(url + '?old#hash', {
+			fetch: customFetch,
+			searchParams: {foo: '1'},
+		}).text(),
+		url + '?old=&foo=1#hash',
+	);
+});
+
 test('throwHttpErrors option', async t => {
 	const server = await createHttpTestServer();
 	server.get('/', (_request, response) => {

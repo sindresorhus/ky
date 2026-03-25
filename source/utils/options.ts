@@ -1,5 +1,6 @@
 import {kyOptionKeys, requestOptionsRegistry, vendorSpecificOptions} from '../core/constants.js';
 import type {SearchParamsOption} from '../types/options.js';
+import {deletedParametersSymbol} from './merge.js';
 
 export const findUnknownOptions = (
 	request: Request,
@@ -38,7 +39,7 @@ export const hasSearchParameters = (search: SearchParamsOption): boolean => {
 	}
 
 	if (search instanceof URLSearchParams) {
-		return search.size > 0;
+		return search.size > 0 || Boolean((search as any)[deletedParametersSymbol]?.size);
 	}
 
 	// Record
