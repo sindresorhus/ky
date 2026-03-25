@@ -1,6 +1,8 @@
 import type {Options} from '../types/options.js';
 import {usualFormBoundarySize} from '../core/constants.js';
 
+const encoder = new TextEncoder();
+
 // eslint-disable-next-line @typescript-eslint/no-restricted-types
 export const getBodySize = (body?: BodyInit | null): number => {
 	if (!body) {
@@ -13,9 +15,9 @@ export const getBodySize = (body?: BodyInit | null): number => {
 
 		for (const [key, value] of body) {
 			size += usualFormBoundarySize;
-			size += new TextEncoder().encode(`Content-Disposition: form-data; name="${key}"`).length;
+			size += encoder.encode(`Content-Disposition: form-data; name="${key}"`).byteLength;
 			size += typeof value === 'string'
-				? new TextEncoder().encode(value).length
+				? encoder.encode(value).byteLength
 				: value.size;
 		}
 
@@ -26,32 +28,19 @@ export const getBodySize = (body?: BodyInit | null): number => {
 		return body.size;
 	}
 
-	if (body instanceof ArrayBuffer) {
+	if (body instanceof ArrayBuffer || ArrayBuffer.isView(body)) {
 		return body.byteLength;
 	}
 
 	if (typeof body === 'string') {
-		return new TextEncoder().encode(body).length;
+		return encoder.encode(body).byteLength;
 	}
 
 	if (body instanceof URLSearchParams) {
-		return new TextEncoder().encode(body.toString()).length;
+		return encoder.encode(body.toString()).byteLength;
 	}
 
-	if ('byteLength' in body) {
-		return (body).byteLength;
-	}
-
-	if (typeof body === 'object' && body !== null) {
-		try {
-			const jsonString = JSON.stringify(body);
-			return new TextEncoder().encode(jsonString).length;
-		} catch {
-			return 0;
-		}
-	}
-
-	return 0; // Default case, unable to determine size
+	return 0;
 };
 
 const withProgress = (stream: ReadableStream<Uint8Array>, totalBytes: number, onProgress: Options['onDownloadProgress'] | Options['onUploadProgress']): ReadableStream<Uint8Array> => {

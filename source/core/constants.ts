@@ -57,8 +57,8 @@ export const responseTypes = {
 // The maximum value of a 32bit int (see issue #117)
 export const maxSafeTimeout = 2_147_483_647;
 
-// Size in bytes of a typical form boundary, used to help estimate upload size
-export const usualFormBoundarySize = new TextEncoder().encode('------WebKitFormBoundaryaxpyiPgbbPti10Rw').length;
+// Size in bytes of a typical form boundary (e.g. '------WebKitFormBoundaryaxpyiPgbbPti10Rw'), used to help estimate upload size
+export const usualFormBoundarySize = 40;
 
 /**
 Symbol that can be returned by a `beforeRetry` hook to stop retrying without throwing an error.
