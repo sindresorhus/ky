@@ -1,3 +1,5 @@
+import type {HttpMethod} from './options.js';
+
 export type ShouldRetryState = {
 	/**
 	The error that caused the request to fail.
@@ -23,7 +25,7 @@ export type RetryOptions = {
 
 	@default ['get', 'put', 'head', 'delete', 'options', 'trace']
 	*/
-	methods?: string[];
+	methods?: HttpMethod[];
 
 	/**
 	The HTTP status codes allowed to retry.
@@ -40,7 +42,7 @@ export type RetryOptions = {
 	afterStatusCodes?: number[];
 
 	/**
-	If the `Retry-After` header is greater than `maxRetryAfter`, the request will be canceled.
+	If the `Retry-After` header is greater than `maxRetryAfter`, it will use `maxRetryAfter`.
 
 	@default Infinity
 	*/
@@ -124,7 +126,7 @@ export type RetryOptions = {
 	/**
 	A function to determine whether a retry should be attempted.
 
-	This function takes precedence over all other retry checks and is called first, before any other retry validation.
+	This function takes precedence over the default retry checks (`retryOnTimeout`, status code checks, etc.) for retriable methods. It is only called after the retry limit and method checks pass.
 
 	**Note:** This is different from the `beforeRetry` hook:
 	- `shouldRetry`: Controls WHETHER to retry (called before the retry decision is made)
@@ -133,7 +135,7 @@ export type RetryOptions = {
 	Should return:
 	- `true` to force a retry (bypasses `retryOnTimeout`, status code checks, and other validations)
 	- `false` to prevent a retry (no retry will occur)
-	- `undefined` to use the default retry logic (`retryOnTimeout`, status codes, etc.)
+	- `undefined` to use the default retry logic (`retryOnTimeout`, status codes, network errors). Unrecognized error types are not retried.
 
 	@example
 	```

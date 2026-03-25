@@ -1,5 +1,5 @@
 import type {Expect, Equal} from '@type-challenges/utils';
-import {type HttpMethod, type KyOptionsRegistry} from '../types/options.js';
+import {type KyOptionsRegistry, type RequestHttpMethod} from '../types/options.js';
 
 export const supportsRequestStreams = (() => {
 	let duplexAccessed = false;
@@ -40,7 +40,7 @@ export const requestMethods = ['get', 'post', 'put', 'patch', 'head', 'delete'] 
 
 const validate = <T extends Array<true>>() => undefined as unknown as T;
 validate<[
-	Expect<Equal<typeof requestMethods[number], HttpMethod>>,
+	Expect<Equal<typeof requestMethods[number], RequestHttpMethod>>,
 ]>();
 
 export const responseTypes = {
@@ -57,9 +57,12 @@ export const responseTypes = {
 // The maximum value of a 32bit int (see issue #117)
 export const maxSafeTimeout = 2_147_483_647;
 
-// Size in bytes of a typical form boundary, used to help estimate upload size
-export const usualFormBoundarySize = new TextEncoder().encode('------WebKitFormBoundaryaxpyiPgbbPti10Rw').length;
+// Size in bytes of a typical form boundary (e.g. '------WebKitFormBoundaryaxpyiPgbbPti10Rw'), used to help estimate upload size
+export const usualFormBoundarySize = 40;
 
+/**
+Symbol that can be returned by a `beforeRetry` hook to stop retrying without throwing an error.
+*/
 export const stop = Symbol('stop');
 
 /**
@@ -143,10 +146,14 @@ export type ForceRetryOptions = {
 };
 
 /**
-Marker returned by ky.retry() to signal a forced retry from afterResponse hooks.
+Marker returned by `ky.retry()` to signal a forced retry from `afterResponse` hooks.
 */
 export class RetryMarker {
-	constructor(public options?: ForceRetryOptions) {}
+	options: ForceRetryOptions | undefined;
+
+	constructor(options?: ForceRetryOptions) {
+		this.options = options;
+	}
 }
 
 /**
@@ -163,7 +170,7 @@ import ky, {isForceRetryError} from 'ky';
 const api = ky.extend({
 	hooks: {
 		afterResponse: [
-			async (request, options, response) => {
+			async ({request, response}) => {
 				// Retry based on response body content
 				if (response.status === 200) {
 					const data = await response.clone().json();
@@ -239,7 +246,8 @@ export const kyOptionKeys: KyOptionsRegistry = {
 	parseJson: true,
 	stringifyJson: true,
 	searchParams: true,
-	prefixUrl: true,
+	baseUrl: true,
+	prefix: true,
 	retry: true,
 	timeout: true,
 	hooks: true,

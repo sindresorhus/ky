@@ -49,6 +49,7 @@ export type {
 
 export type {
 	Hooks,
+	InitHook,
 	BeforeRequestHook,
 	BeforeRequestState,
 	BeforeRetryHook,
@@ -60,17 +61,27 @@ export type {
 } from './types/hooks.js';
 
 export type {ResponsePromise} from './types/ResponsePromise.js';
+export type {
+	StandardSchemaV1,
+	StandardSchemaV1InferOutput,
+	StandardSchemaV1Issue,
+} from './types/standard-schema.js';
 export type {KyRequest} from './types/request.js';
 export type {KyResponse} from './types/response.js';
+export {KyError} from './errors/KyError.js';
 export {HTTPError} from './errors/HTTPError.js';
+export {SchemaValidationError} from './errors/SchemaValidationError.js';
+export {NetworkError} from './errors/NetworkError.js';
 export {TimeoutError} from './errors/TimeoutError.js';
 export {ForceRetryError} from './errors/ForceRetryError.js';
 export {
 	isKyError,
 	isHTTPError,
+	isNetworkError,
 	isTimeoutError,
 	isForceRetryError,
 } from './utils/type-guards.js';
+export {replaceOption} from './utils/merge.js';
 
 // Intentionally not exporting this for now as it's just an implementation detail and we don't want to commit to a certain API yet at least.
 // export {NonError} from './errors/NonError.js';

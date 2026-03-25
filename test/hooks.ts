@@ -1,11 +1,48 @@
+import {setTimeout as delay} from 'node:timers/promises';
 import test from 'ava';
-import delay from 'delay';
-import ky, {HTTPError, isHTTPError, isForceRetryError} from '../source/index.js';
-import {type Options} from '../source/types/options.js';
+import ky, {
+	HTTPError,
+	KyError,
+	isHTTPError,
+	isNetworkError,
+	isTimeoutError,
+	isForceRetryError,
+	TimeoutError,
+} from '../source/index.js';
+import {type Options, type NormalizedOptions} from '../source/types/options.js';
 import {createHttpTestServer} from './helpers/create-http-test-server.js';
 
+const withHeader = (request: Request, name: string, value: string) => {
+	const headers = new Headers(request.headers);
+	headers.set(name, value);
+	return new Request(request, {headers});
+};
+
+const createStreamBody = (text: string) => new ReadableStream<Uint8Array>({
+	start(controller) {
+		controller.enqueue(new TextEncoder().encode(text));
+		controller.close();
+	},
+});
+
+const createStreamFetch = ({
+	text = 'ok',
+	onResponse,
+}: {
+	text?: string;
+	onResponse?: (response: Response) => void;
+} = {}): typeof fetch => async request => {
+	if (!(request instanceof Request)) {
+		throw new TypeError('Expected input to be a Request');
+	}
+
+	const response = new Response(createStreamBody(text));
+	onResponse?.(response);
+	return response;
+};
+
 test('hooks can be async', async t => {
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.post('/', async (request, response) => {
 		response.json(request.body);
 	});
@@ -19,7 +56,7 @@ test('hooks can be async', async t => {
 			json,
 			hooks: {
 				beforeRequest: [
-					async (request, options) => {
+					async ({request, options}) => {
 						await delay(100);
 						const bodyJson = JSON.parse(options.body as string);
 						bodyJson.foo = false;
@@ -31,13 +68,11 @@ test('hooks can be async', async t => {
 		.json<typeof json>();
 
 	t.false(responseJson.foo);
-
-	await server.close();
 });
 
 test('hooks can be empty object', async t => {
 	const expectedResponse = 'empty hook';
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 
 	server.get('/', (_request, response) => {
 		response.end(expectedResponse);
@@ -46,12 +81,10 @@ test('hooks can be empty object', async t => {
 	const response = await ky.get(server.url, {hooks: {}}).text();
 
 	t.is(response, expectedResponse);
-
-	await server.close();
 });
 
 test('beforeRequest hook allows modifications', async t => {
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.post('/', async (request, response) => {
 		response.json(request.body);
 	});
@@ -65,7 +98,7 @@ test('beforeRequest hook allows modifications', async t => {
 			json,
 			hooks: {
 				beforeRequest: [
-					(request, options) => {
+					({request, options}) => {
 						const bodyJson = JSON.parse(options.body as string);
 						bodyJson.foo = false;
 						return new Request(request, {body: JSON.stringify(bodyJson)});
@@ -76,12 +109,10 @@ test('beforeRequest hook allows modifications', async t => {
 		.json<typeof json>();
 
 	t.false(responseJson.foo);
-
-	await server.close();
 });
 
-test('afterResponse hook accept success response', async t => {
-	const server = await createHttpTestServer();
+test('afterResponse hook accepts success response', async t => {
+	const server = await createHttpTestServer(t);
 	server.post('/', async (request, response) => {
 		response.json(request.body);
 	});
@@ -96,7 +127,7 @@ test('afterResponse hook accept success response', async t => {
 				json,
 				hooks: {
 					afterResponse: [
-						async (_input, _options, response) => {
+						async ({response}) => {
 							t.is(response.status, 200);
 							t.deepEqual(await response.json(), json);
 						},
@@ -105,12 +136,156 @@ test('afterResponse hook accept success response', async t => {
 			})
 			.json(),
 	);
-
-	await server.close();
 });
 
-test('afterResponse hook accept fail response', async t => {
-	const server = await createHttpTestServer();
+test('afterResponse hook cancels unused cloned response body', async t => {
+	const server = await createHttpTestServer(t);
+	server.get('/', (_request, response) => {
+		response.end('ok');
+	});
+
+	let didCancelClonedResponseBody = false;
+
+	await ky.get(server.url, {
+		hooks: {
+			afterResponse: [
+				async ({response}) => {
+					if (response.body) {
+						const originalCancel = response.body.cancel.bind(response.body);
+						response.body.cancel = async () => {
+							didCancelClonedResponseBody = true;
+							return originalCancel();
+						};
+					}
+				},
+			],
+		},
+	}).text();
+
+	t.true(didCancelClonedResponseBody);
+});
+
+test('afterResponse hook cancels both clone and original when it returns a new response', async t => {
+	let originalResponse: Response | undefined;
+	let clonedResponse: Response | undefined;
+
+	const customFetch = createStreamFetch({
+		onResponse(response) {
+			originalResponse = response;
+		},
+	});
+
+	const responseText = await ky('https://example.com', {
+		fetch: customFetch,
+		hooks: {
+			afterResponse: [
+				({response}) => {
+					clonedResponse = response;
+					return new Response('replacement');
+				},
+			],
+		},
+	}).text();
+
+	t.is(responseText, 'replacement');
+	t.true(originalResponse?.bodyUsed);
+	t.true(clonedResponse?.bodyUsed);
+});
+
+test('afterResponse hook can return the provided response', async t => {
+	let originalResponse: Response | undefined;
+
+	const customFetch = createStreamFetch({
+		onResponse(response) {
+			originalResponse = response;
+		},
+	});
+
+	const responseText = await ky('https://example.com', {
+		fetch: customFetch,
+		hooks: {
+			afterResponse: [
+				({response}) => response,
+			],
+		},
+	}).text();
+
+	t.is(responseText, 'ok');
+	t.true(originalResponse?.bodyUsed);
+});
+
+test('afterResponse hook with multiple hooks cancels all unused clones', async t => {
+	let originalResponse: Response | undefined;
+	const clones: Response[] = [];
+
+	const customFetch = createStreamFetch({
+		onResponse(response) {
+			originalResponse = response;
+		},
+	});
+
+	const responseText = await ky('https://example.com', {
+		fetch: customFetch,
+		hooks: {
+			afterResponse: [
+				({response}) => {
+					clones.push(response);
+					// Return nothing - clone should be cancelled
+				},
+				({response}) => {
+					clones.push(response);
+					// Return nothing - clone should be cancelled
+				},
+				({response}) => {
+					clones.push(response);
+					// Return nothing - clone should be cancelled
+				},
+			],
+		},
+	}).text();
+
+	t.is(responseText, 'ok');
+	t.is(clones.length, 3);
+
+	// All clones should be cancelled (bodyUsed becomes true after cancel)
+	for (const clone of clones) {
+		t.true(clone.bodyUsed);
+	}
+});
+
+test('afterResponse hook cancels response bodies when it throws', async t => {
+	let originalResponse: Response | undefined;
+	let clonedResponse: Response | undefined;
+
+	const customFetch = createStreamFetch({
+		onResponse(response) {
+			originalResponse = response;
+		},
+	});
+
+	const expectError = new Error('Hook error');
+
+	await t.throwsAsync(
+		ky('https://example.com', {
+			fetch: customFetch,
+			hooks: {
+				afterResponse: [
+					({response}) => {
+						clonedResponse = response;
+						throw expectError;
+					},
+				],
+			},
+		}).text(),
+		{is: expectError},
+	);
+
+	t.true(originalResponse?.bodyUsed);
+	t.true(clonedResponse?.bodyUsed);
+});
+
+test('afterResponse hook accepts failed response', async t => {
+	const server = await createHttpTestServer(t);
 	server.post('/', async (request, response) => {
 		response.status(500).send(request.body);
 	});
@@ -125,7 +300,7 @@ test('afterResponse hook accept fail response', async t => {
 				json,
 				hooks: {
 					afterResponse: [
-						async (_input, _options, response) => {
+						async ({response}) => {
 							t.is(response.status, 500);
 							t.deepEqual(await response.json(), json);
 						},
@@ -134,12 +309,10 @@ test('afterResponse hook accept fail response', async t => {
 			})
 			.json(),
 	);
-
-	await server.close();
 });
 
 test('afterResponse hook can change response instance by sequence', async t => {
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.post('/', (_request, response) => {
 		response.status(500).send();
 	});
@@ -158,7 +331,7 @@ test('afterResponse hook can change response instance by sequence', async t => {
 							new Response(modifiedBody1, {
 								status: modifiedStatus1,
 							}),
-						async (_input, _options, response) => {
+						async ({response}) => {
 							t.is(response.status, modifiedStatus1);
 							t.is(await response.text(), modifiedBody1);
 
@@ -173,13 +346,13 @@ test('afterResponse hook can change response instance by sequence', async t => {
 
 		t.is(responseBody, modifiedBody2);
 	});
-
-	await server.close();
 });
 
 test('afterResponse hook can throw error to reject the request promise', async t => {
-	const server = await createHttpTestServer();
+	let requestCount = 0;
+	const server = await createHttpTestServer(t);
 	server.get('/', (_request, response) => {
+		requestCount++;
 		response.status(200).send();
 	});
 
@@ -221,11 +394,12 @@ test('afterResponse hook can throw error to reject the request promise', async t
 		},
 	);
 
-	await server.close();
+	// Two calls (sync + async), each making exactly 1 request (no retries triggered by hook errors)
+	t.is(requestCount, 2);
 });
 
 test('`afterResponse` hook gets called even if using body shortcuts', async t => {
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/', (_request, response) => {
 		response.json({});
 	});
@@ -235,7 +409,7 @@ test('`afterResponse` hook gets called even if using body shortcuts', async t =>
 		.get(server.url, {
 			hooks: {
 				afterResponse: [
-					(_input, _options, response) => {
+					({response}) => {
 						called = true;
 						return response;
 					},
@@ -245,12 +419,10 @@ test('`afterResponse` hook gets called even if using body shortcuts', async t =>
 		.json();
 
 	t.true(called);
-
-	await server.close();
 });
 
 test('`afterResponse` hook is called with request, normalized options, and response which can be used to retry', async t => {
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.post('/', async (request, response) => {
 		const json = request.body;
 		if (json.token === 'valid:token') {
@@ -271,13 +443,13 @@ test('`afterResponse` hook is called with request, normalized options, and respo
 				json,
 				hooks: {
 					afterResponse: [
-						async (request, options, response) => {
+						async ({request, options, response}) => {
 							if (response.status === 403) {
 								// Retry request with valid token
 								return ky(request, {
 									...options,
 									json: {
-										...(options as Options).json as Record<string, unknown>,
+										...json,
 										token: 'valid:token',
 									},
 								});
@@ -294,14 +466,12 @@ test('`afterResponse` hook is called with request, normalized options, and respo
 			token: 'valid:token',
 		},
 	);
-
-	await server.close();
 });
 
 test('afterResponse hook with parseJson and response.json()', async t => {
 	t.plan(5);
 
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/', async (_request, response) => {
 		response.end('text');
 	});
@@ -314,7 +484,7 @@ test('afterResponse hook with parseJson and response.json()', async t => {
 			},
 			hooks: {
 				afterResponse: [
-					async (_request, _options, response) => {
+					async ({response}) => {
 						t.true(response instanceof Response);
 						t.deepEqual(await response.json(), {awesome: true});
 					},
@@ -324,15 +494,13 @@ test('afterResponse hook with parseJson and response.json()', async t => {
 		.json();
 
 	t.deepEqual(json, {awesome: true});
-
-	await server.close();
 });
 
 test('beforeRetry hook is never called for the initial request', async t => {
 	const fixture = 'fixture';
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/', async (request, response) => {
-		response.end(request.headers['unicorn']);
+		response.end(request.headers.unicorn);
 	});
 
 	t.not(
@@ -349,20 +517,85 @@ test('beforeRetry hook is never called for the initial request', async t => {
 			.text(),
 		fixture,
 	);
+});
 
-	await server.close();
+test('beforeRequest hook on initial request cannot bypass total timeout budget', async t => {
+	let fetchCallCount = 0;
+
+	const customFetch: typeof fetch = async () => {
+		fetchCallCount++;
+		return new Response('ok');
+	};
+
+	const error = await t.throwsAsync(
+		ky('https://example.com', {
+			fetch: customFetch,
+			timeout: 100,
+			hooks: {
+				beforeRequest: [
+					async () => {
+						await delay(200);
+					},
+				],
+			},
+		}).text(),
+		{
+			name: 'TimeoutError',
+		},
+	);
+
+	t.true(error instanceof TimeoutError);
+	t.is(fetchCallCount, 0);
+});
+
+test('beforeRequest hook runs only once and does not run again on retry', async t => {
+	let fetchCallCount = 0;
+	let beforeRequestCallCount = 0;
+	const beforeRequestRetryCounts: number[] = [];
+
+	const customFetch: typeof fetch = async () => {
+		fetchCallCount++;
+		if (fetchCallCount === 1) {
+			return new Response('first-attempt', {status: 500});
+		}
+
+		return new Response('second-attempt-success');
+	};
+
+	t.is(
+		await ky('https://example.com', {
+			fetch: customFetch,
+			retry: {
+				limit: 1,
+				delay: () => 0,
+			},
+			hooks: {
+				beforeRequest: [
+					({retryCount}) => {
+						beforeRequestCallCount++;
+						beforeRequestRetryCounts.push(retryCount);
+					},
+				],
+			},
+		}).text(),
+		'second-attempt-success',
+	);
+
+	t.is(beforeRequestCallCount, 1);
+	t.deepEqual(beforeRequestRetryCounts, [0]);
+	t.is(fetchCallCount, 2);
 });
 
 test('beforeRetry hook allows modifications of non initial requests', async t => {
 	let requestCount = 0;
 
 	const fixture = 'fixture';
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/', async (request, response) => {
 		requestCount++;
 
 		if (requestCount > 1) {
-			response.end(request.headers['unicorn']);
+			response.end(request.headers.unicorn);
 		} else {
 			response.sendStatus(408);
 		}
@@ -382,19 +615,17 @@ test('beforeRetry hook allows modifications of non initial requests', async t =>
 			.text(),
 		fixture,
 	);
-
-	await server.close();
 });
 
 test('beforeRetry hook is called with error and retryCount', async t => {
 	let requestCount = 0;
 
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/', async (request, response) => {
 		requestCount++;
 
 		if (requestCount > 1) {
-			response.end(request.headers['unicorn']);
+			response.end(request.headers.unicorn);
 		} else {
 			response.sendStatus(408);
 		}
@@ -411,8 +642,6 @@ test('beforeRetry hook is called with error and retryCount', async t => {
 			],
 		},
 	});
-
-	await server.close();
 });
 
 test('beforeRetry hook is called even if the error has no response', async t => {
@@ -420,7 +649,7 @@ test('beforeRetry hook is called even if the error has no response', async t => 
 
 	let requestCount = 0;
 
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/', async (_request, response) => {
 		requestCount++;
 		response.end('unicorn');
@@ -432,7 +661,7 @@ test('beforeRetry hook is called even if the error has no response', async t => 
 			async fetch(request) {
 				if (requestCount === 0) {
 					requestCount++;
-					throw new Error('simulated network failure');
+					throw new TypeError('Failed to fetch');
 				}
 
 				return globalThis.fetch(request);
@@ -440,7 +669,7 @@ test('beforeRetry hook is called even if the error has no response', async t => 
 			hooks: {
 				beforeRetry: [
 					({error, retryCount}) => {
-						t.is(error.message, 'simulated network failure');
+						t.true(isNetworkError(error));
 						// @ts-expect-error
 						t.is(error.response, undefined);
 						t.is(retryCount, 1);
@@ -453,20 +682,18 @@ test('beforeRetry hook is called even if the error has no response', async t => 
 
 	t.is(text, 'unicorn');
 	t.is(requestCount, 2);
-
-	await server.close();
 });
 
-test('beforeRetry hook with parseJson and error.response.json()', async t => {
+test('beforeRetry hook with parseJson and error.data', async t => {
 	t.plan(11);
 
 	let requestCount = 0;
 
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/', async (_request, response) => {
 		requestCount++;
 		if (requestCount === 1) {
-			response.status(502).end('text');
+			response.status(502).type('application/json').send('text');
 		} else {
 			response.end('text');
 		}
@@ -486,7 +713,7 @@ test('beforeRetry hook with parseJson and error.response.json()', async t => {
 						t.true(isHTTPError(error));
 						t.is(error.message, `Request failed with status code 502 Bad Gateway: GET ${server.url}/`);
 						t.true((error as HTTPError).response instanceof Response);
-						t.deepEqual(await (error as HTTPError).response.json(), {awesome: true});
+						t.deepEqual((error as HTTPError).data, {awesome: true});
 						t.is(retryCount, 1);
 						t.is(requestCount, 1);
 					},
@@ -497,19 +724,100 @@ test('beforeRetry hook with parseJson and error.response.json()', async t => {
 
 	t.deepEqual(json, {awesome: true});
 	t.is(requestCount, 2);
+});
 
-	await server.close();
+test('beforeRetry hook with async parseJson and error.data', async t => {
+	t.plan(12);
+
+	let requestCount = 0;
+
+	const server = await createHttpTestServer(t);
+	server.get('/', async (_request, response) => {
+		requestCount++;
+		if (requestCount === 1) {
+			response.status(502).type('application/json').send('text');
+		} else {
+			response.end('text');
+		}
+	});
+
+	const json = await ky
+		.get(server.url, {
+			retry: 1,
+			async parseJson(text) {
+				t.is(text, 'text');
+				await Promise.resolve();
+				return {awesome: true};
+			},
+			hooks: {
+				beforeRetry: [
+					async ({error, retryCount}) => {
+						t.true(error instanceof HTTPError);
+						t.true(isHTTPError(error));
+						t.is(error.message, `Request failed with status code 502 Bad Gateway: GET ${server.url}/`);
+						t.true((error as HTTPError).response instanceof Response);
+						t.deepEqual((error as HTTPError).data, {awesome: true});
+						t.false((error as HTTPError).data instanceof Promise);
+						t.is(retryCount, 1);
+						t.is(requestCount, 1);
+					},
+				],
+			},
+		})
+		.json();
+
+	t.deepEqual(json, {awesome: true});
+	t.is(requestCount, 2);
+});
+
+test('beforeRetry hook gets HTTPError when async parseJson rejects', async t => {
+	t.plan(7);
+
+	let requestCount = 0;
+
+	const server = await createHttpTestServer(t);
+	server.get('/', async (_request, response) => {
+		requestCount++;
+		if (requestCount === 1) {
+			response.status(502).type('application/json').send('text');
+		} else {
+			response.end('ok');
+		}
+	});
+
+	const text = await ky
+		.get(server.url, {
+			retry: 1,
+			async parseJson() {
+				throw new Error('custom parse failure');
+			},
+			hooks: {
+				beforeRetry: [
+					({error, retryCount}) => {
+						t.true(error instanceof HTTPError);
+						t.true(isHTTPError(error));
+						t.is((error as HTTPError).data, undefined);
+						t.is(retryCount, 1);
+						t.is(requestCount, 1);
+					},
+				],
+			},
+		})
+		.text();
+
+	t.is(text, 'ok');
+	t.is(requestCount, 2);
 });
 
 test('beforeRetry hook can cancel retries by returning `stop`', async t => {
 	let requestCount = 0;
 
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/', async (request, response) => {
 		requestCount++;
 
 		if (requestCount > 2) {
-			response.end(request.headers['unicorn']);
+			response.end(request.headers.unicorn);
 		} else {
 			response.sendStatus(408);
 		}
@@ -529,19 +837,57 @@ test('beforeRetry hook can cancel retries by returning `stop`', async t => {
 	});
 
 	t.is(requestCount, 1);
+});
 
-	await server.close();
+test('beforeRetry hook respects total timeout budget', async t => {
+	let fetchCallCount = 0;
+	let beforeRetryCallCount = 0;
+
+	const customFetch: typeof fetch = async () => {
+		fetchCallCount++;
+		if (fetchCallCount === 1) {
+			return new Response('first-attempt', {status: 500});
+		}
+
+		return new Response('second-attempt-success');
+	};
+
+	await t.throwsAsync(
+		ky('https://example.com', {
+			fetch: customFetch,
+			timeout: 1000,
+			retry: {
+				limit: 1,
+				delay: () => 0,
+			},
+			hooks: {
+				beforeRetry: [
+					async () => {
+						beforeRetryCallCount++;
+						await delay(2000);
+					},
+				],
+			},
+		}).text(),
+		{
+			name: 'TimeoutError',
+		},
+	);
+
+	t.is(beforeRetryCallCount, 1);
+	t.is(fetchCallCount, 1);
 });
 
 test('catches beforeRetry thrown errors', async t => {
 	let requestCount = 0;
+	let beforeErrorHookCalled = false;
 
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/', async (request, response) => {
 		requestCount++;
 
 		if (requestCount > 1) {
-			response.end(request.headers['unicorn']);
+			response.end(request.headers.unicorn);
 		} else {
 			response.sendStatus(408);
 		}
@@ -550,7 +896,7 @@ test('catches beforeRetry thrown errors', async t => {
 	const errorString = 'oops';
 	const error = new Error(errorString);
 
-	await t.throwsAsync(
+	const thrownError = await t.throwsAsync(
 		ky.get(server.url, {
 			hooks: {
 				beforeRetry: [
@@ -558,21 +904,31 @@ test('catches beforeRetry thrown errors', async t => {
 						throw error;
 					},
 				],
+				beforeError: [
+					() => {
+						beforeErrorHookCalled = true;
+						return new Error('beforeError should not run');
+					},
+				],
 			},
 		}),
 		{message: errorString},
 	);
+
+	t.is(thrownError, error);
+	t.false(beforeErrorHookCalled);
 });
 
 test('catches beforeRetry promise rejections', async t => {
 	let requestCount = 0;
+	let beforeErrorHookCalled = false;
 
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/', async (request, response) => {
 		requestCount++;
 
 		if (requestCount > 1) {
-			response.end(request.headers['unicorn']);
+			response.end(request.headers.unicorn);
 		} else {
 			response.sendStatus(408);
 		}
@@ -581,7 +937,7 @@ test('catches beforeRetry promise rejections', async t => {
 	const errorString = 'oops';
 	const error = new Error(errorString);
 
-	await t.throwsAsync(
+	const thrownError = await t.throwsAsync(
 		ky.get(server.url, {
 			hooks: {
 				beforeRetry: [
@@ -589,10 +945,284 @@ test('catches beforeRetry promise rejections', async t => {
 						throw error;
 					},
 				],
+				beforeError: [
+					() => {
+						beforeErrorHookCalled = true;
+						return new Error('beforeError should not run');
+					},
+				],
 			},
 		}),
 		{message: errorString},
 	);
+
+	t.is(thrownError, error);
+	t.false(beforeErrorHookCalled);
+});
+
+test('beforeError runs when beforeRetry rethrows the request error', async t => {
+	let beforeErrorHookCalled = false;
+	let beforeErrorRetryCount = -1;
+
+	const server = await createHttpTestServer(t);
+	server.get('/', (_request, response) => {
+		response.sendStatus(408);
+	});
+
+	const thrownError = await t.throwsAsync(
+		ky.get(server.url, {
+			hooks: {
+				beforeRetry: [
+					({error}) => {
+						throw error;
+					},
+				],
+				beforeError: [
+					({error, retryCount}) => {
+						beforeErrorHookCalled = true;
+						beforeErrorRetryCount = retryCount;
+						error.message = 'modified-by-beforeError';
+						return error;
+					},
+				],
+			},
+		}),
+		{message: 'modified-by-beforeError'},
+	);
+
+	t.true(beforeErrorHookCalled);
+	t.is(beforeErrorRetryCount, 0);
+	t.true(isHTTPError(thrownError));
+});
+
+test('beforeError is not called when beforeRetry throws non-Error', async t => {
+	let beforeErrorHookCalled = false;
+
+	const server = await createHttpTestServer(t);
+	server.get('/', (_request, response) => {
+		response.sendStatus(408);
+	});
+
+	let thrownError: unknown;
+	try {
+		await ky.get(server.url, {
+			hooks: {
+				beforeRetry: [
+					() => {
+						throw 'oops' as unknown as Error;
+					},
+				],
+				beforeError: [
+					() => {
+						beforeErrorHookCalled = true;
+						return new Error('beforeError should not run');
+					},
+				],
+			},
+		});
+	} catch (error) {
+		thrownError = error;
+	}
+
+	t.is(thrownError, 'oops');
+	t.false(beforeErrorHookCalled);
+});
+
+test('beforeError runs when beforeRetry rethrows TimeoutError', async t => {
+	let beforeErrorHookCalled = false;
+	let beforeRetryHookCalled = false;
+
+	const customFetch: typeof fetch = async request => {
+		throw new TimeoutError(request as Request);
+	};
+
+	const thrownError = await t.throwsAsync(
+		ky('https://example.com', {
+			fetch: customFetch,
+			timeout: 1000,
+			retry: {
+				limit: 1,
+				delay: () => 0,
+				retryOnTimeout: true,
+			},
+			hooks: {
+				beforeRetry: [
+					({error}) => {
+						beforeRetryHookCalled = true;
+						t.true(isTimeoutError(error));
+						throw error;
+					},
+				],
+				beforeError: [
+					({error}) => {
+						beforeErrorHookCalled = true;
+						if (isTimeoutError(error)) {
+							error.message = 'timeout-modified-by-beforeError';
+						}
+
+						return error;
+					},
+				],
+			},
+		}).text(),
+		{message: 'timeout-modified-by-beforeError'},
+	);
+
+	t.true(beforeRetryHookCalled);
+	t.true(beforeErrorHookCalled);
+	t.true(isTimeoutError(thrownError));
+});
+
+test('beforeError runs when beforeRetry rethrows ForceRetryError', async t => {
+	let beforeErrorHookCalled = false;
+	let beforeRetryHookCalled = false;
+
+	const server = await createHttpTestServer(t);
+	server.get('/', (_request, response) => {
+		response.sendStatus(200);
+	});
+
+	const thrownError = await t.throwsAsync(
+		ky.get(server.url, {
+			retry: {
+				limit: 1,
+				delay: () => 0,
+			},
+			hooks: {
+				afterResponse: [
+					() => ky.retry(),
+				],
+				beforeRetry: [
+					({error}) => {
+						beforeRetryHookCalled = true;
+						t.true(isForceRetryError(error));
+						throw error;
+					},
+				],
+				beforeError: [
+					({error}) => {
+						beforeErrorHookCalled = true;
+						if (isForceRetryError(error)) {
+							error.message = 'force-retry-modified-by-beforeError';
+						}
+
+						return error;
+					},
+				],
+			},
+		}),
+		{message: 'force-retry-modified-by-beforeError'},
+	);
+
+	t.true(beforeRetryHookCalled);
+	t.true(beforeErrorHookCalled);
+	t.true(isForceRetryError(thrownError));
+});
+
+test('beforeError runs when beforeRetry rethrows network errors', async t => {
+	let beforeErrorHookCalled = false;
+
+	const customFetch: typeof fetch = async () => {
+		throw new TypeError('Failed to fetch');
+	};
+
+	const thrownError = await t.throwsAsync(
+		ky('https://example.com', {
+			fetch: customFetch,
+			retry: {
+				limit: 1,
+				delay: () => 0,
+			},
+			hooks: {
+				beforeRetry: [
+					({error}) => {
+						throw error;
+					},
+				],
+				beforeError: [
+					({error}) => {
+						beforeErrorHookCalled = true;
+						error.message = 'network-modified-by-beforeError';
+						return error;
+					},
+				],
+			},
+		}),
+		{message: 'network-modified-by-beforeError'},
+	);
+
+	t.true(beforeErrorHookCalled);
+	t.true(isNetworkError(thrownError));
+});
+
+test('hooks beforeRequest returning Request continues running remaining hooks', async t => {
+	let capturedRequest: Request | undefined;
+
+	await ky.get('https://example.com', {
+		async fetch(request) {
+			capturedRequest = request as Request;
+			return new Response('ok');
+		},
+		hooks: {
+			beforeRequest: [
+				({request}) => withHeader(request, 'x-hook-1', 'hook-1'),
+				({request}) => {
+					// Verify hook 2 receives the updated request produced by hook 1
+					t.is(request.headers.get('x-hook-1'), 'hook-1');
+					return withHeader(request, 'x-hook-2', 'hook-2');
+				},
+			],
+		},
+	});
+
+	t.truthy(capturedRequest);
+	t.is(capturedRequest!.headers.get('x-hook-1'), 'hook-1');
+	t.is(capturedRequest!.headers.get('x-hook-2'), 'hook-2');
+});
+
+test('hooks beforeRequest returning Request then non-returning hook both run', async t => {
+	let capturedRequest: Request | undefined;
+	let hook2Ran = false;
+
+	await ky.get('https://example.com', {
+		async fetch(request) {
+			capturedRequest = request as Request;
+			return new Response('ok');
+		},
+		hooks: {
+			beforeRequest: [
+				({request}) => withHeader(request, 'x-hook-1', 'hook-1'),
+				() => {
+					hook2Ran = true;
+				},
+			],
+		},
+	});
+
+	t.truthy(capturedRequest);
+	t.true(hook2Ran);
+	t.is(capturedRequest!.headers.get('x-hook-1'), 'hook-1');
+});
+
+test('hooks beforeRequest returning Request then Response skips HTTP request', async t => {
+	const expectedResponse = 'intercepted';
+	let fetchCalled = false;
+
+	const response = await ky.get('https://example.com', {
+		async fetch() {
+			fetchCalled = true;
+			return new Response('should not reach');
+		},
+		hooks: {
+			beforeRequest: [
+				({request}) => withHeader(request, 'x-hook-1', 'hook-1'),
+				() => new Response(expectedResponse, {status: 200}),
+			],
+		},
+	}).text();
+
+	t.false(fetchCalled);
+	t.is(response, expectedResponse);
 });
 
 test('hooks beforeRequest returning Response skips HTTP Request', async t => {
@@ -609,8 +1239,31 @@ test('hooks beforeRequest returning Response skips HTTP Request', async t => {
 	t.is(response, expectedResponse);
 });
 
+test('beforeRequest returning non-ok Response does not re-enter retry handling', async t => {
+	let shouldRetryCalled = false;
+
+	const error = await t.throwsAsync(
+		ky.get('https://example.com', {
+			retry: {
+				limit: 2,
+				shouldRetry() {
+					shouldRetryCalled = true;
+					return true;
+				},
+			},
+			hooks: {
+				beforeRequest: [() => new Response('hook-fallback-error', {status: 500})],
+			},
+		}),
+	);
+
+	t.true(isHTTPError(error));
+	t.is(error.response.status, 500);
+	t.false(shouldRetryCalled);
+});
+
 test('runs beforeError before throwing HTTPError', async t => {
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.post('/', (_request, response) => {
 		response.status(500).send();
 	});
@@ -619,12 +1272,14 @@ test('runs beforeError before throwing HTTPError', async t => {
 		ky.post(server.url, {
 			hooks: {
 				beforeError: [
-					(error: HTTPError) => {
-						const {response} = error;
+					({error}) => {
+						if (isHTTPError(error)) {
+							const {response} = error;
 
-						if (response?.body) {
-							error.name = 'GitHubError';
-							error.message = `${response.statusText} --- (${response.status})`.trim();
+							if (response?.body) {
+								error.name = 'GitHubError';
+								error.message = `${response.statusText} --- (${response.status})`.trim();
+							}
 						}
 
 						return error;
@@ -637,12 +1292,10 @@ test('runs beforeError before throwing HTTPError', async t => {
 			message: 'Internal Server Error --- (500)',
 		},
 	);
-
-	await server.close();
 });
 
 test('beforeError can return promise which resolves to HTTPError', async t => {
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	const responseBody = {reason: 'github down'};
 	server.post('/', (_request, response) => {
 		response.status(500).send(responseBody);
@@ -652,13 +1305,12 @@ test('beforeError can return promise which resolves to HTTPError', async t => {
 		ky.post(server.url, {
 			hooks: {
 				beforeError: [
-					async (error: HTTPError) => {
-						const {response} = error;
-						const body = await response.json<{reason: string}>();
+					async ({error}) => {
+						if (isHTTPError(error)) {
+							const body = error.data as {reason: string};
 
-						if (response?.body) {
 							error.name = 'GitHubError';
-							error.message = `${body.reason} --- (${response.status})`.trim();
+							error.message = `${body.reason} --- (${error.response.status})`.trim();
 						}
 
 						return error;
@@ -671,15 +1323,32 @@ test('beforeError can return promise which resolves to HTTPError', async t => {
 			message: `${responseBody.reason} --- (500)`,
 		},
 	);
+});
 
-	await server.close();
+test('beforeError ignores non-Error return values from hooks', async t => {
+	const server = await createHttpTestServer(t);
+
+	server.post('/', (_request, response) => {
+		response.status(500).send();
+	});
+
+	await t.throwsAsync(
+		ky.post(server.url, {
+			hooks: {
+				beforeError: [
+					(() => undefined as unknown as Error) as any,
+				],
+			},
+		}),
+		{instanceOf: HTTPError},
+	);
 });
 
 test('beforeRequest hook receives retryCount parameter', async t => {
 	let requestCount = 0;
 	const retryCounts: number[] = [];
 
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/', async (request, response) => {
 		requestCount++;
 
@@ -695,12 +1364,9 @@ test('beforeRequest hook receives retryCount parameter', async t => {
 	const result = await ky.get(server.url, {
 		hooks: {
 			beforeRequest: [
-				(request, _options, {retryCount}) => {
+				({request, retryCount}) => {
 					retryCounts.push(retryCount);
-					// Only set default token on initial request
-					if (retryCount === 0) {
-						request.headers.set('Authorization', 'token initial-token');
-					}
+					request.headers.set('Authorization', 'token initial-token');
 				},
 			],
 			beforeRetry: [
@@ -712,27 +1378,38 @@ test('beforeRequest hook receives retryCount parameter', async t => {
 		},
 	}).text();
 
-	// Verify beforeRequest was called twice with correct retryCount values
-	t.deepEqual(retryCounts, [0, 1]);
+	// BeforeRequest hooks run once before retry handling starts.
+	t.deepEqual(retryCounts, [0]);
 	t.is(requestCount, 2);
 	// Verify the refreshed token was used, not the initial token
 	t.is(result, 'token refreshed-token');
-
-	await server.close();
 });
 
-test('hooks are not included in normalized options passed to hooks', async t => {
-	const server = await createHttpTestServer();
-	server.get('/', (_request, response) => {
+test('Ky-specific options are not included in normalized options passed to hooks', async t => {
+	const server = await createHttpTestServer(t);
+	server.post('/', (_request, response) => {
 		response.end('ok');
 	});
 
-	await ky.get(server.url, {
+	await ky.post(server.url, {
+		json: {key: 'value'},
+		searchParams: {foo: 'bar'},
+		parseJson: JSON.parse,
+		stringifyJson: JSON.stringify,
+		timeout: 5000,
+		throwHttpErrors: false,
 		hooks: {
 			beforeRequest: [
-				(_request, options) => {
-					// Verify hooks field is not present
+				({options}) => {
+					// Verify Ky-specific properties are not present
 					t.false('hooks' in options);
+					t.false('json' in options);
+					t.false('parseJson' in options);
+					t.false('stringifyJson' in options);
+					t.false('searchParams' in options);
+					t.false('timeout' in options);
+					t.false('throwHttpErrors' in options);
+					t.false('fetch' in options);
 
 					// Verify options object is frozen (can't add/modify properties)
 					t.throws(() => {
@@ -748,15 +1425,13 @@ test('hooks are not included in normalized options passed to hooks', async t => 
 			],
 		},
 	});
-
-	await server.close();
 });
 
 test('afterResponse hook receives retryCount in state parameter', async t => {
 	let requestCount = 0;
 	const retryCounts: number[] = [];
 
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/', (_request, response) => {
 		requestCount++;
 
@@ -775,9 +1450,9 @@ test('afterResponse hook receives retryCount in state parameter', async t => {
 		},
 		hooks: {
 			afterResponse: [
-				(_request, _options, _response, state) => {
-					t.is(typeof state.retryCount, 'number');
-					retryCounts.push(state.retryCount);
+				({retryCount}) => {
+					t.is(typeof retryCount, 'number');
+					retryCounts.push(retryCount);
 				},
 			],
 		},
@@ -786,15 +1461,13 @@ test('afterResponse hook receives retryCount in state parameter', async t => {
 	// AfterResponse should be called 3 times (initial + 2 retries)
 	t.is(requestCount, 3);
 	t.deepEqual(retryCounts, [0, 1, 2]);
-
-	await server.close();
 });
 
 test('beforeError hook receives retryCount in state parameter', async t => {
 	let requestCount = 0;
 	let errorRetryCount: number | undefined;
 
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/', (_request, response) => {
 		requestCount++;
 		// All requests fail
@@ -808,11 +1481,11 @@ test('beforeError hook receives retryCount in state parameter', async t => {
 			},
 			hooks: {
 				beforeError: [
-					(error: HTTPError, state) => {
+					({error, retryCount}) => {
 						// Verify retryCount exists in state and is a number
-						t.is(typeof state.retryCount, 'number');
-						t.true(state.retryCount >= 0);
-						errorRetryCount = state.retryCount;
+						t.is(typeof retryCount, 'number');
+						t.true(retryCount >= 0);
+						errorRetryCount = retryCount;
 						return error;
 					},
 				],
@@ -827,14 +1500,615 @@ test('beforeError hook receives retryCount in state parameter', async t => {
 
 	// Should have made 3 requests total (initial + 2 retries)
 	t.is(requestCount, 3);
+});
 
-	await server.close();
+test('beforeError hook receives TimeoutError', async t => {
+	let receivedError: Error | undefined;
+
+	await t.throwsAsync(
+		ky('https://example.com', {
+			timeout: 1,
+			async fetch() {
+				await new Promise(resolve => {
+					setTimeout(resolve, 1000);
+				});
+				return new Response('ok');
+			},
+			hooks: {
+				beforeError: [
+					({error}) => {
+						receivedError = error;
+						return error;
+					},
+				],
+			},
+		}),
+		{
+			name: 'TimeoutError',
+		},
+	);
+
+	t.truthy(receivedError);
+	t.true(receivedError instanceof TimeoutError);
+	t.true(isTimeoutError(receivedError));
+	t.true(receivedError instanceof KyError);
+});
+
+test('beforeError receives TimeoutError when beforeRequest consumes remaining timeout budget (gh-508)', async t => {
+	let receivedError: Error | undefined;
+	let fetchCallCount = 0;
+
+	const customFetch: typeof fetch = async () => {
+		fetchCallCount++;
+		return new Response('ok');
+	};
+
+	await t.throwsAsync(
+		ky('https://example.com', {
+			fetch: customFetch,
+			timeout: 100,
+			hooks: {
+				beforeRequest: [
+					async () => {
+						await delay(200);
+					},
+				],
+				beforeError: [
+					({error}) => {
+						receivedError = error;
+						return error;
+					},
+				],
+			},
+		}).text(),
+		{
+			name: 'TimeoutError',
+		},
+	);
+
+	t.true(receivedError instanceof TimeoutError);
+	t.true(isTimeoutError(receivedError));
+	t.is(fetchCallCount, 0);
+});
+
+test('beforeError hook can modify TimeoutError', async t => {
+	await t.throwsAsync(
+		ky('https://example.com', {
+			timeout: 1,
+			async fetch() {
+				await new Promise(resolve => {
+					setTimeout(resolve, 1000);
+				});
+				return new Response('ok');
+			},
+			hooks: {
+				beforeError: [
+					({error}) => {
+						if (isTimeoutError(error)) {
+							error.name = 'CustomTimeoutError';
+							error.message = 'Custom timeout message';
+						}
+
+						return error;
+					},
+				],
+			},
+		}),
+		{
+			name: 'CustomTimeoutError',
+			message: 'Custom timeout message',
+		},
+	);
+});
+
+test('beforeError hook receives network errors', async t => {
+	let receivedError: Error | undefined;
+	let receivedRetryCount: number | undefined;
+
+	await t.throwsAsync(
+		ky('https://example.com', {
+			retry: 0,
+			async fetch() {
+				throw new TypeError('Failed to fetch');
+			},
+			hooks: {
+				beforeError: [
+					({error, retryCount}) => {
+						receivedError = error;
+						receivedRetryCount = retryCount;
+						return error;
+					},
+				],
+			},
+		}),
+	);
+
+	t.truthy(receivedError);
+	t.true(isNetworkError(receivedError));
+	t.is(receivedRetryCount, 0);
+});
+
+test('beforeError hook retryCount reflects actual retry count for network errors', async t => {
+	let errorRetryCount: number | undefined;
+
+	await t.throwsAsync(
+		ky('https://example.com', {
+			retry: {
+				limit: 2,
+				delay: () => 0,
+			},
+			async fetch() {
+				throw new TypeError('Failed to fetch');
+			},
+			hooks: {
+				beforeError: [
+					({error, retryCount}) => {
+						errorRetryCount = retryCount;
+						return error;
+					},
+				],
+			},
+		}),
+	);
+
+	t.is(errorRetryCount, 2);
+});
+
+test('beforeError hook retryCount reflects actual retry count for TimeoutError', async t => {
+	let errorRetryCount: number | undefined;
+
+	await t.throwsAsync(
+		ky('https://example.com', {
+			timeout: 50,
+			retry: {
+				limit: 2,
+				retryOnTimeout: true,
+				delay: () => 0,
+			},
+			async fetch() {
+				await new Promise(resolve => {
+					setTimeout(resolve, 2000);
+				});
+				return new Response('ok');
+			},
+			hooks: {
+				beforeError: [
+					({error, retryCount}) => {
+						errorRetryCount = retryCount;
+						return error;
+					},
+				],
+			},
+		}),
+		{
+			name: 'TimeoutError',
+		},
+	);
+
+	// The 50ms total timeout budget is exhausted before any retry can complete,
+	// so retryCount is 0.
+	t.is(errorRetryCount, 0);
+});
+
+test('beforeError hook can replace error with a different type', async t => {
+	class CustomError extends Error {
+		override name = 'CustomError';
+		code: string;
+
+		constructor(message: string, code: string) {
+			super(message);
+			this.code = code;
+		}
+	}
+
+	const error = await t.throwsAsync(
+		ky('https://example.com', {
+			retry: 0,
+			async fetch() {
+				throw new TypeError('Failed to fetch');
+			},
+			hooks: {
+				beforeError: [
+					() => new CustomError('Connection failed', 'NETWORK_ERROR'),
+				],
+			},
+		}),
+	);
+
+	t.true(error instanceof CustomError);
+	t.is(error!.message, 'Connection failed');
+	t.is((error as CustomError).code, 'NETWORK_ERROR');
+});
+
+test('beforeError hooks chain correctly - second hook receives error from first', async t => {
+	const hookOrder: string[] = [];
+
+	await t.throwsAsync(
+		ky('https://example.com', {
+			retry: 0,
+			async fetch() {
+				return new Response('', {status: 500});
+			},
+			hooks: {
+				beforeError: [
+					({error}) => {
+						hookOrder.push('first');
+						if (isHTTPError(error)) {
+							error.message = 'modified by first hook';
+						}
+
+						return error;
+					},
+					({error}) => {
+						hookOrder.push('second');
+						t.is(error.message, 'modified by first hook');
+						return error;
+					},
+				],
+			},
+		}),
+		{
+			message: 'modified by first hook',
+		},
+	);
+
+	t.deepEqual(hookOrder, ['first', 'second']);
+});
+
+test('beforeError hooks are not called for non-Error throws', async t => {
+	let hookCalled = false;
+
+	try {
+		await ky('https://example.com', {
+			retry: 0,
+			async fetch() {
+				// eslint-disable-next-line @typescript-eslint/only-throw-error
+				throw 'network down';
+			},
+			hooks: {
+				beforeError: [
+					({error}) => {
+						hookCalled = true;
+						return error;
+					},
+				],
+			},
+		});
+		t.fail('Should have thrown');
+	} catch (error) {
+		t.is(error, 'network down');
+	}
+
+	t.false(hookCalled);
+});
+
+test('beforeError hook receives ForceRetryError when retry limit is exhausted', async t => {
+	let hookCalled = false;
+	let receivedError: Error | undefined;
+
+	const server = await createHttpTestServer(t);
+	server.get('/', (_request, response) => {
+		response.end('ok');
+	});
+
+	const error = await t.throwsAsync(
+		ky.get(server.url, {
+			retry: {
+				limit: 1,
+			},
+			hooks: {
+				afterResponse: [
+					() => ky.retry(),
+				],
+				beforeError: [
+					({error}) => {
+						hookCalled = true;
+						receivedError = error;
+						return error;
+					},
+				],
+			},
+		}),
+	);
+
+	t.true(hookCalled);
+	t.true(isForceRetryError(receivedError));
+	t.true(isForceRetryError(error));
+});
+
+test('beforeError hook that throws replaces the original error', async t => {
+	const error = await t.throwsAsync(
+		ky('https://example.com', {
+			retry: 0,
+			async fetch() {
+				return new Response('', {status: 500});
+			},
+			hooks: {
+				beforeError: [
+					() => {
+						throw new RangeError('hook blew up');
+					},
+				],
+			},
+		}),
+	);
+
+	t.true(error instanceof RangeError);
+	t.is(error!.message, 'hook blew up');
+});
+
+test('beforeError hook that throws asynchronously replaces the original error', async t => {
+	const error = await t.throwsAsync(
+		ky('https://example.com', {
+			retry: 0,
+			async fetch() {
+				return new Response('', {status: 500});
+			},
+			hooks: {
+				beforeError: [
+					async () => {
+						await Promise.resolve();
+						throw new RangeError('async hook blew up');
+					},
+				],
+			},
+		}),
+	);
+
+	t.true(error instanceof RangeError);
+	t.is(error!.message, 'async hook blew up');
+});
+
+test('beforeError hooks from ky.extend() are merged and called in order', async t => {
+	const hookOrder: string[] = [];
+
+	const api = ky.extend({
+		hooks: {
+			beforeError: [
+				({error}) => {
+					hookOrder.push('parent');
+					return error;
+				},
+			],
+		},
+	});
+
+	await t.throwsAsync(
+		api('https://example.com', {
+			retry: 0,
+			async fetch() {
+				return new Response('', {status: 500});
+			},
+			hooks: {
+				beforeError: [
+					({error}) => {
+						hookOrder.push('child');
+						return error;
+					},
+				],
+			},
+		}),
+	);
+
+	t.deepEqual(hookOrder, ['parent', 'child']);
+});
+
+test('beforeError hook receives errors thrown by beforeRequest hooks', async t => {
+	let receivedError: Error | undefined;
+	const beforeRequestError = new Error('beforeRequest hook failed');
+
+	await t.throwsAsync(
+		ky('https://example.com', {
+			retry: 0,
+			async fetch() {
+				return new Response('ok');
+			},
+			hooks: {
+				beforeRequest: [
+					() => {
+						throw beforeRequestError;
+					},
+				],
+				beforeError: [
+					({error}) => {
+						receivedError = error;
+						return error;
+					},
+				],
+			},
+		}),
+	);
+
+	t.is(receivedError, beforeRequestError);
+});
+
+test('beforeError hook is not called when throwHttpErrors is false', async t => {
+	let hookCalled = false;
+
+	const response = await ky('https://example.com', {
+		throwHttpErrors: false,
+		retry: 0,
+		async fetch() {
+			return new Response('', {status: 500});
+		},
+		hooks: {
+			beforeError: [
+				({error}) => {
+					hookCalled = true;
+					return error;
+				},
+			],
+		},
+	});
+
+	t.is(response.status, 500);
+	t.false(hookCalled);
+});
+
+test('beforeError receives request and options for HTTPError', async t => {
+	let receivedRequest: Request | undefined;
+	let receivedOptions: NormalizedOptions | undefined;
+
+	await t.throwsAsync(
+		ky('https://example.com', {
+			retry: 0,
+			async fetch() {
+				return new Response('', {status: 500});
+			},
+			hooks: {
+				beforeError: [
+					({request, options, error}) => {
+						receivedRequest = request;
+						receivedOptions = options;
+						return error;
+					},
+				],
+			},
+		}),
+	);
+
+	t.true(receivedRequest?.url.includes('example.com'));
+	t.is(receivedOptions?.method, 'GET');
+});
+
+test('beforeError receives request and options for NetworkError', async t => {
+	let receivedRequest: Request | undefined;
+	let receivedOptions: NormalizedOptions | undefined;
+
+	await t.throwsAsync(
+		ky('https://example.com', {
+			retry: 0,
+			async fetch() {
+				throw new TypeError('Failed to fetch');
+			},
+			hooks: {
+				beforeError: [
+					({request, options, error}) => {
+						receivedRequest = request;
+						receivedOptions = options;
+						return error;
+					},
+				],
+			},
+		}),
+	);
+
+	t.true(receivedRequest?.url.includes('example.com'));
+	t.is(receivedOptions?.method, 'GET');
+});
+
+test('beforeError receives request and options for TimeoutError', async t => {
+	let receivedRequest: Request | undefined;
+	let receivedOptions: NormalizedOptions | undefined;
+
+	await t.throwsAsync(
+		ky('https://example.com', {
+			timeout: 1,
+			retry: 0,
+			async fetch() {
+				await delay(100);
+				return new Response('ok');
+			},
+			hooks: {
+				beforeError: [
+					({request, options, error}) => {
+						receivedRequest = request;
+						receivedOptions = options;
+						return error;
+					},
+				],
+			},
+		}),
+	);
+
+	t.true(receivedRequest?.url.includes('example.com'));
+	t.is(receivedOptions?.method, 'GET');
+});
+
+test('beforeError receives options.context', async t => {
+	let receivedContext: unknown;
+
+	await t.throwsAsync(
+		ky('https://example.com', {
+			retry: 0,
+			context: {userId: '123', action: 'test'},
+			async fetch() {
+				return new Response('', {status: 500});
+			},
+			hooks: {
+				beforeError: [
+					({options, error}) => {
+						receivedContext = options.context;
+						return error;
+					},
+				],
+			},
+		}),
+	);
+
+	t.deepEqual(receivedContext, {userId: '123', action: 'test'});
+});
+
+test('beforeError receives request and options when beforeRequest hook throws', async t => {
+	let receivedRequest: Request | undefined;
+	let receivedOptions: NormalizedOptions | undefined;
+
+	await t.throwsAsync(
+		ky('https://example.com', {
+			retry: 0,
+			async fetch() {
+				return new Response('ok');
+			},
+			hooks: {
+				beforeRequest: [
+					() => {
+						throw new Error('beforeRequest failed');
+					},
+				],
+				beforeError: [
+					({request, options, error}) => {
+						receivedRequest = request;
+						receivedOptions = options;
+						return error;
+					},
+				],
+			},
+		}),
+	);
+
+	t.true(receivedRequest?.url.includes('example.com'));
+	t.is(receivedOptions?.method, 'GET');
+});
+
+test('beforeRequest hook can return modified Request with new URL', async t => {
+	const server = await createHttpTestServer(t);
+	server.get('/', (request, response) => {
+		if (request.query.token === 'secret') {
+			response.end('success');
+		} else {
+			response.sendStatus(403);
+		}
+	});
+
+	const result = await ky.get(server.url, {
+		hooks: {
+			beforeRequest: [
+				({request}) => {
+					const url = new URL(request.url);
+					url.searchParams.set('token', 'secret');
+					return new Request(url, request);
+				},
+			],
+		},
+	}).text();
+
+	t.is(result, 'success');
 });
 
 test('beforeRetry hook can return modified Request with new URL', async t => {
 	let requestCount = 0;
 
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/', (request, response) => {
 		requestCount++;
 
@@ -867,14 +2141,12 @@ test('beforeRetry hook can return modified Request with new URL', async t => {
 
 	t.is(result, 'success');
 	t.is(requestCount, 2); // Initial request + 1 retry
-
-	await server.close();
 });
 
 test('beforeRetry hook can return Response to skip retry', async t => {
 	let requestCount = 0;
 
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/', (_request, response) => {
 		requestCount++;
 		response.sendStatus(500);
@@ -893,8 +2165,94 @@ test('beforeRetry hook can return Response to skip retry', async t => {
 
 	t.is(result, 'fallback');
 	t.is(requestCount, 1); // Only initial request, no retry
+});
 
-	await server.close();
+test('beforeRetry Response with non-ok status does not re-enter retry loop', async t => {
+	let fetchCallCount = 0;
+	let beforeRetryCallCount = 0;
+	let shouldRetryCallCount = 0;
+	let shouldRetrySawHttpError = false;
+	let beforeErrorRetryCount: number | undefined;
+
+	const error = await t.throwsAsync(
+		ky.get('https://example.com', {
+			retry: {
+				limit: 2,
+				shouldRetry({error}) {
+					shouldRetryCallCount++;
+					shouldRetrySawHttpError ||= isHTTPError(error);
+					return true;
+				},
+			},
+			async fetch() {
+				fetchCallCount++;
+				throw new TypeError('Failed to fetch');
+			},
+			hooks: {
+				beforeRetry: [
+					() => {
+						beforeRetryCallCount++;
+						return new Response('fallback error', {status: 500});
+					},
+				],
+				beforeError: [
+					({error, retryCount}) => {
+						t.true(isHTTPError(error));
+						beforeErrorRetryCount = retryCount;
+						return error;
+					},
+				],
+			},
+		}),
+	);
+
+	t.true(isHTTPError(error));
+	t.is(error.response.status, 500);
+	t.is(fetchCallCount, 1);
+	t.is(beforeRetryCallCount, 1);
+	t.is(shouldRetryCallCount, 1);
+	t.false(shouldRetrySawHttpError);
+	t.is(beforeErrorRetryCount, 1);
+});
+
+test('beforeError retryCount reflects retries for errors thrown by throwHttpErrors callback', async t => {
+	let requestCount = 0;
+	let beforeErrorRetryCount: number | undefined;
+	const callbackError = new Error('throwHttpErrors callback failed');
+
+	const server = await createHttpTestServer(t);
+	server.get('/', (_request, response) => {
+		requestCount++;
+		response.sendStatus(requestCount === 1 ? 500 : 404);
+	});
+
+	const error = await t.throwsAsync(
+		ky.get(server.url, {
+			retry: {
+				limit: 1,
+				delay: () => 0,
+			},
+			throwHttpErrors(status) {
+				if (status === 404) {
+					throw callbackError;
+				}
+
+				return status >= 400;
+			},
+			hooks: {
+				beforeError: [
+					({error, retryCount}) => {
+						beforeErrorRetryCount = retryCount;
+						return error;
+					},
+				],
+			},
+		}),
+	);
+
+	t.is(error, callbackError);
+	t.is(beforeErrorRetryCount, 1);
+	t.is(requestCount, 2);
 });
 
 test('beforeRetry hook returning Request/Response stops processing remaining hooks', async t => {
@@ -902,7 +2260,7 @@ test('beforeRetry hook returning Request/Response stops processing remaining hoo
 	let firstHookCalled = false;
 	let secondHookCalled = false;
 
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/', (request, response) => {
 		requestCount++;
 
@@ -936,14 +2294,12 @@ test('beforeRetry hook returning Request/Response stops processing remaining hoo
 	t.true(firstHookCalled);
 	t.false(secondHookCalled);
 	t.is(requestCount, 2); // Initial request + 1 retry
-
-	await server.close();
 });
 
 test('afterResponse hook can force retry with ky.retry()', async t => {
 	let requestCount = 0;
 
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/', (_request, response) => {
 		requestCount++;
 
@@ -962,7 +2318,7 @@ test('afterResponse hook can force retry with ky.retry()', async t => {
 		},
 		hooks: {
 			afterResponse: [
-				async (_request, _options, response) => {
+				async ({response}) => {
 					const data = await response.clone().json();
 					if (data.error?.code === 'RATE_LIMIT') {
 						return ky.retry();
@@ -974,8 +2330,39 @@ test('afterResponse hook can force retry with ky.retry()', async t => {
 
 	t.deepEqual(result, {success: true});
 	t.is(requestCount, 2); // Initial request + 1 retry
+});
 
-	await server.close();
+test('afterResponse hook forced retry does not await cancellation when hook clones response', async t => {
+	t.timeout(1000);
+
+	let requestCount = 0;
+
+	const customFetch = async () => {
+		requestCount++;
+
+		if (requestCount === 1) {
+			return new Response('unauthorized', {status: 401});
+		}
+
+		return new Response('ok');
+	};
+
+	const result = await ky('https://example.test', {
+		fetch: customFetch,
+		hooks: {
+			afterResponse: [
+				({response}) => {
+					response.clone();
+					if (response.status === 401) {
+						return ky.retry();
+					}
+				},
+			],
+		},
+	}).text();
+
+	t.is(result, 'ok');
+	t.is(requestCount, 2);
 });
 
 test('afterResponse hook can force retry with custom delay', async t => {
@@ -983,7 +2370,7 @@ test('afterResponse hook can force retry with custom delay', async t => {
 	const customDelay = 100;
 	const startTime = Date.now();
 
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/', (_request, response) => {
 		requestCount++;
 
@@ -1000,7 +2387,7 @@ test('afterResponse hook can force retry with custom delay', async t => {
 		},
 		hooks: {
 			afterResponse: [
-				async (_request, _options, response) => {
+				async ({response}) => {
 					const data = await response.clone().json();
 					if (data.error?.code === 'RATE_LIMIT') {
 						return ky.retry({
@@ -1017,14 +2404,46 @@ test('afterResponse hook can force retry with custom delay', async t => {
 	t.deepEqual(result, {success: true});
 	t.is(requestCount, 2);
 	t.true(elapsedTime >= customDelay); // Verify custom delay was used
+});
 
-	await server.close();
+test('afterResponse forced retry respects total timeout budget', async t => {
+	let requestCount = 0;
+
+	const server = await createHttpTestServer(t);
+	server.get('/', (_request, response) => {
+		requestCount++;
+		response.json({error: {code: 'RETRY_WITH_DELAY'}});
+	});
+
+	await t.throwsAsync(
+		ky.get(server.url, {
+			timeout: 100,
+			retry: {
+				limit: 3,
+			},
+			hooks: {
+				afterResponse: [
+					async ({response}) => {
+						const data = await response.clone().json();
+						if (data.error?.code === 'RETRY_WITH_DELAY') {
+							return ky.retry({delay: 200});
+						}
+					},
+				],
+			},
+		}),
+		{
+			name: 'TimeoutError',
+		},
+	);
+
+	t.true(requestCount <= 1);
 });
 
 test('afterResponse hook forced retry respects retry limit', async t => {
 	let requestCount = 0;
 
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/', (_request, response) => {
 		requestCount++;
 		// Always return error to trigger retry
@@ -1038,7 +2457,7 @@ test('afterResponse hook forced retry respects retry limit', async t => {
 			},
 			hooks: {
 				afterResponse: [
-					async (_request, _options, response) => {
+					async ({response}) => {
 						const data = await response.clone().json();
 						if (data.error?.code === 'RATE_LIMIT') {
 							return ky.retry();
@@ -1053,8 +2472,6 @@ test('afterResponse hook forced retry respects retry limit', async t => {
 	);
 
 	t.is(requestCount, 3); // Initial request + 2 retries (limit reached)
-
-	await server.close();
 });
 
 test('afterResponse hook forced retry is observable in beforeRetry', async t => {
@@ -1063,7 +2480,7 @@ test('afterResponse hook forced retry is observable in beforeRetry', async t => 
 	let errorName: string | undefined;
 	let errorMessage: string | undefined;
 
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/', (_request, response) => {
 		requestCount++;
 
@@ -1080,7 +2497,7 @@ test('afterResponse hook forced retry is observable in beforeRetry', async t => 
 		},
 		hooks: {
 			afterResponse: [
-				async (_request, _options, response) => {
+				async ({response}) => {
 					const data = await response.clone().json();
 					if (data.error?.code === 'RATE_LIMIT') {
 						return ky.retry({code: 'RATE_LIMIT'});
@@ -1102,15 +2519,13 @@ test('afterResponse hook forced retry is observable in beforeRetry', async t => 
 	t.is(beforeRetryCallCount, 1);
 	t.is(errorName, 'ForceRetryError');
 	t.is(errorMessage, 'Forced retry: RATE_LIMIT');
-
-	await server.close();
 });
 
 test('afterResponse hook forced retry skips shouldRetry check', async t => {
 	let requestCount = 0;
 	let shouldRetryCalled = false;
 
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/', (_request, response) => {
 		requestCount++;
 
@@ -1131,7 +2546,7 @@ test('afterResponse hook forced retry skips shouldRetry check', async t => {
 		},
 		hooks: {
 			afterResponse: [
-				async (_request, _options, response) => {
+				async ({response}) => {
 					const data = await response.clone().json();
 					if (data.error?.code === 'CUSTOM_ERROR') {
 						return ky.retry();
@@ -1144,14 +2559,12 @@ test('afterResponse hook forced retry skips shouldRetry check', async t => {
 	t.deepEqual(result, {success: true});
 	t.is(requestCount, 2); // Retry happened despite shouldRetry returning false
 	t.false(shouldRetryCalled); // ShouldRetry was never called because ky.retry() bypasses it
-
-	await server.close();
 });
 
 test('afterResponse hook forced retry works on non-retriable methods like POST', async t => {
 	let requestCount = 0;
 
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.post('/', async (request, response) => {
 		requestCount++;
 
@@ -1171,7 +2584,7 @@ test('afterResponse hook forced retry works on non-retriable methods like POST',
 		},
 		hooks: {
 			afterResponse: [
-				async (_request, _options, response) => {
+				async ({response}) => {
 					const data = await response.clone().json();
 					if (data.error?.code === 'RATE_LIMIT') {
 						return ky.retry();
@@ -1183,8 +2596,6 @@ test('afterResponse hook forced retry works on non-retriable methods like POST',
 
 	t.deepEqual(result, {success: true});
 	t.is(requestCount, 2); // Should retry even though POST is not retriable by default
-
-	await server.close();
 });
 
 test('afterResponse hook forced retry stops processing remaining hooks', async t => {
@@ -1192,7 +2603,7 @@ test('afterResponse hook forced retry stops processing remaining hooks', async t
 	let firstHookCallCount = 0;
 	let secondHookCallCount = 0;
 
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/', (_request, response) => {
 		requestCount++;
 
@@ -1209,7 +2620,7 @@ test('afterResponse hook forced retry stops processing remaining hooks', async t
 		},
 		hooks: {
 			afterResponse: [
-				async (_request, _options, response) => {
+				async ({response}) => {
 					firstHookCallCount++;
 					const data = await response.clone().json();
 					if (data.error?.code === 'RATE_LIMIT') {
@@ -1226,14 +2637,12 @@ test('afterResponse hook forced retry stops processing remaining hooks', async t
 	t.deepEqual(result, {success: true});
 	t.is(firstHookCallCount, 2); // Called on both requests
 	t.is(secondHookCallCount, 1); // Only called on second request (not first, because first hook returned ky.retry())
-
-	await server.close();
 });
 
 test('afterResponse hook forced retry works with delay: 0 (instant retry)', async t => {
 	let requestCount = 0;
 
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/', (_request, response) => {
 		requestCount++;
 
@@ -1250,7 +2659,7 @@ test('afterResponse hook forced retry works with delay: 0 (instant retry)', asyn
 		},
 		hooks: {
 			afterResponse: [
-				async (_request, _options, response) => {
+				async ({response}) => {
 					const data = await response.clone().json();
 					if (data.error?.code === 'RETRY_NOW') {
 						return ky.retry({delay: 0}); // Instant retry, no delay
@@ -1262,15 +2671,13 @@ test('afterResponse hook forced retry works with delay: 0 (instant retry)', asyn
 
 	t.deepEqual(result, {success: true});
 	t.is(requestCount, 2);
-
-	await server.close();
 });
 
 test('afterResponse hook can force retry with custom request (different URL)', async t => {
 	let primaryRequestCount = 0;
 	let backupRequestCount = 0;
 
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/primary', (_request, response) => {
 		primaryRequestCount++;
 		response.json({error: {code: 'FALLBACK_TO_BACKUP'}});
@@ -1284,7 +2691,7 @@ test('afterResponse hook can force retry with custom request (different URL)', a
 	const result = await ky.get(`${server.url}/primary`, {
 		hooks: {
 			afterResponse: [
-				async (request, _options, response) => {
+				async ({request, response}) => {
 					const data = await response.clone().json();
 					if (data.error?.code === 'FALLBACK_TO_BACKUP') {
 						return ky.retry({
@@ -1303,14 +2710,12 @@ test('afterResponse hook can force retry with custom request (different URL)', a
 	t.deepEqual(result, {success: true});
 	t.is(primaryRequestCount, 1);
 	t.is(backupRequestCount, 1);
-
-	await server.close();
 });
 
 test('afterResponse hook can force retry with custom request (modified headers)', async t => {
 	const receivedHeaders: Array<string | undefined> = [];
 
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/', (request, response) => {
 		receivedHeaders.push(request.headers['x-auth-token']);
 
@@ -1325,7 +2730,7 @@ test('afterResponse hook can force retry with custom request (modified headers)'
 		headers: {'X-Auth-Token': 'original-token'},
 		hooks: {
 			afterResponse: [
-				async (request, _options, response) => {
+				async ({request, response}) => {
 					const data = await response.clone().json();
 					if (data.error?.code === 'TOKEN_REFRESH' && data.error.newToken) {
 						return ky.retry({
@@ -1345,14 +2750,12 @@ test('afterResponse hook can force retry with custom request (modified headers)'
 
 	t.deepEqual(result, {success: true});
 	t.deepEqual(receivedHeaders, ['original-token', 'refreshed-token-123']);
-
-	await server.close();
 });
 
 test('afterResponse hook can force retry with custom request (different HTTP method)', async t => {
 	const receivedMethods: string[] = [];
 
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.post('/', (request, response) => {
 		receivedMethods.push(request.method);
 		if (receivedMethods.length === 1) {
@@ -1370,7 +2773,7 @@ test('afterResponse hook can force retry with custom request (different HTTP met
 	const result = await ky.post(server.url, {
 		hooks: {
 			afterResponse: [
-				async (request, _options, response) => {
+				async ({request, response}) => {
 					const data = await response.clone().json();
 					if (data.error?.code === 'METHOD_OVERLOAD' && request.method === 'POST') {
 						return ky.retry({
@@ -1387,8 +2790,6 @@ test('afterResponse hook can force retry with custom request (different HTTP met
 
 	t.deepEqual(result, {success: true});
 	t.deepEqual(receivedMethods, ['POST', 'PUT']);
-
-	await server.close();
 });
 
 test('afterResponse hook custom request works with beforeRetry hooks', async t => {
@@ -1397,7 +2798,7 @@ test('afterResponse hook custom request works with beforeRetry hooks', async t =
 	let errorReason;
 	const finalHeaders: Array<string | undefined> = [];
 
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/', (request, response) => {
 		finalHeaders.push(request.headers['x-custom'], request.headers['x-retry']);
 
@@ -1411,7 +2812,7 @@ test('afterResponse hook custom request works with beforeRetry hooks', async t =
 	const result = await ky.get(server.url, {
 		hooks: {
 			afterResponse: [
-				async (request, _options, response) => {
+				async ({request, response}) => {
 					const data = await response.clone().json();
 					if (data.error?.code === 'RETRY_WITH_CUSTOM_REQUEST') {
 						return ky.retry({
@@ -1454,14 +2855,12 @@ test('afterResponse hook custom request works with beforeRetry hooks', async t =
 	t.is(finalHeaders[1], undefined); // X-Retry from first request
 	t.is(finalHeaders[2], 'from-afterResponse'); // X-Custom from second request
 	t.is(finalHeaders[3], 'from-beforeRetry'); // X-Retry from second request
-
-	await server.close();
 });
 
 test('afterResponse hook custom request respects retry limit', async t => {
 	let attemptCount = 0;
 
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/', (_request, response) => {
 		attemptCount++;
 		response.json({error: {code: 'ALWAYS_RETRY'}});
@@ -1472,7 +2871,7 @@ test('afterResponse hook custom request respects retry limit', async t => {
 			retry: {limit: 2},
 			hooks: {
 				afterResponse: [
-					async (request, _options, response) => {
+					async ({request, response}) => {
 						const data = await response.clone().json();
 						if (data.error?.code === 'ALWAYS_RETRY') {
 							// Always force retry with custom request
@@ -1489,15 +2888,13 @@ test('afterResponse hook custom request respects retry limit', async t => {
 	);
 
 	t.is(attemptCount, 3); // Initial + 2 retries
-
-	await server.close();
 });
 
 test('afterResponse hook custom request is observable in beforeRetry', async t => {
 	let beforeRetryCallCount = 0;
 	let observedError;
 
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/', (_request, response) => {
 		if (beforeRetryCallCount === 0) {
 			response.json({error: {code: 'CUSTOM_REQUEST_RETRY'}});
@@ -1509,7 +2906,7 @@ test('afterResponse hook custom request is observable in beforeRetry', async t =
 	const result = await ky.get(server.url, {
 		hooks: {
 			afterResponse: [
-				async (request, _options, response) => {
+				async ({request, response}) => {
 					const data = await response.clone().json();
 					if (data.error?.code === 'CUSTOM_REQUEST_RETRY') {
 						return ky.retry({
@@ -1533,8 +2930,6 @@ test('afterResponse hook custom request is observable in beforeRetry', async t =
 	t.true(isForceRetryError(observedError));
 	t.is(observedError.code, 'CUSTOM_REQUEST');
 	t.is(observedError.message, 'Forced retry: CUSTOM_REQUEST');
-
-	await server.close();
 });
 
 test('afterResponse hook can combine custom request with custom delay', async t => {
@@ -1542,7 +2937,7 @@ test('afterResponse hook can combine custom request with custom delay', async t 
 	const startTime = Date.now();
 	let retryTime;
 
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/primary', (_request, response) => {
 		requestCount++;
 		if (requestCount === 1) {
@@ -1559,7 +2954,7 @@ test('afterResponse hook can combine custom request with custom delay', async t 
 	const result = await ky.get(`${server.url}/primary`, {
 		hooks: {
 			afterResponse: [
-				async (request, _options, response) => {
+				async ({request, response}) => {
 					const data = await response.clone().json();
 					if (data.error?.code === 'FALLBACK_WITH_DELAY') {
 						return ky.retry({
@@ -1581,14 +2976,12 @@ test('afterResponse hook can combine custom request with custom delay', async t 
 	t.deepEqual(result, {success: true});
 	t.is(requestCount, 2);
 	t.true(elapsedTime >= 100); // Should have waited at least 100ms
-
-	await server.close();
 });
 
 test('afterResponse hook custom request with modified body', async t => {
 	const receivedBodies: any[] = [];
 
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.post('/', async (request, response) => {
 		receivedBodies.push(request.body);
 
@@ -1603,7 +2996,7 @@ test('afterResponse hook custom request with modified body', async t => {
 		json: {original: true},
 		hooks: {
 			afterResponse: [
-				async (request, _options, response) => {
+				async ({request, response}) => {
 					const data = await response.clone().json();
 					if (data.error?.code === 'RETRY_WITH_MODIFIED_BODY') {
 						return ky.retry({
@@ -1623,14 +3016,12 @@ test('afterResponse hook custom request with modified body', async t => {
 	t.deepEqual(result, {success: true});
 	t.deepEqual(receivedBodies[0], {original: true});
 	t.deepEqual(receivedBodies[1], {modified: true});
-
-	await server.close();
 });
 
 test('afterResponse hook custom request with timeout configured works correctly', async t => {
 	let attemptCount = 0;
 
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/', (_request, response) => {
 		attemptCount++;
 		if (attemptCount === 1) {
@@ -1647,7 +3038,7 @@ test('afterResponse hook custom request with timeout configured works correctly'
 		retry: {limit: 2},
 		hooks: {
 			afterResponse: [
-				async (request, _options, response) => {
+				async ({request, response}) => {
 					const data = await response.clone().json();
 					if (data.error?.code === 'NEED_FALLBACK') {
 						// Custom request should inherit proper timeout signal
@@ -1666,14 +3057,12 @@ test('afterResponse hook custom request with timeout configured works correctly'
 
 	t.deepEqual(result, {success: true});
 	t.is(attemptCount, 2);
-
-	await server.close();
 });
 
 test('afterResponse hook custom request with aborted signal should still work', async t => {
 	let attemptCount = 0;
 
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/', (_request, response) => {
 		attemptCount++;
 		if (attemptCount === 1) {
@@ -1686,7 +3075,7 @@ test('afterResponse hook custom request with aborted signal should still work', 
 	const result = await ky.get(server.url, {
 		hooks: {
 			afterResponse: [
-				async (request, _options, response) => {
+				async ({request, response}) => {
 					const data = await response.clone().json();
 					if (data.error?.code === 'NEED_CUSTOM_REQUEST') {
 						// Create custom request with aborted signal
@@ -1709,8 +3098,6 @@ test('afterResponse hook custom request with aborted signal should still work', 
 
 	t.deepEqual(result, {success: true});
 	t.is(attemptCount, 2);
-
-	await server.close();
 });
 
 test('afterResponse hook can force retry with cause parameter', async t => {
@@ -1718,7 +3105,7 @@ test('afterResponse hook can force retry with cause parameter', async t => {
 	let observedCause: Error | undefined;
 	const originalError = new Error('Original validation error');
 
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/', (_request, response) => {
 		requestCount++;
 
@@ -1735,7 +3122,7 @@ test('afterResponse hook can force retry with cause parameter', async t => {
 		},
 		hooks: {
 			afterResponse: [
-				async (_request, _options, response) => {
+				async ({response}) => {
 					const data = await response.clone().json();
 					if (data.error?.code === 'NEEDS_VALIDATION') {
 						return ky.retry({
@@ -1759,8 +3146,6 @@ test('afterResponse hook can force retry with cause parameter', async t => {
 	t.is(requestCount, 2);
 	t.is(observedCause, originalError);
 	t.is(observedCause?.message, 'Original validation error');
-
-	await server.close();
 });
 
 test('afterResponse hook wraps non-Error cause values in NonError', async t => {
@@ -1768,7 +3153,7 @@ test('afterResponse hook wraps non-Error cause values in NonError', async t => {
 	let observedCause: Error | undefined;
 	const nonErrorValue = {message: 'Not an Error instance', code: 'CUSTOM'};
 
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/', (_request, response) => {
 		requestCount++;
 
@@ -1785,7 +3170,7 @@ test('afterResponse hook wraps non-Error cause values in NonError', async t => {
 		},
 		hooks: {
 			afterResponse: [
-				async (_request, _options, response) => {
+				async ({response}) => {
 					const data = await response.clone().json();
 					if (data.error?.code === 'NEEDS_VALIDATION') {
 						// JS users (or TS users bypassing types) can pass non-Error values
@@ -1813,14 +3198,12 @@ test('afterResponse hook wraps non-Error cause values in NonError', async t => {
 	t.true(observedCause instanceof Error);
 	// Verify original value is accessible via NonError.value
 	t.deepEqual((observedCause as any).value, nonErrorValue);
-
-	await server.close();
 });
 
 test('afterResponse hook can retry on 401 status', async t => {
 	let requestCount = 0;
 
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/', (_request, response) => {
 		requestCount++;
 
@@ -1837,7 +3220,7 @@ test('afterResponse hook can retry on 401 status', async t => {
 		},
 		hooks: {
 			afterResponse: [
-				async (_request, _options, response) => {
+				async ({response}) => {
 					if (response.status === 401) {
 						return ky.retry();
 					}
@@ -1848,8 +3231,6 @@ test('afterResponse hook can retry on 401 status', async t => {
 
 	t.deepEqual(result, {success: true});
 	t.is(requestCount, 2); // Initial 401 + 1 retry
-
-	await server.close();
 });
 
 test('afterResponse hook can refresh token on 401 and retry once', async t => {
@@ -1857,7 +3238,7 @@ test('afterResponse hook can refresh token on 401 and retry once', async t => {
 	let refreshCount = 0;
 	let validToken = 'valid-token';
 
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 
 	server.post('/auth/refresh', (_request, response) => {
 		refreshCount++;
@@ -1879,8 +3260,8 @@ test('afterResponse hook can refresh token on 401 and retry once', async t => {
 	const api = ky.extend({
 		hooks: {
 			afterResponse: [
-				async (request, _options, response, state) => {
-					if (response.status === 401 && state.retryCount === 0) {
+				async ({request, response, retryCount}) => {
+					if (response.status === 401 && retryCount === 0) {
 						const {token} = await ky.post(`${server.url}/auth/refresh`).json<{token: string}>();
 
 						const headers = new Headers(request.headers);
@@ -1908,15 +3289,13 @@ test('afterResponse hook can refresh token on 401 and retry once', async t => {
 	t.is(requestCount, 2);
 	t.is(refreshCount, 1);
 	t.deepEqual(result, {success: true});
-
-	await server.close();
 });
 
 test('afterResponse hook prevents infinite token refresh loop', async t => {
 	let requestCount = 0;
 	let refreshCount = 0;
 
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 
 	server.post('/auth/refresh', (_request, response) => {
 		refreshCount++;
@@ -1931,8 +3310,8 @@ test('afterResponse hook prevents infinite token refresh loop', async t => {
 	const api = ky.extend({
 		hooks: {
 			afterResponse: [
-				async (request, _options, response, state) => {
-					if (response.status === 401 && state.retryCount === 0) {
+				async ({request, response, retryCount}) => {
+					if (response.status === 401 && retryCount === 0) {
 						const {token} = await ky.post(`${server.url}/auth/refresh`).json<{token: string}>();
 
 						const headers = new Headers(request.headers);
@@ -1965,15 +3344,13 @@ test('afterResponse hook prevents infinite token refresh loop', async t => {
 
 	t.is(requestCount, 2);
 	t.is(refreshCount, 1);
-
-	await server.close();
 });
 
 test('afterResponse hook handles refresh endpoint failure', async t => {
 	let requestCount = 0;
 	let refreshCount = 0;
 
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 
 	server.post('/auth/refresh', (_request, response) => {
 		refreshCount++;
@@ -1988,8 +3365,8 @@ test('afterResponse hook handles refresh endpoint failure', async t => {
 	const api = ky.extend({
 		hooks: {
 			afterResponse: [
-				async (request, _options, response, state) => {
-					if (response.status === 401 && state.retryCount === 0) {
+				async ({request, response, retryCount}) => {
+					if (response.status === 401 && retryCount === 0) {
 						const {token} = await ky.post(`${server.url}/auth/refresh`).json<{token: string}>();
 
 						const headers = new Headers(request.headers);
@@ -2019,19 +3396,17 @@ test('afterResponse hook handles refresh endpoint failure', async t => {
 		},
 	);
 
-	// When refresh fails, the hook throws, then Ky retries normally
-	t.regex(error!.message, /401/);
-	t.is(requestCount, 2); // Initial + 1 retry after hook failure
+	// When refresh fails, the hook throws a fatal error and Ky does not retry
+	t.regex(error!.message, /500/);
+	t.is(requestCount, 1);
 	t.is(refreshCount, 1);
-
-	await server.close();
 });
 
 test('afterResponse hook handles refresh endpoint returning 401', async t => {
 	let requestCount = 0;
 	let refreshCount = 0;
 
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 
 	server.post('/auth/refresh', (_request, response) => {
 		refreshCount++;
@@ -2046,8 +3421,8 @@ test('afterResponse hook handles refresh endpoint returning 401', async t => {
 	const api = ky.extend({
 		hooks: {
 			afterResponse: [
-				async (request, _options, response, state) => {
-					if (response.status === 401 && state.retryCount === 0) {
+				async ({request, response, retryCount}) => {
+					if (response.status === 401 && retryCount === 0) {
 						const {token} = await ky.post(`${server.url}/auth/refresh`).json<{token: string}>();
 
 						const headers = new Headers(request.headers);
@@ -2080,6 +3455,1183 @@ test('afterResponse hook handles refresh endpoint returning 401', async t => {
 
 	t.is(requestCount, 1);
 	t.is(refreshCount, 1);
+});
 
-	await server.close();
+test('afterResponse hook error does not trigger retry', async t => {
+	let requestCount = 0;
+	const server = await createHttpTestServer(t);
+	server.get('/', (_request, response) => {
+		requestCount++;
+		response.status(200).send('ok');
+	});
+
+	const hookError = new Error('hook failure');
+
+	await t.throwsAsync(
+		ky.get(server.url, {
+			retry: {limit: 3},
+			hooks: {
+				afterResponse: [
+					() => {
+						throw hookError;
+					},
+				],
+			},
+		}),
+		{is: hookError},
+	);
+
+	t.is(requestCount, 1);
+});
+
+test('afterResponse hook non-Error throw does not trigger retry', async t => {
+	let requestCount = 0;
+	const server = await createHttpTestServer(t);
+	server.get('/', (_request, response) => {
+		requestCount++;
+		response.status(200).send('ok');
+	});
+
+	const hookError = {message: 'hook failure'};
+
+	let thrownError: unknown;
+	try {
+		await ky.get(server.url, {
+			retry: {limit: 3},
+			hooks: {
+				afterResponse: [
+					() => {
+						// eslint-disable-next-line @typescript-eslint/only-throw-error
+						throw hookError;
+					},
+				],
+			},
+		});
+	} catch (error) {
+		thrownError = error;
+	}
+
+	t.is(thrownError, hookError);
+	t.is(requestCount, 1);
+});
+
+test('beforeRequest hook error does not trigger retry', async t => {
+	let fetchCallCount = 0;
+
+	const hookError = new Error('hook failure');
+
+	await t.throwsAsync(
+		ky.get('https://example.com', {
+			retry: {limit: 3},
+			async fetch() {
+				fetchCallCount++;
+				return new Response('ok');
+			},
+			hooks: {
+				beforeRequest: [
+					() => {
+						throw hookError;
+					},
+				],
+			},
+		}),
+		{is: hookError},
+	);
+
+	t.is(fetchCallCount, 0);
+});
+
+test('beforeRequest hook non-Error throw does not trigger retry', async t => {
+	let fetchCallCount = 0;
+
+	const hookError = 'hook failure';
+
+	let thrownError: unknown;
+	try {
+		await ky.get('https://example.com', {
+			retry: {limit: 3},
+			async fetch() {
+				fetchCallCount++;
+				return new Response('ok');
+			},
+			hooks: {
+				beforeRequest: [
+					() => {
+						// eslint-disable-next-line @typescript-eslint/only-throw-error
+						throw hookError;
+					},
+				],
+			},
+		});
+	} catch (error) {
+		thrownError = error;
+	}
+
+	t.is(thrownError, hookError);
+	t.is(fetchCallCount, 0);
+});
+
+test('shouldRetry cannot force retry of afterResponse hook error', async t => {
+	let requestCount = 0;
+	let hookCallCount = 0;
+	let shouldRetryCalled = false;
+	const server = await createHttpTestServer(t);
+	server.get('/', (_request, response) => {
+		requestCount++;
+		response.status(200).send('ok');
+	});
+
+	const hookError = new Error('hook failure');
+
+	await t.throwsAsync(
+		ky.get(server.url, {
+			retry: {
+				limit: 2,
+				shouldRetry() {
+					shouldRetryCalled = true;
+					return true;
+				},
+			},
+			hooks: {
+				afterResponse: [
+					() => {
+						hookCallCount++;
+						throw hookError;
+					},
+				],
+			},
+		}),
+		{is: hookError},
+	);
+
+	t.false(shouldRetryCalled);
+	t.is(requestCount, 1);
+	t.is(hookCallCount, 1);
+});
+
+test('shouldRetry cannot force retry of beforeRequest hook error', async t => {
+	let fetchCallCount = 0;
+	let hookCallCount = 0;
+	let shouldRetryCalled = false;
+
+	const hookError = new Error('hook failure');
+
+	await t.throwsAsync(
+		ky.get('https://example.com', {
+			retry: {
+				limit: 2,
+				shouldRetry() {
+					shouldRetryCalled = true;
+					return true;
+				},
+			},
+			async fetch() {
+				fetchCallCount++;
+				return new Response('ok');
+			},
+			hooks: {
+				beforeRequest: [
+					() => {
+						hookCallCount++;
+						throw hookError;
+					},
+				],
+			},
+		}),
+		{is: hookError},
+	);
+
+	t.false(shouldRetryCalled);
+	t.is(fetchCallCount, 0);
+	t.is(hookCallCount, 1);
+});
+
+test('beforeRequest non-Error throw is fatal even when shouldRetry is provided', async t => {
+	const throwValue = 'hook-error';
+
+	let thrownError: unknown;
+	try {
+		await ky.get('https://example.com', {
+			retry: {
+				limit: 2,
+				shouldRetry() {
+					return true;
+				},
+			},
+			hooks: {
+				beforeRequest: [
+					() => {
+						// eslint-disable-next-line @typescript-eslint/only-throw-error
+						throw throwValue;
+					},
+				],
+			},
+		});
+	} catch (error) {
+		thrownError = error;
+	}
+
+	t.is(thrownError, throwValue);
+});
+
+test('shouldRetry cannot force retry of afterResponse hook non-Error throw', async t => {
+	let requestCount = 0;
+	let hookCallCount = 0;
+	let shouldRetryCalled = false;
+	const server = await createHttpTestServer(t);
+	server.get('/', (_request, response) => {
+		requestCount++;
+		response.status(200).send('ok');
+	});
+
+	const hookError = {message: 'hook failure'};
+
+	let thrownError: unknown;
+	try {
+		await ky.get(server.url, {
+			retry: {
+				limit: 2,
+				shouldRetry() {
+					shouldRetryCalled = true;
+					return true;
+				},
+			},
+			hooks: {
+				afterResponse: [
+					() => {
+						hookCallCount++;
+						// eslint-disable-next-line @typescript-eslint/only-throw-error
+						throw hookError;
+					},
+				],
+			},
+		});
+	} catch (error) {
+		thrownError = error;
+	}
+
+	t.is(thrownError, hookError);
+	t.false(shouldRetryCalled);
+	t.is(requestCount, 1);
+	t.is(hookCallCount, 1);
+});
+
+test('shouldRetry cannot force retry of beforeRequest hook non-Error throw', async t => {
+	let fetchCallCount = 0;
+	let hookCallCount = 0;
+	let shouldRetryCalled = false;
+
+	const hookError = 'hook failure';
+
+	let thrownError: unknown;
+	try {
+		await ky.get('https://example.com', {
+			retry: {
+				limit: 2,
+				shouldRetry() {
+					shouldRetryCalled = true;
+					return true;
+				},
+			},
+			async fetch() {
+				fetchCallCount++;
+				return new Response('ok');
+			},
+			hooks: {
+				beforeRequest: [
+					() => {
+						hookCallCount++;
+						// eslint-disable-next-line @typescript-eslint/only-throw-error
+						throw hookError;
+					},
+				],
+			},
+		});
+	} catch (error) {
+		thrownError = error;
+	}
+
+	t.is(thrownError, hookError);
+	t.false(shouldRetryCalled);
+	t.is(fetchCallCount, 0);
+	t.is(hookCallCount, 1);
+});
+
+test('beforeRequest hook non-Error throw with POST does not retry by default', async t => {
+	let fetchCallCount = 0;
+	let hookCallCount = 0;
+
+	const hookError = 'hook failure';
+
+	let thrownError: unknown;
+	try {
+		await ky.post('https://example.com', {
+			retry: {limit: 3},
+			async fetch() {
+				fetchCallCount++;
+				return new Response('ok');
+			},
+			hooks: {
+				beforeRequest: [
+					() => {
+						hookCallCount++;
+						// eslint-disable-next-line @typescript-eslint/only-throw-error
+						throw hookError;
+					},
+				],
+			},
+		});
+	} catch (error) {
+		thrownError = error;
+	}
+
+	t.is(thrownError, hookError);
+	t.is(fetchCallCount, 0);
+	t.is(hookCallCount, 1);
+});
+
+test('beforeError hook receives errors thrown by afterResponse hooks', async t => {
+	let receivedError: Error | undefined;
+	let retryCountFromBeforeError: number | undefined;
+	const afterResponseError = new Error('afterResponse hook failed');
+
+	await t.throwsAsync(
+		ky('https://example.com', {
+			retry: 0,
+			async fetch() {
+				return new Response('ok');
+			},
+			hooks: {
+				afterResponse: [
+					() => {
+						throw afterResponseError;
+					},
+				],
+				beforeError: [
+					({error, retryCount}) => {
+						receivedError = error;
+						retryCountFromBeforeError = retryCount;
+						return error;
+					},
+				],
+			},
+		}),
+	);
+
+	t.is(receivedError, afterResponseError);
+	t.is(retryCountFromBeforeError, 0);
+});
+
+// Companion to 'beforeError hook receives errors thrown by afterResponse hooks' which uses retry: 0.
+// Both tests exercise the same code path (hook errors are thrown directly, bypassing retry handling),
+// but this variant uses limit: 1 to confirm the behavior is consistent when retries are enabled.
+test('beforeError hook receives error thrown by afterResponse hook when retries are enabled', async t => {
+	let receivedError: Error | undefined;
+	let retryCountFromBeforeError: number | undefined;
+	const hookError = new Error('afterResponse hook failed');
+	const server = await createHttpTestServer(t);
+	server.get('/', (_request, response) => {
+		response.status(200).send('ok');
+	});
+
+	await t.throwsAsync(
+		ky.get(server.url, {
+			retry: {limit: 1},
+			hooks: {
+				afterResponse: [
+					() => {
+						throw hookError;
+					},
+				],
+				beforeError: [
+					({error, retryCount}) => {
+						receivedError = error;
+						retryCountFromBeforeError = retryCount;
+						return error;
+					},
+				],
+			},
+		}),
+		{is: hookError},
+	);
+
+	t.is(receivedError, hookError);
+	t.is(retryCountFromBeforeError, 0);
+});
+
+test('beforeRequest hook is not re-run during retries', async t => {
+	let requestCount = 0;
+	let hookCallCount = 0;
+	const server = await createHttpTestServer(t);
+	server.get('/', (_request, response) => {
+		requestCount++;
+		response.status(500).send('server error');
+	});
+
+	await t.throwsAsync(
+		ky.get(server.url, {
+			retry: {
+				limit: 2,
+				statusCodes: [500],
+			},
+			hooks: {
+				beforeRequest: [
+					({retryCount}) => {
+						hookCallCount++;
+						if (retryCount > 0) {
+							throw new Error('beforeRequest should not run on retries');
+						}
+					},
+				],
+			},
+		}),
+		{instanceOf: HTTPError},
+	);
+
+	t.is(hookCallCount, 1);
+	t.is(requestCount, 3);
+});
+
+test('throwHttpErrors: false bypasses throw for beforeRequest non-ok Response', async t => {
+	const response = await ky.get('https://example.com', {
+		throwHttpErrors: false,
+		retry: {limit: 2},
+		hooks: {
+			beforeRequest: [() => new Response('hook-fallback', {status: 503})],
+		},
+	});
+
+	t.is(response.status, 503);
+	t.is(await response.text(), 'hook-fallback');
+});
+
+test('throwHttpErrors: false bypasses throw for beforeRetry non-ok Response', async t => {
+	let fetchCallCount = 0;
+
+	const response = await ky.get('https://example.com', {
+		throwHttpErrors: false,
+		retry: {
+			limit: 2,
+			delay: () => 0,
+		},
+		async fetch() {
+			fetchCallCount++;
+			throw new TypeError('Failed to fetch');
+		},
+		hooks: {
+			beforeRetry: [() => new Response('retry-fallback', {status: 502})],
+		},
+	});
+
+	t.is(fetchCallCount, 1);
+	t.is(response.status, 502);
+	t.is(await response.text(), 'retry-fallback');
+});
+
+test('afterResponse hook returning non-ok Response triggers retry when not from hook-provided response', async t => {
+	let requestCount = 0;
+	let afterResponseCallCount = 0;
+
+	const server = await createHttpTestServer(t);
+	server.get('/', (_request, response) => {
+		requestCount++;
+		response.status(200).send('ok');
+	});
+
+	const error = await t.throwsAsync(
+		ky.get(server.url, {
+			retry: {
+				limit: 1,
+				statusCodes: [503],
+				delay: () => 0,
+			},
+			hooks: {
+				afterResponse: [
+					() => {
+						afterResponseCallCount++;
+						return new Response('gateway-error', {status: 503});
+					},
+				],
+			},
+		}),
+	);
+
+	t.true(isHTTPError(error));
+	t.is(error.response.status, 503);
+	// Initial request + 1 retry
+	t.is(requestCount, 2);
+	// AfterResponse runs on both attempts
+	t.is(afterResponseCallCount, 2);
+});
+
+test('afterResponse hook error after successful network retry: beforeError retryCount reflects actual retries', async t => {
+	let fetchCallCount = 0;
+	let beforeErrorRetryCount: number | undefined;
+	const hookError = new Error('afterResponse hook failed');
+
+	const server = await createHttpTestServer(t);
+	server.get('/', (_request, response) => {
+		fetchCallCount++;
+		if (fetchCallCount === 1) {
+			response.status(500).send('error');
+		} else {
+			response.status(200).send('ok');
+		}
+	});
+
+	await t.throwsAsync(
+		ky.get(server.url, {
+			retry: {
+				limit: 2,
+				statusCodes: [500],
+				delay: () => 0,
+			},
+			hooks: {
+				afterResponse: [
+					({retryCount}) => {
+						// Only throw on the retried response
+						if (retryCount > 0) {
+							throw hookError;
+						}
+					},
+				],
+				beforeError: [
+					({error, retryCount}) => {
+						beforeErrorRetryCount = retryCount;
+						return error;
+					},
+				],
+			},
+		}),
+		{is: hookError},
+	);
+
+	t.is(fetchCallCount, 2);
+	// RetryCount should be 1: one retry was actually performed
+	t.is(beforeErrorRetryCount, 1);
+});
+
+test('force retry from afterResponse then afterResponse throws on next iteration is fatal', async t => {
+	let requestCount = 0;
+	const hookError = new Error('second iteration failure');
+
+	const server = await createHttpTestServer(t);
+	server.get('/', (_request, response) => {
+		requestCount++;
+		response.status(requestCount === 1 ? 503 : 200).send('response');
+	});
+
+	await t.throwsAsync(
+		ky.get(server.url, {
+			retry: {
+				limit: 3,
+				delay: () => 0,
+			},
+			hooks: {
+				afterResponse: [
+					({response, retryCount}) => {
+						if (response.status === 503) {
+							return ky.retry();
+						}
+
+						// On the retried response (200), throw
+						if (retryCount > 0) {
+							throw hookError;
+						}
+					},
+				],
+			},
+		}),
+		{is: hookError},
+	);
+
+	// Only 2 requests: initial 503 + one force retry yielding 200
+	t.is(requestCount, 2);
+});
+
+test('beforeError retryCount is 0 when beforeRequest hook throws', async t => {
+	let beforeErrorRetryCount: number | undefined;
+	const hookError = new Error('beforeRequest hook failed');
+
+	await t.throwsAsync(
+		ky.get('https://example.com', {
+			retry: {limit: 3},
+			hooks: {
+				beforeRequest: [
+					() => {
+						throw hookError;
+					},
+				],
+				beforeError: [
+					({error, retryCount}) => {
+						beforeErrorRetryCount = retryCount;
+						return error;
+					},
+				],
+			},
+		}),
+		{is: hookError},
+	);
+
+	t.is(beforeErrorRetryCount, 0);
+});
+
+test('beforeRetry ok Response flows through afterResponse hooks', async t => {
+	let afterResponseCalled = false;
+	let afterResponseStatus: number | undefined;
+
+	const response = await ky.get('https://example.com', {
+		retry: {
+			limit: 1,
+			delay: () => 0,
+		},
+		async fetch() {
+			throw new TypeError('Failed to fetch');
+		},
+		hooks: {
+			beforeRetry: [() => new Response('from-hook', {status: 200})],
+			afterResponse: [
+				({response}) => {
+					afterResponseCalled = true;
+					afterResponseStatus = response.status;
+				},
+			],
+		},
+	});
+
+	t.true(afterResponseCalled);
+	t.is(afterResponseStatus, 200);
+	t.is(response.status, 200);
+	t.is(await response.text(), 'from-hook');
+});
+
+test('throwHttpErrors function variant works with beforeRequest non-ok Response', async t => {
+	let shouldRetryCalled = false;
+	let throwHttpErrorsCalled = false;
+
+	const response = await ky.get('https://example.com', {
+		retry: {
+			limit: 2,
+			shouldRetry() {
+				shouldRetryCalled = true;
+				return true;
+			},
+		},
+		throwHttpErrors(status) {
+			throwHttpErrorsCalled = true;
+			// Only throw for 500, not for 404
+			return status >= 500;
+		},
+		hooks: {
+			beforeRequest: [() => new Response('not-found', {status: 404})],
+		},
+	});
+
+	t.true(throwHttpErrorsCalled);
+	t.false(shouldRetryCalled);
+	t.is(response.status, 404);
+	t.is(await response.text(), 'not-found');
+});
+
+test('network error then HTTP error uses combined retry budget', async t => {
+	let fetchCallCount = 0;
+	let beforeErrorRetryCount: number | undefined;
+
+	const result = await ky.get('https://example.com', {
+		retry: {
+			limit: 3,
+			statusCodes: [500],
+			delay: () => 0,
+		},
+		async fetch() {
+			fetchCallCount++;
+			if (fetchCallCount === 1) {
+				throw new TypeError('network error');
+			}
+
+			return new Response(fetchCallCount === 2 ? 'error' : 'ok', {
+				status: fetchCallCount === 2 ? 500 : 200,
+			});
+		},
+		hooks: {
+			beforeError: [
+				({error, retryCount}) => {
+					beforeErrorRetryCount = retryCount;
+					return error;
+				},
+			],
+		},
+	}).text();
+
+	t.is(result, 'ok');
+	t.is(fetchCallCount, 3);
+	// BeforeError was never called because all retries succeeded
+	t.is(beforeErrorRetryCount, undefined);
+});
+
+test('network error then HTTP error exhaust shared retry limit', async t => {
+	let fetchCallCount = 0;
+	let beforeErrorRetryCount: number | undefined;
+
+	const error = await t.throwsAsync(
+		ky.get('https://example.com', {
+			retry: {
+				limit: 1,
+				statusCodes: [500],
+				delay: () => 0,
+			},
+			async fetch() {
+				fetchCallCount++;
+				if (fetchCallCount === 1) {
+					throw new TypeError('network error');
+				}
+
+				return new Response('error', {status: 500});
+			},
+			hooks: {
+				beforeError: [
+					({error, retryCount}) => {
+						beforeErrorRetryCount = retryCount;
+						return error;
+					},
+				],
+			},
+		}),
+	);
+
+	t.true(isHTTPError(error));
+	t.is(error.response.status, 500);
+	// 1st fetch: network error (retried), 2nd fetch: 500 (retry limit exhausted)
+	t.is(fetchCallCount, 2);
+	// 1 retry was actually performed (network error → retry → 500 → limit hit)
+	t.is(beforeErrorRetryCount, 1);
+});
+
+test('afterResponse force retry on beforeRequest-provided response allows subsequent HTTP error retry', async t => {
+	let fetchCallCount = 0;
+
+	const result = await ky.get('https://example.com', {
+		retry: {
+			limit: 3,
+			statusCodes: [500],
+			delay: () => 0,
+		},
+		async fetch() {
+			fetchCallCount++;
+			return new Response(fetchCallCount === 1 ? 'error' : 'ok', {
+				status: fetchCallCount === 1 ? 500 : 200,
+			});
+		},
+		hooks: {
+			beforeRequest: [() => new Response('stale-cache', {status: 503})],
+			afterResponse: [
+				({response}) => {
+					if (response.status === 503) {
+						return ky.retry();
+					}
+				},
+			],
+		},
+	}).text();
+
+	t.is(result, 'ok');
+	// Force retry → 500 (retried via HTTP error path) → 200
+	t.is(fetchCallCount, 2);
+});
+
+test('second afterResponse hook does not run when first throws, and no retry occurs', async t => {
+	let requestCount = 0;
+	let secondHookCalled = false;
+	const server = await createHttpTestServer(t);
+	server.get('/', (_request, response) => {
+		requestCount++;
+		response.status(200).send('ok');
+	});
+
+	const hookError = new Error('first hook failure');
+
+	await t.throwsAsync(
+		ky.get(server.url, {
+			retry: {limit: 2},
+			hooks: {
+				afterResponse: [
+					() => {
+						throw hookError;
+					},
+					() => {
+						secondHookCalled = true;
+					},
+				],
+			},
+		}),
+		{is: hookError},
+	);
+
+	t.false(secondHookCalled);
+	t.is(requestCount, 1);
+});
+
+// Init hook tests
+
+test('init hook can modify searchParams', async t => {
+	const server = await createHttpTestServer(t);
+	server.get('/', (request, response) => {
+		response.end(request.query.apiKey);
+	});
+
+	const result = await ky.get(server.url, {
+		hooks: {
+			init: [
+				options => {
+					options.searchParams = {apiKey: 'secret123'};
+				},
+			],
+		},
+	}).text();
+
+	t.is(result, 'secret123');
+});
+
+test('init hook can modify json body', async t => {
+	const server = await createHttpTestServer(t);
+	server.post('/', async (request, response) => {
+		response.json(request.body);
+	});
+
+	const result = await ky.post(server.url, {
+		json: {original: true},
+		hooks: {
+			init: [
+				options => {
+					options.json = {modified: true};
+				},
+			],
+		},
+	}).json<{modified: boolean}>();
+
+	t.true(result.modified);
+});
+
+test('init hook can modify headers', async t => {
+	const server = await createHttpTestServer(t);
+	server.get('/', (request, response) => {
+		response.end(request.headers['x-custom']);
+	});
+
+	const result = await ky.get(server.url, {
+		hooks: {
+			init: [
+				options => {
+					options.headers = {'x-custom': 'added-by-init'};
+				},
+			],
+		},
+	}).text();
+
+	t.is(result, 'added-by-init');
+});
+
+test('init hooks run in order from extend chain', async t => {
+	const order: number[] = [];
+
+	const api = ky.extend({
+		hooks: {
+			init: [
+				() => {
+					order.push(1);
+				},
+			],
+		},
+	}).extend({
+		hooks: {
+			init: [
+				() => {
+					order.push(2);
+				},
+			],
+		},
+	});
+
+	await api.get('https://example.com', {
+		fetch: async () => new Response('ok'),
+	});
+
+	t.deepEqual(order, [1, 2]);
+});
+
+test('init hooks run before beforeRequest hooks', async t => {
+	const order: string[] = [];
+
+	await ky.get('https://example.com', {
+		fetch: async () => new Response('ok'),
+		hooks: {
+			init: [
+				() => {
+					order.push('init');
+				},
+			],
+			beforeRequest: [
+				() => {
+					order.push('beforeRequest');
+				},
+			],
+		},
+	});
+
+	t.deepEqual(order, ['init', 'beforeRequest']);
+});
+
+test('init hook can modify timeout', async t => {
+	await t.throwsAsync(
+		ky.get('https://example.com', {
+			async fetch() {
+				await delay(200);
+				return new Response('ok');
+			},
+			hooks: {
+				init: [
+					options => {
+						options.timeout = 50;
+					},
+				],
+			},
+		}),
+		{instanceOf: TimeoutError},
+	);
+});
+
+test('init hook can modify retry', async t => {
+	let fetchCount = 0;
+
+	await t.throwsAsync(
+		ky.get('https://example.com', {
+			async fetch() {
+				fetchCount++;
+				return new Response('error', {status: 500});
+			},
+			hooks: {
+				init: [
+					options => {
+						options.retry = 0;
+					},
+				],
+			},
+		}),
+	);
+
+	t.is(fetchCount, 1);
+});
+
+test('init hook that throws propagates synchronously', t => {
+	t.throws(
+		() => {
+			void ky.get('https://example.com', {
+				hooks: {
+					init: [
+						() => {
+							throw new Error('init failed');
+						},
+					],
+				},
+			});
+		},
+		{message: 'init failed'},
+	);
+});
+
+test('init hook works with ky.create()', async t => {
+	const called: string[] = [];
+
+	const api = ky.create({
+		hooks: {
+			init: [
+				() => {
+					called.push('init');
+				},
+			],
+		},
+	});
+
+	await api.get('https://example.com', {
+		fetch: async () => new Response('ok'),
+	});
+
+	t.deepEqual(called, ['init']);
+});
+
+test('init hooks can be cleared by extending with undefined', async t => {
+	const called: string[] = [];
+
+	const base = ky.extend({
+		hooks: {
+			init: [
+				() => {
+					called.push('init');
+				},
+			],
+		},
+	});
+
+	const cleared = base.extend({
+		hooks: {
+			init: undefined,
+		},
+	});
+
+	await cleared.get('https://example.com', {
+		fetch: async () => new Response('ok'),
+	});
+
+	t.deepEqual(called, []);
+});
+
+test('multiple init hooks on the same call see each other\'s mutations', async t => {
+	t.plan(1);
+
+	await ky.get('https://example.com', {
+		fetch: async () => new Response('ok'),
+		hooks: {
+			init: [
+				options => {
+					options.headers = {'x-first': 'one'};
+				},
+				options => {
+					// Second hook should see the headers set by the first hook
+					t.is((options.headers as Record<string, string>)['x-first'], 'one');
+				},
+			],
+		},
+	});
+});
+
+test('init hook sees per-request options merged with defaults', async t => {
+	t.plan(2);
+
+	const api = ky.extend({
+		headers: {'x-default': 'from-defaults'},
+	});
+
+	await api.get('https://example.com', {
+		fetch: async () => new Response('ok'),
+		headers: {'x-request': 'from-request'},
+		hooks: {
+			init: [
+				options => {
+					t.is((options.headers as Headers).get('x-default'), 'from-defaults');
+					t.is((options.headers as Headers).get('x-request'), 'from-request');
+				},
+			],
+		},
+	});
+});
+
+test('init hook error is not caught by beforeError hooks', t => {
+	let beforeErrorCalled = false;
+
+	t.throws(
+		() => {
+			void ky.get('https://example.com', {
+				hooks: {
+					init: [
+						() => {
+							throw new Error('init boom');
+						},
+					],
+					beforeError: [
+						({error}) => {
+							beforeErrorCalled = true;
+							return error;
+						},
+					],
+				},
+			});
+		},
+		{message: 'init boom'},
+	);
+
+	t.false(beforeErrorCalled);
+});
+
+test('init hook runs on every request from the same instance', async t => {
+	let callCount = 0;
+
+	const api = ky.extend({
+		hooks: {
+			init: [
+				() => {
+					callCount++;
+				},
+			],
+		},
+	});
+
+	await api.get('https://example.com', {
+		fetch: async () => new Response('ok'),
+	});
+
+	await api.get('https://example.com', {
+		fetch: async () => new Response('ok'),
+	});
+
+	t.is(callCount, 2);
+});
+
+test('init hook runs only once even with retries', async t => {
+	let initCount = 0;
+	let fetchCount = 0;
+
+	await t.throwsAsync(
+		ky.get('https://example.com', {
+			retry: 2,
+			async fetch() {
+				fetchCount++;
+				return new Response('error', {status: 500});
+			},
+			hooks: {
+				init: [
+					() => {
+						initCount++;
+					},
+				],
+			},
+		}),
+	);
+
+	t.is(initCount, 1);
+	t.is(fetchCount, 3);
+});
+
+test('init hook can modify context visible to other hooks', async t => {
+	t.plan(1);
+
+	await ky.get('https://example.com', {
+		fetch: async () => new Response('ok'),
+		hooks: {
+			init: [
+				options => {
+					options.context = {userId: 42};
+				},
+			],
+			beforeRequest: [
+				({options}) => {
+					t.is((options.context as Record<string, unknown>).userId, 42);
+				},
+			],
+		},
+	});
+});
+
+test('init hook works with ky() direct call', async t => {
+	t.plan(1);
+
+	await ky('https://example.com', {
+		fetch: async () => new Response('ok'),
+		hooks: {
+			init: [
+				() => {
+					t.pass();
+				},
+			],
+		},
+	});
 });

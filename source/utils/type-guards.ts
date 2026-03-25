@@ -1,9 +1,13 @@
+import {KyError} from '../errors/KyError.js';
 import {HTTPError} from '../errors/HTTPError.js';
+import {NetworkError} from '../errors/NetworkError.js';
 import {TimeoutError} from '../errors/TimeoutError.js';
 import {ForceRetryError} from '../errors/ForceRetryError.js';
 
 /**
-Type guard to check if an error is a Ky error (HTTPError or TimeoutError).
+Type guard to check if an error is a Ky error.
+
+Note: `SchemaValidationError` is intentionally not considered a Ky error. `KyError` covers failures in Ky's HTTP lifecycle (bad status, timeout, retry), while schema validation errors originate from the user-provided schema, not from Ky itself.
 
 @param error - The error to check
 @returns `true` if the error is a Ky error, `false` otherwise
@@ -24,8 +28,8 @@ try {
 }
 ```
 */
-export function isKyError(error: unknown): error is HTTPError | TimeoutError {
-	return isHTTPError(error) || isTimeoutError(error);
+export function isKyError(error: unknown): error is KyError {
+	return error instanceof KyError || isHTTPError(error) || isNetworkError(error) || isTimeoutError(error) || isForceRetryError(error);
 }
 
 /**
@@ -48,6 +52,28 @@ try {
 */
 export function isHTTPError<T = unknown>(error: unknown): error is HTTPError<T> {
 	return error instanceof HTTPError || ((error as any)?.name === HTTPError.name);
+}
+
+/**
+Type guard to check if an error is a NetworkError.
+
+@param error - The error to check
+@returns `true` if the error is a NetworkError, `false` otherwise
+
+@example
+```
+import ky, {isNetworkError} from 'ky';
+try {
+	const response = await ky.get('/api/data');
+} catch (error) {
+	if (isNetworkError(error)) {
+		console.log('Network error:', error.request.url);
+	}
+}
+```
+*/
+export function isNetworkError(error: unknown): error is NetworkError {
+	return error instanceof NetworkError || ((error as any)?.name === NetworkError.name);
 }
 
 /**

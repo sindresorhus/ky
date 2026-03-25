@@ -8,7 +8,8 @@ export type SearchParamsInit = string | string[][] | Record<string, string> | UR
 // eslint-disable-next-line unicorn/prevent-abbreviations
 export type SearchParamsOption = SearchParamsInit | Record<string, string | number | boolean | undefined> | Array<Array<string | number | boolean>>;
 
-export type HttpMethod = 'get' | 'post' | 'put' | 'patch' | 'head' | 'delete';
+export type RequestHttpMethod = 'get' | 'post' | 'put' | 'patch' | 'head' | 'delete';
+export type HttpMethod = LiteralUnion<RequestHttpMethod | 'options' | 'trace', string>;
 
 export type Input = string | URL | Request;
 
@@ -94,13 +95,13 @@ export type KyOptions = {
 	searchParams?: SearchParamsOption;
 
 	/**
-	A prefix to prepend to the `input` URL when making the request. It can be any valid URL, either relative or absolute. A trailing slash `/` is optional and will be added automatically, if needed, when it is joined with `input`. Only takes effect when `input` is a string. The `input` argument cannot start with a slash `/` when using this option.
+	A base URL to [resolve](https://developer.mozilla.org/en-US/docs/Web/API/URL_API/Resolving_relative_references) the `input` against. When the `input` (after applying the `prefix` option) is only a relative URL, such as `'users'`, `'/users'`,  or `'//my-site.com'`, it will be resolved against the `baseUrl` to determine the destination of the request. Otherwise, the `input` is absolute, such as `'https://my-site.com'`, and it will bypass the `baseUrl`.
 
 	Useful when used with [`ky.extend()`](#kyextenddefaultoptions) to create niche-specific Ky-instances.
 
-	Notes:
-	 - After `prefixUrl` and `input` are joined, the result is resolved against the [base URL](https://developer.mozilla.org/en-US/docs/Web/API/Node/baseURI) of the page (if any).
-	 - Leading slashes in `input` are disallowed when using this option to enforce consistency and avoid confusion about how the `input` URL is handled, given that `input` will not follow the normal URL resolution rules when `prefixUrl` is being used, which changes the meaning of a leading slash.
+	If the `baseUrl` itself is relative, it will be resolved against the environment's base URL, such as [`document.baseURI`](https://developer.mozilla.org/en-US/docs/Web/API/Node/baseURI) in browsers or `location.href` in Deno (see the `--location` flag).
+
+	**Tip:** When setting a `baseUrl` that has a path, we recommend that it include a trailing slash `/`, as in `'/api/'` rather than `/api`. This ensures more intuitive behavior for page-relative `input` URLs, such as `'users'` or `'./users'`, where they will _extend_ from the full path of the `baseUrl` rather than _replacing_ its last path segment.
 
 	@example
 	```
@@ -108,27 +109,51 @@ export type KyOptions = {
 
 	// On https://example.com
 
-	const response = await ky('unicorn', {prefixUrl: '/api'});
-	//=> 'https://example.com/api/unicorn'
+	const response = await ky('users', {baseUrl: '/api/'});
+	//=> 'https://example.com/api/users'
 
-	const response = await ky('unicorn', {prefixUrl: 'https://cats.com'});
-	//=> 'https://cats.com/unicorn'
+	const response = await ky('/users', {baseUrl: '/api/'});
+	//=> 'https://example.com/users'
 	```
 	*/
-	prefixUrl?: URL | string;
+	baseUrl?: URL | string;
 
 	/**
-	An object representing `limit`, `methods`, `statusCodes`, `afterStatusCodes`, and `maxRetryAfter` fields for maximum retry count, allowed methods, allowed status codes, status codes allowed to use the [`Retry-After`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Retry-After) time, and maximum [`Retry-After`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Retry-After) time.
+	A prefix to prepend to the `input` before making the request (and before it is resolved against the `baseUrl`). It can be any valid path or URL, either relative or absolute. A trailing slash `/` is optional and will be added automatically, if needed, when it is joined with `input`. Only takes effect when `input` is a string.
+
+	Useful when used with [`ky.extend()`](#kyextenddefaultoptions) to create niche-specific Ky-instances.
+
+	*In most cases, you should use the `baseUrl` option instead, as it is more consistent with web standards. However, `prefix` is useful if you want origin-relative `input` URLs, such as `/users`, to be treated as if they were page-relative. In other words, the leading slash of the `input` will essentially be ignored, because the `prefix` will become part of the `input` before URL resolution happens.*
+
+	Notes:
+ 	 - The `prefix` and `input` are joined with a slash `/`, and slashes are normalized at the join boundary by trimming trailing slashes from `prefix` and leading slashes from `input`.
+	 - After `prefix` and `input` are joined, the result is resolved against the `baseUrl` option, if present.
+
+	@example
+	```
+	import ky from 'ky';
+
+	// On https://example.com
+
+	const response = await ky('users', {prefix: '/api/'});
+	//=> 'https://example.com/api/users'
+
+	const response = await ky('/users', {prefix: '/api/'});
+	//=> 'https://example.com/api/users'
+	```
+	*/
+	prefix?: URL | string;
+
+	/**
+	An object representing `limit`, `methods`, `statusCodes`, `afterStatusCodes`, `maxRetryAfter`, `backoffLimit`, `delay`, `jitter`, `retryOnTimeout`, and `shouldRetry` fields for maximum retry count, allowed methods, allowed status codes, status codes allowed to use the [`Retry-After`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Retry-After) time, maximum [`Retry-After`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Retry-After) time, backoff limit, delay calculation function, retry jitter, timeout retry behavior, and custom retry logic.
 
 	If `retry` is a number, it will be used as `limit` and other defaults will remain in place.
 
-	If the response provides an HTTP status contained in `afterStatusCodes`, Ky will wait until the date or timeout given in the [`Retry-After`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Retry-After) header has passed to retry the request. If `Retry-After` is missing, the non-standard [`RateLimit-Reset`](https://www.ietf.org/archive/id/draft-polli-ratelimit-headers-02.html#section-3.3) header is used in its place as a fallback. If the provided status code is not in the list, the [`Retry-After`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Retry-After) header will be ignored.
+	Network errors (e.g., DNS failures, connection refused, offline) are automatically retried for retriable methods. Only errors recognized as network errors are retried; other errors (e.g., programming bugs) are thrown immediately. Use `shouldRetry` to customize this behavior.
 
-	If `maxRetryAfter` is set to `undefined`, it will use `options.timeout`. If [`Retry-After`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Retry-After) header is greater than `maxRetryAfter`, it will cancel the request.
+	If the response provides an HTTP status contained in `afterStatusCodes`, Ky will wait until the date, timeout, or timestamp given in the [`Retry-After`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Retry-After) header has passed to retry the request. If `Retry-After` is missing, the non-standard [`RateLimit-Reset`](https://www.ietf.org/archive/id/draft-polli-ratelimit-headers-05.html#section-3.3) header is used in its place as a fallback. If the provided status code is not in the list, the [`Retry-After`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Retry-After) header will be ignored.
 
-	By default, delays between retries are calculated with the function `0.3 * (2 ** (attemptCount - 1)) * 1000`, where `attemptCount` is the attempt number (starts from 1), however this can be changed by passing a `delay` function.
-
-	Retries are not triggered following a timeout.
+	If `maxRetryAfter` is set to `undefined`, it will use `options.timeout`. If [`Retry-After`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Retry-After) header is greater than `maxRetryAfter`, it will use `maxRetryAfter`.
 
 	@example
 	```
@@ -196,6 +221,8 @@ export type KyOptions = {
 	/**
 	Upload progress event handler.
 
+	Note: Requires [request stream support](https://caniuse.com/wf-fetch-request-streams). In unsupported environments, this handler is silently ignored.
+
 	@param progress - Object containing upload progress information.
 	@param chunk - Data that was sent. Note: It's empty for the last call.
 
@@ -221,17 +248,26 @@ export type KyOptions = {
 	Has to be fully compatible with the [Fetch API](https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API) standard.
 
 	Use-cases:
-	1. Use custom `fetch` implementations like [`isomorphic-unfetch`](https://www.npmjs.com/package/isomorphic-unfetch).
-	2. Use the `fetch` wrapper function provided by some frameworks that use server-side rendering (SSR).
+	1. Use the `fetch` wrapper function provided by some frameworks that use server-side rendering (SSR).
+	2. Add custom instrumentation or logging to all requests.
 
 	@default fetch
 
 	@example
 	```
 	import ky from 'ky';
-	import fetch from 'isomorphic-unfetch';
 
-	const json = await ky('https://example.com', {fetch}).json();
+	const api = ky.create({
+		fetch: async (request, init) => {
+			const start = performance.now();
+			const response = await fetch(request, init);
+			const duration = performance.now() - start;
+			console.log(`${request.method} ${request.url} - ${response.status} (${Math.round(duration)}ms)`);
+			return response;
+		}
+	});
+
+	const json = await api('https://example.com').json();
 	```
 	*/
 	fetch?: (input: Input, init?: RequestInit) => Promise<Response>;
@@ -257,7 +293,7 @@ export type KyOptions = {
 	const api = ky.create({
 		hooks: {
 			beforeRequest: [
-				(request, options) => {
+				({request, options}) => {
 					const {token} = options.context;
 					if (token) {
 						request.headers.set('Authorization', `Bearer ${token}`);
@@ -355,19 +391,19 @@ export interface Options extends KyOptions, Omit<RequestInit, 'headers'> { // es
 }
 
 export type InternalOptions = Required<
-Omit<Options, 'hooks' | 'retry' | 'context' | 'throwHttpErrors'>,
-'fetch' | 'prefixUrl' | 'timeout'
+	Omit<Options, 'hooks' | 'retry' | 'context' | 'throwHttpErrors'>,
+'fetch' | 'prefix' | 'timeout'
 > & {
 	headers: Required<Headers>;
 	hooks: Required<Hooks>;
 	retry: Required<Omit<RetryOptions, 'shouldRetry'>> & Pick<RetryOptions, 'shouldRetry'>;
-	prefixUrl: string;
+	prefix: string;
 	context: Record<string, unknown>;
 	throwHttpErrors: boolean | ((status: number) => boolean);
 };
 
 /**
-Normalized options passed to the `fetch` call and the `beforeRequest` hooks.
+Normalized options passed to the `fetch` call and hooks.
 */
 export interface NormalizedOptions extends RequestInit { // eslint-disable-line @typescript-eslint/consistent-type-definitions -- This must stay an interface so that it can be extended outside of Ky for use in `ky.create`.
 	// Extended from `RequestInit`, but ensured to be set (not optional).
@@ -376,7 +412,7 @@ export interface NormalizedOptions extends RequestInit { // eslint-disable-line 
 
 	// Extended from custom `KyOptions`, but ensured to be set (not optional).
 	retry: RetryOptions;
-	prefixUrl: string;
+	prefix: string;
 	onDownloadProgress: Options['onDownloadProgress'];
 	onUploadProgress: Options['onUploadProgress'];
 	context: Record<string, unknown>;

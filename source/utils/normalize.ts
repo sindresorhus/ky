@@ -1,11 +1,11 @@
 import {requestMethods} from '../core/constants.js';
-import type {HttpMethod} from '../types/options.js';
 import type {RetryOptions} from '../types/retry.js';
+import type {HttpMethod, RequestHttpMethod} from '../types/options.js';
 
 export const normalizeRequestMethod = (input: string): string =>
-	requestMethods.includes(input as HttpMethod) ? input.toUpperCase() : input;
+	requestMethods.includes(input as RequestHttpMethod) ? input.toUpperCase() : input;
 
-const retryMethods = ['get', 'put', 'head', 'delete', 'options', 'trace'];
+const retryMethods: HttpMethod[] = ['get', 'put', 'head', 'delete', 'options', 'trace'];
 
 const retryStatusCodes = [408, 413, 429, 500, 502, 503, 504];
 
@@ -37,12 +37,16 @@ export const normalizeRetryOptions = (retry: number | RetryOptions = {}): Intern
 		throw new Error('retry.methods must be an array');
 	}
 
+	retry.methods &&= retry.methods.map(method => method.toLowerCase());
+
 	if (retry.statusCodes && !Array.isArray(retry.statusCodes)) {
 		throw new Error('retry.statusCodes must be an array');
 	}
 
+	const normalizedRetry = Object.fromEntries(Object.entries(retry).filter(([, value]) => value !== undefined)) as RetryOptions;
+
 	return {
 		...defaultRetryOptions,
-		...retry,
+		...normalizedRetry,
 	};
 };

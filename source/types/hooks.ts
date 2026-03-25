@@ -1,21 +1,43 @@
 import {type stop, type RetryMarker} from '../core/constants.js';
-import type {KyRequest, KyResponse, HTTPError} from '../index.js';
-import type {NormalizedOptions} from './options.js';
+import type {KyRequest, KyResponse} from '../index.js';
+import type {NormalizedOptions, Options} from './options.js';
+
+/**
+This hook enables you to modify the options before they are used to construct the request. The hook function receives the mutable options object and can modify it in place. You could, for example, modify `searchParams`, `headers`, or `json` here.
+
+Unlike other hooks, `init` hooks are synchronous. Any error thrown will propagate synchronously and will not be caught by `beforeError` hooks.
+
+@example
+```
+import ky from 'ky';
+
+const api = ky.extend({
+	hooks: {
+		init: [
+			options => {
+				options.searchParams = {apiKey: getApiKey()};
+			},
+		],
+	},
+});
+
+const response = await api.get('https://example.com/api/users');
+// URL: https://example.com/api/users?apiKey=123
+```
+*/
+export type InitHook = (options: Options) => void;
 
 export type BeforeRequestState = {
-	/**
-	The number of retries attempted. `0` for the initial request, increments with each retry.
+	request: KyRequest;
+	options: NormalizedOptions;
 
-	This allows you to distinguish between initial requests and retries, which is useful when you need different behavior for retries (e.g., avoiding overwriting headers set in `beforeRetry`).
+	/**
+	The number of retries attempted. Always `0`, since `beforeRequest` hooks run once before retry handling begins.
 	*/
-	retryCount: number;
+	retryCount: 0;
 };
 
-export type BeforeRequestHook = (
-	request: KyRequest,
-	options: NormalizedOptions,
-	state: BeforeRequestState
-) => Request | Response | void | Promise<Request | Response | void>;
+export type BeforeRequestHook = (state: BeforeRequestState) => Request | Response | void | Promise<Request | Response | void>;
 
 export type BeforeRetryState = {
 	request: KyRequest;
@@ -23,29 +45,20 @@ export type BeforeRetryState = {
 	error: Error;
 
 	/**
-	The number of retries attempted. Always `>= 1` since this hook is only called during retries, not on the initial request.
-	*/
-	retryCount: number;
-};
-export type BeforeRetryHook = (options: BeforeRetryState) => Request | Response | typeof stop | void | Promise<Request | Response | typeof stop | void>;
-
-export type AfterResponseState = {
-	/**
-	The number of retries attempted. `0` for the initial request, increments with each retry.
-
-	This allows you to distinguish between initial requests and retries, which is useful when you need different behavior for retries (e.g., showing a notification only on the final retry).
+	The number of retries attempted. Always `>= 1`, since this hook is only called during retries, not on the initial request.
 	*/
 	retryCount: number;
 };
 
-export type AfterResponseHook = (
-	request: KyRequest,
-	options: NormalizedOptions,
-	response: KyResponse,
-	state: AfterResponseState
-) => Response | RetryMarker | void | Promise<Response | RetryMarker | void>;
+export type BeforeRetryHook = (state: BeforeRetryState) => Request | Response | typeof stop | void | Promise<Request | Response | typeof stop | void>;
 
 export type BeforeErrorState = {
+	request: KyRequest;
+	options: NormalizedOptions;
+
+	// `Error` (not `KyError`) because this receives all errors, including non-Ky ones.
+	error: Error;
+
 	/**
 	The number of retries attempted. `0` for the initial request, increments with each retry.
 
@@ -54,33 +67,99 @@ export type BeforeErrorState = {
 	retryCount: number;
 };
 
-export type BeforeErrorHook = (error: HTTPError, state: BeforeErrorState) => HTTPError | Promise<HTTPError>;
+// Returns `Error` to allow replacing Ky errors with custom non-Ky error types.
+export type BeforeErrorHook = (state: BeforeErrorState) => Error | Promise<Error>;
+
+export type AfterResponseState = {
+	request: KyRequest;
+	options: NormalizedOptions;
+	response: KyResponse;
+
+	/**
+	The number of retries attempted. `0` for the initial request, increments with each retry.
+
+	This allows you to distinguish between the initial request and retries, which is useful when you need different behavior for retries (e.g., showing a notification only on the final retry).
+	*/
+	retryCount: number;
+};
+
+export type AfterResponseHook = (state: AfterResponseState) => Response | RetryMarker | void | Promise<Response | RetryMarker | void>;
 
 export type Hooks = {
 	/**
-	This hook enables you to modify the request right before it is sent. Ky will make no further changes to the request after this. The hook function receives the normalized request, options, and a state object. You could, for example, modify `request.headers` here.
+	This hook enables you to modify the options before they are used to construct the request. The hook function receives the mutable options object and can modify it in place. You could, for example, modify `searchParams`, `headers`, or `json` here.
 
-	The `state.retryCount` is `0` for the initial request and increments with each retry. This allows you to distinguish between initial requests and retries, which is useful when you need different behavior for retries (e.g., avoiding overwriting headers set in `beforeRetry`).
+	Unlike other hooks, `init` hooks are synchronous. Any error thrown will propagate synchronously and will not be caught by `beforeError` hooks.
 
-	A [`Response`](https://developer.mozilla.org/en-US/docs/Web/API/Response) can be returned from this hook to completely avoid making an HTTP request. This can be used to mock a request, check an internal cache, etc. An **important** consideration when returning a `Response` from this hook is that all the following hooks will be skipped, so **ensure you only return a `Response` from the last hook**.
+	A common use case is to add a search parameter to every request:
 
 	@example
 	```
 	import ky from 'ky';
 
-	const response = await ky('https://example.com', {
+	const api = ky.extend({
+		hooks: {
+			init: [
+				options => {
+					options.searchParams = {apiKey: getApiKey()};
+				},
+			],
+		},
+	});
+
+	const response = await api.get('https://example.com/api/users');
+	// URL: https://example.com/api/users?apiKey=123
+	```
+
+	@default []
+	*/
+	init?: InitHook[];
+
+	/**
+	This hook enables you to modify the request right before it is sent. Ky will make no further changes to the request after this. The hook function receives a state object with the normalized request, options, and retry count. You could, for example, modify `request.headers` here.
+
+	The `retryCount` is always `0`, since `beforeRequest` hooks run once before retry handling begins.
+
+	The hook can return a [`Request`](https://developer.mozilla.org/en-US/docs/Web/API/Request) to replace the outgoing request (remaining hooks will still run with the updated request). It can also return a [`Response`](https://developer.mozilla.org/en-US/docs/Web/API/Response) to completely avoid making an HTTP request, in which case remaining `beforeRequest` hooks are skipped. This can be used to mock a request, check an internal cache, etc.
+
+	Any error thrown by `beforeRequest` hooks is treated as fatal and will not trigger Ky's retry logic.
+
+	@example
+	```
+	import ky from 'ky';
+
+	const api = ky.extend({
 		hooks: {
 			beforeRequest: [
-				(request, options, {retryCount}) => {
-					// Only set default auth header on initial request, not on retries
-					// (retries may have refreshed token set by beforeRetry)
-					if (retryCount === 0) {
-						request.headers.set('Authorization', 'token initial-token');
-					}
+				({request}) => {
+					request.headers.set('Authorization', 'token initial-token');
 				}
 			]
 		}
 	});
+
+	const response = await api.get('https://example.com/api/users');
+	```
+
+	**Modifying the request URL:**
+
+	@example
+	```
+	import ky from 'ky';
+
+	const api = ky.extend({
+		hooks: {
+			beforeRequest: [
+				({request}) => {
+					const url = new URL(request.url);
+					url.searchParams.set('token', 'secret-token');
+					return new Request(url, request);
+				}
+			]
+		}
+	});
+
+	const response = await api.get('https://example.com/api/users');
 	```
 
 	@default []
@@ -88,13 +167,15 @@ export type Hooks = {
 	beforeRequest?: BeforeRequestHook[];
 
 	/**
-	This hook enables you to modify the request right before retry. Ky will make no further changes to the request after this. The hook function receives an object with the normalized request and options, an error instance, and the retry count. You could, for example, modify `request.headers` here.
+	This hook enables you to modify the request right before retry. Ky will make no further changes to the request after this. The hook function receives a state object with the normalized request, options, an error instance, and retry count. You could, for example, modify `request.headers` here.
 
 	The hook can return a [`Request`](https://developer.mozilla.org/en-US/docs/Web/API/Request) to replace the outgoing retry request, or return a [`Response`](https://developer.mozilla.org/en-US/docs/Web/API/Response) to skip the retry and use that response instead. **Note:** Returning a request or response skips remaining `beforeRetry` hooks.
 
-	If the request received a response, the error will be of type `HTTPError` and the `Response` object will be available at `error.response`. Be aware that some types of errors, such as network errors, inherently mean that a response was not received. In that case, the error will not be an instance of `HTTPError`.
+	The `retryCount` is always `>= 1`, since this hook is only called during retries, not on the initial request.
 
-	You can prevent Ky from retrying the request by throwing an error. Ky will not handle it in any way and the error will be propagated to the request initiator. The rest of the `beforeRetry` hooks will not be called in this case. Alternatively, you can return the [`ky.stop`](#ky.stop) symbol to do the same thing but without propagating an error (this has some limitations, see `ky.stop` docs for details).
+	If the request received a response, the error will be of type `HTTPError`. The `Response` object will be available at `error.response`, and the pre-parsed response body will be available at `error.data`. Be aware that some types of errors, such as network errors, inherently mean that a response was not received. In that case, the error will be an instance of `NetworkError` instead of `HTTPError`.
+
+	You can prevent Ky from retrying the request by throwing an error. Ky will not handle it in any way and the error will be propagated to the request initiator. The rest of the `beforeRetry` hooks will not be called in this case. Alternatively, you can return the [`ky.stop`](#kystop) symbol to do the same thing but without propagating an error (this has some limitations, see `ky.stop` docs for details).
 
 	**Modifying headers:**
 
@@ -118,17 +199,21 @@ export type Hooks = {
 
 	@example
 	```
-	import ky from 'ky';
+	import ky, {isHTTPError} from 'ky';
 
 	const response = await ky('https://example.com/api', {
 		hooks: {
 			beforeRetry: [
-				async ({request, error}) => {
+				({request, error}) => {
 					// Add query parameters based on error response
-					if (error.response) {
-						const body = await error.response.json();
+					if (
+						isHTTPError(error)
+						&& typeof error.data === 'object'
+						&& error.data !== null
+						&& 'processId' in error.data
+					) {
 						const url = new URL(request.url);
-						url.searchParams.set('processId', body.processId);
+						url.searchParams.set('processId', String(error.data.processId));
 						return new Request(url, request);
 					}
 				}
@@ -162,9 +247,53 @@ export type Hooks = {
 	beforeRetry?: BeforeRetryHook[];
 
 	/**
-	This hook enables you to read and optionally modify the response. The hook function receives normalized request, options, a clone of the response, and a state object. The return value of the hook function will be used by Ky as the response object if it's an instance of [`Response`](https://developer.mozilla.org/en-US/docs/Web/API/Response).
+	This hook enables you to modify any error right before it is thrown. The hook function receives a state object with the normalized request, options, error, and retry count, and should return an `Error` instance.
 
-	You can also force a retry by returning `ky.retry()` or `ky.retry(options)`. This is useful when you need to retry based on the response body content, even if the response has a successful status code. The retry will respect the retry limit and be observable in `beforeRetry` hooks.
+	This hook is called for all error types, including `HTTPError`, `NetworkError`, `TimeoutError`, and `ForceRetryError` (when retry limit is exceeded via `ky.retry()`). Use type guards like `isHTTPError()`, `isNetworkError()`, or `isTimeoutError()` to handle specific error types.
+
+	The `retryCount` is `0` for the initial request and increments with each retry. This allows you to distinguish between the initial request and retries, which is useful when you need different error handling based on retry attempts (e.g., showing different error messages on the final attempt).
+
+	@default []
+
+	@example
+	```
+	import ky, {isHTTPError} from 'ky';
+
+	await ky('https://example.com', {
+		hooks: {
+			beforeError: [
+				({request, options, error}) => {
+					if (isHTTPError(error)) {
+						if (
+							typeof error.data === 'object'
+							&& error.data !== null
+							&& 'message' in error.data
+						) {
+							error.name = 'GitHubError';
+							error.message = `${String(error.data.message)} (${error.response.status})`;
+						}
+					}
+
+					// `request` and `options` are always available
+					console.log(`Request to ${request.url} failed`, options.context);
+
+					return error;
+				}
+			]
+		}
+	});
+	```
+	*/
+	beforeError?: BeforeErrorHook[];
+
+	/**
+	This hook enables you to read and optionally modify the response. The hook function receives a state object with the normalized request, options, a clone of the response, and retry count. The return value of the hook function will be used by Ky as the response object if it's an instance of [`Response`](https://developer.mozilla.org/en-US/docs/Web/API/Response).
+
+	You can also force a retry by returning [`ky.retry(options)`](#kyretryoptions). This is useful when you need to retry based on the response body content, even if the response has a successful status code. The retry will respect the `retry.limit` option and be observable in `beforeRetry` hooks.
+
+	Any non-`ky.retry()` error thrown by `afterResponse` hooks is treated as fatal and will not trigger Ky's retry logic.
+
+	The `retryCount` is `0` for the initial request and increments with each retry. This allows you to distinguish between the initial request and retries, which is useful when you need different behavior for retries (e.g., showing a notification only on the final retry).
 
 	@default []
 
@@ -175,7 +304,7 @@ export type Hooks = {
 	const response = await ky('https://example.com', {
 		hooks: {
 			afterResponse: [
-				(_request, _options, response) => {
+				({response}) => {
 					// You could do something with the response, for example, logging.
 					log(response);
 
@@ -184,8 +313,8 @@ export type Hooks = {
 				},
 
 				// Or retry with a fresh token on a 401 error
-				async (request, _options, response, state) => {
-					if (response.status === 401 && state.retryCount === 0) {
+				async ({request, response, retryCount}) => {
+					if (response.status === 401 && retryCount === 0) {
 						// Only refresh on first 401, not on subsequent retries
 						const {token} = await ky.post('https://example.com/auth/refresh').json();
 
@@ -200,11 +329,11 @@ export type Hooks = {
 				},
 
 				// Or force retry based on response body content
-				async (request, options, response) => {
+				async ({response}) => {
 					if (response.status === 200) {
 						const data = await response.clone().json();
 						if (data.error?.code === 'RATE_LIMIT') {
-							// Force retry with custom delay from API response
+							// Retry with custom delay from API response
 							return ky.retry({
 								delay: data.error.retryAfter * 1000,
 								code: 'RATE_LIMIT'
@@ -214,7 +343,7 @@ export type Hooks = {
 				},
 
 				// Or show a notification only on the last retry for 5xx errors
-				(request, options, response, {retryCount}) => {
+				({options, response, retryCount}) => {
 					if (response.status >= 500 && response.status <= 599) {
 						if (retryCount === options.retry.limit) {
 							showNotification('Request failed after all retries');
@@ -227,42 +356,4 @@ export type Hooks = {
 	```
 	*/
 	afterResponse?: AfterResponseHook[];
-
-	/**
-	This hook enables you to modify the `HTTPError` right before it is thrown. The hook function receives an `HTTPError` and a state object as arguments and should return an instance of `HTTPError`.
-
-	@default []
-
-	@example
-	```
-	import ky from 'ky';
-
-	await ky('https://example.com', {
-		hooks: {
-			beforeError: [
-				async error => {
-					const {response} = error;
-					if (response) {
-						const body = await response.json();
-						error.name = 'GitHubError';
-						error.message = `${body.message} (${response.status})`;
-					}
-
-					return error;
-				},
-
-				// Or show different message based on retry count
-				(error, {retryCount}) => {
-					if (retryCount === error.options.retry.limit) {
-						error.message = `${error.message} (failed after ${retryCount} retries)`;
-					}
-
-					return error;
-				}
-			]
-		}
-	});
-	```
-	*/
-	beforeError?: BeforeErrorHook[];
 };

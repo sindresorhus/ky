@@ -3,6 +3,37 @@ import type {Hooks} from '../types/hooks.js';
 import {supportsAbortSignal} from '../core/constants.js';
 import {isObject} from './is.js';
 
+const replaceSymbol: unique symbol = Symbol('replaceOption');
+
+const isReplaceMarked = (value: unknown): boolean =>
+	isObject(value) && (value as any)[replaceSymbol] === true;
+
+/**
+Wraps a value so that `ky.extend()` will replace the parent value instead of merging with it.
+
+By default, `.extend()` deep-merges options with the parent instance: hooks get appended, headers get merged, and search parameters get accumulated. Use `replaceOption` when you want to fully replace a merged property instead.
+
+@example
+```
+import ky, {replaceOption} from 'ky';
+
+const base = ky.create({
+	hooks: {beforeRequest: [addAuth, addTracking]},
+});
+
+// Replaces instead of appending
+const extended = base.extend({
+	hooks: replaceOption({beforeRequest: [onlyThis]}),
+});
+// hooks.beforeRequest is now [onlyThis], not [addAuth, addTracking, onlyThis]
+```
+*/
+export const replaceOption = <T extends Record<string, unknown>>(value: T): T => {
+	const copy = {...value};
+	Object.defineProperty(copy, replaceSymbol, {value: true, enumerable: false});
+	return copy as T;
+};
+
 export const validateAndMerge = (...sources: Array<Partial<Options> | undefined>): Partial<Options> => {
 	for (const source of sources) {
 		if ((!isObject(source) || Array.isArray(source)) && source !== undefined) {
@@ -37,10 +68,11 @@ function newHookValue<K extends keyof Hooks>(original: Hooks, incoming: Hooks, p
 
 export const mergeHooks = (original: Hooks = {}, incoming: Hooks = {}): Required<Hooks> => (
 	{
+		init: newHookValue(original, incoming, 'init'),
 		beforeRequest: newHookValue(original, incoming, 'beforeRequest'),
 		beforeRetry: newHookValue(original, incoming, 'beforeRetry'),
-		afterResponse: newHookValue(original, incoming, 'afterResponse'),
 		beforeError: newHookValue(original, incoming, 'beforeError'),
+		afterResponse: newHookValue(original, incoming, 'afterResponse'),
 	}
 );
 
@@ -138,7 +170,9 @@ export const deepMerge = <T>(...sources: Array<Partial<T> | undefined>): T => {
 						...returnValue,
 						context: (value === undefined || value === null)
 							? {}
-							: {...returnValue.context, ...value},
+							: (isReplaceMarked(value)
+								? {...value}
+								: {...returnValue.context, ...value}),
 					};
 					continue;
 				}
@@ -148,6 +182,8 @@ export const deepMerge = <T>(...sources: Array<Partial<T> | undefined>): T => {
 					if (value === undefined || value === null) {
 						// Explicit undefined or null removes searchParams
 						searchParameters = undefined;
+					} else if (isReplaceMarked(value)) {
+						searchParameters = {...value};
 					} else {
 						// First source: keep as-is to preserve type (string/object/URLSearchParams)
 						// Subsequent sources: merge and convert to URLSearchParams
@@ -157,7 +193,7 @@ export const deepMerge = <T>(...sources: Array<Partial<T> | undefined>): T => {
 					continue;
 				}
 
-				if (isObject(value) && key in returnValue) {
+				if (isObject(value) && !isReplaceMarked(value) && key in returnValue) {
 					value = deepMerge(returnValue[key], value);
 				}
 
@@ -165,12 +201,18 @@ export const deepMerge = <T>(...sources: Array<Partial<T> | undefined>): T => {
 			}
 
 			if (isObject((source as any).hooks)) {
-				hooks = mergeHooks(hooks, (source as any).hooks);
+				hooks = isReplaceMarked((source as any).hooks)
+					? mergeHooks({}, (source as any).hooks)
+					: mergeHooks(hooks, (source as any).hooks);
+
 				returnValue.hooks = hooks;
 			}
 
 			if (isObject((source as any).headers)) {
-				headers = mergeHeaders(headers, (source as any).headers);
+				headers = isReplaceMarked((source as any).headers)
+					? new globalThis.Headers({...(source as any).headers} as RequestInit['headers'])
+					: mergeHeaders(headers, (source as any).headers);
+
 				returnValue.headers = headers;
 			}
 		}
@@ -191,10 +233,6 @@ export const deepMerge = <T>(...sources: Array<Partial<T> | undefined>): T => {
 			// This can be remove when the `supportsAbortSignal` check is removed.`
 			returnValue.signal = signals.at(-1);
 		}
-	}
-
-	if (returnValue.context === undefined) {
-		returnValue.context = {};
 	}
 
 	return returnValue;

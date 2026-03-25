@@ -87,9 +87,9 @@ export type KyInstance = {
 	```
 	import ky from 'ky';
 
-	const api = ky.create({prefixUrl: 'https://example.com/api'});
+	const api = ky.create({prefix: 'https://example.com/api'});
 
-	const usersApi = api.extend((options) => ({prefixUrl: `${options.prefixUrl}/users`}));
+	const usersApi = api.extend((options) => ({prefix: `${options.prefix}/users`}));
 
 	const response = await usersApi.get('123');
 	//=> 'https://example.com/api/users/123'
@@ -147,7 +147,7 @@ export type KyInstance = {
 	const api = ky.extend({
 		hooks: {
 			afterResponse: [
-				async (request, options, response) => {
+				async ({response}) => {
 					// Retry based on response body content
 					if (response.status === 200) {
 						const data = await response.clone().json();

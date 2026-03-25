@@ -16,7 +16,7 @@ const echoHeaders: RequestHandler = (request, response) => {
 test.serial('works with nullish headers even in old browsers', async t => {
 	t.plan(4);
 
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/', echoHeaders);
 
 	const OriginalHeaders = Headers;
@@ -34,13 +34,11 @@ test.serial('works with nullish headers even in old browsers', async t => {
 	t.is(typeof response, 'object');
 	t.truthy(response);
 
-	await server.close();
-
 	globalThis.Headers = OriginalHeaders;
 });
 
 test('`user-agent`', async t => {
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/', echoHeaders);
 
 	const headers = await ky.get(server.url).json<IncomingHttpHeaders>();
@@ -48,7 +46,7 @@ test('`user-agent`', async t => {
 });
 
 test('`accept-encoding`', async t => {
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/', echoHeaders);
 
 	const headers = await ky.get(server.url).json<IncomingHttpHeaders>();
@@ -57,7 +55,7 @@ test('`accept-encoding`', async t => {
 });
 
 test('does not override provided `accept-encoding`', async t => {
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/', echoHeaders);
 
 	const headers = await ky
@@ -71,7 +69,7 @@ test('does not override provided `accept-encoding`', async t => {
 });
 
 test('does not remove user headers from `url` object argument', async t => {
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/', echoHeaders);
 
 	const headers = await ky
@@ -89,7 +87,7 @@ test('does not remove user headers from `url` object argument', async t => {
 });
 
 test('`accept` header with `json` option', async t => {
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/', echoHeaders);
 
 	let headers = await ky.get(server.url).json<IncomingHttpHeaders>();
@@ -107,7 +105,7 @@ test('`accept` header with `json` option', async t => {
 });
 
 test('`host` header', async t => {
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/', echoHeaders);
 
 	const headers = await ky.get(server.url).json<IncomingHttpHeaders>();
@@ -115,7 +113,7 @@ test('`host` header', async t => {
 });
 
 test('transforms names to lowercase', async t => {
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/', echoHeaders);
 
 	const headers = await ky(server.url, {
@@ -127,7 +125,7 @@ test('transforms names to lowercase', async t => {
 });
 
 test('setting `content-length` to 0', async t => {
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.post('/', echoHeaders);
 
 	const request = ky
@@ -141,11 +139,12 @@ test('setting `content-length` to 0', async t => {
 
 	const error = await t.throwsAsync(request);
 
-	t.is(error.cause?.code, 'UND_ERR_REQ_CONTENT_LENGTH_MISMATCH');
+	// The undici TypeError ("fetch failed") is wrapped in NetworkError, so the undici cause is one level deeper
+	t.is(error.cause?.cause?.code, 'UND_ERR_REQ_CONTENT_LENGTH_MISMATCH');
 });
 
 test('sets `content-length` to `0` when requesting PUT with empty body', async t => {
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.put('/', echoHeaders);
 
 	const headers = await ky.put(server.url).json<IncomingHttpHeaders>();
@@ -154,7 +153,7 @@ test('sets `content-length` to `0` when requesting PUT with empty body', async t
 });
 
 test('json manual `content-type` header', async t => {
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.post('/', echoHeaders);
 
 	const headers = await ky
@@ -172,7 +171,7 @@ test('json manual `content-type` header', async t => {
 });
 
 test('form-data manual `content-type` header', async t => {
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.post('/', echoHeaders);
 
 	const form = new FormData();
@@ -191,7 +190,7 @@ test('form-data manual `content-type` header', async t => {
 });
 
 test('form-data automatic `content-type` header', async t => {
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.post('/', echoHeaders);
 
 	const form = new FormData();
@@ -208,7 +207,7 @@ test('form-data automatic `content-type` header', async t => {
 });
 
 test('form-data manual `content-type` header with search params', async t => {
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.post('/', echoHeaders);
 
 	const form = new FormData();
@@ -228,7 +227,7 @@ test('form-data manual `content-type` header with search params', async t => {
 });
 
 test('form-data automatic `content-type` header with search params', async t => {
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.post('/', echoHeaders);
 
 	const form = new FormData();
@@ -246,7 +245,7 @@ test('form-data automatic `content-type` header with search params', async t => 
 });
 
 test('form-data sets `content-length` header', async t => {
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.post('/', echoHeaders);
 
 	const form = new FormData();
@@ -262,7 +261,7 @@ test('form-data sets `content-length` header', async t => {
 });
 
 test('buffer as `options.body` sets `content-length` header', async t => {
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.post('/', echoHeaders);
 
 	const buffer = Buffer.from('unicorn');
@@ -276,7 +275,7 @@ test('buffer as `options.body` sets `content-length` header', async t => {
 });
 
 test.failing('removes undefined value headers', async t => {
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/', echoHeaders);
 
 	const headers = await ky
@@ -293,7 +292,7 @@ test.failing('removes undefined value headers', async t => {
 });
 
 test('non-existent headers set to undefined are omitted', async t => {
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/', echoHeaders);
 
 	const headers = await ky
@@ -310,7 +309,7 @@ test('non-existent headers set to undefined are omitted', async t => {
 });
 
 test('preserve port in host header if non-standard port', async t => {
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/', echoHeaders);
 
 	const body = await ky.get(server.url).json<IncomingHttpHeaders>();
@@ -358,7 +357,7 @@ test('strip port in host header if implicit standard port & protocol (HTTPS)', a
 });
 
 test('remove custom header by extending instance (plain objects)', async t => {
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/', echoHeaders);
 
 	const original = ky.create({
@@ -378,12 +377,10 @@ test('remove custom header by extending instance (plain objects)', async t => {
 
 	t.true('unicorn' in response);
 	t.false('rainbow' in response);
-
-	await server.close();
 });
 
 test('remove header by extending instance (Headers instance)', async t => {
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/', echoHeaders);
 
 	const original = ky.create({
@@ -404,12 +401,10 @@ test('remove header by extending instance (Headers instance)', async t => {
 
 	t.false('rainbow' in response);
 	t.true('unicorn' in response);
-
-	await server.close();
 });
 
 test('remove header by extending instance (Headers instance and plain object)', async t => {
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/', echoHeaders);
 
 	const original = ky.create({
@@ -429,12 +424,10 @@ test('remove header by extending instance (Headers instance and plain object)', 
 
 	t.false('rainbow' in response);
 	t.true('unicorn' in response);
-
-	await server.close();
 });
 
 test('remove header by extending instance (plain object and Headers instance)', async t => {
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/', echoHeaders);
 
 	const original = ky.create({
@@ -455,6 +448,4 @@ test('remove header by extending instance (plain object and Headers instance)', 
 
 	t.false('rainbow' in response);
 	t.true('unicorn' in response);
-
-	await server.close();
 });
