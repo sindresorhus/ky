@@ -1,7 +1,12 @@
 import test, {type ExecutionContext} from 'ava';
 import busboy from 'busboy';
 import express from 'express';
-import {chromium, webkit, type Page} from 'playwright';
+import {
+	chromium,
+	firefox,
+	webkit,
+	type Page,
+} from 'playwright';
 import type ky from '../source/index.js';
 import type {Progress} from '../source/index.js';
 import {createHttpTestServer, type ExtendedHttpTestServer, type HttpServerOptions} from './helpers/create-http-test-server.js';
@@ -341,6 +346,33 @@ defaultBrowsersTest('throws if does not support ReadableStream', async (t: Execu
 		return request.catch(error_ => error_.toString());
 	}, server.url);
 	t.is(error, 'Error: Streams are not supported in your environment. `ReadableStream` is missing.');
+});
+
+browserTest('onUploadProgress is silently ignored when request streams are unsupported', [firefox, webkit], async (t: ExecutionContext, page: Page) => {
+	server.get('/', (_request, response) => {
+		response.end();
+	});
+
+	server.post('/', (_request, response) => {
+		response.end('ok');
+	});
+
+	await page.goto(server.url);
+	await addKyScriptToPage(page);
+
+	const result = await page.evaluate(async (url: string) => {
+		const text = await globalThis
+			.ky(url, {
+				method: 'post',
+				body: 'hello',
+				onUploadProgress() {}, // eslint-disable-line @typescript-eslint/no-empty-function
+			})
+			.text();
+
+		return text;
+	}, server.url);
+
+	t.is(result, 'ok');
 });
 
 defaultBrowsersTest('FormData with searchParams', async (t: ExecutionContext, page: Page) => {

@@ -371,15 +371,8 @@ export class Ky {
 			this.request = new globalThis.Request(url, this.#options as RequestInit);
 		}
 
-		// If `onUploadProgress` is passed, it uses the stream API internally
-		if (this.#options.onUploadProgress) {
-			if (typeof this.#options.onUploadProgress !== 'function') {
-				throw new TypeError('The `onUploadProgress` option must be a function');
-			}
-
-			if (!supportsRequestStreams) {
-				throw new Error('Request streams are not supported in your environment. The `duplex` option for `Request` is not available.');
-			}
+		if (this.#options.onUploadProgress && typeof this.#options.onUploadProgress !== 'function') {
+			throw new TypeError('The `onUploadProgress` option must be a function');
 		}
 	}
 
@@ -882,7 +875,7 @@ export class Ky {
 	}
 
 	#wrapRequestWithUploadProgress(request: Request, originalBody?: BodyInit): Request {
-		if (!this.#options.onUploadProgress || !request.body) {
+		if (!this.#options.onUploadProgress || !request.body || !supportsRequestStreams) {
 			return request;
 		}
 
