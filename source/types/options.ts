@@ -41,9 +41,12 @@ export type KyOptions = {
 	/**
 	User-defined JSON-parsing function.
 
+	The function receives the response text as the first argument and a context object as the second argument containing the `request` and `response`.
+
 	Use-cases:
 	1. Parse JSON via the [`bourne` package](https://github.com/hapijs/bourne) to protect from prototype pollution.
 	2. Parse JSON with [`reviver` option of `JSON.parse()`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/JSON/parse).
+	3. Log or handle JSON parse errors with request context.
 
 	@default JSON.parse()
 
@@ -56,8 +59,21 @@ export type KyOptions = {
 		parseJson: text => bourne(text)
 	}).json();
 	```
+
+	@example
+	```
+	import ky from 'ky';
+
+	const json = await ky('https://example.com', {
+		parseJson: (text, {request, response}) => {
+			console.log(`Parsing JSON from ${request.url} (status: ${response.status})`);
+			return JSON.parse(text);
+		}
+	}).json();
+	```
 	*/
-	parseJson?: (text: string) => unknown;
+	// `options` is intentionally not included in the context to avoid exposing Ky internals through a parsing callback. `request`/`response` already provide the metadata needed for logging.
+	parseJson?: (text: string, context: {request: Request; response: Response}) => unknown;
 
 	/**
 	User-defined JSON-stringifying function.

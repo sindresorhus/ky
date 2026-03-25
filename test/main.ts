@@ -1864,6 +1864,85 @@ test('parseJson option errors are thrown before .json(schema) validation', async
 	t.false(isSchemaCalled());
 });
 
+test('parseJson option receives context via .json() shortcut', async t => {
+	const json = {hello: 'world'};
+
+	const server = await createHttpTestServer(t);
+	server.get('/', (_request, response) => {
+		response.json(json);
+	});
+
+	const responseJson = await ky
+		.get(server.url, {
+			parseJson(text, {request, response}) {
+				t.true(request instanceof Request);
+				t.true(response instanceof Response);
+				t.is(response.status, 200);
+				t.true(request.url.includes(server.url));
+				return JSON.parse(text);
+			},
+		})
+		.json();
+
+	t.deepEqual(responseJson, json);
+});
+
+test('parseJson option receives context via response.json()', async t => {
+	const json = {hello: 'world'};
+
+	const server = await createHttpTestServer(t);
+	server.get('/', (_request, response) => {
+		response.json(json);
+	});
+
+	const response = await ky.get(server.url, {
+		parseJson(text, {request, response}) {
+			t.true(request instanceof Request);
+			t.true(response instanceof Response);
+			t.is(response.status, 200);
+			t.true(request.url.includes(server.url));
+			return JSON.parse(text);
+		},
+	});
+
+	const responseJson = await response.json();
+	t.deepEqual(responseJson, json);
+});
+
+test('parseJson option receives context after retry', async t => {
+	let requestCount = 0;
+	const statuses: number[] = [];
+
+	const server = await createHttpTestServer(t);
+	server.get('/', (_request, response) => {
+		requestCount++;
+		if (requestCount === 1) {
+			response.status(500).json({error: 'fail'});
+			return;
+		}
+
+		response.json({hello: 'world'});
+	});
+
+	const responseJson = await ky
+		.get(server.url, {
+			retry: 1,
+			parseJson(text, {request, response}) {
+				t.true(request instanceof Request);
+				t.true(response instanceof Response);
+				t.true(request.url.includes(server.url));
+				statuses.push(response.status);
+				return JSON.parse(text);
+			},
+		})
+		.json();
+
+	t.deepEqual(responseJson, {hello: 'world'});
+	t.is(requestCount, 2);
+	// ParseJson is called for the error response (HTTPError#data) and the success response
+	t.deepEqual(statuses, [500, 200]);
+});
+
 test('stringifyJson option with request.json()', async t => {
 	const server = await createHttpTestServer(t, {bodyParser: false});
 

@@ -126,6 +126,49 @@ test('HTTPError#data respects parseJson option', async t => {
 	t.deepEqual(error?.data, {value: 1, custom: true});
 });
 
+test('HTTPError#data parseJson receives context', async t => {
+	const server = await createHttpTestServer(t);
+	const body = {value: 1};
+	server.get('/', (_request, response) => {
+		response.status(400).json(body);
+	});
+
+	const error = await t.throwsAsync<HTTPError>(ky.get(server.url, {
+		parseJson(text, {request, response}) {
+			t.true(request instanceof Request);
+			t.true(response instanceof Response);
+			t.is(response.status, 400);
+			t.true(request.url.includes(server.url));
+			const data = JSON.parse(text) as Record<string, unknown>;
+			data.custom = true;
+			return data;
+		},
+	}));
+	t.deepEqual(error?.data, {value: 1, custom: true});
+});
+
+test('HTTPError#data async parseJson receives context', async t => {
+	const server = await createHttpTestServer(t);
+	const body = {value: 1};
+	server.get('/', (_request, response) => {
+		response.status(400).json(body);
+	});
+
+	const error = await t.throwsAsync<HTTPError>(ky.get(server.url, {
+		async parseJson(text, {request, response}) {
+			t.true(request instanceof Request);
+			t.true(response instanceof Response);
+			t.is(response.status, 400);
+			t.true(request.url.includes(server.url));
+			await Promise.resolve();
+			const data = JSON.parse(text) as Record<string, unknown>;
+			data.custom = true;
+			return data;
+		},
+	}));
+	t.deepEqual(error?.data, {value: 1, custom: true});
+});
+
 test('HTTPError#data awaits async parseJson option', async t => {
 	const server = await createHttpTestServer(t);
 	const body = {value: 1};
