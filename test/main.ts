@@ -902,7 +902,7 @@ test('deletes merged search params even when all additions are removed by undefi
 	});
 
 	const api = ky.create({searchParams: {foo: '1', bar: '2'}});
-	const response = await api.get(server.url + '?foo=from-url&bar=from-url&keep=1', {
+	const response = await api.get(`${server.url}?foo=from-url&bar=from-url&keep=1`, {
 		// @ts-expect-error - testing undefined value
 		searchParams: {foo: undefined, bar: undefined},
 	});
@@ -924,7 +924,7 @@ test('request searchParams undefined removes merged keys but keeps unrelated val
 
 	const api = ky.extend({searchParams: {foo: '1', bar: '2'}}).extend({searchParams: {baz: '3'}});
 
-	const response = await api.get(server.url + '?bar=from-url&keep=1', {
+	const response = await api.get(`${server.url}?bar=from-url&keep=1`, {
 		// @ts-expect-error - testing undefined value
 		searchParams: {foo: undefined, extra: '4'},
 	});
@@ -947,7 +947,7 @@ test('string searchParams merge keeps duplicates across input URL and defaults',
 	});
 
 	const api = ky.create({searchParams: new URLSearchParams({filter: 'active'})});
-	const response = await api.get(server.url + '?filter=old&sort=old', {
+	const response = await api.get(`${server.url}?filter=old&sort=old`, {
 		searchParams: 'filter=recent&sort=new',
 	});
 
@@ -959,29 +959,7 @@ test('string searchParams merge keeps duplicates across input URL and defaults',
 });
 
 // TODO: Enable once `init` hooks are implemented
-test.skip('init hook can delete merged search params via undefined', async t => {
-	const server = await createHttpTestServer();
-
-	server.get('/', (request, response) => {
-		response.end(request.url);
-	});
-
-	const response = await ky.get(server.url + '?token=from-url', {
-		hooks: {
-			init: [
-				options => {
-					// @ts-expect-error - testing undefined value
-					options.searchParams = {token: undefined};
-				},
-			],
-		},
-	});
-
-	const url = new URL(await response.text(), server.url);
-	t.false(url.searchParams.has('token'));
-
-	await server.close();
-});
+test.todo('init hook can delete merged search params via undefined');
 
 test('ky.extend() searchParams layer deletion propagates through merged instances', async t => {
 	const server = await createHttpTestServer();
@@ -992,7 +970,7 @@ test('ky.extend() searchParams layer deletion propagates through merged instance
 
 	const api = ky.extend({searchParams: {foo: '1'}})
 		.extend({searchParams: {bar: '2'}});
-	const response = await api.get(server.url + '?bar=from-url', {
+	const response = await api.get(`${server.url}?bar=from-url`, {
 		// @ts-expect-error - testing undefined value
 		searchParams: {foo: undefined},
 	});
