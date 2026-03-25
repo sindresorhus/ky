@@ -1542,6 +1542,21 @@ for await (const event of parseServerSentEvents(response)) {
 }
 ```
 
+### Pagination
+
+Use [`fetch-extras`](https://github.com/sindresorhus/fetch-extras) with Ky for paginating API responses:
+
+```js
+import ky from 'ky';
+import {paginate} from 'fetch-extras';
+
+const url = 'https://api.github.com/repos/sindresorhus/ky/commits';
+
+for await (const commit of paginate(url, {fetchFunction: ky})) {
+	console.log(commit.sha);
+}
+```
+
 ### Extending types
 
 Ky's TypeScript types are intentionally defined as type aliases rather than interfaces to prevent global module augmentation, which can lead to type conflicts and unexpected behavior across your codebase. If you need to add custom properties to Ky's types like `KyResponse` or `HTTPError`, create local wrapper types instead:
