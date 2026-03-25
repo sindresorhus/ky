@@ -702,7 +702,7 @@ Type: `Function`
 Upload progress event handler.
 
 > [!NOTE]
-> Requires [request stream support](https://caniuse.com/wf-fetch-request-streams). In unsupported environments, this handler is silently ignored.
+> Requires [request stream support](https://caniuse.com/wf-fetch-request-streams) and HTTP/2 for HTTPS connections (in Chromium-based browsers). In unsupported environments, this handler is silently ignored.
 
 The function receives these arguments:
 - `progress` is an object with these properties:

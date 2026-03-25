@@ -221,7 +221,7 @@ export type KyOptions = {
 	/**
 	Upload progress event handler.
 
-	Note: Requires [request stream support](https://caniuse.com/wf-fetch-request-streams). In unsupported environments, this handler is silently ignored.
+	Note: Requires [request stream support](https://caniuse.com/wf-fetch-request-streams) and HTTP/2 for HTTPS connections (in Chromium-based browsers). In unsupported environments, this handler is silently ignored.
 
 	@param progress - Object containing upload progress information.
 	@param chunk - Data that was sent. Note: It's empty for the last call.
