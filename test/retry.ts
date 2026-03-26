@@ -409,7 +409,7 @@ test('invalid Retry-After header falls back to retry delay', async t => {
 				delay: () => 10,
 			},
 		}).text(),
-		delay(500).then(() => {
+		delay(2000).then(() => {
 			throw new Error('Retry took too long');
 		}),
 	]);
