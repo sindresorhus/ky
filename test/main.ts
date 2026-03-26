@@ -898,6 +898,53 @@ test('throwHttpErrors function - selective error handling', async t => {
 	);
 });
 
+test('does not throw for opaque responses from no-cors requests', async t => {
+	const response = await ky('https://example.com', {
+		async fetch() {
+			const response = new Response(null);
+			Object.defineProperty(response, 'type', {value: 'opaque'});
+			Object.defineProperty(response, 'ok', {value: false});
+			Object.defineProperty(response, 'status', {value: 0});
+			Object.defineProperty(response, 'statusText', {value: ''});
+			return response;
+		},
+	});
+
+	t.is(response.status, 0);
+});
+
+test('does not throw for opaque responses even when throwHttpErrors is a function', async t => {
+	const response = await ky('https://example.com', {
+		throwHttpErrors: () => true,
+		async fetch() {
+			const response = new Response(null);
+			Object.defineProperty(response, 'type', {value: 'opaque'});
+			Object.defineProperty(response, 'ok', {value: false});
+			Object.defineProperty(response, 'status', {value: 0});
+			Object.defineProperty(response, 'statusText', {value: ''});
+			return response;
+		},
+	});
+
+	t.is(response.status, 0);
+});
+
+test('still throws for opaqueredirect responses', async t => {
+	await t.throwsAsync(
+		ky('https://example.com', {
+			async fetch() {
+				const response = new Response(null);
+				Object.defineProperty(response, 'type', {value: 'opaqueredirect'});
+				Object.defineProperty(response, 'ok', {value: false});
+				Object.defineProperty(response, 'status', {value: 0});
+				Object.defineProperty(response, 'statusText', {value: ''});
+				return response;
+			},
+		}).text(),
+		{instanceOf: HTTPError},
+	);
+});
+
 test('ky.create()', async t => {
 	const server = await createHttpTestServer(t);
 	server.get('/', (request, response) => {

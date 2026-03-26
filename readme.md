@@ -669,6 +669,8 @@ You can also pass a function that accepts the HTTP status code and returns a boo
 
 Note: If `false`, error responses are considered successful and the request will not be retried.
 
+Note: [Opaque responses](https://developer.mozilla.org/en-US/docs/Web/API/Response/type) from `no-cors` requests are returned as-is (without throwing `HTTPError`), since the actual status is hidden by the browser.
+
 ##### onDownloadProgress
 
 Type: `Function`

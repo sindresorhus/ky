@@ -128,7 +128,8 @@ export class Ky {
 					continue;
 				}
 
-				if (!response.ok && (
+				// Opaque responses (`response.type === 'opaque'`) from `no-cors` requests always have `status: 0` and `ok: false`, but this is not a failure — the actual status is hidden by the browser.
+				if (!response.ok && response.type !== 'opaque' && (
 					typeof ky.#options.throwHttpErrors === 'function'
 						? ky.#options.throwHttpErrors(response.status)
 						: ky.#options.throwHttpErrors
