@@ -958,8 +958,34 @@ test('string searchParams merge keeps duplicates across input URL and defaults',
 	await server.close();
 });
 
-// TODO: Enable once `init` hooks are implemented
-test.todo('init hook can delete merged search params via undefined');
+test('init hook can delete merged search params via undefined', async t => {
+	const server = await createHttpTestServer();
+
+	server.get('/', (request, response) => {
+		response.end(request.url);
+	});
+
+	const api = ky.create({
+		searchParams: {foo: '1', bar: '2'},
+		hooks: {
+			init: [
+				options => {
+					// @ts-expect-error - testing undefined value
+					options.searchParams = {foo: undefined, baz: '3'};
+				},
+			],
+		},
+	});
+
+	const response = await api.get(`${server.url}?bar=from-url`);
+	const url = new URL(await response.text(), server.url);
+
+	t.false(url.searchParams.has('foo'));
+	t.is(url.searchParams.get('bar'), 'from-url'); // Input URL overrides instance default
+	t.is(url.searchParams.get('baz'), '3'); // Added by init hook
+
+	await server.close();
+});
 
 test('ky.extend() searchParams layer deletion propagates through merged instances', async t => {
 	const server = await createHttpTestServer();
