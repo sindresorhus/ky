@@ -1329,20 +1329,20 @@ test('each retry gets the full per-attempt timeout (not a shared budget)', async
 	server.get('/', async (_request, response) => {
 		requestCount++;
 		if (requestCount === 1) {
-			// First attempt: consume most of a 500ms timeout, then return 500
-			await delay(400);
+			// First attempt: consume most of a 2000ms timeout, then return 500
+			await delay(1500);
 			response.sendStatus(500);
 			return;
 		}
 
-		// Second attempt: also takes 400ms, which would fail if timeout were a shared budget
-		// (only ~100ms would remain), but succeeds because each retry gets the full 500ms
-		await delay(400);
+		// Second attempt: also takes 1500ms, which would fail if timeout were a shared budget
+		// (only ~500ms would remain), but succeeds because each retry gets the full 2000ms
+		await delay(1500);
 		response.end(fixture);
 	});
 
 	const result = await ky(server.url, {
-		timeout: 500,
+		timeout: 2000,
 		retry: {
 			limit: 1,
 			delay: () => 0,

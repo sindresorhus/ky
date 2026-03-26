@@ -2416,7 +2416,7 @@ test('afterResponse forced retry respects totalTimeout budget', async t => {
 
 	await t.throwsAsync(
 		ky.get(server.url, {
-			totalTimeout: 100,
+			totalTimeout: 1000,
 			retry: {
 				limit: 3,
 			},
@@ -2425,7 +2425,7 @@ test('afterResponse forced retry respects totalTimeout budget', async t => {
 					async ({response}) => {
 						const data = await response.clone().json();
 						if (data.error?.code === 'RETRY_WITH_DELAY') {
-							return ky.retry({delay: 200});
+							return ky.retry({delay: 2000});
 						}
 					},
 				],
