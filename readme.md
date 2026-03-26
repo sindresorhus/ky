@@ -256,10 +256,9 @@ Default:
 - `delay`: `attemptCount => 0.3 * (2 ** (attemptCount - 1)) * 1000`
 - `jitter`: `undefined`
 - `retryOnTimeout`: `false`
-- `resetTimeout`: `false`
 - `shouldRetry`: `undefined`
 
-An object representing `limit`, `methods`, `statusCodes`, `afterStatusCodes`, `maxRetryAfter`, `backoffLimit`, `delay`, `jitter`, `retryOnTimeout`, `resetTimeout`, and `shouldRetry` fields for maximum retry count, allowed methods, allowed status codes, status codes allowed to use the [`Retry-After`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Retry-After) time, maximum [`Retry-After`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Retry-After) time, backoff limit, delay calculation function, retry jitter, timeout retry behavior, timeout reset behavior, and custom retry logic.
+An object representing `limit`, `methods`, `statusCodes`, `afterStatusCodes`, `maxRetryAfter`, `backoffLimit`, `delay`, `jitter`, `retryOnTimeout`, and `shouldRetry` fields for maximum retry count, allowed methods, allowed status codes, status codes allowed to use the [`Retry-After`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Retry-After) time, maximum [`Retry-After`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Retry-After) time, backoff limit, delay calculation function, retry jitter, timeout retry behavior, and custom retry logic.
 
 If `retry` is a number, it will be used as `limit` and other defaults will remain in place.
 
@@ -280,8 +279,6 @@ The `jitter` option adds random jitter to retry delays to prevent thundering her
 **Note:** Jitter is not applied when the server provides a `Retry-After` header, as the server's explicit timing should be respected.
 
 The `retryOnTimeout` option determines whether to retry when a request times out. By default, retries are not triggered following a [timeout](#timeout).
-
-The `resetTimeout` option gives each retry attempt the full `timeout` value instead of the remaining budget. By default, `timeout` is a total timeout across all retries, meaning later retries get progressively less time. When `resetTimeout` is `true`, each retry starts with a fresh timeout. If you need both per-request timeout and a total timeout cap, combine `resetTimeout: true` with `signal: AbortSignal.timeout(totalMs)`.
 
 The `shouldRetry` option provides custom retry logic that **takes precedence over the default retry checks** (`retryOnTimeout`, status code checks, etc.) for retriable methods. It is only called after the retry limit and method checks pass.
 
@@ -319,21 +316,6 @@ const json = await ky('https://example.com', {
 	retry: {
 		limit: 3,
 		retryOnTimeout: true
-	}
-}).json();
-```
-
-**Resetting timeout on each retry:**
-
-```js
-import ky from 'ky';
-
-const json = await ky('https://example.com', {
-	timeout: 5000,
-	retry: {
-		limit: 3,
-		retryOnTimeout: true,
-		resetTimeout: true
 	}
 }).json();
 ```
@@ -401,9 +383,32 @@ const json = await ky('https://example.com', {
 Type: `number | false`\
 Default: `10000`
 
-Timeout in milliseconds for getting a response, including any retries. Cannot be greater than 2147483647. Use [`retry.resetTimeout`](#retry) to give each retry attempt the full timeout instead of sharing a single budget across all attempts.
+Timeout in milliseconds for getting a response. Each retry attempt gets the full timeout. Cannot be greater than 2147483647.
 
 If set to `false`, there will be no timeout.
+
+##### totalTimeout
+
+Type: `number | false`\
+Default: `false`
+
+Total timeout in milliseconds for the entire operation, including all retries and delays. Cannot be greater than 2147483647. Throws a `TimeoutError` if exceeded.
+
+This is useful when you want to cap the total time spent on an operation, while still allowing each individual retry to use the full per-attempt `timeout`.
+
+```js
+import ky from 'ky';
+
+// Each attempt gets 5s, but the whole operation must complete within 30s
+const json = await ky('https://example.com', {
+	timeout: 5000,
+	totalTimeout: 30_000,
+	retry: {
+		limit: 3,
+		retryOnTimeout: true,
+	}
+}).json();
+```
 
 ##### hooks
 

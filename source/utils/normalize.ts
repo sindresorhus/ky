@@ -23,7 +23,6 @@ const defaultRetryOptions: InternalRetryOptions = {
 	delay: attemptCount => 0.3 * (2 ** (attemptCount - 1)) * 1000,
 	jitter: undefined,
 	retryOnTimeout: false,
-	resetTimeout: false,
 };
 
 export const normalizeRetryOptions = (retry: number | RetryOptions = {}): InternalRetryOptions => {

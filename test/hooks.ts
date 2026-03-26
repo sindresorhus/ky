@@ -519,7 +519,7 @@ test('beforeRetry hook is never called for the initial request', async t => {
 	);
 });
 
-test('beforeRequest hook on initial request cannot bypass total timeout budget', async t => {
+test('beforeRequest hook on initial request cannot bypass totalTimeout budget', async t => {
 	let fetchCallCount = 0;
 
 	const customFetch: typeof fetch = async () => {
@@ -530,7 +530,7 @@ test('beforeRequest hook on initial request cannot bypass total timeout budget',
 	const error = await t.throwsAsync(
 		ky('https://example.com', {
 			fetch: customFetch,
-			timeout: 100,
+			totalTimeout: 100,
 			hooks: {
 				beforeRequest: [
 					async () => {
@@ -839,7 +839,7 @@ test('beforeRetry hook can cancel retries by returning `stop`', async t => {
 	t.is(requestCount, 1);
 });
 
-test('beforeRetry hook respects total timeout budget', async t => {
+test('beforeRetry hook respects totalTimeout budget', async t => {
 	let fetchCallCount = 0;
 	let beforeRetryCallCount = 0;
 
@@ -855,7 +855,7 @@ test('beforeRetry hook respects total timeout budget', async t => {
 	await t.throwsAsync(
 		ky('https://example.com', {
 			fetch: customFetch,
-			timeout: 1000,
+			totalTimeout: 1000,
 			retry: {
 				limit: 1,
 				delay: () => 0,
@@ -1534,7 +1534,7 @@ test('beforeError hook receives TimeoutError', async t => {
 	t.true(receivedError instanceof KyError);
 });
 
-test('beforeError receives TimeoutError when beforeRequest consumes remaining timeout budget (gh-508)', async t => {
+test('beforeError receives TimeoutError when beforeRequest consumes remaining totalTimeout budget (gh-508)', async t => {
 	let receivedError: Error | undefined;
 	let fetchCallCount = 0;
 
@@ -1546,7 +1546,7 @@ test('beforeError receives TimeoutError when beforeRequest consumes remaining ti
 	await t.throwsAsync(
 		ky('https://example.com', {
 			fetch: customFetch,
-			timeout: 100,
+			totalTimeout: 100,
 			hooks: {
 				beforeRequest: [
 					async () => {
@@ -1685,9 +1685,8 @@ test('beforeError hook retryCount reflects actual retry count for TimeoutError',
 		},
 	);
 
-	// The 50ms total timeout budget is exhausted before any retry can complete,
-	// so retryCount is 0.
-	t.is(errorRetryCount, 0);
+	// Each retry gets the full per-attempt timeout, so all 2 retries are attempted.
+	t.is(errorRetryCount, 2);
 });
 
 test('beforeError hook can replace error with a different type', async t => {
@@ -2406,7 +2405,7 @@ test('afterResponse hook can force retry with custom delay', async t => {
 	t.true(elapsedTime >= customDelay); // Verify custom delay was used
 });
 
-test('afterResponse forced retry respects total timeout budget', async t => {
+test('afterResponse forced retry respects totalTimeout budget', async t => {
 	let requestCount = 0;
 
 	const server = await createHttpTestServer(t);
@@ -2417,7 +2416,7 @@ test('afterResponse forced retry respects total timeout budget', async t => {
 
 	await t.throwsAsync(
 		ky.get(server.url, {
-			timeout: 100,
+			totalTimeout: 100,
 			retry: {
 				limit: 3,
 			},
@@ -2437,7 +2436,7 @@ test('afterResponse forced retry respects total timeout budget', async t => {
 		},
 	);
 
-	t.true(requestCount <= 1);
+	t.is(requestCount, 1);
 });
 
 test('afterResponse hook forced retry respects retry limit', async t => {

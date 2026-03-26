@@ -93,8 +93,12 @@ export class Ky {
 				throw new RangeError(`The \`timeout\` option cannot be greater than ${maxSafeTimeout}`);
 			}
 
-			// Track start time for total timeout across retries
-			if (ky.#startTime === undefined && typeof ky.#options.timeout === 'number') {
+			if (typeof ky.#options.totalTimeout === 'number' && ky.#options.totalTimeout > maxSafeTimeout) {
+				throw new RangeError(`The \`totalTimeout\` option cannot be greater than ${maxSafeTimeout}`);
+			}
+
+			// Track start time for totalTimeout across retries
+			if (ky.#startTime === undefined && typeof ky.#options.totalTimeout === 'number') {
 				ky.#startTime = ky.#getCurrentTime();
 			}
 
@@ -303,6 +307,7 @@ export class Ky {
 			retry: normalizeRetryOptions(options.retry),
 			throwHttpErrors: options.throwHttpErrors ?? true,
 			timeout: options.timeout ?? 10_000,
+			totalTimeout: options.totalTimeout ?? false,
 			fetch: options.fetch ?? globalThis.fetch.bind(globalThis),
 			context: options.context ?? {},
 		};
@@ -702,7 +707,7 @@ export class Ky {
 		const retryDelay = Math.min(await this.#calculateRetryDelay(error), maxSafeTimeout);
 		const delayOptions = this.#userProvidedAbortSignal ? {signal: this.#userProvidedAbortSignal} : {};
 
-		const remainingTimeout = this.#getRemainingTimeout();
+		const remainingTimeout = this.#getRemainingTotalTimeout();
 		if (remainingTimeout !== undefined) {
 			if (remainingTimeout <= 0) {
 				throw new TimeoutError(this.request);
@@ -718,7 +723,7 @@ export class Ky {
 		// Only use user-provided signal for delay, not our internal abortController
 		await delay(retryDelay, delayOptions);
 
-		const remainingTimeoutAfterDelay = this.#getRemainingTimeout();
+		const remainingTimeoutAfterDelay = this.#getRemainingTotalTimeout();
 		if (
 			remainingTimeoutAfterDelay !== undefined
 			&& remainingTimeoutAfterDelay <= 0
@@ -773,7 +778,7 @@ export class Ky {
 			}
 		}
 
-		const remainingTimeoutAfterBeforeRetryHooks = this.#getRemainingTimeout();
+		const remainingTimeoutAfterBeforeRetryHooks = this.#getRemainingTotalTimeout();
 		if (
 			remainingTimeoutAfterBeforeRetryHooks !== undefined
 			&& remainingTimeoutAfterBeforeRetryHooks <= 0
@@ -813,18 +818,29 @@ export class Ky {
 		}
 
 		try {
-			if (this.#options.timeout === false) {
-				return await this.#options.fetch(request, nonRequestOptions);
-			}
-
-			const remainingTimeout = this.#getRemainingTimeout() ?? this.#options.timeout;
-			if (remainingTimeout <= 0) {
+			const remainingTotal = this.#getRemainingTotalTimeout();
+			if (remainingTotal !== undefined && remainingTotal <= 0) {
 				throw new TimeoutError(this.request);
 			}
 
+			if (this.#options.timeout === false) {
+				if (remainingTotal !== undefined) {
+					return await timeout(request, nonRequestOptions, this.#abortController, {
+						...this.#options,
+						timeout: remainingTotal,
+					} as TimeoutOptions);
+				}
+
+				return await this.#options.fetch(request, nonRequestOptions);
+			}
+
+			const effectiveTimeout = remainingTotal === undefined
+				? this.#options.timeout
+				: Math.min(this.#options.timeout, remainingTotal);
+
 			return await timeout(request, nonRequestOptions, this.#abortController, {
 				...this.#options,
-				timeout: remainingTimeout,
+				timeout: effectiveTimeout,
 			} as TimeoutOptions);
 		} catch (error) {
 			if (isRawNetworkError(error)) {
@@ -835,17 +851,13 @@ export class Ky {
 		}
 	}
 
-	#getRemainingTimeout(): number | undefined {
-		if (this.#options.timeout === false) {
+	#getRemainingTotalTimeout(): number | undefined {
+		if (this.#options.totalTimeout === false || this.#startTime === undefined) {
 			return undefined;
 		}
 
-		if (this.#startTime === undefined || this.#options.retry.resetTimeout) {
-			return this.#options.timeout;
-		}
-
 		const elapsed = this.#getCurrentTime() - this.#startTime;
-		return Math.max(0, this.#options.timeout - elapsed);
+		return Math.max(0, this.#options.totalTimeout - elapsed);
 	}
 
 	#getCurrentTime(): number {
@@ -862,6 +874,7 @@ export class Ky {
 				stringifyJson,
 				searchParams,
 				timeout,
+				totalTimeout,
 				throwHttpErrors,
 				fetch,
 				...normalizedOptions
