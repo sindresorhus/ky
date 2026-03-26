@@ -1678,6 +1678,113 @@ test('totalTimeout with timeout: false - exceeds total budget', async t => {
 	t.is(requestCount, 1);
 });
 
+test('totalTimeout bounds hanging HTTPError body reads when timeout is disabled', async t => {
+	t.timeout(2000);
+	let requestCount = 0;
+
+	const customFetch: typeof fetch = async () => {
+		requestCount++;
+
+		const body = new ReadableStream<Uint8Array>({
+			start(controller) {
+				controller.enqueue(new TextEncoder().encode('{"error":"partial"'));
+			},
+		});
+
+		return new Response(body, {
+			status: 500,
+			headers: {'content-type': 'application/json'},
+		});
+	};
+
+	await t.throwsAsync(
+		ky('https://example.com', {
+			fetch: customFetch,
+			timeout: false,
+			totalTimeout: 50,
+			retry: {
+				limit: 5,
+				delay: () => 0,
+			},
+		}).text(),
+		{
+			name: 'TimeoutError',
+		},
+	);
+
+	t.is(requestCount, 1);
+});
+
+test('totalTimeout bounds hanging HTTPError body reads when timeout is larger', async t => {
+	t.timeout(2000);
+	let requestCount = 0;
+
+	const customFetch: typeof fetch = async () => {
+		requestCount++;
+
+		const body = new ReadableStream<Uint8Array>({
+			start(controller) {
+				controller.enqueue(new TextEncoder().encode('{"error":"partial"'));
+			},
+		});
+
+		return new Response(body, {
+			status: 500,
+			headers: {'content-type': 'application/json'},
+		});
+	};
+
+	await t.throwsAsync(
+		ky('https://example.com', {
+			fetch: customFetch,
+			timeout: 1000,
+			totalTimeout: 50,
+			retry: {
+				limit: 5,
+				delay: () => 0,
+			},
+		}).text(),
+		{
+			name: 'TimeoutError',
+		},
+	);
+
+	t.is(requestCount, 1);
+});
+
+test('totalTimeout bounds hanging HTTPError parseJson when timeout is disabled', async t => {
+	t.timeout(2000);
+	let requestCount = 0;
+
+	const customFetch: typeof fetch = async () => {
+		requestCount++;
+		return new Response('{"error":"parse-timeout"}', {
+			status: 500,
+			headers: {'content-type': 'application/json'},
+		});
+	};
+
+	await t.throwsAsync(
+		ky('https://example.com', {
+			fetch: customFetch,
+			timeout: false,
+			totalTimeout: 50,
+			parseJson: async () => new Promise<never>(() => {
+				// Intentionally never settles
+			}),
+			retry: {
+				limit: 5,
+				delay: () => 0,
+			},
+		}).text(),
+		{
+			name: 'TimeoutError',
+		},
+	);
+
+	t.is(requestCount, 1);
+});
+
 test('totalTimeout smaller than timeout - effective timeout is capped', async t => {
 	let requestCount = 0;
 
