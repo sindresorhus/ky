@@ -1,8 +1,12 @@
-import {KyError} from '../errors/KyError.js';
+import type {KyError} from '../errors/KyError.js';
 import {HTTPError} from '../errors/HTTPError.js';
 import {NetworkError} from '../errors/NetworkError.js';
 import {TimeoutError} from '../errors/TimeoutError.js';
 import {ForceRetryError} from '../errors/ForceRetryError.js';
+
+// Handles cross-realm cases (e.g. iframes, different JS contexts) where `instanceof` fails.
+const isErrorType = (error: unknown, cls: {name: string}): boolean =>
+	error instanceof (cls as any) || (error as any)?.name === cls.name;
 
 /**
 Type guard to check if an error is a Ky error.
@@ -29,7 +33,7 @@ try {
 ```
 */
 export function isKyError(error: unknown): error is KyError {
-	return error instanceof KyError || isHTTPError(error) || isNetworkError(error) || isTimeoutError(error) || isForceRetryError(error);
+	return (error as any)?.isKyError === true || isHTTPError(error) || isNetworkError(error) || isTimeoutError(error) || isForceRetryError(error);
 }
 
 /**
@@ -51,7 +55,7 @@ try {
 ```
 */
 export function isHTTPError<T = unknown>(error: unknown): error is HTTPError<T> {
-	return error instanceof HTTPError || ((error as any)?.name === HTTPError.name);
+	return isErrorType(error, HTTPError);
 }
 
 /**
@@ -73,7 +77,7 @@ try {
 ```
 */
 export function isNetworkError(error: unknown): error is NetworkError {
-	return error instanceof NetworkError || ((error as any)?.name === NetworkError.name);
+	return isErrorType(error, NetworkError);
 }
 
 /**
@@ -95,7 +99,7 @@ try {
 ```
 */
 export function isTimeoutError(error: unknown): error is TimeoutError {
-	return error instanceof TimeoutError || ((error as any)?.name === TimeoutError.name);
+	return isErrorType(error, TimeoutError);
 }
 
 /**
@@ -122,5 +126,5 @@ const api = ky.extend({
 ```
 */
 export function isForceRetryError(error: unknown): error is ForceRetryError {
-	return error instanceof ForceRetryError || ((error as any)?.name === ForceRetryError.name);
+	return isErrorType(error, ForceRetryError);
 }

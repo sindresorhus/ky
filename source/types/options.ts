@@ -455,6 +455,7 @@ export interface NormalizedOptions extends RequestInit { // eslint-disable-line 
 
 	// Extended from custom `KyOptions`, but ensured to be set (not optional).
 	retry: RetryOptions;
+	baseUrl?: Options['baseUrl'];
 	prefix: string;
 	onDownloadProgress: Options['onDownloadProgress'];
 	onUploadProgress: Options['onUploadProgress'];

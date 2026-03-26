@@ -2024,6 +2024,80 @@ test('beforeError receives request and options for TimeoutError', async t => {
 	t.is(receivedOptions?.method, 'GET');
 });
 
+test('beforeError receives current request and normalized options after retry request replacement', async t => {
+	let receivedRequest: Request | undefined;
+	let receivedOptions: NormalizedOptions | undefined;
+
+	await t.throwsAsync(
+		ky('https://example.com', {
+			method: 'POST',
+			body: 'original-body',
+			retry: {
+				limit: 1,
+				methods: ['post'],
+			},
+			async fetch() {
+				return new Response('', {status: 500});
+			},
+			hooks: {
+				beforeRetry: [
+					({request}) => new Request(request, {
+						method: 'PUT',
+						headers: {
+							'x-retried': 'yes',
+						},
+						body: 'retried-body',
+					}),
+				],
+				beforeError: [
+					({request, options, error}) => {
+						receivedRequest = request;
+						receivedOptions = options;
+						return error;
+					},
+				],
+			},
+		}),
+	);
+
+	t.is(receivedRequest?.method, 'PUT');
+	t.is(receivedRequest?.headers.get('x-retried'), 'yes');
+	t.is(receivedOptions?.method, 'POST');
+	t.is(receivedOptions?.headers?.get('x-retried'), null);
+	t.is(receivedOptions?.body, 'original-body');
+});
+
+test('beforeError preserves normalized body in options', async t => {
+	let receivedOptions: NormalizedOptions | undefined;
+	let receivedHttpError: HTTPError | undefined;
+
+	await t.throwsAsync(
+		ky('https://example.com', {
+			method: 'POST',
+			body: 'original-body',
+			retry: 0,
+			async fetch() {
+				return new Response('', {status: 500});
+			},
+			hooks: {
+				beforeError: [
+					({options, error}) => {
+						receivedOptions = options;
+						if (isHTTPError(error)) {
+							receivedHttpError = error;
+						}
+
+						return error;
+					},
+				],
+			},
+		}),
+	);
+
+	t.is(receivedOptions?.body, 'original-body');
+	t.is(receivedHttpError?.options.body, 'original-body');
+});
+
 test('beforeError receives options.context', async t => {
 	let receivedContext: unknown;
 
@@ -4330,6 +4404,28 @@ test('init hook can modify headers', async t => {
 	t.is(result, 'added-by-init');
 });
 
+test('init hook preserves object headers shape for in-place mutations', async t => {
+	let authorizationHeader: string | undefined;
+	await ky.get('https://example.com', {
+		async fetch(request) {
+			authorizationHeader = request.headers.get('authorization') ?? undefined;
+			return new Response('ok');
+		},
+		headers: {
+			authorization: 'token initial',
+		},
+		hooks: {
+			init: [
+				options => {
+					(options.headers as Record<string, string>).authorization = 'token updated';
+				},
+			],
+		},
+	}).text();
+
+	t.is(authorizationHeader, 'token updated');
+});
+
 test('init hooks run in order from extend chain', async t => {
 	const order: number[] = [];
 
@@ -4516,8 +4612,9 @@ test('init hook sees per-request options merged with defaults', async t => {
 		hooks: {
 			init: [
 				options => {
-					t.is((options.headers as Headers).get('x-default'), 'from-defaults');
-					t.is((options.headers as Headers).get('x-request'), 'from-request');
+					const headers = new Headers(options.headers as RequestInit['headers']);
+					t.is(headers.get('x-default'), 'from-defaults');
+					t.is(headers.get('x-request'), 'from-request');
 				},
 			],
 		},
@@ -4573,6 +4670,263 @@ test('init hook runs on every request from the same instance', async t => {
 	});
 
 	t.is(callCount, 2);
+});
+
+test('init hook in-place mutations do not leak across requests', async t => {
+	let requestIdentifier = 0;
+	const seenRequestIdentifiers: string[] = [];
+
+	const api = ky.extend({
+		searchParams: {},
+		hooks: {
+			init: [
+				options => {
+					const searchParameters = options.searchParams as Record<string, string | undefined>;
+					searchParameters.requestId ??= String(++requestIdentifier);
+				},
+			],
+		},
+	});
+
+	const fetch: typeof globalThis.fetch = async request => {
+		seenRequestIdentifiers.push(new URL(request.url).searchParams.get('requestId')!);
+		return new Response('ok');
+	};
+
+	await api.get('https://example.com', {fetch});
+	await api.get('https://example.com', {fetch});
+
+	t.deepEqual(seenRequestIdentifiers, ['1', '2']);
+});
+
+test('init hook in-place retry mutations do not leak across requests', async t => {
+	const seenLimits: number[] = [];
+
+	const api = ky.extend({
+		retry: {
+			limit: 2,
+		},
+		hooks: {
+			init: [
+				options => {
+					const retry = options.retry as {limit: number};
+					seenLimits.push(retry.limit);
+					retry.limit = 0;
+				},
+			],
+		},
+	});
+
+	const fetch: typeof globalThis.fetch = async () => new Response('error', {status: 500});
+
+	await t.throwsAsync(api.get('https://example.com', {fetch}));
+	await t.throwsAsync(api.get('https://example.com', {fetch}));
+
+	t.deepEqual(seenLimits, [2, 2]);
+});
+
+test('init hook in-place json mutations do not leak across requests', async t => {
+	let requestIdentifier = 0;
+	const seenRequestIdentifiers: string[] = [];
+
+	const api = ky.extend({
+		json: {},
+		hooks: {
+			init: [
+				options => {
+					const json = options.json as Record<string, string | undefined>;
+					json.requestId ??= String(++requestIdentifier);
+				},
+			],
+		},
+	});
+
+	const fetch: typeof globalThis.fetch = async request => {
+		const body = await request.text();
+		seenRequestIdentifiers.push(JSON.parse(body).requestId);
+		return new Response('ok');
+	};
+
+	await api.post('https://example.com', {fetch});
+	await api.post('https://example.com', {fetch});
+
+	t.deepEqual(seenRequestIdentifiers, ['1', '2']);
+});
+
+test('init hooks preserve non-plain json values', async t => {
+	const createdAt = new Date('2024-01-01T00:00:00.000Z');
+
+	const response = await ky.post('https://example.com', {
+		fetch: async request => new Response(await request.text()),
+		json: createdAt,
+		hooks: {
+			init: [
+				options => {
+					options.headers = {'x-init': 'present'};
+				},
+			],
+		},
+	}).json<string>();
+
+	t.is(response, createdAt.toJSON());
+});
+
+test('custom stringifyJson receives cyclic json unchanged when init hooks are absent', async t => {
+	const json: {self?: unknown} = {};
+	json.self = json;
+
+	let receivedJson: unknown;
+
+	const response = await ky.post('https://example.com', {
+		fetch: async request => new Response(await request.text()),
+		json,
+		stringifyJson(data) {
+			receivedJson = data;
+			return '{"ok":true}';
+		},
+	}).json<{ok: boolean}>();
+
+	t.is(receivedJson, json);
+	t.deepEqual(response, {ok: true});
+});
+
+test('custom stringifyJson supports function-valued json when init hooks are present', async t => {
+	const response = await ky.post('https://example.com', {
+		fetch: async request => new Response(await request.text()),
+		hooks: {
+			init: [
+				options => {
+					options.headers = {'x-init': 'present'};
+				},
+			],
+		},
+		json: {
+			keep: true,
+			skip() {
+				return undefined;
+			},
+		},
+		stringifyJson(data) {
+			return JSON.stringify(data);
+		},
+	}).json();
+
+	t.deepEqual(response, {keep: true});
+});
+
+test('init hook in-place json mutations do not leak across requests with custom stringifyJson', async t => {
+	let requestIdentifier = 0;
+	const seenRequestIdentifiers: string[] = [];
+
+	const api = ky.extend({
+		json: {},
+		stringifyJson(json) {
+			return JSON.stringify(json);
+		},
+		hooks: {
+			init: [
+				options => {
+					const json = options.json as Record<string, string | undefined>;
+					json.requestId ??= String(++requestIdentifier);
+				},
+			],
+		},
+	});
+
+	const fetch: typeof globalThis.fetch = async request => {
+		const body = await request.text();
+		seenRequestIdentifiers.push(JSON.parse(body).requestId);
+		return new Response('ok');
+	};
+
+	await api.post('https://example.com', {fetch});
+	await api.post('https://example.com', {fetch});
+
+	t.deepEqual(seenRequestIdentifiers, ['1', '2']);
+});
+
+test('init hook in-place header mutations do not leak across requests', async t => {
+	const seenRequestIdentifiers: string[] = [];
+	let requestIdentifier = 0;
+
+	const api = ky.extend({
+		headers: new Headers(),
+		hooks: {
+			init: [
+				options => {
+					(options.headers as Headers).set('x-request-id', String(++requestIdentifier));
+				},
+			],
+		},
+	});
+
+	const fetch: typeof globalThis.fetch = async request => {
+		seenRequestIdentifiers.push(request.headers.get('x-request-id')!);
+		return new Response('ok');
+	};
+
+	await api.get('https://example.com', {fetch});
+	await api.get('https://example.com', {fetch});
+
+	t.deepEqual(seenRequestIdentifiers, ['1', '2']);
+});
+
+test('init hook in-place context mutations do not leak across requests', async t => {
+	const seenRequestIdentifiers: number[] = [];
+	let requestIdentifier = 0;
+
+	const api = ky.extend({
+		context: {},
+		hooks: {
+			init: [
+				options => {
+					(options.context as Record<string, number>).requestIdentifier = ++requestIdentifier;
+				},
+			],
+			beforeRequest: [
+				({options}) => {
+					seenRequestIdentifiers.push(options.context.requestIdentifier as number);
+				},
+			],
+		},
+	});
+
+	await api.get('https://example.com', {
+		fetch: async () => new Response('ok'),
+	});
+
+	await api.get('https://example.com', {
+		fetch: async () => new Response('ok'),
+	});
+
+	t.deepEqual(seenRequestIdentifiers, [1, 2]);
+});
+
+test('multiple init hooks see each other\'s mutations on the shared cloned options', async t => {
+	const api = ky.extend({
+		json: {a: 1},
+		hooks: {
+			init: [
+				options => {
+					(options.json as Record<string, number>).b = 2;
+				},
+				options => {
+					const json = options.json as Record<string, number>;
+					// Second hook should see mutation from first hook
+					json.c = json.a + json.b;
+				},
+			],
+		},
+	});
+
+	const fetch: typeof globalThis.fetch = async request => {
+		const body = await request.text();
+		return new Response(body);
+	};
+
+	const response = await api.post('https://example.com', {fetch}).json<Record<string, number>>();
+
+	t.deepEqual(response, {a: 1, b: 2, c: 3});
 });
 
 test('init hook runs only once even with retries', async t => {

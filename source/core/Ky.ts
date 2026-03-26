@@ -15,9 +15,9 @@ import type {
 import {type ResponsePromise} from '../types/ResponsePromise.js';
 import type {StandardSchemaV1} from '../types/standard-schema.js';
 import {streamRequest, streamResponse} from '../utils/body.js';
-import {mergeHeaders, mergeHooks} from '../utils/merge.js';
+import {cloneShallow, mergeHeaders, mergeHooks} from '../utils/merge.js';
 import {normalizeRequestMethod, normalizeRetryOptions} from '../utils/normalize.js';
-import timeout, {type TimeoutOptions} from '../utils/timeout.js';
+import timeout from '../utils/timeout.js';
 import delay from '../utils/delay.js';
 import {type ObjectEntries} from '../utils/types.js';
 import {findUnknownOptions, hasSearchParameters} from '../utils/options.js';
@@ -51,6 +51,20 @@ const createTextDecoder = (contentType: string): TextDecoder => {
 	return new TextDecoder();
 };
 
+const invalidSchemaMessage = 'The `schema` argument must follow the Standard Schema specification';
+
+// Shallow-clone mutable option properties so init hook mutations don't leak across requests.
+function cloneInitHookOptions(options: Options): Options {
+	return {
+		...options,
+		json: cloneShallow(options.json),
+		retry: cloneShallow(options.retry)!,
+		context: cloneShallow(options.context)!,
+		headers: cloneShallow(options.headers)!,
+		searchParams: cloneShallow(options.searchParams) as SearchParamsOption | undefined,
+	};
+}
+
 const validateJsonWithSchema = async (jsonValue: unknown, schema: StandardSchemaV1): Promise<unknown> => {
 	if (
 		(
@@ -59,7 +73,7 @@ const validateJsonWithSchema = async (jsonValue: unknown, schema: StandardSchema
 		)
 		|| schema === null
 	) {
-		throw new TypeError('The `schema` argument must follow the Standard Schema specification');
+		throw new TypeError(invalidSchemaMessage);
 	}
 
 	const standardSchema = schema['~standard'];
@@ -69,7 +83,7 @@ const validateJsonWithSchema = async (jsonValue: unknown, schema: StandardSchema
 		|| standardSchema === null
 		|| typeof standardSchema.validate !== 'function'
 	) {
-		throw new TypeError('The `schema` argument must follow the Standard Schema specification');
+		throw new TypeError(invalidSchemaMessage);
 	}
 
 	const validationResult = await standardSchema.validate(jsonValue);
@@ -83,11 +97,14 @@ const validateJsonWithSchema = async (jsonValue: unknown, schema: StandardSchema
 
 export class Ky {
 	static create(input: Input, options: Options): ResponsePromise {
-		for (const hook of options.hooks?.init ?? []) {
-			hook(options);
+		const initHooks = options.hooks?.init ?? [];
+		const initHookOptions = initHooks.length > 0 ? cloneInitHookOptions(options) : options;
+
+		for (const hook of initHooks) {
+			hook(initHookOptions);
 		}
 
-		const ky = new Ky(input, options);
+		const ky = new Ky(input, initHookOptions);
 
 		const function_ = async (): Promise<Response | void> => {
 			if (typeof ky.#options.timeout === 'number' && ky.#options.timeout > maxSafeTimeout) {
@@ -96,11 +113,6 @@ export class Ky {
 
 			if (typeof ky.#options.totalTimeout === 'number' && ky.#options.totalTimeout > maxSafeTimeout) {
 				throw new RangeError(`The \`totalTimeout\` option cannot be greater than ${maxSafeTimeout}`);
-			}
-
-			// Track start time for totalTimeout across retries
-			if (ky.#startTime === undefined && typeof ky.#options.totalTimeout === 'number') {
-				ky.#startTime = ky.#getCurrentTime();
 			}
 
 			// Delay the fetch so that body method shortcuts can set the Accept header
@@ -139,7 +151,10 @@ export class Ky {
 						? ky.#options.throwHttpErrors(response.status)
 						: ky.#options.throwHttpErrors
 				)) {
-					const error = new HTTPError(response, ky.request, ky.#getNormalizedOptions());
+					// `request` must reflect the request that actually failed, but `options` stays as Ky's
+					// normalized options snapshot. Replacement `Request` instances do not preserve the
+					// original `BodyInit`, so trying to make `options` mirror arbitrary requests would be lossy.
+					const error = new HTTPError(response, ky.#getResponseRequest(response), ky.#getNormalizedOptions());
 					// eslint-disable-next-line no-await-in-loop
 					error.data = await ky.#getResponseData(response);
 
@@ -197,6 +212,8 @@ export class Ky {
 
 				let processedError: Error = error;
 				for (const hook of ky.#options.hooks.beforeError) {
+					// `request` is the current failing request. `options` intentionally remains the
+					// stable normalized Ky options snapshot for the same reason as HTTPError above.
 					// eslint-disable-next-line no-await-in-loop
 					const hookResult: unknown = await hook({
 						request: ky.request,
@@ -248,8 +265,8 @@ export class Ky {
 					return schema === undefined ? undefined : validateJsonWithSchema(undefined, schema);
 				}
 
-				const jsonValue = options.parseJson
-					? await options.parseJson(text, {request: ky.request, response})
+				const jsonValue = initHookOptions.parseJson
+					? await initHookOptions.parseJson(text, {request: ky.#getResponseRequest(response), response})
 					: JSON.parse(text);
 
 				return schema === undefined ? jsonValue : validateJsonWithSchema(jsonValue, schema);
@@ -279,8 +296,9 @@ export class Ky {
 	readonly #userProvidedAbortSignal?: AbortSignal;
 	readonly #beforeRetryHookErrors = new WeakSet<Error>();
 	#cachedNormalizedOptions: NormalizedOptions | undefined;
-	#startTime?: number;
+	readonly #startTime: number | undefined;
 	#returnedResponseFromBeforeRetryHook = false;
+	readonly #responseRequests = new WeakMap<Response, Request>();
 
 	// eslint-disable-next-line complexity
 	constructor(input: Input, options: Options = {}) {
@@ -292,16 +310,7 @@ export class Ky {
 		this.#options = {
 			...options,
 			headers: mergeHeaders((this.#input as Request).headers, options.headers),
-			hooks: mergeHooks(
-				{
-					init: [],
-					beforeRequest: [],
-					beforeRetry: [],
-					beforeError: [],
-					afterResponse: [],
-				},
-				options.hooks,
-			),
+			hooks: mergeHooks({}, options.hooks),
 			method: normalizeRequestMethod(options.method ?? (this.#input as Request).method ?? 'GET'),
 			// eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing
 			prefix: String(options.prefix || ''),
@@ -339,7 +348,7 @@ export class Ky {
 		if (supportsAbortController && supportsAbortSignal) {
 			this.#userProvidedAbortSignal = this.#options.signal ?? (this.#input as Request).signal;
 			this.#abortController = new globalThis.AbortController();
-			this.#options.signal = this.#userProvidedAbortSignal ? AbortSignal.any([this.#userProvidedAbortSignal, this.#abortController.signal]) : this.#abortController.signal;
+			this.#options.signal = this.#createManagedSignal();
 		}
 
 		if (supportsRequestStreams) {
@@ -381,6 +390,8 @@ export class Ky {
 		if (this.#options.onUploadProgress && typeof this.#options.onUploadProgress !== 'function') {
 			throw new TypeError('The `onUploadProgress` option must be a function');
 		}
+
+		this.#startTime = typeof this.#options.totalTimeout === 'number' ? this.#getCurrentTime() : undefined;
 	}
 
 	#calculateDelay(): number {
@@ -397,14 +408,7 @@ export class Ky {
 			}
 		}
 
-		// Handle undefined backoffLimit by treating it as no limit (Infinity)
-		const backoffLimit = this.#options.retry.backoffLimit ?? Number.POSITIVE_INFINITY;
-		return Math.min(backoffLimit, jitteredDelay);
-	}
-
-	#clampRetryDelayToMax(retryDelay: number): number {
-		const {maxRetryAfter} = this.#options.retry;
-		return maxRetryAfter === undefined ? retryDelay : Math.min(maxRetryAfter, retryDelay);
+		return Math.min(this.#options.retry.backoffLimit, jitteredDelay);
 	}
 
 	async #calculateRetryDelay(error: unknown) {
@@ -471,13 +475,13 @@ export class Ky {
 				}
 
 				if (!Number.isFinite(after)) {
-					return this.#clampRetryDelayToMax(this.#calculateDelay());
+					return Math.min(this.#options.retry.maxRetryAfter, this.#calculateDelay());
 				}
 
 				after = Math.max(0, after);
 
 				// Don't apply jitter when server provides explicit retry timing
-				return this.#clampRetryDelayToMax(after);
+				return Math.min(this.#options.retry.maxRetryAfter, after);
 			}
 
 			if (error.response.status === 413) {
@@ -496,8 +500,10 @@ export class Ky {
 	}
 
 	#decorateResponse(response: Response): Response {
+		const request = this.#getResponseRequest(response);
+
 		if (this.#options.parseJson) {
-			response.json = async () => this.#options.parseJson!(await response.text(), {request: this.request, response});
+			response.json = async () => this.#options.parseJson!(await response.text(), {request, response});
 		}
 
 		return response;
@@ -506,13 +512,9 @@ export class Ky {
 	async #getResponseData(response: Response): Promise<unknown> {
 		// Even with request timeouts disabled, bound error-body reads so retries and error propagation
 		// cannot be stalled indefinitely by never-ending response streams.
-		const readTimeout = this.#getErrorDataTimeout();
-		const text = await this.#readResponseText(response, readTimeout.timeout);
+		const text = await this.#readResponseText(response, this.#getErrorDataTimeout());
 		if (text === timedOutResponseData) {
-			if (readTimeout.totalTimeoutReachedOnTimeout) {
-				throw new TimeoutError(this.request);
-			}
-
+			this.#throwIfTotalTimeoutExhausted();
 			return undefined;
 		}
 
@@ -524,38 +526,27 @@ export class Ky {
 			return text;
 		}
 
-		const parseTimeout = this.#getErrorDataTimeout();
-		const data = await this.#parseJson(text, response, parseTimeout.timeout);
+		const data = await this.#parseJson(text, response, this.#getErrorDataTimeout(), this.#getResponseRequest(response));
 		if (data === timedOutResponseData) {
-			if (parseTimeout.totalTimeoutReachedOnTimeout) {
-				throw new TimeoutError(this.request);
-			}
-
+			this.#throwIfTotalTimeoutExhausted();
 			return undefined;
 		}
 
 		return data;
 	}
 
-	#getErrorDataTimeout(): {timeout: number; totalTimeoutReachedOnTimeout: boolean} {
+	#getErrorDataTimeout(): number {
 		const errorDataTimeout = this.#options.timeout === false ? 10_000 : this.#options.timeout;
 		const remainingTotal = this.#getRemainingTotalTimeout();
-
 		if (remainingTotal === undefined) {
-			return {
-				timeout: errorDataTimeout,
-				totalTimeoutReachedOnTimeout: false,
-			};
+			return errorDataTimeout;
 		}
 
 		if (remainingTotal <= 0) {
 			throw new TimeoutError(this.request);
 		}
 
-		return {
-			timeout: Math.min(errorDataTimeout, remainingTotal),
-			totalTimeoutReachedOnTimeout: remainingTotal <= errorDataTimeout,
-		};
+		return Math.min(errorDataTimeout, remainingTotal);
 	}
 
 	#isJsonContentType(contentType: string): boolean {
@@ -628,12 +619,12 @@ export class Ky {
 		return result;
 	}
 
-	async #parseJson(text: string, response: Response, timeoutMs: number): Promise<unknown> {
+	async #parseJson(text: string, response: Response, timeoutMs: number, request: Request): Promise<unknown> {
 		let timeoutId: ReturnType<typeof setTimeout> | undefined;
 		try {
 			return await Promise.race([
 				Promise.resolve().then(() => this.#options.parseJson
-					? this.#options.parseJson(text, {request: this.request, response})
+					? this.#options.parseJson(text, {request, response})
 					: JSON.parse(text),
 				),
 				new Promise<typeof timedOutResponseData>(resolve => {
@@ -663,6 +654,19 @@ export class Ky {
 		this.#cancelBody(response.body ?? undefined);
 	}
 
+	#createManagedSignal(): AbortSignal {
+		return this.#userProvidedAbortSignal
+			? AbortSignal.any([this.#userProvidedAbortSignal, this.#abortController!.signal])
+			: this.#abortController!.signal;
+	}
+
+	#throwIfTotalTimeoutExhausted(): void {
+		const remaining = this.#getRemainingTotalTimeout();
+		if (remaining !== undefined && remaining <= 0) {
+			throw new TimeoutError(this.request);
+		}
+	}
+
 	async #runBeforeRequestHooks(): Promise<Response | undefined> {
 		for (const hook of this.#options.hooks.beforeRequest) {
 			// eslint-disable-next-line no-await-in-loop
@@ -685,9 +689,12 @@ export class Ky {
 	}
 
 	async #runAfterResponseHooks(response: Response): Promise<Response> {
+		const responseRequest = this.#getResponseRequest(response);
+
 		for (const hook of this.#options.hooks.afterResponse) {
 			// Clone the response before passing to hook so we can cancel it if needed
-			const clonedResponse = this.#decorateResponse(response.clone());
+			const clonedResponse = this.#setResponseRequest(response.clone(), responseRequest);
+			this.#decorateResponse(clonedResponse);
 
 			let modifiedResponse;
 			try {
@@ -714,7 +721,10 @@ export class Ky {
 			}
 
 			// Determine which response to use going forward
-			const nextResponse = modifiedResponse instanceof globalThis.Response ? modifiedResponse : response;
+			const nextResponse = this.#setResponseRequest(
+				modifiedResponse instanceof globalThis.Response ? modifiedResponse : response,
+				responseRequest,
+			);
 
 			// Cancel any response bodies we won't use to prevent memory leaks.
 			// Uses fire-and-forget since hooks may have cloned the response, creating tee branches that block cancellation.
@@ -744,7 +754,7 @@ export class Ky {
 		this.#returnedResponseFromBeforeRetryHook = false;
 
 		const retryDelay = Math.min(await this.#calculateRetryDelay(error), maxSafeTimeout);
-		const delayOptions = this.#userProvidedAbortSignal ? {signal: this.#userProvidedAbortSignal} : {};
+		const delayOptions = {signal: this.#userProvidedAbortSignal};
 
 		const remainingTimeout = this.#getRemainingTotalTimeout();
 		if (remainingTimeout !== undefined) {
@@ -762,22 +772,12 @@ export class Ky {
 		// Only use user-provided signal for delay, not our internal abortController
 		await delay(retryDelay, delayOptions);
 
-		const remainingTimeoutAfterDelay = this.#getRemainingTotalTimeout();
-		if (
-			remainingTimeoutAfterDelay !== undefined
-			&& remainingTimeoutAfterDelay <= 0
-		) {
-			throw new TimeoutError(this.request);
-		}
+		this.#throwIfTotalTimeoutExhausted();
 
 		// Apply custom request from forced retry before beforeRetry hooks
 		// Ensure the custom request has the correct managed signal for timeouts and user aborts
 		if (error instanceof ForceRetryError && error.customRequest) {
-			const managedRequest = this.#options.signal
-				? new globalThis.Request(error.customRequest, {signal: this.#options.signal})
-				: new globalThis.Request(error.customRequest);
-
-			this.#assignRequest(managedRequest);
+			this.#assignRequest(new globalThis.Request(error.customRequest, this.#options.signal ? {signal: this.#options.signal} : undefined));
 		}
 
 		for (const hook of this.#options.hooks.beforeRetry) {
@@ -817,13 +817,7 @@ export class Ky {
 			}
 		}
 
-		const remainingTimeoutAfterBeforeRetryHooks = this.#getRemainingTotalTimeout();
-		if (
-			remainingTimeoutAfterBeforeRetryHooks !== undefined
-			&& remainingTimeoutAfterBeforeRetryHooks <= 0
-		) {
-			throw new TimeoutError(this.request);
-		}
+		this.#throwIfTotalTimeoutExhausted();
 
 		this.#retryCount++;
 		return this.#retry(function_);
@@ -839,7 +833,7 @@ export class Ky {
 		// Reset abortController if it was aborted (happens on timeout retry)
 		if (this.#abortController?.signal.aborted) {
 			this.#abortController = new globalThis.AbortController();
-			this.#options.signal = this.#userProvidedAbortSignal ? AbortSignal.any([this.#userProvidedAbortSignal, this.#abortController.signal]) : this.#abortController.signal;
+			this.#options.signal = this.#createManagedSignal();
 			// Recreate request with new signal
 			this.request = new globalThis.Request(this.request, {signal: this.#options.signal});
 		}
@@ -862,25 +856,20 @@ export class Ky {
 				throw new TimeoutError(this.request);
 			}
 
-			if (this.#options.timeout === false) {
-				if (remainingTotal !== undefined) {
-					return await timeout(request, nonRequestOptions, this.#abortController, {
-						...this.#options,
-						timeout: remainingTotal,
-					} as TimeoutOptions);
-				}
+			const effectiveTimeout: number | undefined = this.#options.timeout === false
+				? remainingTotal
+				: (remainingTotal === undefined
+					? this.#options.timeout
+					: Math.min(this.#options.timeout, remainingTotal));
 
-				return await this.#options.fetch(request, nonRequestOptions);
-			}
+			const response = effectiveTimeout === undefined
+				? await this.#options.fetch(request, nonRequestOptions)
+				: await timeout(request, nonRequestOptions, this.#abortController, {
+					timeout: effectiveTimeout,
+					fetch: this.#options.fetch,
+				});
 
-			const effectiveTimeout = remainingTotal === undefined
-				? this.#options.timeout
-				: Math.min(this.#options.timeout, remainingTotal);
-
-			return await timeout(request, nonRequestOptions, this.#abortController, {
-				...this.#options,
-				timeout: effectiveTimeout,
-			} as TimeoutOptions);
+			return this.#setResponseRequest(response, request);
 		} catch (error) {
 			if (isRawNetworkError(error)) {
 				throw new NetworkError(this.request, {cause: error as Error});
@@ -891,12 +880,12 @@ export class Ky {
 	}
 
 	#getRemainingTotalTimeout(): number | undefined {
-		if (this.#options.totalTimeout === false || this.#startTime === undefined) {
+		if (this.#startTime === undefined) {
 			return undefined;
 		}
 
 		const elapsed = this.#getCurrentTime() - this.#startTime;
-		return Math.max(0, this.#options.totalTimeout - elapsed);
+		return Math.max(0, (this.#options.totalTimeout as number) - elapsed);
 	}
 
 	#getCurrentTime(): number {
@@ -928,6 +917,15 @@ export class Ky {
 	#assignRequest(request: Request): void {
 		this.#cachedNormalizedOptions = undefined;
 		this.request = request;
+	}
+
+	#getResponseRequest(response: Response): Request {
+		return this.#responseRequests.get(response) ?? this.request;
+	}
+
+	#setResponseRequest(response: Response, request: Request): Response {
+		this.#responseRequests.set(response, request);
+		return response;
 	}
 
 	#wrapRequestWithUploadProgress(request: Request, originalBody?: BodyInit): Request {

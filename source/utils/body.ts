@@ -81,27 +81,18 @@ export const streamResponse = (response: Response, onDownloadProgress: Options['
 		return response;
 	}
 
+	const responseInit = {
+		status: response.status,
+		statusText: response.statusText,
+		headers: response.headers,
+	};
+
 	if (response.status === 204) {
-		return new Response(
-			null,
-			{
-				status: response.status,
-				statusText: response.statusText,
-				headers: response.headers,
-			},
-		);
+		return new Response(null, responseInit);
 	}
 
 	const totalBytes = Math.max(0, Number(response.headers.get('content-length')) || 0);
-
-	return new Response(
-		withProgress(response.body, totalBytes, onDownloadProgress),
-		{
-			status: response.status,
-			statusText: response.statusText,
-			headers: response.headers,
-		},
-	);
+	return new Response(withProgress(response.body, totalBytes, onDownloadProgress), responseInit);
 };
 
 // eslint-disable-next-line @typescript-eslint/no-restricted-types
