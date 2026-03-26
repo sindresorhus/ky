@@ -734,9 +734,12 @@ Default: `JSON.parse()`
 
 User-defined JSON-parsing function.
 
+The function receives the response text as the first argument and a context object as the second argument containing the `request` ([`Request`](https://developer.mozilla.org/en-US/docs/Web/API/Request)) and `response` ([`Response`](https://developer.mozilla.org/en-US/docs/Web/API/Response)).
+
 Use-cases:
 1. Parse JSON via the [`bourne` package](https://github.com/hapijs/bourne) to protect from prototype pollution.
 2. Parse JSON with [`reviver` option of `JSON.parse()`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/JSON/parse).
+3. Log or handle JSON parse errors with request context.
 
 ```js
 import ky from 'ky';
@@ -744,6 +747,17 @@ import bourne from '@hapijs/bourne';
 
 const json = await ky('https://example.com', {
 	parseJson: text => bourne(text)
+}).json();
+```
+
+```js
+import ky from 'ky';
+
+const json = await ky('https://example.com', {
+	parseJson: (text, {request, response}) => {
+		console.log(`Parsing JSON from ${request.url} (status: ${response.status})`);
+		return JSON.parse(text);
+	}
 }).json();
 ```
 

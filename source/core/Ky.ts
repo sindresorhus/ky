@@ -244,7 +244,7 @@ export class Ky {
 				}
 
 				const jsonValue = options.parseJson
-					? await options.parseJson(text)
+					? await options.parseJson(text, {request: ky.request, response})
 					: JSON.parse(text);
 
 				return schema === undefined ? jsonValue : validateJsonWithSchema(jsonValue, schema);
@@ -491,7 +491,7 @@ export class Ky {
 
 	#decorateResponse(response: Response): Response {
 		if (this.#options.parseJson) {
-			response.json = async () => this.#options.parseJson!(await response.text());
+			response.json = async () => this.#options.parseJson!(await response.text(), {request: this.request, response});
 		}
 
 		return response;
@@ -511,7 +511,7 @@ export class Ky {
 			return text;
 		}
 
-		return this.#parseJson(text, errorDataTimeout);
+		return this.#parseJson(text, response, errorDataTimeout);
 	}
 
 	#isJsonContentType(contentType: string): boolean {
@@ -584,11 +584,14 @@ export class Ky {
 		return result;
 	}
 
-	async #parseJson(text: string, timeoutMs: number): Promise<unknown> {
+	async #parseJson(text: string, response: Response, timeoutMs: number): Promise<unknown> {
 		let timeoutId: ReturnType<typeof setTimeout> | undefined;
 		try {
 			return await Promise.race([
-				Promise.resolve().then(() => (this.#options.parseJson ?? JSON.parse)(text)),
+				Promise.resolve().then(() => this.#options.parseJson
+					? this.#options.parseJson(text, {request: this.request, response})
+					: JSON.parse(text),
+				),
 				new Promise<undefined>(resolve => {
 					timeoutId = setTimeout(() => {
 						resolve(undefined);
