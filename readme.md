@@ -383,18 +383,18 @@ const json = await ky('https://example.com', {
 Type: `number | false`\
 Default: `10000`
 
-Timeout in milliseconds for getting a response. Each retry attempt gets the full timeout. Cannot be greater than 2147483647.
+Per-attempt timeout in milliseconds for getting a response, applied independently to each retry. Cannot be greater than 2147483647. See also [`totalTimeout`](#totaltimeout).
 
-If set to `false`, there will be no timeout.
+If set to `false`, there will be no per-attempt timeout.
 
 ##### totalTimeout
 
 Type: `number | false`\
 Default: `false`
 
-Total timeout in milliseconds for the entire operation, including all retries and delays. Cannot be greater than 2147483647. Throws a `TimeoutError` if exceeded.
+Overall timeout in milliseconds for the entire operation, including retries and delays. Throws a `TimeoutError` if exceeded. Cannot be greater than 2147483647.
 
-This is useful when you want to cap the total time spent on an operation, while still allowing each individual retry to use the full per-attempt `timeout`.
+If set to `false` or not specified, there is no overall timeout.
 
 ```js
 import ky from 'ky';
