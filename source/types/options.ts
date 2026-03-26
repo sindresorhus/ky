@@ -41,9 +41,12 @@ export type KyOptions = {
 	/**
 	User-defined JSON-parsing function.
 
+	The function receives the response text as the first argument and a context object as the second argument containing the `request` and `response`.
+
 	Use-cases:
 	1. Parse JSON via the [`bourne` package](https://github.com/hapijs/bourne) to protect from prototype pollution.
 	2. Parse JSON with [`reviver` option of `JSON.parse()`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/JSON/parse).
+	3. Log or handle JSON parse errors with request context.
 
 	@default JSON.parse()
 
@@ -56,8 +59,21 @@ export type KyOptions = {
 		parseJson: text => bourne(text)
 	}).json();
 	```
+
+	@example
+	```
+	import ky from 'ky';
+
+	const json = await ky('https://example.com', {
+		parseJson: (text, {request, response}) => {
+			console.log(`Parsing JSON from ${request.url} (status: ${response.status})`);
+			return JSON.parse(text);
+		}
+	}).json();
+	```
 	*/
-	parseJson?: (text: string) => unknown;
+	// `options` is intentionally not included in the context to avoid exposing Ky internals through a parsing callback. `request`/`response` already provide the metadata needed for logging.
+	parseJson?: (text: string, context: {request: Request; response: Response}) => unknown;
 
 	/**
 	User-defined JSON-stringifying function.
@@ -171,12 +187,37 @@ export type KyOptions = {
 	retry?: RetryOptions | number;
 
 	/**
-	Timeout in milliseconds for getting a response, including any retries. Can not be greater than 2147483647.
-	If set to `false`, there will be no timeout.
+	Per-attempt timeout in milliseconds for getting a response, applied independently to each retry. Cannot be greater than 2147483647. See also `totalTimeout`.
+
+	If set to `false`, there will be no per-attempt timeout.
 
 	@default 10000
 	*/
 	timeout?: number | false;
+
+	/**
+	Overall timeout in milliseconds for the entire operation, including retries and delays. Throws a `TimeoutError` if exceeded. Cannot be greater than 2147483647.
+
+	If set to `false` or not specified, there is no overall timeout.
+
+	@default false
+
+	@example
+	```
+	import ky from 'ky';
+
+	// Each attempt gets 5s, but the whole operation must complete within 30s
+	const json = await ky('https://example.com', {
+		timeout: 5000,
+		totalTimeout: 30_000,
+		retry: {
+			limit: 3,
+			retryOnTimeout: true,
+		}
+	}).json();
+	```
+	*/
+	totalTimeout?: number | false;
 
 	/**
 	Hooks allow modifications during the request lifecycle. Hook functions may be async and are run serially.
@@ -191,6 +232,8 @@ export type KyOptions = {
 	You can also pass a function that accepts the HTTP status code and returns a boolean for selective error handling. Note that this can violate the principle of least surprise, so it's recommended to use the boolean form unless you have a specific use case like treating 404 responses differently.
 
 	Note: If `false`, error responses are considered successful and the request will not be retried.
+
+	Note: [Opaque responses](https://developer.mozilla.org/en-US/docs/Web/API/Response/type) from `no-cors` requests are returned as-is (without throwing `HTTPError`), since the actual status is hidden by the browser.
 
 	@default true
 	*/
@@ -221,7 +264,7 @@ export type KyOptions = {
 	/**
 	Upload progress event handler.
 
-	Note: Requires [request stream support](https://caniuse.com/wf-fetch-request-streams). In unsupported environments, this handler is silently ignored.
+	Note: Requires [request stream support](https://caniuse.com/wf-fetch-request-streams) and HTTP/2 for HTTPS connections (in Chromium-based browsers). In unsupported environments, this handler is silently ignored.
 
 	@param progress - Object containing upload progress information.
 	@param chunk - Data that was sent. Note: It's empty for the last call.
@@ -392,7 +435,7 @@ export interface Options extends KyOptions, Omit<RequestInit, 'headers'> { // es
 
 export type InternalOptions = Required<
 	Omit<Options, 'hooks' | 'retry' | 'context' | 'throwHttpErrors'>,
-'fetch' | 'prefix' | 'timeout'
+'fetch' | 'prefix' | 'timeout' | 'totalTimeout'
 > & {
 	headers: Required<Headers>;
 	hooks: Required<Hooks>;

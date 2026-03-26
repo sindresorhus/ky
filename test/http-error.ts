@@ -126,6 +126,49 @@ test('HTTPError#data respects parseJson option', async t => {
 	t.deepEqual(error?.data, {value: 1, custom: true});
 });
 
+test('HTTPError#data parseJson receives context', async t => {
+	const server = await createHttpTestServer(t);
+	const body = {value: 1};
+	server.get('/', (_request, response) => {
+		response.status(400).json(body);
+	});
+
+	const error = await t.throwsAsync<HTTPError>(ky.get(server.url, {
+		parseJson(text, {request, response}) {
+			t.true(request instanceof Request);
+			t.true(response instanceof Response);
+			t.is(response.status, 400);
+			t.true(request.url.includes(server.url));
+			const data = JSON.parse(text) as Record<string, unknown>;
+			data.custom = true;
+			return data;
+		},
+	}));
+	t.deepEqual(error?.data, {value: 1, custom: true});
+});
+
+test('HTTPError#data async parseJson receives context', async t => {
+	const server = await createHttpTestServer(t);
+	const body = {value: 1};
+	server.get('/', (_request, response) => {
+		response.status(400).json(body);
+	});
+
+	const error = await t.throwsAsync<HTTPError>(ky.get(server.url, {
+		async parseJson(text, {request, response}) {
+			t.true(request instanceof Request);
+			t.true(response instanceof Response);
+			t.is(response.status, 400);
+			t.true(request.url.includes(server.url));
+			await Promise.resolve();
+			const data = JSON.parse(text) as Record<string, unknown>;
+			data.custom = true;
+			return data;
+		},
+	}));
+	t.deepEqual(error?.data, {value: 1, custom: true});
+});
+
 test('HTTPError#data awaits async parseJson option', async t => {
 	const server = await createHttpTestServer(t);
 	const body = {value: 1};
@@ -502,7 +545,7 @@ test('HTTPError does not throw TypeError when error response stream is already l
 	t.is(error?.data, undefined);
 });
 
-test('never-ending error response body still respects total timeout budget', async t => {
+test('never-ending error response body is bounded and retry proceeds', async t => {
 	let requestCount = 0;
 
 	const customFetch: typeof fetch = async () => {
@@ -524,15 +567,16 @@ test('never-ending error response body still respects total timeout budget', asy
 	};
 
 	const start = Date.now();
-	const error = await t.throwsAsync(ky('https://example.com', {
+	const result = await ky('https://example.com', {
 		fetch: customFetch,
 		retry: {
 			limit: 1,
 			delay: () => 0,
 		},
 		timeout: 1000,
-	}).text());
-	t.is(error?.name, 'TimeoutError');
-	t.is(requestCount, 1);
+	}).text();
+	t.is(result, 'ok');
+	t.is(requestCount, 2);
+	// The body read is bounded by the per-attempt timeout, so the retry proceeds within a reasonable time
 	t.true(Date.now() - start < 3000);
 });

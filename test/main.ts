@@ -1064,6 +1064,53 @@ test('throwHttpErrors function - selective error handling', async t => {
 	);
 });
 
+test('does not throw for opaque responses from no-cors requests', async t => {
+	const response = await ky('https://example.com', {
+		async fetch() {
+			const response = new Response(null);
+			Object.defineProperty(response, 'type', {value: 'opaque'});
+			Object.defineProperty(response, 'ok', {value: false});
+			Object.defineProperty(response, 'status', {value: 0});
+			Object.defineProperty(response, 'statusText', {value: ''});
+			return response;
+		},
+	});
+
+	t.is(response.status, 0);
+});
+
+test('does not throw for opaque responses even when throwHttpErrors is a function', async t => {
+	const response = await ky('https://example.com', {
+		throwHttpErrors: () => true,
+		async fetch() {
+			const response = new Response(null);
+			Object.defineProperty(response, 'type', {value: 'opaque'});
+			Object.defineProperty(response, 'ok', {value: false});
+			Object.defineProperty(response, 'status', {value: 0});
+			Object.defineProperty(response, 'statusText', {value: ''});
+			return response;
+		},
+	});
+
+	t.is(response.status, 0);
+});
+
+test('still throws for opaqueredirect responses', async t => {
+	await t.throwsAsync(
+		ky('https://example.com', {
+			async fetch() {
+				const response = new Response(null);
+				Object.defineProperty(response, 'type', {value: 'opaqueredirect'});
+				Object.defineProperty(response, 'ok', {value: false});
+				Object.defineProperty(response, 'status', {value: 0});
+				Object.defineProperty(response, 'statusText', {value: ''});
+				return response;
+			},
+		}).text(),
+		{instanceOf: HTTPError},
+	);
+});
+
 test('ky.create()', async t => {
 	const server = await createHttpTestServer(t);
 	server.get('/', (request, response) => {
@@ -1981,6 +2028,85 @@ test('parseJson option errors are thrown before .json(schema) validation', async
 	);
 
 	t.false(isSchemaCalled());
+});
+
+test('parseJson option receives context via .json() shortcut', async t => {
+	const json = {hello: 'world'};
+
+	const server = await createHttpTestServer(t);
+	server.get('/', (_request, response) => {
+		response.json(json);
+	});
+
+	const responseJson = await ky
+		.get(server.url, {
+			parseJson(text, {request, response}) {
+				t.true(request instanceof Request);
+				t.true(response instanceof Response);
+				t.is(response.status, 200);
+				t.true(request.url.includes(server.url));
+				return JSON.parse(text);
+			},
+		})
+		.json();
+
+	t.deepEqual(responseJson, json);
+});
+
+test('parseJson option receives context via response.json()', async t => {
+	const json = {hello: 'world'};
+
+	const server = await createHttpTestServer(t);
+	server.get('/', (_request, response) => {
+		response.json(json);
+	});
+
+	const response = await ky.get(server.url, {
+		parseJson(text, {request, response}) {
+			t.true(request instanceof Request);
+			t.true(response instanceof Response);
+			t.is(response.status, 200);
+			t.true(request.url.includes(server.url));
+			return JSON.parse(text);
+		},
+	});
+
+	const responseJson = await response.json();
+	t.deepEqual(responseJson, json);
+});
+
+test('parseJson option receives context after retry', async t => {
+	let requestCount = 0;
+	const statuses: number[] = [];
+
+	const server = await createHttpTestServer(t);
+	server.get('/', (_request, response) => {
+		requestCount++;
+		if (requestCount === 1) {
+			response.status(500).json({error: 'fail'});
+			return;
+		}
+
+		response.json({hello: 'world'});
+	});
+
+	const responseJson = await ky
+		.get(server.url, {
+			retry: 1,
+			parseJson(text, {request, response}) {
+				t.true(request instanceof Request);
+				t.true(response instanceof Response);
+				t.true(request.url.includes(server.url));
+				statuses.push(response.status);
+				return JSON.parse(text);
+			},
+		})
+		.json();
+
+	t.deepEqual(responseJson, {hello: 'world'});
+	t.is(requestCount, 2);
+	// ParseJson is called for the error response (HTTPError#data) and the success response
+	t.deepEqual(statuses, [500, 200]);
 });
 
 test('stringifyJson option with request.json()', async t => {

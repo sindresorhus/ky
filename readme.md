@@ -383,8 +383,32 @@ const json = await ky('https://example.com', {
 Type: `number | false`\
 Default: `10000`
 
-Timeout in milliseconds for getting a response, including any retries. Can not be greater than 2147483647.
-If set to `false`, there will be no timeout.
+Per-attempt timeout in milliseconds for getting a response, applied independently to each retry. Cannot be greater than 2147483647. See also [`totalTimeout`](#totaltimeout).
+
+If set to `false`, there will be no per-attempt timeout.
+
+##### totalTimeout
+
+Type: `number | false`\
+Default: `false`
+
+Overall timeout in milliseconds for the entire operation, including retries and delays. Throws a `TimeoutError` if exceeded. Cannot be greater than 2147483647.
+
+If set to `false` or not specified, there is no overall timeout.
+
+```js
+import ky from 'ky';
+
+// Each attempt gets 5s, but the whole operation must complete within 30s
+const json = await ky('https://example.com', {
+	timeout: 5000,
+	totalTimeout: 30_000,
+	retry: {
+		limit: 3,
+		retryOnTimeout: true,
+	}
+}).json();
+```
 
 ##### hooks
 
@@ -669,6 +693,8 @@ You can also pass a function that accepts the HTTP status code and returns a boo
 
 Note: If `false`, error responses are considered successful and the request will not be retried.
 
+Note: [Opaque responses](https://developer.mozilla.org/en-US/docs/Web/API/Response/type) from `no-cors` requests are returned as-is (without throwing `HTTPError`), since the actual status is hidden by the browser.
+
 ##### onDownloadProgress
 
 Type: `Function`
@@ -702,7 +728,7 @@ Type: `Function`
 Upload progress event handler.
 
 > [!NOTE]
-> Requires [request stream support](https://caniuse.com/wf-fetch-request-streams). In unsupported environments, this handler is silently ignored.
+> Requires [request stream support](https://caniuse.com/wf-fetch-request-streams) and HTTP/2 for HTTPS connections (in Chromium-based browsers). In unsupported environments, this handler is silently ignored.
 
 The function receives these arguments:
 - `progress` is an object with these properties:
@@ -732,9 +758,12 @@ Default: `JSON.parse()`
 
 User-defined JSON-parsing function.
 
+The function receives the response text as the first argument and a context object as the second argument containing the `request` ([`Request`](https://developer.mozilla.org/en-US/docs/Web/API/Request)) and `response` ([`Response`](https://developer.mozilla.org/en-US/docs/Web/API/Response)).
+
 Use-cases:
 1. Parse JSON via the [`bourne` package](https://github.com/hapijs/bourne) to protect from prototype pollution.
 2. Parse JSON with [`reviver` option of `JSON.parse()`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/JSON/parse).
+3. Log or handle JSON parse errors with request context.
 
 ```js
 import ky from 'ky';
@@ -742,6 +771,17 @@ import bourne from '@hapijs/bourne';
 
 const json = await ky('https://example.com', {
 	parseJson: text => bourne(text)
+}).json();
+```
+
+```js
+import ky from 'ky';
+
+const json = await ky('https://example.com', {
+	parseJson: (text, {request, response}) => {
+		console.log(`Parsing JSON from ${request.url} (status: ${response.status})`);
+		return JSON.parse(text);
+	}
 }).json();
 ```
 
