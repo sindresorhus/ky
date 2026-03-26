@@ -545,7 +545,7 @@ test('HTTPError does not throw TypeError when error response stream is already l
 	t.is(error?.data, undefined);
 });
 
-test('never-ending error response body still respects total timeout budget', async t => {
+test('never-ending error response body is bounded and retry proceeds', async t => {
 	let requestCount = 0;
 
 	const customFetch: typeof fetch = async () => {
@@ -567,15 +567,16 @@ test('never-ending error response body still respects total timeout budget', asy
 	};
 
 	const start = Date.now();
-	const error = await t.throwsAsync(ky('https://example.com', {
+	const result = await ky('https://example.com', {
 		fetch: customFetch,
 		retry: {
 			limit: 1,
 			delay: () => 0,
 		},
 		timeout: 1000,
-	}).text());
-	t.is(error?.name, 'TimeoutError');
-	t.is(requestCount, 1);
+	}).text();
+	t.is(result, 'ok');
+	t.is(requestCount, 2);
+	// The body read is bounded by the per-attempt timeout, so the retry proceeds within a reasonable time
 	t.true(Date.now() - start < 3000);
 });

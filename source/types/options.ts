@@ -187,12 +187,37 @@ export type KyOptions = {
 	retry?: RetryOptions | number;
 
 	/**
-	Timeout in milliseconds for getting a response, including any retries. Can not be greater than 2147483647.
-	If set to `false`, there will be no timeout.
+	Per-attempt timeout in milliseconds for getting a response, applied independently to each retry. Cannot be greater than 2147483647. See also `totalTimeout`.
+
+	If set to `false`, there will be no per-attempt timeout.
 
 	@default 10000
 	*/
 	timeout?: number | false;
+
+	/**
+	Overall timeout in milliseconds for the entire operation, including retries and delays. Throws a `TimeoutError` if exceeded. Cannot be greater than 2147483647.
+
+	If set to `false` or not specified, there is no overall timeout.
+
+	@default false
+
+	@example
+	```
+	import ky from 'ky';
+
+	// Each attempt gets 5s, but the whole operation must complete within 30s
+	const json = await ky('https://example.com', {
+		timeout: 5000,
+		totalTimeout: 30_000,
+		retry: {
+			limit: 3,
+			retryOnTimeout: true,
+		}
+	}).json();
+	```
+	*/
+	totalTimeout?: number | false;
 
 	/**
 	Hooks allow modifications during the request lifecycle. Hook functions may be async and are run serially.
@@ -410,7 +435,7 @@ export interface Options extends KyOptions, Omit<RequestInit, 'headers'> { // es
 
 export type InternalOptions = Required<
 	Omit<Options, 'hooks' | 'retry' | 'context' | 'throwHttpErrors'>,
-'fetch' | 'prefix' | 'timeout'
+'fetch' | 'prefix' | 'timeout' | 'totalTimeout'
 > & {
 	headers: Required<Headers>;
 	hooks: Required<Hooks>;

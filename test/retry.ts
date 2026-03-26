@@ -409,7 +409,7 @@ test('invalid Retry-After header falls back to retry delay', async t => {
 				delay: () => 10,
 			},
 		}).text(),
-		delay(500).then(() => {
+		delay(2000).then(() => {
 			throw new Error('Retry took too long');
 		}),
 	]);
@@ -1064,82 +1064,88 @@ test('timeout: false does not throw TimeoutError during retries', async t => {
 	t.is(requestCount, 2);
 });
 
-test('retryOnTimeout: true does not exceed total timeout budget', async t => {
+test('retryOnTimeout: each retry gets the full per-attempt timeout', async t => {
 	let requestCount = 0;
 
 	const server = await createHttpTestServer(t);
 	server.get('/', async (_request, response) => {
 		requestCount++;
-		// Delay longer than timeout to trigger timeout
-		await delay(1000);
+		if (requestCount <= 2) {
+			// Delay longer than timeout to trigger timeout
+			await delay(1000);
+			response.end(fixture);
+			return;
+		}
+
 		response.end(fixture);
 	});
 
+	const result = await ky(server.url, {
+		timeout: 500,
+		retry: {
+			limit: 3,
+			retryOnTimeout: true,
+			delay: () => 0,
+		},
+	}).text();
+
+	t.is(result, fixture);
+	t.is(requestCount, 3);
+});
+
+test('totalTimeout takes precedence over retry limit', async t => {
+	let requestCount = 0;
+
+	const customFetch: typeof fetch = async () => {
+		requestCount++;
+		// Each attempt takes 300ms
+		await delay(300);
+		return new Response('', {status: 500});
+	};
+
 	await t.throwsAsync(
-		ky(server.url, {
-			timeout: 500,
+		ky('https://example.com', {
+			fetch: customFetch,
+			totalTimeout: 500,
 			retry: {
-				limit: 3,
-				retryOnTimeout: true,
+				limit: 10,
+				delay: () => 0,
 			},
 		}).text(),
 		{
 			name: 'TimeoutError',
 		},
 	);
-	t.is(requestCount, 1);
+	// Each attempt takes ~300ms. With 500ms totalTimeout, only 1-2 attempts fit
+	// before the budget is exhausted (far fewer than the limit of 10).
+	t.true(requestCount >= 1 && requestCount <= 2);
 });
 
-test('retryOnTimeout: true - total timeout takes precedence over retry limit', async t => {
+test('shouldRetry: returns true cannot exceed totalTimeout budget', async t => {
 	let requestCount = 0;
 
-	const server = await createHttpTestServer(t);
-	server.get('/', async (_request, response) => {
+	const customFetch: typeof fetch = async () => {
 		requestCount++;
-		// Always timeout
-		await delay(2000);
-	});
+		await delay(300);
+		return new Response('', {status: 500});
+	};
 
 	await t.throwsAsync(
-		ky(server.url, {
-			timeout: 500,
+		ky('https://example.com', {
+			fetch: customFetch,
+			totalTimeout: 500,
 			retry: {
-				limit: 2,
-				retryOnTimeout: true,
-			},
-		}).text(),
-		{
-			name: 'TimeoutError',
-		},
-	);
-	t.is(requestCount, 1);
-});
-
-test('shouldRetry: returns true cannot exceed total timeout budget', async t => {
-	let requestCount = 0;
-
-	const server = await createHttpTestServer(t);
-	server.get('/', async (_request, response) => {
-		requestCount++;
-		// Delay longer than timeout to trigger timeout
-		await delay(1000);
-		response.end(fixture);
-	});
-
-	await t.throwsAsync(
-		ky(server.url, {
-			timeout: 500,
-			retry: {
-				limit: 3,
-				retryOnTimeout: false,
+				limit: 5,
 				shouldRetry: () => true,
+				delay: () => 0,
 			},
 		}).text(),
 		{
 			name: 'TimeoutError',
 		},
 	);
-	t.is(requestCount, 1);
+	// At most 1-2 attempts fit within the 500ms totalTimeout (each takes ~300ms)
+	t.true(requestCount >= 1 && requestCount <= 2);
 });
 
 test('shouldRetry: returns false - prevents retry', async t => {
@@ -1311,28 +1317,35 @@ test('shouldRetry: works with TimeoutError', async t => {
 			name: 'TimeoutError',
 		},
 	);
-	t.deepEqual(errorNames, ['TimeoutError']);
-	t.is(requestCount, 1);
+	// Each retry gets the full per-attempt timeout, so shouldRetry is called for each of the 3 retries
+	t.deepEqual(errorNames, ['TimeoutError', 'TimeoutError', 'TimeoutError']);
+	t.is(requestCount, 4);
 });
 
-test('timeout budget allows retry when enough time remains', async t => {
+test('each retry gets the full per-attempt timeout (not a shared budget)', async t => {
 	let requestCount = 0;
 
 	const server = await createHttpTestServer(t);
-	server.get('/', (_request, response) => {
+	server.get('/', async (_request, response) => {
 		requestCount++;
 		if (requestCount === 1) {
+			// First attempt: consume most of a 2000ms timeout, then return 500
+			await delay(1500);
 			response.sendStatus(500);
 			return;
 		}
 
+		// Second attempt: also takes 1500ms, which would fail if timeout were a shared budget
+		// (only ~500ms would remain), but succeeds because each retry gets the full 2000ms
+		await delay(1500);
 		response.end(fixture);
 	});
 
 	const result = await ky(server.url, {
-		timeout: 1000,
+		timeout: 2000,
 		retry: {
 			limit: 1,
+			delay: () => 0,
 		},
 	}).text();
 
@@ -1340,7 +1353,7 @@ test('timeout budget allows retry when enough time remains', async t => {
 	t.is(requestCount, 2);
 });
 
-test('Retry-After delay is bounded by total timeout budget', async t => {
+test('Retry-After delay is bounded by totalTimeout budget', async t => {
 	let requestCount = 0;
 	const server = await createHttpTestServer(t);
 	server.get('/', (_request, response) => {
@@ -1357,7 +1370,7 @@ test('Retry-After delay is bounded by total timeout budget', async t => {
 		expectedDuration: 1000,
 		async test() {
 			timeoutError = await t.throwsAsync(ky(server.url, {
-				timeout: 1000,
+				totalTimeout: 1000,
 				retry: {
 					limit: 15,
 				},
@@ -1369,7 +1382,7 @@ test('Retry-After delay is bounded by total timeout budget', async t => {
 	t.is(requestCount, 1);
 });
 
-test('Retry-After timestamp delay is bounded by total timeout budget', async t => {
+test('Retry-After timestamp delay is bounded by totalTimeout budget', async t => {
 	let requestCount = 0;
 	const server = await createHttpTestServer(t);
 	server.get('/', (_request, response) => {
@@ -1387,7 +1400,7 @@ test('Retry-After timestamp delay is bounded by total timeout budget', async t =
 		expectedDuration: 1000,
 		async test() {
 			timeoutError = await t.throwsAsync(ky(server.url, {
-				timeout: 1000,
+				totalTimeout: 1000,
 				retry: {
 					limit: 15,
 				},
@@ -1608,6 +1621,398 @@ test('shouldRetry: error propagates if shouldRetry returns rejected Promise', as
 			message: 'shouldRetry Promise rejected',
 		},
 	);
+});
+
+test('totalTimeout with timeout: false - per-attempt disabled, total enabled', async t => {
+	let requestCount = 0;
+
+	const customFetch: typeof fetch = async () => {
+		requestCount++;
+		if (requestCount === 1) {
+			// First attempt takes too long
+			await delay(300);
+			return new Response('', {status: 500});
+		}
+
+		return new Response('ok');
+	};
+
+	const result = await ky('https://example.com', {
+		fetch: customFetch,
+		timeout: false,
+		totalTimeout: 2000,
+		retry: {
+			limit: 2,
+			delay: () => 0,
+		},
+	}).text();
+
+	t.is(result, 'ok');
+	t.is(requestCount, 2);
+});
+
+test('totalTimeout with timeout: false - exceeds total budget', async t => {
+	let requestCount = 0;
+
+	const customFetch: typeof fetch = async () => {
+		requestCount++;
+		await delay(600);
+		return new Response('', {status: 500});
+	};
+
+	await t.throwsAsync(
+		ky('https://example.com', {
+			fetch: customFetch,
+			timeout: false,
+			totalTimeout: 500,
+			retry: {
+				limit: 5,
+				delay: () => 0,
+			},
+		}).text(),
+		{
+			name: 'TimeoutError',
+		},
+	);
+
+	t.is(requestCount, 1);
+});
+
+test('totalTimeout bounds hanging HTTPError body reads when timeout is disabled', async t => {
+	t.timeout(2000);
+	let requestCount = 0;
+
+	const customFetch: typeof fetch = async () => {
+		requestCount++;
+
+		const body = new ReadableStream<Uint8Array>({
+			start(controller) {
+				controller.enqueue(new TextEncoder().encode('{"error":"partial"'));
+			},
+		});
+
+		return new Response(body, {
+			status: 500,
+			headers: {'content-type': 'application/json'},
+		});
+	};
+
+	await t.throwsAsync(
+		ky('https://example.com', {
+			fetch: customFetch,
+			timeout: false,
+			totalTimeout: 50,
+			retry: {
+				limit: 5,
+				delay: () => 0,
+			},
+		}).text(),
+		{
+			name: 'TimeoutError',
+		},
+	);
+
+	t.is(requestCount, 1);
+});
+
+test('totalTimeout bounds hanging HTTPError body reads when timeout is larger', async t => {
+	t.timeout(2000);
+	let requestCount = 0;
+
+	const customFetch: typeof fetch = async () => {
+		requestCount++;
+
+		const body = new ReadableStream<Uint8Array>({
+			start(controller) {
+				controller.enqueue(new TextEncoder().encode('{"error":"partial"'));
+			},
+		});
+
+		return new Response(body, {
+			status: 500,
+			headers: {'content-type': 'application/json'},
+		});
+	};
+
+	await t.throwsAsync(
+		ky('https://example.com', {
+			fetch: customFetch,
+			timeout: 1000,
+			totalTimeout: 50,
+			retry: {
+				limit: 5,
+				delay: () => 0,
+			},
+		}).text(),
+		{
+			name: 'TimeoutError',
+		},
+	);
+
+	t.is(requestCount, 1);
+});
+
+test('totalTimeout bounds hanging HTTPError parseJson when timeout is disabled', async t => {
+	t.timeout(2000);
+	let requestCount = 0;
+
+	const customFetch: typeof fetch = async () => {
+		requestCount++;
+		return new Response('{"error":"parse-timeout"}', {
+			status: 500,
+			headers: {'content-type': 'application/json'},
+		});
+	};
+
+	await t.throwsAsync(
+		ky('https://example.com', {
+			fetch: customFetch,
+			timeout: false,
+			totalTimeout: 50,
+			parseJson: async () => new Promise<never>(() => {
+				// Intentionally never settles
+			}),
+			retry: {
+				limit: 5,
+				delay: () => 0,
+			},
+		}).text(),
+		{
+			name: 'TimeoutError',
+		},
+	);
+
+	t.is(requestCount, 1);
+});
+
+test('totalTimeout smaller than timeout - effective timeout is capped', async t => {
+	let requestCount = 0;
+
+	const customFetch: typeof fetch = async () => {
+		requestCount++;
+		// Takes 800ms, within the 10s per-attempt timeout but exceeding 500ms totalTimeout
+		await delay(800);
+		return new Response('ok');
+	};
+
+	await t.throwsAsync(
+		ky('https://example.com', {
+			fetch: customFetch,
+			timeout: 10_000,
+			totalTimeout: 500,
+			retry: {
+				limit: 2,
+			},
+		}).text(),
+		{
+			name: 'TimeoutError',
+		},
+	);
+
+	t.is(requestCount, 1);
+});
+
+test('totalTimeout: 0 throws immediately', async t => {
+	let fetchCalled = false;
+
+	const customFetch: typeof fetch = async () => {
+		fetchCalled = true;
+		return new Response('ok');
+	};
+
+	await t.throwsAsync(
+		ky('https://example.com', {
+			fetch: customFetch,
+			totalTimeout: 0,
+		}).text(),
+		{
+			name: 'TimeoutError',
+		},
+	);
+
+	t.false(fetchCalled);
+});
+
+test('totalTimeout exceeding maxSafeTimeout throws RangeError', async t => {
+	await t.throwsAsync(
+		ky('https://example.com', {
+			fetch: async () => new Response('ok'),
+			totalTimeout: 2_147_483_648,
+		}).text(),
+		{
+			instanceOf: RangeError,
+		},
+	);
+});
+
+test('totalTimeout expires mid-delay between retries', async t => {
+	let requestCount = 0;
+
+	const customFetch: typeof fetch = async () => {
+		requestCount++;
+		return new Response('', {status: 500});
+	};
+
+	await t.throwsAsync(
+		ky('https://example.com', {
+			fetch: customFetch,
+			totalTimeout: 200,
+			retry: {
+				limit: 5,
+				// Delay is 500ms, longer than the remaining totalTimeout budget
+				delay: () => 500,
+			},
+		}).text(),
+		{
+			name: 'TimeoutError',
+		},
+	);
+
+	// First request succeeds quickly, but the 500ms delay exceeds the remaining budget
+	t.is(requestCount, 1);
+});
+
+test('totalTimeout caps total time while timeout caps each attempt', async t => {
+	let requestCount = 0;
+
+	const customFetch: typeof fetch = async () => {
+		requestCount++;
+		// Each attempt takes 200ms (within 300ms per-attempt timeout)
+		await delay(200);
+		return new Response('', {status: 500});
+	};
+
+	await t.throwsAsync(
+		ky('https://example.com', {
+			fetch: customFetch,
+			timeout: 300,
+			totalTimeout: 500,
+			retry: {
+				limit: 10,
+				delay: () => 0,
+			},
+		}).text(),
+		{
+			name: 'TimeoutError',
+		},
+	);
+
+	// Each attempt takes ~200ms. Within 500ms totalTimeout, at most 2-3 attempts fit.
+	t.true(requestCount >= 2 && requestCount <= 3);
+});
+
+test('totalTimeout works with ky.create()', async t => {
+	let requestCount = 0;
+
+	const customFetch: typeof fetch = async () => {
+		requestCount++;
+		await delay(600);
+		return new Response('', {status: 500});
+	};
+
+	const api = ky.create({
+		fetch: customFetch,
+		totalTimeout: 500,
+		retry: {
+			limit: 3,
+			delay: () => 0,
+		},
+	});
+
+	await t.throwsAsync(api('https://example.com').text(), {
+		name: 'TimeoutError',
+	});
+
+	t.is(requestCount, 1);
+});
+
+test('totalTimeout can be overridden via extend()', async t => {
+	let requestCount = 0;
+
+	const customFetch: typeof fetch = async () => {
+		requestCount++;
+		if (requestCount <= 2) {
+			return new Response('', {status: 500});
+		}
+
+		return new Response('ok');
+	};
+
+	const parent = ky.create({
+		fetch: customFetch,
+		totalTimeout: 100,
+		retry: {
+			limit: 3,
+			delay: () => 0,
+		},
+	});
+
+	// Override totalTimeout to a generous value
+	const child = parent.extend({totalTimeout: 10_000});
+
+	const result = await child('https://example.com').text();
+	t.is(result, 'ok');
+	t.is(requestCount, 3);
+});
+
+test('totalTimeout can be disabled via extend()', async t => {
+	let requestCount = 0;
+
+	const customFetch: typeof fetch = async () => {
+		requestCount++;
+		if (requestCount === 1) {
+			await delay(200);
+			return new Response('', {status: 500});
+		}
+
+		return new Response('ok');
+	};
+
+	const parent = ky.create({
+		fetch: customFetch,
+		totalTimeout: 100,
+		retry: {
+			limit: 2,
+			delay: () => 0,
+		},
+	});
+
+	// Disable totalTimeout
+	const child = parent.extend({totalTimeout: false});
+
+	const result = await child('https://example.com').text();
+	t.is(result, 'ok');
+	t.is(requestCount, 2);
+});
+
+test('totalTimeout with retryOnTimeout: true caps total time across retries', async t => {
+	let requestCount = 0;
+
+	const customFetch: typeof fetch = async () => {
+		requestCount++;
+		// Each attempt takes 300ms, exceeding the 200ms per-attempt timeout
+		await delay(300);
+		return new Response('ok');
+	};
+
+	await t.throwsAsync(
+		ky('https://example.com', {
+			fetch: customFetch,
+			timeout: 200,
+			totalTimeout: 500,
+			retry: {
+				limit: 10,
+				retryOnTimeout: true,
+				delay: () => 0,
+			},
+		}).text(),
+		{
+			name: 'TimeoutError',
+		},
+	);
+
+	// Each attempt times out at ~200ms. Within 500ms totalTimeout, 2-3 attempts fit.
+	t.true(requestCount >= 2 && requestCount <= 3);
 });
 
 test('NetworkError wraps fetch network errors', async t => {

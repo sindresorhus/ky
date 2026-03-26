@@ -37,6 +37,7 @@ import {
 
 const maxErrorResponseBodySize = 10 * 1024 * 1024;
 const prefixUrlRenamedErrorMessage = 'The `prefixUrl` option has been renamed `prefix` in v2 and enhanced to allow slashes in input. See also the new `baseUrl` option for improved flexibility with standard URL resolution: https://github.com/sindresorhus/ky#baseurl';
+const timedOutResponseData = Symbol('timedOutResponseData');
 
 const createTextDecoder = (contentType: string): TextDecoder => {
 	const match = /;\s*charset\s*=\s*(?:"([^"]+)"|([^;,\s]+))/i.exec(contentType);
@@ -93,8 +94,12 @@ export class Ky {
 				throw new RangeError(`The \`timeout\` option cannot be greater than ${maxSafeTimeout}`);
 			}
 
-			// Track start time for total timeout across retries
-			if (ky.#startTime === undefined && typeof ky.#options.timeout === 'number') {
+			if (typeof ky.#options.totalTimeout === 'number' && ky.#options.totalTimeout > maxSafeTimeout) {
+				throw new RangeError(`The \`totalTimeout\` option cannot be greater than ${maxSafeTimeout}`);
+			}
+
+			// Track start time for totalTimeout across retries
+			if (ky.#startTime === undefined && typeof ky.#options.totalTimeout === 'number') {
 				ky.#startTime = ky.#getCurrentTime();
 			}
 
@@ -303,6 +308,7 @@ export class Ky {
 			retry: normalizeRetryOptions(options.retry),
 			throwHttpErrors: options.throwHttpErrors ?? true,
 			timeout: options.timeout ?? 10_000,
+			totalTimeout: options.totalTimeout ?? false,
 			fetch: options.fetch ?? globalThis.fetch.bind(globalThis),
 			context: options.context ?? {},
 		};
@@ -500,8 +506,15 @@ export class Ky {
 	async #getResponseData(response: Response): Promise<unknown> {
 		// Even with request timeouts disabled, bound error-body reads so retries and error propagation
 		// cannot be stalled indefinitely by never-ending response streams.
-		const errorDataTimeout = this.#options.timeout === false ? 10_000 : this.#options.timeout;
-		const text = await this.#readResponseText(response, errorDataTimeout);
+		const readTimeout = this.#getErrorDataTimeout();
+		const text = await this.#readResponseText(response, readTimeout.timeout);
+		if (text === timedOutResponseData) {
+			if (readTimeout.totalTimeoutReachedOnTimeout) {
+				throw new TimeoutError(this.request);
+			}
+
+			return undefined;
+		}
 
 		if (!text) {
 			return undefined;
@@ -511,7 +524,38 @@ export class Ky {
 			return text;
 		}
 
-		return this.#parseJson(text, response, errorDataTimeout);
+		const parseTimeout = this.#getErrorDataTimeout();
+		const data = await this.#parseJson(text, response, parseTimeout.timeout);
+		if (data === timedOutResponseData) {
+			if (parseTimeout.totalTimeoutReachedOnTimeout) {
+				throw new TimeoutError(this.request);
+			}
+
+			return undefined;
+		}
+
+		return data;
+	}
+
+	#getErrorDataTimeout(): {timeout: number; totalTimeoutReachedOnTimeout: boolean} {
+		const errorDataTimeout = this.#options.timeout === false ? 10_000 : this.#options.timeout;
+		const remainingTotal = this.#getRemainingTotalTimeout();
+
+		if (remainingTotal === undefined) {
+			return {
+				timeout: errorDataTimeout,
+				totalTimeoutReachedOnTimeout: false,
+			};
+		}
+
+		if (remainingTotal <= 0) {
+			throw new TimeoutError(this.request);
+		}
+
+		return {
+			timeout: Math.min(errorDataTimeout, remainingTotal),
+			totalTimeoutReachedOnTimeout: remainingTotal <= errorDataTimeout,
+		};
 	}
 
 	#isJsonContentType(contentType: string): boolean {
@@ -520,7 +564,7 @@ export class Ky {
 		return /\/(?:.*[.+-])?json$/.test(mimeType);
 	}
 
-	async #readResponseText(response: Response, timeoutMs: number): Promise<string | undefined> {
+	async #readResponseText(response: Response, timeoutMs: number): Promise<string | typeof timedOutResponseData | undefined> {
 		const {body} = response;
 		if (!body) {
 			try {
@@ -567,9 +611,9 @@ export class Ky {
 			return chunks.join('');
 		})();
 
-		const timeoutPromise = new Promise<undefined>(resolve => {
+		const timeoutPromise = new Promise<typeof timedOutResponseData>(resolve => {
 			const timeoutId = setTimeout(() => {
-				resolve(undefined);
+				resolve(timedOutResponseData);
 			}, timeoutMs);
 			void readAll.finally(() => {
 				clearTimeout(timeoutId);
@@ -577,7 +621,7 @@ export class Ky {
 		});
 
 		const result = await Promise.race([readAll, timeoutPromise]);
-		if (result === undefined) {
+		if (result === timedOutResponseData) {
 			void reader.cancel().catch(() => undefined);
 		}
 
@@ -592,9 +636,9 @@ export class Ky {
 					? this.#options.parseJson(text, {request: this.request, response})
 					: JSON.parse(text),
 				),
-				new Promise<undefined>(resolve => {
+				new Promise<typeof timedOutResponseData>(resolve => {
 					timeoutId = setTimeout(() => {
-						resolve(undefined);
+						resolve(timedOutResponseData);
 					}, timeoutMs);
 				}),
 			]);
@@ -702,7 +746,7 @@ export class Ky {
 		const retryDelay = Math.min(await this.#calculateRetryDelay(error), maxSafeTimeout);
 		const delayOptions = this.#userProvidedAbortSignal ? {signal: this.#userProvidedAbortSignal} : {};
 
-		const remainingTimeout = this.#getRemainingTimeout();
+		const remainingTimeout = this.#getRemainingTotalTimeout();
 		if (remainingTimeout !== undefined) {
 			if (remainingTimeout <= 0) {
 				throw new TimeoutError(this.request);
@@ -718,7 +762,7 @@ export class Ky {
 		// Only use user-provided signal for delay, not our internal abortController
 		await delay(retryDelay, delayOptions);
 
-		const remainingTimeoutAfterDelay = this.#getRemainingTimeout();
+		const remainingTimeoutAfterDelay = this.#getRemainingTotalTimeout();
 		if (
 			remainingTimeoutAfterDelay !== undefined
 			&& remainingTimeoutAfterDelay <= 0
@@ -773,7 +817,7 @@ export class Ky {
 			}
 		}
 
-		const remainingTimeoutAfterBeforeRetryHooks = this.#getRemainingTimeout();
+		const remainingTimeoutAfterBeforeRetryHooks = this.#getRemainingTotalTimeout();
 		if (
 			remainingTimeoutAfterBeforeRetryHooks !== undefined
 			&& remainingTimeoutAfterBeforeRetryHooks <= 0
@@ -813,18 +857,29 @@ export class Ky {
 		}
 
 		try {
-			if (this.#options.timeout === false) {
-				return await this.#options.fetch(request, nonRequestOptions);
-			}
-
-			const remainingTimeout = this.#getRemainingTimeout() ?? this.#options.timeout;
-			if (remainingTimeout <= 0) {
+			const remainingTotal = this.#getRemainingTotalTimeout();
+			if (remainingTotal !== undefined && remainingTotal <= 0) {
 				throw new TimeoutError(this.request);
 			}
 
+			if (this.#options.timeout === false) {
+				if (remainingTotal !== undefined) {
+					return await timeout(request, nonRequestOptions, this.#abortController, {
+						...this.#options,
+						timeout: remainingTotal,
+					} as TimeoutOptions);
+				}
+
+				return await this.#options.fetch(request, nonRequestOptions);
+			}
+
+			const effectiveTimeout = remainingTotal === undefined
+				? this.#options.timeout
+				: Math.min(this.#options.timeout, remainingTotal);
+
 			return await timeout(request, nonRequestOptions, this.#abortController, {
 				...this.#options,
-				timeout: remainingTimeout,
+				timeout: effectiveTimeout,
 			} as TimeoutOptions);
 		} catch (error) {
 			if (isRawNetworkError(error)) {
@@ -835,17 +890,13 @@ export class Ky {
 		}
 	}
 
-	#getRemainingTimeout(): number | undefined {
-		if (this.#options.timeout === false) {
+	#getRemainingTotalTimeout(): number | undefined {
+		if (this.#options.totalTimeout === false || this.#startTime === undefined) {
 			return undefined;
 		}
 
-		if (this.#startTime === undefined) {
-			return this.#options.timeout;
-		}
-
 		const elapsed = this.#getCurrentTime() - this.#startTime;
-		return Math.max(0, this.#options.timeout - elapsed);
+		return Math.max(0, this.#options.totalTimeout - elapsed);
 	}
 
 	#getCurrentTime(): number {
@@ -862,6 +913,7 @@ export class Ky {
 				stringifyJson,
 				searchParams,
 				timeout,
+				totalTimeout,
 				throwHttpErrors,
 				fetch,
 				...normalizedOptions
