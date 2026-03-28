@@ -46,3 +46,27 @@ test('baseUrl option', async t => {
 
 	await server.close();
 });
+
+test('baseUrl is exposed on normalized hook options', async t => {
+	const server = await createHttpTestServer();
+	let receivedBaseUrl: URL | string | undefined;
+
+	server.get('/api/status', (_request, response) => {
+		response.end('ok');
+	});
+
+	await ky('status', {
+		baseUrl: `${server.url}/api/`,
+		hooks: {
+			beforeRequest: [
+				({options}) => {
+					receivedBaseUrl = options.baseUrl;
+				},
+			],
+		},
+	}).text();
+
+	t.is(receivedBaseUrl, `${server.url}/api/`);
+
+	await server.close();
+});

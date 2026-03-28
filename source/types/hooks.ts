@@ -247,11 +247,13 @@ export type Hooks = {
 	beforeRetry?: BeforeRetryHook[];
 
 	/**
-	This hook enables you to modify any error right before it is thrown. The hook function receives a state object with the normalized request, options, error, and retry count, and should return an `Error` instance.
+	This hook enables you to modify any error right before it is thrown. The hook function receives a state object with the current request, the normalized Ky options, the error, and retry count, and should return an `Error` instance.
 
 	This hook is called for all error types, including `HTTPError`, `NetworkError`, `TimeoutError`, and `ForceRetryError` (when retry limit is exceeded via `ky.retry()`). Use type guards like `isHTTPError()`, `isNetworkError()`, or `isTimeoutError()` to handle specific error types.
 
 	The `retryCount` is `0` for the initial request and increments with each retry. This allows you to distinguish between the initial request and retries, which is useful when you need different error handling based on retry attempts (e.g., showing different error messages on the final attempt).
+
+	If a `beforeRequest` or `beforeRetry` hook returns a new `Request`, inspect `request` for the final request state. `options` remains Ky's normalized options and may not mirror every property of a replacement `Request`.
 
 	@default []
 

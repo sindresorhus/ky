@@ -4,6 +4,7 @@ import test from 'ava';
 import {expectTypeOf} from 'expect-type';
 import ky, {
 	HTTPError,
+	KyError,
 	SchemaValidationError,
 	TimeoutError,
 	isKyError,
@@ -466,6 +467,26 @@ test('.json(schema) throws TypeError for null schema values', async t => {
 		instanceOf: TypeError,
 		message: 'The `schema` argument must follow the Standard Schema specification',
 	});
+});
+
+test('isKyError works for branded cross-realm KyError subclasses', t => {
+	class CustomKyError extends KyError {
+		override name = 'CustomKyError';
+	}
+
+	const error = Object.assign(new Error('cross-realm error'), {
+		name: 'CustomKyError',
+		isKyError: new CustomKyError().isKyError,
+	});
+
+	t.true(isKyError(error));
+});
+
+test('isKyError does not match unrelated errors named KyError', t => {
+	const error = new Error('not from ky');
+	error.name = 'KyError';
+
+	t.false(isKyError(error));
 });
 
 test('.json(schema) allows schema output transformations', async t => {
@@ -1573,6 +1594,29 @@ test('ky.extend() with replaceOption replaces headers instead of merging', async
 	t.is(json.rainbow, null);
 });
 
+test('ky.extend() with replaceOption preserves Headers instances', async t => {
+	const server = await createHttpTestServer(t);
+	server.get('/', (request, response) => {
+		response.json({
+			authorization: request.headers.authorization ?? null,
+			rainbow: request.headers.rainbow ?? null,
+		});
+	});
+
+	const base = ky.create({
+		headers: {rainbow: 'rainbow'},
+	});
+
+	const extended = base.extend({
+		headers: replaceOption(new Headers({authorization: 'Bearer token'})),
+	});
+
+	const json = await extended(server.url).json<Record<string, string | undefined>>();
+
+	t.is(json.authorization, 'Bearer token');
+	t.is(json.rainbow, null);
+});
+
 test('ky.extend() with replaceOption replaces searchParams instead of appending', async t => {
 	const server = await createHttpTestServer(t);
 	server.get('/', (request, response) => {
@@ -1592,6 +1636,31 @@ test('ky.extend() with replaceOption replaces searchParams instead of appending'
 	t.true(text.includes('c=3'));
 	t.false(text.includes('a=1'));
 	t.false(text.includes('b=2'));
+});
+
+test('ky.extend() with replaceOption preserves searchParams input forms', async t => {
+	const server = await createHttpTestServer(t);
+	server.get('/', (request, response) => {
+		response.end(request.url);
+	});
+
+	const base = ky.create({
+		searchParams: {base: '1'},
+	});
+
+	const fromUrlSearchParameters = base.extend({
+		searchParams: replaceOption(new URLSearchParams('a=1')),
+	});
+	const fromString = base.extend({
+		searchParams: replaceOption('b=2'),
+	});
+	const fromTuples = base.extend({
+		searchParams: replaceOption([['c', '3']]),
+	});
+
+	t.is(await fromUrlSearchParameters(server.url).text(), '/?a=1');
+	t.is(await fromString(server.url).text(), '/?b=2');
+	t.is(await fromTuples(server.url).text(), '/?c=3');
 });
 
 test('ky.extend() with replaceOption works with function form', async t => {
@@ -2225,27 +2294,34 @@ test('parseJson option receives context via response.json()', async t => {
 });
 
 test('parseJson option receives context after retry', async t => {
+	const fetchRequests: Request[] = [];
+	const parseJsonRequests: Request[] = [];
 	let requestCount = 0;
 	const statuses: number[] = [];
 
-	const server = await createHttpTestServer(t);
-	server.get('/', (_request, response) => {
-		requestCount++;
-		if (requestCount === 1) {
-			response.status(500).json({error: 'fail'});
-			return;
-		}
-
-		response.json({hello: 'world'});
-	});
-
 	const responseJson = await ky
-		.get(server.url, {
+		.get('https://example.com', {
+			async fetch(request) {
+				fetchRequests.push(request);
+				requestCount++;
+
+				if (requestCount === 1) {
+					return new Response('{"error":"fail"}', {
+						status: 500,
+						headers: {'content-type': 'application/json'},
+					});
+				}
+
+				return new Response('{"hello":"world"}', {
+					headers: {'content-type': 'application/json'},
+				});
+			},
 			retry: 1,
 			parseJson(text, {request, response}) {
 				t.true(request instanceof Request);
 				t.true(response instanceof Response);
-				t.true(request.url.includes(server.url));
+				t.true(request.url.includes('example.com'));
+				parseJsonRequests.push(request);
 				statuses.push(response.status);
 				return JSON.parse(text);
 			},
@@ -2254,6 +2330,9 @@ test('parseJson option receives context after retry', async t => {
 
 	t.deepEqual(responseJson, {hello: 'world'});
 	t.is(requestCount, 2);
+	t.not(parseJsonRequests[0], parseJsonRequests[1]);
+	t.is(parseJsonRequests[0], fetchRequests[0]);
+	t.is(parseJsonRequests[1], fetchRequests[1]);
 	// ParseJson is called for the error response (HTTPError#data) and the success response
 	t.deepEqual(statuses, [500, 200]);
 });

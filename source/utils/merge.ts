@@ -5,8 +5,26 @@ import {isObject} from './is.js';
 
 const replaceSymbol: unique symbol = Symbol('replaceOption');
 
-const isReplaceMarked = (value: unknown): boolean =>
-	isObject(value) && (value as any)[replaceSymbol] === true;
+type ReplaceMarked<T> = {
+	[replaceSymbol]: true;
+	value: T;
+};
+
+type ReplaceState<T> = {
+	isReplace: boolean;
+	value: T;
+};
+
+const getReplaceState = <T>(value: T): ReplaceState<T> =>
+	isObject(value) && (value as any)[replaceSymbol] === true
+		? {
+			isReplace: true,
+			value: (value as unknown as ReplaceMarked<T>).value,
+		}
+		: {
+			isReplace: false,
+			value,
+		};
 
 /**
 Wraps a value so that `ky.extend()` will replace the parent value instead of merging with it.
@@ -28,10 +46,9 @@ const extended = base.extend({
 // hooks.beforeRequest is now [onlyThis], not [addAuth, addTracking, onlyThis]
 ```
 */
-export const replaceOption = <T extends Record<string, unknown>>(value: T): T => {
-	const copy = {...value};
-	Object.defineProperty(copy, replaceSymbol, {value: true, enumerable: false});
-	return copy as T;
+export const replaceOption = <T>(value: T): T => {
+	const markedValue: ReplaceMarked<T> = {[replaceSymbol]: true, value};
+	return markedValue as unknown as T;
 };
 
 export const validateAndMerge = (...sources: Array<Partial<Options> | undefined>): Partial<Options> => {
@@ -58,6 +75,49 @@ export const mergeHeaders = (source1: KyHeadersInit = {}, source2: KyHeadersInit
 	}
 
 	return result;
+};
+
+const isPlainObject = (value: unknown): value is Record<string, unknown> => {
+	if (!isObject(value) || Array.isArray(value)) {
+		return false;
+	}
+
+	const prototype = Object.getPrototypeOf(value);
+	return prototype === Object.prototype || prototype === null;
+};
+
+export const cloneShallow = <T>(value: T): T => {
+	if (value instanceof URLSearchParams) {
+		return new URLSearchParams(value) as T;
+	}
+
+	if (value instanceof globalThis.Headers) {
+		return new globalThis.Headers(value) as T;
+	}
+
+	if (Array.isArray(value)) {
+		return [...value] as T;
+	}
+
+	if (isPlainObject(value)) {
+		const copy = {...value};
+		return copy as T;
+	}
+
+	return value;
+};
+
+const normalizeHeaderObject = (headers: Record<string, string | undefined>): Record<string, string> =>
+	Object.fromEntries(
+		Object.entries(headers).filter((entry): entry is [string, string] => entry[1] !== undefined),
+	);
+
+const mergeHeaderContainers = (source1: KyHeadersInit, source2: KyHeadersInit): KyHeadersInit => {
+	if (isPlainObject(source1) && isPlainObject(source2)) {
+		return normalizeHeaderObject({...source1, ...source2});
+	}
+
+	return mergeHeaders(source1, source2);
 };
 
 function newHookValue<K extends keyof Hooks>(original: Hooks, incoming: Hooks, property: K): Required<Hooks>[K] {
@@ -139,7 +199,7 @@ const appendSearchParameters = (target: any, source: any): URLSearchParams => {
 // TODO: Make this strongly-typed (no `any`).
 export const deepMerge = <T>(...sources: Array<Partial<T> | undefined>): T => {
 	let returnValue: any = {};
-	let headers = {};
+	let headers: KyHeadersInit = {};
 	let hooks = {};
 	let searchParameters: any;
 	const signals: AbortSignal[] = [];
@@ -159,6 +219,10 @@ export const deepMerge = <T>(...sources: Array<Partial<T> | undefined>): T => {
 					continue;
 				}
 
+				const replaceState = getReplaceState(value);
+				const {isReplace} = replaceState;
+				value = replaceState.value;
+
 				// Special handling for context - shallow merge only
 				if (key === 'context') {
 					if (value !== undefined && value !== null && (!isObject(value) || Array.isArray(value))) {
@@ -170,7 +234,7 @@ export const deepMerge = <T>(...sources: Array<Partial<T> | undefined>): T => {
 						...returnValue,
 						context: (value === undefined || value === null)
 							? {}
-							: (isReplaceMarked(value)
+							: (isReplace
 								? {...value}
 								: {...returnValue.context, ...value}),
 					};
@@ -182,8 +246,8 @@ export const deepMerge = <T>(...sources: Array<Partial<T> | undefined>): T => {
 					if (value === undefined || value === null) {
 						// Explicit undefined or null removes searchParams
 						searchParameters = undefined;
-					} else if (isReplaceMarked(value)) {
-						searchParameters = {...value};
+					} else if (isReplace) {
+						searchParameters = value;
 					} else {
 						// First source: keep as-is to preserve type (string/object/URLSearchParams)
 						// Subsequent sources: merge and convert to URLSearchParams
@@ -193,7 +257,7 @@ export const deepMerge = <T>(...sources: Array<Partial<T> | undefined>): T => {
 					continue;
 				}
 
-				if (isObject(value) && !isReplaceMarked(value) && key in returnValue) {
+				if (isObject(value) && !isReplace && key in returnValue) {
 					value = deepMerge(returnValue[key], value);
 				}
 
@@ -201,17 +265,19 @@ export const deepMerge = <T>(...sources: Array<Partial<T> | undefined>): T => {
 			}
 
 			if (isObject((source as any).hooks)) {
-				hooks = isReplaceMarked((source as any).hooks)
-					? mergeHooks({}, (source as any).hooks)
-					: mergeHooks(hooks, (source as any).hooks);
+				const {value: hookValue, isReplace} = getReplaceState((source as any).hooks);
+				hooks = isReplace
+					? mergeHooks({}, hookValue)
+					: mergeHooks(hooks, hookValue);
 
 				returnValue.hooks = hooks;
 			}
 
 			if (isObject((source as any).headers)) {
-				headers = isReplaceMarked((source as any).headers)
-					? new globalThis.Headers({...(source as any).headers} as RequestInit['headers'])
-					: mergeHeaders(headers, (source as any).headers);
+				const {value: headerValue, isReplace} = getReplaceState((source as any).headers);
+				headers = isReplace
+					? cloneShallow(headerValue as KyHeadersInit)
+					: mergeHeaderContainers(headers, headerValue as KyHeadersInit);
 
 				returnValue.headers = headers;
 			}

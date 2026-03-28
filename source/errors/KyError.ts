@@ -3,4 +3,8 @@ Base class for all Ky-specific errors. `HTTPError`, `NetworkError`, `TimeoutErro
 */
 export class KyError extends Error {
 	override name = 'KyError';
+
+	get isKyError(): true {
+		return true;
+	}
 }
