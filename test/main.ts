@@ -786,7 +786,7 @@ test('searchParams option with undefined values', async t => {
 });
 
 test('merges searchParams with input URL', async t => {
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/', (request, response) => {
 		response.end(request.url);
 	});
@@ -798,12 +798,10 @@ test('merges searchParams with input URL', async t => {
 	const url = await response.text();
 	t.true(url.includes('foo=1'), `URL should contain foo=1, got: ${url}`);
 	t.true(url.includes('bar=2'), `URL should contain bar=2, got: ${url}`);
-
-	await server.close();
 });
 
 test('searchParams with undefined deletes input URL searchParams', async t => {
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/', (request, response) => {
 		response.end(request.url);
 	});
@@ -818,12 +816,10 @@ test('searchParams with undefined deletes input URL searchParams', async t => {
 	t.true(url.includes('bar=2'), `URL should contain bar=2, got: ${url}`);
 	t.true(url.includes('baz=3'), `URL should contain baz=3, got: ${url}`);
 	t.true(url.includes('qux=undefined'), `URL should contain qux=undefined, got: ${url}`);
-
-	await server.close();
 });
 
 test('merges searchParams with explicitly undefined deep options', async t => {
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 	server.get('/', (request, response) => {
 		response.end(request.url);
 	});
@@ -839,8 +835,6 @@ test('merges searchParams with explicitly undefined deep options', async t => {
 	t.true(url.includes('a=1'), `URL should contain a=1, got: ${url}`);
 	t.false(url.includes('b=2'), `URL should not contain b=2, got: ${url}`);
 	t.true(url.includes('c=3'), `URL should contain c=3, got: ${url}`);
-
-	await server.close();
 });
 
 test('merges plain object searchParams with URLSearchParams', async t => {
@@ -916,7 +910,7 @@ test('merges searchParams with duplicate keys', async t => {
 });
 
 test('deletes merged search params even when all additions are removed by undefined', async t => {
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 
 	server.get('/', (request, response) => {
 		response.end(request.url);
@@ -932,12 +926,10 @@ test('deletes merged search params even when all additions are removed by undefi
 	t.false(url.searchParams.has('foo'));
 	t.false(url.searchParams.has('bar'));
 	t.is(url.searchParams.get('keep'), '1');
-
-	await server.close();
 });
 
 test('request searchParams undefined removes merged keys but keeps unrelated values', async t => {
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 
 	server.get('/', (request, response) => {
 		response.end(request.url);
@@ -956,12 +948,10 @@ test('request searchParams undefined removes merged keys but keeps unrelated val
 	t.is(url.searchParams.get('bar'), 'from-url');
 	t.is(url.searchParams.get('extra'), '4');
 	t.is(url.searchParams.get('keep'), '1');
-
-	await server.close();
 });
 
 test('string searchParams merge keeps duplicates across input URL and defaults', async t => {
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 
 	server.get('/', (request, response) => {
 		response.end(request.url);
@@ -975,12 +965,10 @@ test('string searchParams merge keeps duplicates across input URL and defaults',
 	const url = new URL(await response.text(), server.url);
 	t.deepEqual(url.searchParams.getAll('filter').sort(), ['active', 'old', 'recent']);
 	t.deepEqual(url.searchParams.getAll('sort').sort(), ['new', 'old']);
-
-	await server.close();
 });
 
 test('init hook can delete merged search params via undefined', async t => {
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 
 	server.get('/', (request, response) => {
 		response.end(request.url);
@@ -1004,12 +992,10 @@ test('init hook can delete merged search params via undefined', async t => {
 	t.false(url.searchParams.has('foo'));
 	t.is(url.searchParams.get('bar'), 'from-url'); // Input URL overrides instance default
 	t.is(url.searchParams.get('baz'), '3'); // Added by init hook
-
-	await server.close();
 });
 
 test('ky.extend() searchParams layer deletion propagates through merged instances', async t => {
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 
 	server.get('/', (request, response) => {
 		response.end(request.url);
@@ -1025,8 +1011,6 @@ test('ky.extend() searchParams layer deletion propagates through merged instance
 	const url = new URL(await response.text(), server.url);
 	t.false(url.searchParams.has('foo'));
 	t.is(url.searchParams.get('bar'), 'from-url');
-
-	await server.close();
 });
 
 test('searchParams option merges with existing query when hash is present', async t => {
@@ -1050,7 +1034,7 @@ test('searchParams option merges with existing query when hash is present', asyn
 });
 
 test('init hook deletion over merged defaults and input URL', async t => {
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 
 	server.get('/', (request, response) => {
 		response.end(request.url);
@@ -1069,12 +1053,10 @@ test('init hook deletion over merged defaults and input URL', async t => {
 
 	const url = new URL(await response.text(), server.url);
 	t.false(url.searchParams.has('foo'));
-
-	await server.close();
 });
 
 test('re-adding a key after an earlier deletion across merge layers', async t => {
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 
 	server.get('/', (request, response) => {
 		response.end(request.url);
@@ -1090,12 +1072,10 @@ test('re-adding a key after an earlier deletion across merge layers', async t =>
 
 	const url = new URL(await response.text(), server.url);
 	t.is(url.searchParams.get('foo'), '2');
-
-	await server.close();
 });
 
 test('deletion from a replaceOption(...) boundary', async t => {
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 
 	server.get('/', (request, response) => {
 		response.end(request.url);
@@ -1111,12 +1091,10 @@ test('deletion from a replaceOption(...) boundary', async t => {
 	t.false(url.searchParams.has('foo'));
 	t.false(url.searchParams.has('bar'));
 	t.is(url.searchParams.get('baz'), '3');
-
-	await server.close();
 });
 
 test('duplicate-key deletion with URLSearchParams', async t => {
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 
 	server.get('/', (request, response) => {
 		response.end(request.url);
@@ -1129,12 +1107,10 @@ test('duplicate-key deletion with URLSearchParams', async t => {
 	const url = new URL(await response.text(), server.url);
 	t.false(url.searchParams.has('foo'));
 	t.is(url.searchParams.get('bar'), '3');
-
-	await server.close();
 });
 
 test('empty merged URLSearchParams plus deletion plus later append', async t => {
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 
 	server.get('/', (request, response) => {
 		response.end(request.url);
@@ -1148,12 +1124,10 @@ test('empty merged URLSearchParams plus deletion plus later append', async t => 
 	const url = new URL(await response.text(), server.url);
 	t.false(url.searchParams.has('foo'));
 	t.is(url.searchParams.get('bar'), '2');
-
-	await server.close();
 });
 
 test('function-form .extend() with deletion', async t => {
-	const server = await createHttpTestServer();
+	const server = await createHttpTestServer(t);
 
 	server.get('/', (request, response) => {
 		response.end(request.url);
@@ -1168,8 +1142,6 @@ test('function-form .extend() with deletion', async t => {
 	const url = new URL(await response.text(), server.url);
 	t.false(url.searchParams.has('foo'));
 	t.is(url.searchParams.get('bar'), '2');
-
-	await server.close();
 });
 
 test('throwHttpErrors option', async t => {

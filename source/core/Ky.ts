@@ -416,7 +416,7 @@ export class Ky {
 			}
 
 			// Recreate request with the updated URL. We already have all options in this.#options, including duplex.
-			this.request = new globalThis.Request(url.toString(), this.#options as RequestInit);
+			this.request = new globalThis.Request(url, this.#options as RequestInit);
 		}
 
 		if (this.#options.onUploadProgress && typeof this.#options.onUploadProgress !== 'function') {
