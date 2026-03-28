@@ -102,11 +102,11 @@ export type KyOptions = {
 	stringifyJson?: (data: unknown) => string;
 
 	/**
-	Search parameters to include in the request URL. Setting this will override all existing search parameters in the input URL.
+	Search parameters to include in the request URL. Setting this will merge with any existing search parameters in the input URL.
 
 	Accepts any value supported by [`URLSearchParams()`](https://developer.mozilla.org/en-US/docs/Web/API/URLSearchParams/URLSearchParams).
 
-	When passing an object, `undefined` values are automatically filtered out, while `null` values are preserved and converted to the string `'null'`.
+	When passing an object, setting a value to `undefined` deletes the parameter, while `null` values are preserved and converted to the string `'null'`.
 	*/
 	searchParams?: SearchParamsOption;
 
