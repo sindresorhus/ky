@@ -15,7 +15,12 @@ import type {
 import {type ResponsePromise} from '../types/ResponsePromise.js';
 import type {StandardSchemaV1} from '../types/standard-schema.js';
 import {streamRequest, streamResponse} from '../utils/body.js';
-import {cloneShallow, mergeHeaders, mergeHooks} from '../utils/merge.js';
+import {
+	cloneShallow,
+	mergeHeaders,
+	mergeHooks,
+	deletedParametersSymbol,
+} from '../utils/merge.js';
 import {normalizeRequestMethod, normalizeRetryOptions} from '../utils/normalize.js';
 import timeout from '../utils/timeout.js';
 import delay from '../utils/delay.js';
@@ -375,13 +380,40 @@ export class Ky {
 		this.request = new globalThis.Request(this.#input, this.#options);
 
 		if (hasSearchParameters(this.#options.searchParams)) {
-			// eslint-disable-next-line unicorn/prevent-abbreviations
-			const textSearchParams = typeof this.#options.searchParams === 'string'
-				? this.#options.searchParams.replace(/^\?/, '')
-				: new URLSearchParams(Ky.#normalizeSearchParams(this.#options.searchParams) as unknown as SearchParamsInit).toString();
-			// eslint-disable-next-line unicorn/prevent-abbreviations
-			const searchParams = '?' + textSearchParams;
-			const url = this.request.url.replace(/(?:\?.*?)?(?=#|$)/, searchParams);
+			const url = new URL(this.request.url);
+
+			if (typeof this.#options.searchParams === 'string') {
+				const stringSearchParameters = this.#options.searchParams.replace(/^\?/, '');
+				if (stringSearchParameters !== '') {
+					url.search = url.search ? `${url.search}&${stringSearchParameters}` : `?${stringSearchParameters}`;
+				}
+			} else {
+				const optionsSearchParameters = new URLSearchParams(Ky.#normalizeSearchParams(this.#options.searchParams) as unknown as SearchParamsInit);
+
+				for (const [key, value] of optionsSearchParameters.entries()) {
+					url.searchParams.append(key, value);
+				}
+			}
+
+			if (
+				this.#options.searchParams
+				&& typeof this.#options.searchParams === 'object'
+				&& !Array.isArray(this.#options.searchParams)
+				&& !(this.#options.searchParams instanceof URLSearchParams)
+			) {
+				for (const [key, value] of Object.entries(this.#options.searchParams)) {
+					if (value === undefined) {
+						url.searchParams.delete(key);
+					}
+				}
+			}
+
+			const deleted = (this.#options.searchParams as any)?.[deletedParametersSymbol] as Set<string> | undefined;
+			if (deleted) {
+				for (const key of deleted) {
+					url.searchParams.delete(key);
+				}
+			}
 
 			// Recreate request with the updated URL. We already have all options in this.#options, including duplex.
 			this.request = new globalThis.Request(url, this.#options as RequestInit);

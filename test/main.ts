@@ -785,6 +785,58 @@ test('searchParams option with undefined values', async t => {
 	t.is(await ky(server.url, {searchParams: objectWithNull}).text(), '?cats=meow&dogs=null&opossums=false');
 });
 
+test('merges searchParams with input URL', async t => {
+	const server = await createHttpTestServer(t);
+	server.get('/', (request, response) => {
+		response.end(request.url);
+	});
+
+	const response = await ky(`${server.url}?foo=1`, {
+		searchParams: {bar: '2'},
+	});
+
+	const url = await response.text();
+	t.true(url.includes('foo=1'), `URL should contain foo=1, got: ${url}`);
+	t.true(url.includes('bar=2'), `URL should contain bar=2, got: ${url}`);
+});
+
+test('searchParams with undefined deletes input URL searchParams', async t => {
+	const server = await createHttpTestServer(t);
+	server.get('/', (request, response) => {
+		response.end(request.url);
+	});
+
+	const response = await ky(`${server.url}?foo=1&bar=2&qux=3`, {
+		// @ts-expect-error - we test that explicitly undefined value is handled
+		searchParams: {foo: undefined, baz: '3', qux: 'undefined'},
+	});
+
+	const url = await response.text();
+	t.false(url.includes('foo=1'), `URL should not contain foo=1, got: ${url}`);
+	t.true(url.includes('bar=2'), `URL should contain bar=2, got: ${url}`);
+	t.true(url.includes('baz=3'), `URL should contain baz=3, got: ${url}`);
+	t.true(url.includes('qux=undefined'), `URL should contain qux=undefined, got: ${url}`);
+});
+
+test('merges searchParams with explicitly undefined deep options', async t => {
+	const server = await createHttpTestServer(t);
+	server.get('/', (request, response) => {
+		response.end(request.url);
+	});
+
+	const api = ky.create({searchParams: new URLSearchParams({a: '1', b: '2'})});
+	const response = await api.get(`${server.url}?z=0`, {
+		// @ts-expect-error - testing undefined value
+		searchParams: {b: undefined, c: '3'},
+	});
+
+	const url = await response.text();
+	t.true(url.includes('z=0'), `URL should contain z=0, got: ${url}`);
+	t.true(url.includes('a=1'), `URL should contain a=1, got: ${url}`);
+	t.false(url.includes('b=2'), `URL should not contain b=2, got: ${url}`);
+	t.true(url.includes('c=3'), `URL should contain c=3, got: ${url}`);
+});
+
 test('merges plain object searchParams with URLSearchParams', async t => {
 	const server = await createHttpTestServer(t);
 	server.get('/', (request, response) => {
@@ -855,6 +907,241 @@ test('merges searchParams with duplicate keys', async t => {
 	t.deepEqual(filterValues.sort(), ['active', 'recent'], `Both filter values should be present, got: ${JSON.stringify(filterValues)}`);
 	t.is(url.searchParams.get('_limit_'), '10', `URL should contain _limit_=10, got: ${urlString}`);
 	t.false(urlString.includes('[object Object]'), `URL should not contain [object Object], got: ${urlString}`);
+});
+
+test('deletes merged search params even when all additions are removed by undefined', async t => {
+	const server = await createHttpTestServer(t);
+
+	server.get('/', (request, response) => {
+		response.end(request.url);
+	});
+
+	const api = ky.create({searchParams: {foo: '1', bar: '2'}});
+	const response = await api.get(`${server.url}?foo=from-url&bar=from-url&keep=1`, {
+		// @ts-expect-error - testing undefined value
+		searchParams: {foo: undefined, bar: undefined},
+	});
+
+	const url = new URL(await response.text(), server.url);
+	t.false(url.searchParams.has('foo'));
+	t.false(url.searchParams.has('bar'));
+	t.is(url.searchParams.get('keep'), '1');
+});
+
+test('request searchParams undefined removes merged keys but keeps unrelated values', async t => {
+	const server = await createHttpTestServer(t);
+
+	server.get('/', (request, response) => {
+		response.end(request.url);
+	});
+
+	const api = ky.extend({searchParams: {foo: '1', bar: '2'}}).extend({searchParams: {baz: '3'}});
+
+	const response = await api.get(`${server.url}?bar=from-url&keep=1`, {
+		// @ts-expect-error - testing undefined value
+		searchParams: {foo: undefined, extra: '4'},
+	});
+
+	const url = new URL(await response.text(), server.url);
+	t.false(url.searchParams.has('foo'));
+	t.is(url.searchParams.get('baz'), '3');
+	t.is(url.searchParams.get('bar'), 'from-url');
+	t.is(url.searchParams.get('extra'), '4');
+	t.is(url.searchParams.get('keep'), '1');
+});
+
+test('string searchParams merge keeps duplicates across input URL and defaults', async t => {
+	const server = await createHttpTestServer(t);
+
+	server.get('/', (request, response) => {
+		response.end(request.url);
+	});
+
+	const api = ky.create({searchParams: new URLSearchParams({filter: 'active'})});
+	const response = await api.get(`${server.url}?filter=old&sort=old`, {
+		searchParams: 'filter=recent&sort=new',
+	});
+
+	const url = new URL(await response.text(), server.url);
+	t.deepEqual(url.searchParams.getAll('filter').sort(), ['active', 'old', 'recent']);
+	t.deepEqual(url.searchParams.getAll('sort').sort(), ['new', 'old']);
+});
+
+test('init hook can delete merged search params via undefined', async t => {
+	const server = await createHttpTestServer(t);
+
+	server.get('/', (request, response) => {
+		response.end(request.url);
+	});
+
+	const api = ky.create({
+		searchParams: {foo: '1', bar: '2'},
+		hooks: {
+			init: [
+				options => {
+					// @ts-expect-error - testing undefined value
+					options.searchParams = {foo: undefined, baz: '3'};
+				},
+			],
+		},
+	});
+
+	const response = await api.get(`${server.url}?bar=from-url`);
+	const url = new URL(await response.text(), server.url);
+
+	t.false(url.searchParams.has('foo'));
+	t.is(url.searchParams.get('bar'), 'from-url'); // Input URL overrides instance default
+	t.is(url.searchParams.get('baz'), '3'); // Added by init hook
+});
+
+test('ky.extend() searchParams layer deletion propagates through merged instances', async t => {
+	const server = await createHttpTestServer(t);
+
+	server.get('/', (request, response) => {
+		response.end(request.url);
+	});
+
+	const api = ky.extend({searchParams: {foo: '1'}})
+		.extend({searchParams: {bar: '2'}});
+	const response = await api.get(`${server.url}?bar=from-url`, {
+		// @ts-expect-error - testing undefined value
+		searchParams: {foo: undefined},
+	});
+
+	const url = new URL(await response.text(), server.url);
+	t.false(url.searchParams.has('foo'));
+	t.is(url.searchParams.get('bar'), 'from-url');
+});
+
+test('searchParams option merges with existing query when hash is present', async t => {
+	const customFetch: typeof fetch = async input => {
+		if (!(input instanceof Request)) {
+			throw new TypeError('Expected to have input as request');
+		}
+
+		return new Response(input.url);
+	};
+
+	const url = 'https://example.com/unicorn';
+
+	t.is(
+		await ky(url + '?old#hash', {
+			fetch: customFetch,
+			searchParams: {foo: '1'},
+		}).text(),
+		url + '?old=&foo=1#hash',
+	);
+});
+
+test('init hook deletion over merged defaults and input URL', async t => {
+	const server = await createHttpTestServer(t);
+
+	server.get('/', (request, response) => {
+		response.end(request.url);
+	});
+
+	const api = ky.extend({searchParams: {foo: '1'}});
+	const response = await api.get(`${server.url}?foo=from-url`, {
+		hooks: {
+			init: [
+				options => {
+					options.searchParams = {foo: undefined};
+				},
+			],
+		},
+	});
+
+	const url = new URL(await response.text(), server.url);
+	t.false(url.searchParams.has('foo'));
+});
+
+test('re-adding a key after an earlier deletion across merge layers', async t => {
+	const server = await createHttpTestServer(t);
+
+	server.get('/', (request, response) => {
+		response.end(request.url);
+	});
+
+	const api = ky.create({searchParams: {foo: '1'}}).extend({
+		searchParams: {foo: undefined},
+	});
+
+	const response = await api.get(server.url, {
+		searchParams: {foo: '2'},
+	});
+
+	const url = new URL(await response.text(), server.url);
+	t.is(url.searchParams.get('foo'), '2');
+});
+
+test('deletion from a replaceOption(...) boundary', async t => {
+	const server = await createHttpTestServer(t);
+
+	server.get('/', (request, response) => {
+		response.end(request.url);
+	});
+
+	const api = ky.create({searchParams: {foo: '1', bar: '2'}}).extend({
+		searchParams: replaceOption({bar: undefined, baz: '3'}),
+	});
+
+	const response = await api.get(server.url);
+
+	const url = new URL(await response.text(), server.url);
+	t.false(url.searchParams.has('foo'));
+	t.false(url.searchParams.has('bar'));
+	t.is(url.searchParams.get('baz'), '3');
+});
+
+test('duplicate-key deletion with URLSearchParams', async t => {
+	const server = await createHttpTestServer(t);
+
+	server.get('/', (request, response) => {
+		response.end(request.url);
+	});
+
+	const response = await ky.get(`${server.url}?foo=1&foo=2&bar=3`, {
+		searchParams: {foo: undefined},
+	});
+
+	const url = new URL(await response.text(), server.url);
+	t.false(url.searchParams.has('foo'));
+	t.is(url.searchParams.get('bar'), '3');
+});
+
+test('empty merged URLSearchParams plus deletion plus later append', async t => {
+	const server = await createHttpTestServer(t);
+
+	server.get('/', (request, response) => {
+		response.end(request.url);
+	});
+
+	const api = ky.create({searchParams: new URLSearchParams({foo: '1'})});
+	const response = await api.get(server.url, {
+		searchParams: {foo: undefined, bar: '2'},
+	});
+
+	const url = new URL(await response.text(), server.url);
+	t.false(url.searchParams.has('foo'));
+	t.is(url.searchParams.get('bar'), '2');
+});
+
+test('function-form .extend() with deletion', async t => {
+	const server = await createHttpTestServer(t);
+
+	server.get('/', (request, response) => {
+		response.end(request.url);
+	});
+
+	const api = ky.create({searchParams: {foo: '1'}}).extend(() => ({
+		searchParams: {foo: undefined, bar: '2'},
+	}));
+
+	const response = await api.get(server.url);
+
+	const url = new URL(await response.text(), server.url);
+	t.false(url.searchParams.has('foo'));
+	t.is(url.searchParams.get('bar'), '2');
 });
 
 test('throwHttpErrors option', async t => {

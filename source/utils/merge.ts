@@ -136,8 +136,11 @@ export const mergeHooks = (original: Hooks = {}, incoming: Hooks = {}): Required
 	}
 );
 
+export const deletedParametersSymbol = Symbol('deletedParameters');
+
 const appendSearchParameters = (target: any, source: any): URLSearchParams => {
-	const result = new URLSearchParams();
+	const result = new URLSearchParams() as URLSearchParams & {[deletedParametersSymbol]?: Set<string>};
+	const deleted = new Set<string>();
 
 	for (const input of [target, source]) {
 		if (input === undefined) {
@@ -147,6 +150,15 @@ const appendSearchParameters = (target: any, source: any): URLSearchParams => {
 		if (input instanceof URLSearchParams) {
 			for (const [key, value] of input.entries()) {
 				result.append(key, value);
+				deleted.delete(key);
+			}
+
+			const inputDeleted = (input as any)[deletedParametersSymbol] as Set<string> | undefined;
+			if (inputDeleted) {
+				for (const key of inputDeleted) {
+					result.delete(key);
+					deleted.add(key);
+				}
 			}
 		} else if (Array.isArray(input)) {
 			for (const pair of input) {
@@ -155,11 +167,16 @@ const appendSearchParameters = (target: any, source: any): URLSearchParams => {
 				}
 
 				result.append(String(pair[0]), String(pair[1]));
+				deleted.delete(String(pair[0]));
 			}
 		} else if (isObject(input)) {
 			for (const [key, value] of Object.entries(input)) {
-				if (value !== undefined) {
+				if (value === undefined) {
+					result.delete(key);
+					deleted.add(key);
+				} else {
 					result.append(key, String(value));
+					deleted.delete(key);
 				}
 			}
 		} else {
@@ -167,8 +184,13 @@ const appendSearchParameters = (target: any, source: any): URLSearchParams => {
 			const parameters = new URLSearchParams(input);
 			for (const [key, value] of parameters.entries()) {
 				result.append(key, value);
+				deleted.delete(key);
 			}
 		}
+	}
+
+	if (deleted.size > 0) {
+		result[deletedParametersSymbol] = deleted;
 	}
 
 	return result;

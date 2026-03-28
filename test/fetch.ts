@@ -63,14 +63,14 @@ test('fetch option takes a custom fetch function', async t => {
 			fetch: customFetch,
 			searchParams: 'new',
 		}).text(),
-		`${fixture}?new`,
+		`${fixture}?old&new`,
 	);
 	t.is(
 		await ky(`${fixture}?old#hash`, {
 			fetch: customFetch,
 			searchParams: 'new',
 		}).text(),
-		`${fixture}?new#hash`,
+		`${fixture}?old&new#hash`,
 	);
 	t.is(await ky('unicorn', {fetch: customFetch, prefix: `${fixture}/api/`}).text(), `${fixture}/api/unicorn`);
 });
