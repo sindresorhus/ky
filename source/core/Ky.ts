@@ -15,7 +15,12 @@ import type {
 import {type ResponsePromise} from '../types/ResponsePromise.js';
 import type {StandardSchemaV1} from '../types/standard-schema.js';
 import {streamRequest, streamResponse} from '../utils/body.js';
-import {cloneShallow, mergeHeaders, mergeHooks, deletedParametersSymbol} from '../utils/merge.js';
+import {
+	cloneShallow,
+	mergeHeaders,
+	mergeHooks,
+	deletedParametersSymbol,
+} from '../utils/merge.js';
 import {normalizeRequestMethod, normalizeRetryOptions} from '../utils/normalize.js';
 import timeout from '../utils/timeout.js';
 import delay from '../utils/delay.js';
