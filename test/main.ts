@@ -2106,7 +2106,7 @@ test('options override Request instance body', async t => {
 	await ky(inputRequest, {body: expectedBody});
 });
 
-test('POST JSON with falsey value', async t => {
+test('POST JSON with falsy value', async t => {
 	// #222
 	const server = await createHttpTestServer(t, {bodyParser: false});
 	server.post('/', async (request, response) => {
