@@ -6,7 +6,7 @@ import {KyError} from './KyError.js';
 /**
 Error thrown when the response has a non-2xx status code and `throwHttpErrors` is enabled.
 
-The error has a `response` property with the `Response` object, a `request` property with the `Request` object, an `options` property with the normalized options, and a `data` property with the pre-parsed response body.
+The error has a `response` property with the `Response` object, a `request` property with the `Request` object, an `options` property with the normalized options, and a `data` property with the pre-parsed response body. The response body is automatically consumed when populating `data`, so `response.json()` and other body methods will not work. Use `data` instead.
 */
 export class HTTPError<T = unknown> extends KyError {
 	override name = 'HTTPError' as const;

@@ -4,7 +4,7 @@ import {NetworkError} from '../errors/NetworkError.js';
 import {TimeoutError} from '../errors/TimeoutError.js';
 import {ForceRetryError} from '../errors/ForceRetryError.js';
 
-// Handles cross-realm cases (e.g. iframes, different JS contexts) where `instanceof` fails.
+// Handles cross-realm cases (e.g., iframes, different JS contexts) where `instanceof` fails.
 const isErrorType = (error: unknown, cls: {name: string}): boolean =>
 	error instanceof (cls as any) || (error as any)?.name === cls.name;
 
