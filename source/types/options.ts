@@ -34,7 +34,7 @@ export type KyOptions = {
 	/**
 	Shortcut for sending JSON. Use this instead of the `body` option.
 
-	Accepts any plain object or value, which will be `JSON.stringify()`'d and sent in the body with the correct header set.
+	Accepts any plain object or value, which will be stringified using `JSON.stringify()` and sent in the body with the correct header set.
 	*/
 	json?: unknown;
 
