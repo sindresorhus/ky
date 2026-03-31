@@ -218,7 +218,7 @@ export class Ky {
 				let processedError: Error = error;
 				for (const hook of ky.#options.hooks.beforeError) {
 					// `request` is the current failing request. `options` intentionally remains the
-					// stable normalized Ky options snapshot for the same reason as HTTPError above.
+					// stable normalized Ky options snapshot for the same reason as `HTTPError` above.
 					// eslint-disable-next-line no-await-in-loop
 					const hookResult: unknown = await hook({
 						request: ky.request,
