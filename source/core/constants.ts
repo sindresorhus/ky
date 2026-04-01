@@ -57,7 +57,7 @@ export const responseTypes = {
 // The maximum value of a 32bit int (see issue #117)
 export const maxSafeTimeout = 2_147_483_647;
 
-// Size in bytes of a typical form boundary (e.g. '------WebKitFormBoundaryaxpyiPgbbPti10Rw'), used to help estimate upload size
+// Size in bytes of a typical form boundary (e.g., '------WebKitFormBoundaryaxpyiPgbbPti10Rw'), used to help estimate upload size
 export const usualFormBoundarySize = 40;
 
 /**
@@ -104,7 +104,7 @@ export type ForceRetryOptions = {
 	} catch (error) {
 		return ky.retry({
 			code: 'VALIDATION_FAILED',
-			cause: error  // Preserves original error in chain
+			cause: error // Preserves original error in chain
 		});
 	}
 	```

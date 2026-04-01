@@ -150,7 +150,7 @@ export class Ky {
 					continue;
 				}
 
-				// Opaque responses (`response.type === 'opaque'`) from `no-cors` requests always have `status: 0` and `ok: false`, but this is not a failure — the actual status is hidden by the browser.
+				// Opaque responses (`response.type === 'opaque'`) from `no-cors` requests always have `status: 0` and `ok: false`, but this is not a failure - the actual status is hidden by the browser.
 				if (!response.ok && response.type !== 'opaque' && (
 					typeof ky.#options.throwHttpErrors === 'function'
 						? ky.#options.throwHttpErrors(response.status)
@@ -205,7 +205,7 @@ export class Ky {
 			try {
 				return await function_();
 			} catch (error: unknown) {
-				// Non-Error throws (e.g. thrown strings) pass through unchanged
+				// Non-Error throws (e.g., thrown strings) pass through unchanged
 				if (!(error instanceof Error)) {
 					throw error;
 				}
@@ -875,7 +875,7 @@ export class Ky {
 		const request = this.#wrapRequestWithUploadProgress(this.request, this.#options.body ?? undefined);
 
 		// Cloning is done here to prepare in advance for retries.
-		// Skip cloning when retries are disabled — cloning a streaming body calls ReadableStream#tee()
+		// Skip cloning when retries are disabled - cloning a streaming body calls ReadableStream#tee()
 		// which buffers the entire stream in memory, causing excessive memory usage for large uploads.
 		this.#originalRequest = request;
 		if (retryRequest) {

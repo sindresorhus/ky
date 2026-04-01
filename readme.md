@@ -28,7 +28,7 @@ It's just a tiny package with no dependencies.
 - Base URL option
 - Instances with custom defaults
 - Hooks
-- TypeScript niceties (e.g. `.json()` supports generics and defaults to `unknown`, not `any`)
+- TypeScript niceties (e.g., `.json()` supports generics and defaults to `unknown`, not `any`)
 
 ## Install
 
@@ -197,7 +197,7 @@ When passing an object, setting a value to `undefined` deletes the parameter, wh
 
 Type: `string | URL`
 
-A base URL to [resolve](https://developer.mozilla.org/en-US/docs/Web/API/URL_API/Resolving_relative_references) the `input` against. When the `input` (after applying the `prefix` option) is only a relative URL, such as `'users'`, `'/users'`,  or `'//my-site.com'`, it will be resolved against the `baseUrl` to determine the destination of the request. Otherwise, the `input` is absolute, such as `'https://my-site.com'`, and it will bypass the `baseUrl`.
+A base URL to [resolve](https://developer.mozilla.org/en-US/docs/Web/API/URL_API/Resolving_relative_references) the `input` against. When the `input` (after applying the `prefix` option) is only a relative URL, such as `'users'`, `'/users'`, or `'//my-site.com'`, it will be resolved against the `baseUrl` to determine the destination of the request. Otherwise, the `input` is absolute, such as `'https://my-site.com'`, and it will bypass the `baseUrl`.
 
 Useful when used with [`ky.extend()`](#kyextenddefaultoptions) to create niche-specific Ky instances.
 
@@ -576,7 +576,7 @@ const response = await ky('https://example.com/api', {
 Type: `Function[]`\
 Default: `[]`
 
-This hook enables you to modify any error right before it is thrown. The hook function receives a state object with the current request, the normalized Ky options, error, and retry count, and should return an `Error` instance.
+This hook enables you to modify any error right before it is thrown. The hook function receives a state object with the current request, the normalized Ky options, the error, and retry count, and should return an `Error` instance.
 
 This hook is called for all error types, including `HTTPError`, `NetworkError`, `TimeoutError`, and `ForceRetryError` (when retry limit is exceeded via `ky.retry()`). Use type guards like `isHTTPError()`, `isNetworkError()`, or `isTimeoutError()` to handle specific error types.
 
@@ -1207,7 +1207,7 @@ It also has a `data` property with the pre-parsed response body. For JSON respon
 Be aware that some types of errors, such as network errors, inherently mean that a response was not received. In that case, the error will be an instance of [`NetworkError`](#networkerror) instead of `HTTPError` and will not contain a `response` property.
 
 > [!NOTE]
-> The response body is automatically consumed when populating `error.data`, so you do not need to manually consume or cancel `error.response.body`.
+> The response body is automatically consumed when populating `error.data`, so `error.response.json()` and other body methods will not work. Use `error.data` instead. The `error.response` object is still available for headers, status, etc.
 
 ```js
 import ky, {isHTTPError} from 'ky';
