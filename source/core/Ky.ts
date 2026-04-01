@@ -265,9 +265,13 @@ export class Ky {
 					return response[type]();
 				}
 
-				const text = response.status === 204 ? '' : await response.text();
+				const text = await response.text();
 				if (text === '') {
-					return schema === undefined ? undefined : validateJsonWithSchema(undefined, schema);
+					if (schema !== undefined) {
+						return validateJsonWithSchema(undefined, schema);
+					}
+
+					return JSON.parse(text);
 				}
 
 				const jsonValue = initHookOptions.parseJson
@@ -535,7 +539,14 @@ export class Ky {
 		const request = this.#getResponseRequest(response);
 
 		if (this.#options.parseJson) {
-			response.json = async () => this.#options.parseJson!(await response.text(), {request, response});
+			response.json = async () => {
+				const text = await response.text();
+				if (text === '') {
+					return JSON.parse(text);
+				}
+
+				return this.#options.parseJson!(text, {request, response});
+			};
 		}
 
 		return response;
