@@ -261,7 +261,7 @@ test('.json() when response is chunked', async t => {
 
 	const responseJson = await ky.get<['one', 'two']>(server.url).json();
 
-	expectTypeOf(responseJson).toEqualTypeOf<['one', 'two'] | undefined>();
+	expectTypeOf(responseJson).toEqualTypeOf<['one', 'two']>();
 
 	t.deepEqual(responseJson, ['one', 'two']);
 });
@@ -287,10 +287,12 @@ test('.json() with empty body', async t => {
 		response.end();
 	});
 
-	const responseJson = await ky.get<{foo: string}>(server.url).json();
-	expectTypeOf(responseJson).toEqualTypeOf<{foo: string} | undefined>();
+	const promise = ky.get<{foo: string}>(server.url).json();
+	expectTypeOf(promise).toEqualTypeOf<Promise<{foo: string}>>();
 
-	t.is(responseJson, undefined);
+	await t.throwsAsync(promise, {
+		message: /Unexpected end of JSON input/,
+	});
 });
 
 test('.json() with 204 response and empty body', async t => {
@@ -302,9 +304,9 @@ test('.json() with 204 response and empty body', async t => {
 		response.status(204).end();
 	});
 
-	const responseJson = await ky(server.url).json();
-
-	t.is(responseJson, undefined);
+	await t.throwsAsync(ky(server.url).json(), {
+		message: /Unexpected end of JSON input/,
+	});
 });
 
 test('.json() with 204 response does not call parseJson', async t => {
@@ -314,14 +316,15 @@ test('.json() with 204 response does not call parseJson', async t => {
 	});
 
 	let parseJsonCalled = false;
-	const result = await ky(server.url, {
-		parseJson(text) {
+	await t.throwsAsync(ky(server.url, {
+		parseJson() {
 			parseJsonCalled = true;
-			return JSON.parse(text);
+			return undefined;
 		},
-	}).json();
+	}).json(), {
+		message: /Unexpected end of JSON input/,
+	});
 
-	t.is(result, undefined);
 	t.false(parseJsonCalled);
 });
 
@@ -332,14 +335,15 @@ test('.json() with empty body does not call parseJson', async t => {
 	});
 
 	let parseJsonCalled = false;
-	const result = await ky(server.url, {
-		parseJson(text) {
+	await t.throwsAsync(ky(server.url, {
+		parseJson() {
 			parseJsonCalled = true;
-			return JSON.parse(text);
+			return undefined;
 		},
-	}).json();
+	}).json(), {
+		message: /Unexpected end of JSON input/,
+	});
 
-	t.is(result, undefined);
 	t.false(parseJsonCalled);
 });
 
@@ -577,6 +581,50 @@ test('.json(schema) validates 204 responses as undefined', async t => {
 
 	t.is(validatedValue, undefined);
 	t.deepEqual(error?.issues, issues);
+});
+
+test('.json(schema) with empty body does not call parseJson before validation', async t => {
+	const server = await createHttpTestServer(t);
+	server.get('/', (_request, response) => {
+		response.end();
+	});
+
+	let parseJsonCalled = false;
+	const schema = createSchema<string>(value => ({
+		value: value === undefined ? 'empty:undefined' : 'non-empty',
+	}));
+
+	const responseJson = await ky.get(server.url, {
+		parseJson(text) {
+			parseJsonCalled = true;
+			return JSON.parse(text);
+		},
+	}).json(schema);
+
+	t.false(parseJsonCalled);
+	t.is(responseJson, 'empty:undefined');
+});
+
+test('.json(schema) with 204 response does not call parseJson before validation', async t => {
+	const server = await createHttpTestServer(t);
+	server.get('/', (_request, response) => {
+		response.status(204).end();
+	});
+
+	let parseJsonCalled = false;
+	const schema = createSchema<string>(value => ({
+		value: value === undefined ? 'empty:undefined' : 'non-empty',
+	}));
+
+	const responseJson = await ky.get(server.url, {
+		parseJson(text) {
+			parseJsonCalled = true;
+			return JSON.parse(text);
+		},
+	}).json(schema);
+
+	t.false(parseJsonCalled);
+	t.is(responseJson, 'empty:undefined');
 });
 
 test('.json(schema) with invalid JSON body throws parse error before validation', async t => {
@@ -2142,6 +2190,27 @@ test('parseJson option with response.json()', async t => {
 		...json,
 		extra: 'extraValue',
 	});
+});
+
+test('parseJson option with response.json() does not run on empty body', async t => {
+	const server = await createHttpTestServer(t);
+	server.get('/', (_request, response) => {
+		response.end();
+	});
+
+	let parseJsonCalled = false;
+	const response = await ky.get(server.url, {
+		parseJson() {
+			parseJsonCalled = true;
+			return undefined;
+		},
+	});
+
+	await t.throwsAsync(response.json(), {
+		message: /Unexpected end of JSON input/,
+	});
+
+	t.false(parseJsonCalled);
 });
 
 test('parseJson option with promise.json() shortcut', async t => {

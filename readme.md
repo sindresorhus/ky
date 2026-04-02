@@ -5,6 +5,29 @@
 	</div>
 	<br>
 	<br>
+	<p>
+		<p>
+			<sup>
+				Sindre's open source work is supported by the community.<br>Special thanks to:
+			</sup>
+		</p>
+		<br>
+		<a href="https://circleback.ai?utm_source=sindresorhus&utm_medium=sponsorship&utm_campaign=awesome-list&utm_id=ky">
+			<div>
+				<img width="280" src="https://sindresorhus.com/assets/thanks/circleback-logo.png?x" alt="Circleback logo">
+			</div>
+			<b>Get the most out of every conversation.</b>
+			<div>
+				<sup>AI-powered meeting notes, automations, and search. Give AI agents the context they need to get things done.</sup>
+			</div>
+		</a>
+	</p>
+	<br>
+	<br>
+	<br>
+	<br>
+	<br>
+	<br>
 	<br>
 </div>
 
@@ -91,7 +114,7 @@ import ky from 'https://esm.sh/ky';
 
 The `input` and `options` are the same as [`fetch`](https://developer.mozilla.org/en-US/docs/Web/API/WindowOrWorkerGlobalScope/fetch), with additional `options` available (see below).
 
-Returns a [`Response` object](https://developer.mozilla.org/en-US/docs/Web/API/Response) with [`Body` methods](https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API/Using_Fetch#body) added for convenience. So you can, for example, call `ky.get(input).json()` directly without having to await the `Response` first. When called like that, an appropriate `Accept` header will be set depending on the body method used. Unlike the `Body` methods of `window.fetch`, these will throw an `HTTPError` if the response status is not in the range of `200...299`. Also, `.json()` will return `undefined` if body is empty or the response status is `204` instead of throwing a parse error due to an empty body.
+Returns a [`Response` object](https://developer.mozilla.org/en-US/docs/Web/API/Response) with [`Body` methods](https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API/Using_Fetch#body) added for convenience. So you can, for example, call `ky.get(input).json()` directly without having to await the `Response` first. When called like that, an appropriate `Accept` header will be set depending on the body method used. Unlike the `Body` methods of `window.fetch`, these will throw an `HTTPError` if the response status is not in the range of `200...299`. Also, `.json()` throws if the body is empty or the response status is `204`.
 
 Available body shortcuts: `.json()`, `.text()`, `.formData()`, `.arrayBuffer()`, `.blob()`, and `.bytes()`. The `.bytes()` shortcut is only present when the runtime supports `Response.prototype.bytes()`.
 
