@@ -5,6 +5,29 @@
 	</div>
 	<br>
 	<br>
+	<p>
+		<p>
+			<sup>
+				Sindre's open source work is supported by the community.<br>Special thanks to:
+			</sup>
+		</p>
+		<br>
+		<a href="https://circleback.ai?utm_source=sindresorhus&utm_medium=sponsorship&utm_campaign=awesome-list&utm_id=ky">
+			<div>
+				<img width="280" src="https://sindresorhus.com/assets/thanks/circleback-logo.png?x" alt="Circleback logo">
+			</div>
+			<b>Get the most out of every conversation.</b>
+			<div>
+				<sup>AI-powered meeting notes, automations, and search. Give AI agents the context they need to get things done.</sup>
+			</div>
+		</a>
+	</p>
+	<br>
+	<br>
+	<br>
+	<br>
+	<br>
+	<br>
 	<br>
 </div>
 
