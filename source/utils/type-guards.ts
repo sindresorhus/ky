@@ -9,7 +9,7 @@ const isErrorType = (error: unknown, cls: {name: string}): boolean =>
 	error instanceof (cls as any) || (error as any)?.name === cls.name;
 
 /**
-Type guard to check if an error is a Ky error.
+Type guard to check if an error is a `KyError`.
 
 Note: `SchemaValidationError` is intentionally not considered a Ky error. `KyError` covers failures in Ky's HTTP lifecycle (bad status, timeout, retry), while schema validation errors originate from the user-provided schema, not from Ky itself.
 
@@ -37,10 +37,10 @@ export function isKyError(error: unknown): error is KyError {
 }
 
 /**
-Type guard to check if an error is an HTTPError.
+Type guard to check if an error is an `HTTPError`.
 
 @param error - The error to check
-@returns `true` if the error is an HTTPError, `false` otherwise
+@returns `true` if the error is an `HTTPError`, `false` otherwise
 
 @example
 ```
@@ -59,10 +59,10 @@ export function isHTTPError<T = unknown>(error: unknown): error is HTTPError<T> 
 }
 
 /**
-Type guard to check if an error is a NetworkError.
+Type guard to check if an error is a `NetworkError`.
 
 @param error - The error to check
-@returns `true` if the error is a NetworkError, `false` otherwise
+@returns `true` if the error is a `NetworkError`, `false` otherwise
 
 @example
 ```
@@ -81,10 +81,10 @@ export function isNetworkError(error: unknown): error is NetworkError {
 }
 
 /**
-Type guard to check if an error is a TimeoutError.
+Type guard to check if an error is a `TimeoutError`.
 
 @param error - The error to check
-@returns `true` if the error is a TimeoutError, `false` otherwise
+@returns `true` if the error is a `TimeoutError`, `false` otherwise
 
 @example
 ```
@@ -103,10 +103,10 @@ export function isTimeoutError(error: unknown): error is TimeoutError {
 }
 
 /**
-Type guard to check if an error is a ForceRetryError.
+Type guard to check if an error is a `ForceRetryError`.
 
 @param error - The error to check
-@returns `true` if the error is a ForceRetryError, `false` otherwise
+@returns `true` if the error is a `ForceRetryError`, `false` otherwise
 
 @example
 ```
