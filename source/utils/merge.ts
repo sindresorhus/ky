@@ -27,7 +27,7 @@ const getReplaceState = <T>(value: T): ReplaceState<T> =>
 		};
 
 /**
-Wraps a value so that `ky.extend()` will replace the parent value instead of merging with it.
+Wraps a value so that `ky.extend()` will replace the parent value instead of merging with it. Works with hooks, headers, search parameters, context, and any other deep-merged option.
 
 By default, `.extend()` deep-merges options with the parent instance: hooks get appended, headers get merged, and search parameters get accumulated. Use `replaceOption` when you want to fully replace a merged property instead.
 

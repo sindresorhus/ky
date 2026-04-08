@@ -14,11 +14,18 @@ export type HttpMethod = LiteralUnion<RequestHttpMethod | 'options' | 'trace', s
 export type Input = string | URL | Request;
 
 export type Progress = {
+	/**
+	A number between `0` and `1` representing the progress percentage.
+	*/
 	percent: number;
+
+	/**
+	The number of bytes transferred so far.
+	*/
 	transferredBytes: number;
 
 	/**
-	Note: If it's not possible to retrieve the body size, it will be `0`.
+	The total number of bytes to be transferred. This is an estimate and may be `0` if the total size cannot be determined.
 	*/
 	totalBytes: number;
 };
@@ -161,7 +168,7 @@ export type KyOptions = {
 	prefix?: URL | string;
 
 	/**
-	An object representing `limit`, `methods`, `statusCodes`, `afterStatusCodes`, `maxRetryAfter`, `backoffLimit`, `delay`, `jitter`, `retryOnTimeout`, and `shouldRetry` fields for maximum retry count, allowed methods, allowed status codes, status codes allowed to use the [`Retry-After`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Retry-After) time, maximum [`Retry-After`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Retry-After) time, backoff limit, delay calculation function, retry jitter, timeout retry behavior, and custom retry logic.
+	Controls retry behavior. Each field is documented in the `RetryOptions` type.
 
 	If `retry` is a number, it will be used as `limit` and other defaults will remain in place.
 
@@ -169,7 +176,7 @@ export type KyOptions = {
 
 	If the response provides an HTTP status contained in `afterStatusCodes`, Ky will wait until the date, timeout, or timestamp given in the [`Retry-After`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Retry-After) header has passed to retry the request. If `Retry-After` is missing, the non-standard [`RateLimit-Reset`](https://www.ietf.org/archive/id/draft-polli-ratelimit-headers-05.html#section-3.3) header is used in its place as a fallback. If the provided status code is not in the list, the [`Retry-After`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Retry-After) header will be ignored.
 
-	If `maxRetryAfter` is set to `undefined`, it will use `options.timeout`. If [`Retry-After`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Retry-After) header is greater than `maxRetryAfter`, it will use `maxRetryAfter`.
+	If [`Retry-After`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Retry-After) header is greater than `maxRetryAfter`, it will use `maxRetryAfter`.
 
 	@example
 	```
@@ -220,7 +227,7 @@ export type KyOptions = {
 	totalTimeout?: number | false;
 
 	/**
-	Hooks allow modifications during the request lifecycle. Hook functions may be async and are run serially.
+	Hooks allow modifications during the request lifecycle. Hook functions may be async and are run serially, unless otherwise noted.
 	*/
 	hooks?: Hooks;
 
@@ -373,6 +380,8 @@ export type KyOptions = {
 	// Result: {a: 1, b: {updated: true}, c: 3}
 	// Note: The original `b.nested` is gone (shallow merge)
 	```
+
+	@default {}
 	*/
 	context?: Record<string, unknown>;
 };
@@ -400,7 +409,7 @@ export interface Options extends KyOptions, Omit<RequestInit, 'headers'> { // es
 
 	You can pass a `Headers` instance or a plain object.
 
-	You can remove a header with `.extend()` by passing the header with an `undefined` value.
+	You can remove a header with `.extend()` by passing the header with an `undefined` value. Passing `undefined` as a string removes the header only if it comes from a `Headers` instance.
 
 	@example
 	```

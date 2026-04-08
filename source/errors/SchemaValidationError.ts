@@ -1,7 +1,7 @@
 import type {StandardSchemaV1Issue} from '../types/standard-schema.js';
 
 /**
-Thrown when a response body fails validation against a user-provided Standard Schema.
+The error thrown when [Standard Schema](https://github.com/standard-schema/standard-schema) validation fails in `.json(schema)`. It has an `issues` property with the validation issues from the schema.
 
 This error intentionally does not extend `KyError` because it does not represent a failure in Ky's HTTP lifecycle. The request succeeded; the user's schema rejected the data. As such, it is not matched by `isKyError()`.
 

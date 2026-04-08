@@ -333,7 +333,7 @@ export type Hooks = {
 				// Or force retry based on response body content
 				async ({response}) => {
 					if (response.status === 200) {
-						const data = await response.clone().json();
+						const data = await response.json();
 						if (data.error?.code === 'RATE_LIMIT') {
 							// Retry with custom delay from API response
 							return ky.retry({

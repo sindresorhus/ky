@@ -99,7 +99,7 @@ export type ForceRetryOptions = {
 	@example
 	```
 	try {
-		const data = await response.clone().json();
+		const data = await response.json();
 		validateBusinessLogic(data);
 	} catch (error) {
 		return ky.retry({
@@ -130,7 +130,7 @@ export type ForceRetryOptions = {
 	});
 
 	// Retry with refreshed authentication token
-	const data = await response.clone().json();
+	const data = await response.json();
 	return ky.retry({
 		request: new Request(request, {
 			headers: {
@@ -173,7 +173,7 @@ const api = ky.extend({
 			async ({request, response}) => {
 				// Retry based on response body content
 				if (response.status === 200) {
-					const data = await response.clone().json();
+					const data = await response.json();
 
 					// Simple retry with default delay
 					if (data.error?.code === 'TEMPORARY_ERROR') {

@@ -65,7 +65,7 @@ export type RetryOptions = {
 	backoffLimit?: number;
 
 	/**
-	A function to calculate the delay between retries given `attemptCount` (starts from 1).
+	A function to calculate the delay in milliseconds between retries given `attemptCount` (starts from 1).
 
 	@default attemptCount => 0.3 * (2 ** (attemptCount - 1)) * 1000
 	*/
@@ -79,6 +79,8 @@ export type RetryOptions = {
 	Set to `true` to use full jitter, which randomizes the delay between 0 and the computed delay.
 
 	Alternatively, pass a function to implement custom jitter strategies.
+
+	Note: Jitter is not applied when the server provides a `Retry-After` header, as the server's explicit timing should be respected.
 
 	@default undefined (no jitter)
 
@@ -136,6 +138,8 @@ export type RetryOptions = {
 	- `true` to force a retry (bypasses `retryOnTimeout`, status code checks, and other validations)
 	- `false` to prevent a retry (no retry will occur)
 	- `undefined` to use the default retry logic (`retryOnTimeout`, status codes, network errors). Unrecognized error types are not retried.
+
+	@default undefined
 
 	@example
 	```

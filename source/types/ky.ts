@@ -70,7 +70,7 @@ export type KyInstance = {
 	head: (url: Input, options?: Options) => ResponsePromise;
 
 	/**
-	Create a new Ky instance with complete new defaults.
+	Create a new Ky instance with complete new defaults, without inheriting from any parent instance.
 
 	@returns A new Ky instance.
 	*/
@@ -80,6 +80,14 @@ export type KyInstance = {
 	Create a new Ky instance with some defaults overridden with your own.
 
 	In contrast to `ky.create()`, `ky.extend()` inherits defaults from its parent.
+
+	You can pass headers as a `Headers` instance or a plain object.
+
+	You can remove a header with `.extend()` by passing the header with an `undefined` value. Passing `undefined` as a string removes the header only if it comes from a `Headers` instance.
+
+	Similarly, you can remove existing `hooks` entries by extending the hook with an explicit `undefined`.
+
+	By default, `.extend()` deep-merges options: hooks are appended, headers are merged, and search parameters are accumulated. Use `replaceOption` when you want to fully replace a merged property instead.
 
 	You can also refer to parent defaults by providing a function to `.extend()`.
 
@@ -150,7 +158,7 @@ export type KyInstance = {
 				async ({response}) => {
 					// Retry based on response body content
 					if (response.status === 200) {
-						const data = await response.clone().json();
+						const data = await response.json();
 
 						// Simple retry with default delay
 						if (data.error?.code === 'TEMPORARY_ERROR') {

@@ -48,9 +48,11 @@ It's just a tiny package with no dependencies.
 - Retries failed requests
 - JSON option
 - Timeout support
+- Upload and download progress
 - Base URL option
 - Instances with custom defaults
 - Hooks
+- Response validation with [Standard Schema](https://standardschema.dev) (Zod, Valibot, etc.)
 - TypeScript niceties (e.g., `.json()` supports generics and defaults to `unknown`, not `any`)
 
 ## Install
@@ -240,6 +242,8 @@ const response = await ky('/users', {baseUrl: '/api/'});
 //=> 'https://example.com/users'
 ```
 
+See [FAQ: `baseUrl` vs `prefix`](#baseurl-vs-prefix)
+
 ##### prefix
 
 Type: `string | URL`
@@ -249,6 +253,8 @@ A prefix to prepend to the `input` before making the request (and before it is r
 Useful when used with [`ky.extend()`](#kyextenddefaultoptions) to create niche-specific Ky instances.
 
 *In most cases, you should use the `baseUrl` option instead, as it is more consistent with web standards. However, `prefix` is useful if you want origin-relative `input` URLs, such as `/users`, to be treated as if they were page-relative. In other words, the leading slash of the `input` will essentially be ignored, because the `prefix` will become part of the `input` before URL resolution happens.*
+
+See [FAQ: `baseUrl` vs `prefix`](#baseurl-vs-prefix)
 
 ```js
 import ky from 'ky';
@@ -274,14 +280,14 @@ Default:
 - `methods`: `get` `put` `head` `delete` `options` `trace`
 - `statusCodes`: [`408`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/408) [`413`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/413) [`429`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/429) [`500`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/500) [`502`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/502) [`503`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/503) [`504`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/504)
 - `afterStatusCodes`: [`413`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/413), [`429`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/429), [`503`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/503)
-- `maxRetryAfter`: `undefined`
-- `backoffLimit`: `undefined`
+- `maxRetryAfter`: `Infinity`
+- `backoffLimit`: `Infinity`
 - `delay`: `attemptCount => 0.3 * (2 ** (attemptCount - 1)) * 1000`
 - `jitter`: `undefined`
 - `retryOnTimeout`: `false`
 - `shouldRetry`: `undefined`
 
-An object representing `limit`, `methods`, `statusCodes`, `afterStatusCodes`, `maxRetryAfter`, `backoffLimit`, `delay`, `jitter`, `retryOnTimeout`, and `shouldRetry` fields for maximum retry count, allowed methods, allowed status codes, status codes allowed to use the [`Retry-After`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Retry-After) time, maximum [`Retry-After`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Retry-After) time, backoff limit, delay calculation function, retry jitter, timeout retry behavior, and custom retry logic.
+Controls retry behavior. Each field is documented individually below.
 
 If `retry` is a number, it will be used as `limit` and other defaults will remain in place.
 
@@ -289,13 +295,13 @@ Network errors (e.g., DNS failures, connection refused, offline) are automatical
 
 If the response provides an HTTP status contained in `afterStatusCodes`, Ky will wait until the date, timeout, or timestamp given in the [`Retry-After`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Retry-After) header has passed to retry the request. If `Retry-After` is missing, the non-standard [`RateLimit-Reset`](https://www.ietf.org/archive/id/draft-polli-ratelimit-headers-05.html#section-3.3) header is used in its place as a fallback. If the provided status code is not in the list, the [`Retry-After`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Retry-After) header will be ignored.
 
-If `maxRetryAfter` is set to `undefined`, it will use `options.timeout`. If [`Retry-After`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Retry-After) header is greater than `maxRetryAfter`, it will use `maxRetryAfter`.
+If [`Retry-After`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Retry-After) header is greater than `maxRetryAfter`, it will use `maxRetryAfter`.
 
 The `backoffLimit` option is the upper limit of the delay per retry in milliseconds.
 To clamp the delay, set `backoffLimit` to 1000, for example.
 By default, the delay is calculated with `0.3 * (2 ** (attemptCount - 1)) * 1000`. The delay increases exponentially.
 
-The `delay` option can be used to change how the delay between retries is calculated. The function receives one parameter, the attempt count, starting at `1`.
+The `delay` option can be used to change how the delay between retries is calculated. The function receives one parameter, the attempt count, starting at `1`, and must return the delay in milliseconds.
 
 The `jitter` option adds random jitter to retry delays to prevent thundering herd problems. When many clients retry simultaneously (e.g., after hitting a rate limit), they can overwhelm the server again. Jitter adds randomness to break this synchronization. Set to `true` to use full jitter, which randomizes the delay between 0 and the computed delay. Alternatively, pass a function to implement custom jitter strategies.
 
@@ -681,7 +687,7 @@ const response = await ky('https://example.com', {
 			// Or force retry based on response body content
 			async ({response}) => {
 				if (response.status === 200) {
-					const data = await response.clone().json();
+					const data = await response.json();
 					if (data.error?.code === 'RATE_LIMIT') {
 						// Retry with custom delay from API response
 						return ky.retry({
@@ -728,10 +734,10 @@ Download progress event handler.
 
 The function receives these arguments:
 - `progress` is an object with these properties:
-- - `percent` is a number between 0 and 1 representing the progress percentage.
-- - `transferredBytes` is the number of bytes transferred so far.
-- - `totalBytes` is the total number of bytes to be transferred. This is an estimate and may be 0 if the total size cannot be determined.
-- `chunk` is an instance of `Uint8Array` containing the data that was sent. Note: It's empty for the first call.
+  - `percent` is a number between 0 and 1 representing the progress percentage.
+  - `transferredBytes` is the number of bytes transferred so far.
+  - `totalBytes` is the total number of bytes to be transferred. This is an estimate and may be 0 if the total size cannot be determined.
+- `chunk` is an instance of `Uint8Array` containing the data that was received. Note: It's empty for the first call.
 
 ```js
 import ky from 'ky';
@@ -757,9 +763,9 @@ Upload progress event handler.
 
 The function receives these arguments:
 - `progress` is an object with these properties:
-- - `percent` is a number between 0 and 1 representing the progress percentage.
-- - `transferredBytes` is the number of bytes transferred so far.
-- - `totalBytes` is the total number of bytes to be transferred. This is an estimate and may be 0 if the total size cannot be determined.
+  - `percent` is a number between 0 and 1 representing the progress percentage.
+  - `transferredBytes` is the number of bytes transferred so far.
+  - `totalBytes` is the total number of bytes to be transferred. This is an estimate and may be 0 if the total size cannot be determined.
 - `chunk` is an instance of `Uint8Array` containing the data that was sent. Note: It's empty for the last call.
 
 ```js
@@ -1013,7 +1019,7 @@ const replaced = api.extend({hooks: replaceOption({beforeRequest: [onlyThis]})})
 
 ### ky.create(defaultOptions)
 
-Create a new Ky instance with complete new defaults.
+Create a new Ky instance with complete new defaults, without inheriting from any parent instance.
 
 ```js
 import ky from 'ky';
@@ -1103,7 +1109,7 @@ Original error that caused the retry. This allows you to preserve the error chai
 
 ```js
 try {
-	const data = await response.clone().json();
+	const data = await response.json();
 	validateBusinessLogic(data);
 } catch (error) {
 	return ky.retry({
@@ -1134,7 +1140,7 @@ const api = ky.extend({
 			async ({request, response}) => {
 				// Retry based on response body content
 				if (response.status === 200) {
-					const data = await response.clone().json();
+					const data = await response.json();
 
 					// Simple retry with default delay
 					if (data.error?.code === 'TEMPORARY_ERROR') {
@@ -1292,6 +1298,18 @@ try {
 
 The error thrown when the request times out. It has a `request` property with the [`Request` object](https://developer.mozilla.org/en-US/docs/Web/API/Request).
 
+```js
+import ky, {isTimeoutError} from 'ky';
+
+try {
+	await ky('https://example.com').json();
+} catch (error) {
+	if (isTimeoutError(error)) {
+		console.log('Request timed out');
+	}
+}
+```
+
 ### NetworkError
 
 The error thrown when a network error occurs during the request (e.g., DNS failure, connection refused, offline). It has a `request` property with the [`Request` object](https://developer.mozilla.org/en-US/docs/Web/API/Request). The original error is available via the standard `cause` property.
@@ -1400,7 +1418,7 @@ import ky from 'ky';
 
 const json = await ky.post('https://example.com', {
 	headers: {
-		'content-type': 'application/json'
+		'content-type': 'application/x-amz-json-1.1'
 	},
 	json: {
 		foo: true
@@ -1619,11 +1637,177 @@ Node.js supports `fetch` natively, so you can just use this package directly.
 
 #### How do I use this with a web app (React, Vue.js, etc.) that uses server-side rendering (SSR)?
 
-Same as above.
+Node.js supports `fetch` natively, so you can use Ky directly. The main consideration is that server-side requests require absolute URLs, while client-side requests can use relative URLs. Handle this with a conditional `baseUrl`:
+
+```js
+const api = ky.create({
+	baseUrl: globalThis.window === undefined
+		? (process.env.BASE_URL ?? 'http://localhost:3000')
+		: undefined,
+});
+```
+
+<a name="baseurl-vs-prefix"></a>
+#### What's the difference between `baseUrl` and `prefix`?
+
+**`baseUrl`** follows standard URL resolution rules — the same behavior as `new URL(input, baseUrl)`. A leading slash on the input means origin-root, overriding any path in the base URL.
+
+**`prefix`** does plain string joining before URL resolution. The leading slash on the input is stripped, so it always appends to the prefix regardless.
+
+Use `baseUrl` in almost all cases. Use `prefix` only when you want origin-relative inputs like `/users` to be treated as page-relative.
+
+```js
+// On https://example.com
+
+// baseUrl: standard URL resolution
+ky('users',  {baseUrl: '/api/'});
+//=> https://example.com/api/users
+
+ky('/users', {baseUrl: '/api/'});
+//=> https://example.com/users  ← leading slash wins
+
+
+// prefix: always appends
+ky('users',  {prefix: '/api'});
+//=> https://example.com/api/users
+
+ky('/users', {prefix: '/api'});
+//=> https://example.com/api/users  ← leading slash ignored
+```
 
 #### How do I test a browser library that uses this?
 
 Use a test runner that can run in the browser, like [Vitest](https://vitest.dev/guide/browser/) or [Playwright](https://playwright.dev).
+
+#### How do I add authentication headers to every request?
+
+Use the [`beforeRequest` hook](#hooksbeforerequest) to attach headers before each request:
+
+```js
+const api = ky.create({
+	hooks: {
+		beforeRequest: [
+			({request}) => {
+				request.headers.set('Authorization', `Bearer ${getToken()}`);
+			}
+		]
+	}
+});
+```
+
+#### How do I implement token refresh on 401 responses?
+
+Configure `retry` to retry on 401, then use the [`beforeRetry` hook](#hooksbeforeretry) to refresh the token:
+
+```js
+const api = ky.create({
+	retry: {statusCodes: [401]},
+	hooks: {
+		beforeRetry: [
+			async ({request}) => {
+				const token = await refreshToken();
+				request.headers.set('Authorization', `Bearer ${token}`);
+			}
+		]
+	}
+});
+```
+
+#### How do I mock Ky in tests?
+
+Use [MSW](https://mswjs.io) to intercept requests at the network level without modifying your code. Alternatively, pass a custom `fetch` to your Ky instance:
+
+```js
+const api = ky.create({
+	fetch: async () => new Response(JSON.stringify({name: 'Test'}), {
+		headers: {
+			'Content-Type': 'application/json'
+		},
+	}),
+});
+```
+
+#### How do I retry based on the response body?
+
+Use [`ky.retry()`](#kyretryoptions) in an [`afterResponse`](#hooksafterresponse) hook. This lets you force a retry even when the status code is 2xx:
+
+```js
+import ky from 'ky';
+
+const response = await ky('https://example.com', {
+	hooks: {
+		afterResponse: [
+			async ({response}) => {
+				const data = await response.json();
+
+				if (data.status === 'pending') {
+					return ky.retry();
+				}
+			}
+		]
+	}
+});
+```
+
+The retry respects `retry.limit` and is observable in `beforeRetry` hooks.
+
+#### How do I stop retrying early?
+
+Throw from a `beforeRetry` hook to stop retrying and propagate the error, or return [`ky.stop`](#kystop) to stop silently (the request resolves with `undefined`):
+
+```js
+import ky, {isHTTPError} from 'ky';
+
+const response = await ky('https://example.com', {
+	hooks: {
+		beforeRetry: [
+			({error}) => {
+				if (isHTTPError(error) && error.response.status === 400) {
+					throw error; // Stop retrying, propagate the error
+				}
+			}
+		]
+	}
+});
+```
+
+#### How do I only throw on certain HTTP errors?
+
+For simple status-based filtering, pass a function to `throwHttpErrors`:
+
+```js
+import ky from 'ky';
+
+// Only throw on 5xx errors; 4xx responses are returned normally
+const api = ky.create({
+	throwHttpErrors: status => status >= 500,
+});
+
+const response = await api('https://example.com/resource');
+
+if (response.status === 404) {
+	// Handle "not found" as normal app flow
+}
+```
+
+If you need to access the response body in the non-throwing path, use `throwHttpErrors: false` and throw manually in an [`afterResponse`](#hooksafterresponse) hook:
+
+```js
+import ky, {HTTPError} from 'ky';
+
+const api = ky.create({
+	throwHttpErrors: false,
+	hooks: {
+		afterResponse: [
+			({request, options, response}) => {
+				if (response.status >= 500) {
+					throw new HTTPError(response, request, options);
+				}
+			}
+		]
+	}
+});
+```
 
 #### How do I use this without a bundler like Webpack?
 
