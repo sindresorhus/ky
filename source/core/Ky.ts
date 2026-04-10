@@ -21,6 +21,7 @@ import {
 	mergeHooks,
 	deletedParametersSymbol,
 } from '../utils/merge.js';
+import type {RetryOptions} from '../types/retry.js';
 import {normalizeRequestMethod, normalizeRetryOptions} from '../utils/normalize.js';
 import timeout from '../utils/timeout.js';
 import delay from '../utils/delay.js';
@@ -58,16 +59,35 @@ const createTextDecoder = (contentType: string): TextDecoder => {
 
 const invalidSchemaMessage = 'The `schema` argument must follow the Standard Schema specification';
 
+const cloneRetryOptions = (retry: RetryOptions | number): RetryOptions | number => {
+	if (typeof retry !== 'object') {
+		return retry;
+	}
+
+	// Clone nested arrays too so init hooks can mutate retry config without leaking state across requests.
+	return {
+		...retry,
+		...(retry.methods && {methods: [...retry.methods]}),
+		...(retry.statusCodes && {statusCodes: [...retry.statusCodes]}),
+		...(retry.afterStatusCodes && {afterStatusCodes: [...retry.afterStatusCodes]}),
+	};
+};
+
 // Shallow-clone mutable option properties so init hook mutations don't leak across requests.
 function cloneInitHookOptions(options: Options): Options {
-	return {
+	const clonedOptions: Options = {
 		...options,
 		json: cloneShallow(options.json),
-		retry: cloneShallow(options.retry)!,
 		context: cloneShallow(options.context)!,
 		headers: cloneShallow(options.headers)!,
 		searchParams: cloneShallow(options.searchParams) as SearchParamsOption | undefined,
 	};
+
+	if (options.retry !== undefined) {
+		clonedOptions.retry = cloneRetryOptions(options.retry);
+	}
+
+	return clonedOptions;
 }
 
 const validateJsonWithSchema = async (jsonValue: unknown, schema: StandardSchemaV1): Promise<unknown> => {
@@ -771,11 +791,12 @@ export class Ky {
 
 			// Cancel any response bodies we won't use to prevent memory leaks.
 			// Uses fire-and-forget since hooks may have cloned the response, creating tee branches that block cancellation.
-			if (clonedResponse !== nextResponse) {
+			// If the hook wrapped an existing body into a new Response, both Response objects can still point at the same stream.
+			if (clonedResponse !== nextResponse && clonedResponse.body !== nextResponse.body) {
 				this.#cancelResponseBody(clonedResponse);
 			}
 
-			if (response !== nextResponse) {
+			if (response !== nextResponse && response.body !== nextResponse.body) {
 				this.#cancelResponseBody(response);
 			}
 
@@ -881,7 +902,7 @@ export class Ky {
 			this.request = new globalThis.Request(this.request, {signal: this.#options.signal});
 		}
 
-		const nonRequestOptions = findUnknownOptions(this.request, this.#options);
+		const nonRequestOptions = findUnknownOptions(this.#options);
 		const retryRequest = this.#options.retry.limit > 0 ? this.request.clone() : undefined;
 		const request = this.#wrapRequestWithUploadProgress(this.request, this.#options.body ?? undefined);
 

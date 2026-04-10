@@ -1,9 +1,8 @@
-import {kyOptionKeys, requestOptionsRegistry, vendorSpecificOptions} from '../core/constants.js';
+import {kyOptionKeys, requestOptionsRegistry} from '../core/constants.js';
 import type {SearchParamsOption} from '../types/options.js';
 import {deletedParametersSymbol} from './merge.js';
 
 export const findUnknownOptions = (
-	request: Request,
 	options: Record<string, unknown>,
 ): Record<string, unknown> => {
 	const unknownOptions: Record<string, unknown> = {};
@@ -14,13 +13,12 @@ export const findUnknownOptions = (
 			continue;
 		}
 
-		// An option is passed to fetch() if:
-		// 1. It's not a standard RequestInit option (not in requestOptionsRegistry)
-		// 2. It's not a ky-specific option (not in kyOptionKeys)
-		// 3. Either:
-		//    a. It's not on the Request object, OR
-		//    b. It's a vendor-specific option that should always be passed (in vendorSpecificOptions)
-		if (!(key in requestOptionsRegistry) && !(key in kyOptionKeys) && (!(key in request) || key in vendorSpecificOptions)) {
+		// Forward every non-standard, non-Ky option to fetch().
+		// We intentionally do not check whether the key also exists on `Request`, because some runtimes
+		// patch `Request.prototype` with fetch-only extensions. For example, Next.js adds `next`, and the
+		// old `key in request` heuristic dropped it unless Ky kept a special-case allowlist.
+		// Passing all non-standard keys makes that allowlist unnecessary and preserves future fetch extensions too.
+		if (!(key in requestOptionsRegistry) && !(key in kyOptionKeys)) {
 			unknownOptions[key] = options[key];
 		}
 	}

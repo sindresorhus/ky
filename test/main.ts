@@ -778,6 +778,21 @@ test('timeout option is cancelled when the promise is resolved', async t => {
 	t.true(duration < 10);
 });
 
+test('normalizing retry options does not mutate the caller retry object', async t => {
+	const retry = {
+		methods: ['GET'],
+	};
+
+	await ky('https://example.com', {
+		fetch: async () => new Response('ok'),
+		retry,
+	}).text();
+
+	t.deepEqual(retry, {
+		methods: ['GET'],
+	});
+});
+
 test('searchParams option', async t => {
 	const server = await createHttpTestServer(t);
 

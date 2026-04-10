@@ -135,6 +135,34 @@ test('unknown options are passed to fetch', async t => {
 	await ky(fixture, {...options, fetch: customFetch}).text();
 });
 
+test('unknown options with falsy values are passed to fetch', async t => {
+	t.plan(3);
+
+	const customFetch: typeof fetch = async (request, init) => {
+		t.is(init.customNull, null);
+		t.is(init.customFalse, false);
+		t.is(init.customZero, 0);
+		return new Response(request.url);
+	};
+
+	await ky(fixture, {
+		customNull: null, customFalse: false, customZero: 0, fetch: customFetch,
+	}).text();
+});
+
+test('ky-specific options are not passed to fetch', async t => {
+	const customFetch: typeof fetch = async (request, init) => {
+		t.is(init.retry, undefined);
+		t.is(init.timeout, undefined);
+		t.is(init.hooks, undefined);
+		t.is(init.throwHttpErrors, undefined);
+		t.is(init.json, undefined);
+		return new Response(request.url);
+	};
+
+	await ky(fixture, {retry: 3, timeout: 5000, fetch: customFetch}).text();
+});
+
 test('fetch-only options like dispatcher are passed to fetch', async t => {
 	t.plan(1);
 
@@ -146,6 +174,35 @@ test('fetch-only options like dispatcher are passed to fetch', async t => {
 	};
 
 	await ky(fixture, {dispatcher: mockDispatcher, fetch: customFetch}).text();
+});
+
+test.serial('fetch-only options like dispatcher are passed to fetch even when Request is patched', async t => {
+	t.plan(1);
+
+	const mockDispatcher = {name: 'custom-agent'};
+	const originalDescriptor = Object.getOwnPropertyDescriptor(Request.prototype, 'dispatcher');
+
+	try {
+		Object.defineProperty(Request.prototype, 'dispatcher', {
+			value: undefined,
+			writable: true,
+			enumerable: true,
+			configurable: true,
+		});
+
+		const customFetch: typeof fetch = async (request, init) => {
+			t.is(init.dispatcher, mockDispatcher);
+			return new Response(request.url);
+		};
+
+		await ky(fixture, {dispatcher: mockDispatcher, fetch: customFetch}).text();
+	} finally {
+		if (originalDescriptor) {
+			Object.defineProperty(Request.prototype, 'dispatcher', originalDescriptor);
+		} else {
+			delete (Request.prototype as any).dispatcher;
+		}
+	}
 });
 
 test('priority option is passed to fetch', async t => {

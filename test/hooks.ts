@@ -214,6 +214,71 @@ test('afterResponse hook can return the provided response', async t => {
 	t.true(originalResponse?.bodyUsed);
 });
 
+test('afterResponse hook can wrap the provided body in a new response', async t => {
+	const responseText = await ky('https://example.com', {
+		fetch: async () => new Response('ok', {
+			headers: {
+				'content-type': 'text/plain',
+			},
+		}),
+		hooks: {
+			afterResponse: [
+				({response}) => new Response(response.body, {
+					headers: response.headers,
+				}),
+			],
+		},
+	}).text();
+
+	t.is(responseText, 'ok');
+});
+
+test('afterResponse hook can wrap a streaming body in a new response', async t => {
+	const customFetch = createStreamFetch({text: 'streamed'});
+
+	const responseText = await ky('https://example.com', {
+		fetch: customFetch,
+		hooks: {
+			afterResponse: [
+				({response}) => new Response(response.body, {
+					headers: response.headers,
+				}),
+			],
+		},
+	}).text();
+
+	t.is(responseText, 'streamed');
+});
+
+test('afterResponse hook chain can forward the same body through multiple hooks', async t => {
+	let originalResponse: Response | undefined;
+
+	const customFetch = createStreamFetch({
+		text: 'chained',
+		onResponse(response) {
+			originalResponse = response;
+		},
+	});
+
+	const responseText = await ky('https://example.com', {
+		fetch: customFetch,
+		hooks: {
+			afterResponse: [
+				({response}) => new Response(response.body, {
+					headers: response.headers,
+				}),
+				({response}) => new Response(response.body, {
+					headers: response.headers,
+				}),
+			],
+		},
+	}).text();
+
+	t.is(responseText, 'chained');
+	// The original fetch response body should be cancelled since hooks created new wrappers
+	t.true(originalResponse?.bodyUsed);
+});
+
 test('afterResponse hook with multiple hooks cancels all unused clones', async t => {
 	let originalResponse: Response | undefined;
 	const clones: Response[] = [];
@@ -4723,6 +4788,81 @@ test('init hook in-place retry mutations do not leak across requests', async t =
 	await t.throwsAsync(api.get('https://example.com', {fetch}));
 
 	t.deepEqual(seenLimits, [2, 2]);
+});
+
+test('init hook nested retry mutations do not leak across requests', async t => {
+	const seenMethods: string[][] = [];
+
+	const api = ky.extend({
+		retry: {
+			methods: ['get'],
+		},
+		hooks: {
+			init: [
+				options => {
+					seenMethods.push([...options.retry.methods]);
+					options.retry.methods.push('post');
+				},
+			],
+		},
+	});
+
+	const fetch: typeof globalThis.fetch = async () => new Response('ok');
+
+	await api.get('https://example.com', {fetch});
+	await api.get('https://example.com', {fetch});
+
+	t.deepEqual(seenMethods, [['get'], ['get']]);
+});
+
+test('init hook nested retry statusCodes mutations do not leak across requests', async t => {
+	const seenStatusCodes: number[][] = [];
+
+	const api = ky.extend({
+		retry: {
+			statusCodes: [500],
+		},
+		hooks: {
+			init: [
+				options => {
+					seenStatusCodes.push([...options.retry.statusCodes]);
+					options.retry.statusCodes.push(502);
+				},
+			],
+		},
+	});
+
+	const fetch: typeof globalThis.fetch = async () => new Response('ok');
+
+	await api.get('https://example.com', {fetch});
+	await api.get('https://example.com', {fetch});
+
+	t.deepEqual(seenStatusCodes, [[500], [500]]);
+});
+
+test('init hook nested retry afterStatusCodes mutations do not leak across requests', async t => {
+	const seenAfterStatusCodes: number[][] = [];
+
+	const api = ky.extend({
+		retry: {
+			afterStatusCodes: [429],
+		},
+		hooks: {
+			init: [
+				options => {
+					seenAfterStatusCodes.push([...options.retry.afterStatusCodes]);
+					options.retry.afterStatusCodes.push(503);
+				},
+			],
+		},
+	});
+
+	const fetch: typeof globalThis.fetch = async () => new Response('ok');
+
+	await api.get('https://example.com', {fetch});
+	await api.get('https://example.com', {fetch});
+
+	t.deepEqual(seenAfterStatusCodes, [[429], [429]]);
 });
 
 test('init hook in-place json mutations do not leak across requests', async t => {

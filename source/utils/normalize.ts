@@ -37,13 +37,14 @@ export const normalizeRetryOptions = (retry: number | RetryOptions = {}): Intern
 		throw new Error('retry.methods must be an array');
 	}
 
-	retry.methods &&= retry.methods.map(method => method.toLowerCase());
-
 	if (retry.statusCodes && !Array.isArray(retry.statusCodes)) {
 		throw new Error('retry.statusCodes must be an array');
 	}
 
-	const normalizedRetry = Object.fromEntries(Object.entries(retry).filter(([, value]) => value !== undefined)) as RetryOptions;
+	const normalizedRetry = Object.fromEntries(Object.entries({
+		...retry,
+		methods: retry.methods?.map(method => method.toLowerCase()),
+	}).filter(([, value]) => value !== undefined)) as RetryOptions;
 
 	return {
 		...defaultRetryOptions,
