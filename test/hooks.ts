@@ -18,6 +18,50 @@ const withHeader = (request: Request, name: string, value: string) => {
 	return new Request(request, {headers});
 };
 
+const createRequestLike = (request: Request): any => ({
+	get headers() {
+		return request.headers;
+	},
+	get method() {
+		return request.method;
+	},
+	get signal() {
+		return request.signal;
+	},
+	get url() {
+		return request.url;
+	},
+	[Symbol.toStringTag]: 'Request',
+	clone() {
+		return createRequestLike(request.clone());
+	},
+});
+
+const createResponseLike = (response: Response): any => ({
+	get body() {
+		return response.body;
+	},
+	get headers() {
+		return response.headers;
+	},
+	get ok() {
+		return response.ok;
+	},
+	get status() {
+		return response.status;
+	},
+	get type() {
+		return response.type;
+	},
+	[Symbol.toStringTag]: 'Response',
+	clone() {
+		return createResponseLike(response.clone());
+	},
+	async text() {
+		return response.text();
+	},
+});
+
 const createStreamBody = (text: string) => new ReadableStream<Uint8Array>({
 	start(controller) {
 		controller.enqueue(new TextEncoder().encode(text));
@@ -70,6 +114,41 @@ test('hooks can be async', async t => {
 	t.false(responseJson.foo);
 });
 
+test('custom fetch can return Response-like object', async t => {
+	const responseText = await ky('https://example.com', {
+		fetch: async () => createResponseLike(new Response('ok')),
+	}).text();
+
+	t.is(responseText, 'ok');
+});
+
+test('custom fetch can return Response-like object tagged as Response', async t => {
+	const responseText = await ky('https://example.com', {
+		fetch: async () => createResponseLike(new Response('ok')),
+	}).text();
+
+	t.is(Object.prototype.toString.call(createResponseLike(new Response('ok'))), '[object Response]');
+	t.is(responseText, 'ok');
+});
+
+test('awaited Response-like object uses parseJson for response.json()', async t => {
+	const response = await ky('https://example.com', {
+		fetch: async () => createResponseLike(new Response('{"foo":true}', {
+			headers: {
+				'content-type': 'application/json',
+			},
+		})),
+		parseJson(text) {
+			return {
+				...JSON.parse(text),
+				foo: false,
+			};
+		},
+	});
+
+	t.deepEqual(await response.json(), {foo: false});
+});
+
 test('hooks can be empty object', async t => {
 	const expectedResponse = 'empty hook';
 	const server = await createHttpTestServer(t);
@@ -81,6 +160,19 @@ test('hooks can be empty object', async t => {
 	const response = await ky.get(server.url, {hooks: {}}).text();
 
 	t.is(response, expectedResponse);
+});
+
+test('beforeRequest hook accepts Request-like object tagged as Request', async t => {
+	const responseText = await ky('https://example.com', {
+		fetch: async request => new Response(request.headers.get('x-tagged-request')),
+		hooks: {
+			beforeRequest: [
+				({request}) => createRequestLike(withHeader(request, 'x-tagged-request', 'yes')),
+			],
+		},
+	}).text();
+
+	t.is(responseText, 'yes');
 });
 
 test('beforeRequest hook allows modifications', async t => {
@@ -212,6 +304,47 @@ test('afterResponse hook can return the provided response', async t => {
 
 	t.is(responseText, 'ok');
 	t.true(originalResponse?.bodyUsed);
+});
+
+test('afterResponse hook ignores non-Response return values', async t => {
+	const responseText = await ky('https://example.com', {
+		fetch: async () => new Response('ok'),
+		hooks: {
+			afterResponse: [
+				() => false as false | Response,
+			],
+		},
+	}).text();
+
+	t.is(responseText, 'ok');
+});
+
+test('afterResponse hook runs for Response-like objects returned by custom fetch', async t => {
+	const responseText = await ky('https://example.com', {
+		fetch: async () => createResponseLike(new Response('ok')),
+		hooks: {
+			afterResponse: [
+				() => new Response('replacement'),
+			],
+		},
+	}).text();
+
+	t.is(responseText, 'replacement');
+});
+
+test('afterResponse hook can read Response-like objects without consuming final body', async t => {
+	const responseText = await ky('https://example.com', {
+		fetch: async () => createResponseLike(new Response('ok')),
+		hooks: {
+			afterResponse: [
+				async ({response}) => {
+					t.is(await response.text(), 'ok');
+				},
+			],
+		},
+	}).text();
+
+	t.is(responseText, 'ok');
 });
 
 test('afterResponse hook can wrap the provided body in a new response', async t => {

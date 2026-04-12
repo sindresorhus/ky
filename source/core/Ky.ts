@@ -73,6 +73,17 @@ const cloneRetryOptions = (retry: RetryOptions | number): RetryOptions | number 
 	};
 };
 
+const objectToString = Object.prototype.toString;
+
+const isRequestInstance = (value: unknown): value is Request =>
+	value instanceof globalThis.Request || objectToString.call(value) === '[object Request]';
+
+// Accepted custom responses are treated as full Responses throughout Ky.
+// If a custom fetch returns one, it must behave like a Response for cloning,
+// body consumption, `json()` decoration, and any enabled stream features.
+const isResponseInstance = (value: unknown): value is Response =>
+	value instanceof globalThis.Response || objectToString.call(value) === '[object Response]';
+
 // Shallow-clone mutable option properties so init hook mutations don't leak across requests.
 function cloneInitHookOptions(options: Options): Options {
 	const clonedOptions: Options = {
@@ -146,50 +157,61 @@ export class Ky {
 			let response = beforeRequestResponse ?? await ky.#retry(async () => ky.#fetch());
 			let responseFromHook = beforeRequestResponse !== undefined
 				|| ky.#consumeReturnedResponseFromBeforeRetryHook();
-			if (!(response instanceof globalThis.Response)) {
+			// `undefined` means a hook stopped the flow without providing a response.
+			// Non-native Responses still continue through Ky if they pass `isResponseInstance()`.
+			if (response === undefined) {
 				return response;
 			}
 
 			for (;;) {
-				try {
-					// eslint-disable-next-line no-await-in-loop
-					response = await ky.#runAfterResponseHooks(response);
-				} catch (error) {
-					if (!(error instanceof ForceRetryError)) {
-						throw error;
-					}
-
-					// eslint-disable-next-line no-await-in-loop
-					const retriedResponse = await ky.#retryFromError(error, async () => ky.#fetch());
-					if (!(retriedResponse instanceof globalThis.Response)) {
-						return retriedResponse;
-					}
-
-					response = retriedResponse;
-					responseFromHook = ky.#consumeReturnedResponseFromBeforeRetryHook();
-					continue;
+				if (response === undefined) {
+					return response;
 				}
 
+				if (isResponseInstance(response)) {
+					try {
+						// eslint-disable-next-line no-await-in-loop
+						response = await ky.#runAfterResponseHooks(response);
+					} catch (error) {
+						if (!(error instanceof ForceRetryError)) {
+							throw error;
+						}
+
+						// eslint-disable-next-line no-await-in-loop
+						const retriedResponse: Response | void = await ky.#retryFromError(error, async () => ky.#fetch());
+						if (retriedResponse === undefined) {
+							return retriedResponse;
+						}
+
+						response = retriedResponse;
+						responseFromHook = ky.#consumeReturnedResponseFromBeforeRetryHook();
+						continue;
+					}
+				}
+
+				const currentResponse: Response = response;
+
 				// Opaque responses (`response.type === 'opaque'`) from `no-cors` requests always have `status: 0` and `ok: false`, but this is not a failure - the actual status is hidden by the browser.
-				if (!response.ok && response.type !== 'opaque' && (
+				if (!currentResponse.ok && currentResponse.type !== 'opaque' && (
 					typeof ky.#options.throwHttpErrors === 'function'
-						? ky.#options.throwHttpErrors(response.status)
+						? ky.#options.throwHttpErrors(currentResponse.status)
 						: ky.#options.throwHttpErrors
 				)) {
 					// `request` must reflect the request that actually failed, but `options` stays as Ky's
 					// normalized options snapshot. Replacement `Request` instances do not preserve the
 					// original `BodyInit`, so trying to make `options` mirror arbitrary requests would be lossy.
-					const error = new HTTPError(response, ky.#getResponseRequest(response), ky.#getNormalizedOptions());
+					const httpError: HTTPError = new HTTPError(currentResponse, ky.#getResponseRequest(currentResponse), ky.#getNormalizedOptions());
+					const errorToThrow: Error = httpError;
 					// eslint-disable-next-line no-await-in-loop
-					error.data = await ky.#getResponseData(response);
+					httpError.data = await ky.#getResponseData(currentResponse);
 
 					if (responseFromHook) {
-						throw error;
+						throw errorToThrow;
 					}
 
 					// eslint-disable-next-line no-await-in-loop
-					const retriedResponse = await ky.#retryFromError(error, async () => ky.#fetch());
-					if (!(retriedResponse instanceof globalThis.Response)) {
+					const retriedResponse: Response | void = await ky.#retryFromError(httpError, async () => ky.#fetch());
+					if (retriedResponse === undefined) {
 						return retriedResponse;
 					}
 
@@ -199,6 +221,10 @@ export class Ky {
 				}
 
 				break;
+			}
+
+			if (!isResponseInstance(response)) {
+				return response;
 			}
 
 			ky.#decorateResponse(response);
@@ -739,12 +765,10 @@ export class Ky {
 				retryCount: 0,
 			});
 
-			if (result instanceof Response) {
-				return result;
-			}
-
-			if (result instanceof globalThis.Request) {
+			if (isRequestInstance(result)) {
 				this.#assignRequest(result);
+			} else if (isResponseInstance(result)) {
+				return result;
 			}
 		}
 
@@ -755,9 +779,8 @@ export class Ky {
 		const responseRequest = this.#getResponseRequest(response);
 
 		for (const hook of this.#options.hooks.afterResponse) {
-			// Clone the response before passing to hook so we can cancel it if needed
-			const clonedResponse = this.#setResponseRequest(response.clone(), responseRequest);
-			this.#decorateResponse(clonedResponse);
+			const hookResponse = this.#setResponseRequest(response.clone(), responseRequest);
+			this.#decorateResponse(hookResponse);
 
 			let modifiedResponse;
 			try {
@@ -765,12 +788,15 @@ export class Ky {
 				modifiedResponse = await hook({
 					request: this.request,
 					options: this.#getNormalizedOptions(),
-					response: clonedResponse,
+					response: hookResponse,
 					retryCount: this.#retryCount,
 				});
 			} catch (error) {
 				// Cancel both responses to prevent memory leaks when hook throws
-				this.#cancelResponseBody(clonedResponse);
+				if (hookResponse !== response) {
+					this.#cancelResponseBody(hookResponse);
+				}
+
 				this.#cancelResponseBody(response);
 				throw error;
 			}
@@ -778,22 +804,23 @@ export class Ky {
 			if (modifiedResponse instanceof RetryMarker) {
 				// Cancel both the cloned response passed to the hook and the current response to prevent resource leaks (especially important in Deno/Bun).
 				// Do not await cancellation since hooks can clone the response, leaving extra tee branches that keep cancel promises pending per the Streams spec.
-				this.#cancelResponseBody(clonedResponse);
+				if (hookResponse !== response) {
+					this.#cancelResponseBody(hookResponse);
+				}
+
 				this.#cancelResponseBody(response);
 				throw new ForceRetryError(modifiedResponse.options);
 			}
 
-			// Determine which response to use going forward
-			const nextResponse = this.#setResponseRequest(
-				modifiedResponse instanceof globalThis.Response ? modifiedResponse : response,
-				responseRequest,
-			);
+			const nextResponse = isResponseInstance(modifiedResponse)
+				? this.#setResponseRequest(modifiedResponse, responseRequest)
+				: response;
 
 			// Cancel any response bodies we won't use to prevent memory leaks.
 			// Uses fire-and-forget since hooks may have cloned the response, creating tee branches that block cancellation.
 			// If the hook wrapped an existing body into a new Response, both Response objects can still point at the same stream.
-			if (clonedResponse !== nextResponse && clonedResponse.body !== nextResponse.body) {
-				this.#cancelResponseBody(clonedResponse);
+			if (hookResponse !== response && hookResponse !== nextResponse && hookResponse.body !== nextResponse.body) {
+				this.#cancelResponseBody(hookResponse);
 			}
 
 			if (response !== nextResponse && response.body !== nextResponse.body) {
@@ -863,13 +890,12 @@ export class Ky {
 				throw hookError;
 			}
 
-			if (hookResult instanceof globalThis.Request) {
+			if (isRequestInstance(hookResult)) {
 				this.#assignRequest(hookResult);
 				break;
 			}
 
-			// If a Response is returned, use it and skip the retry
-			if (hookResult instanceof globalThis.Response) {
+			if (isResponseInstance(hookResult)) {
 				this.#returnedResponseFromBeforeRetryHook = true;
 				this.#retryCount++;
 				return hookResult;
