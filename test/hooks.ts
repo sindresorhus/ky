@@ -115,6 +115,7 @@ test('hooks can be async', async t => {
 });
 
 test('custom fetch can return Response-like object', async t => {
+	// This URL is only a Request fixture. The custom `fetch` below handles the request, so no network request is made.
 	const responseText = await ky('https://example.com', {
 		fetch: async () => createResponseLike(new Response('ok')),
 	}).text();

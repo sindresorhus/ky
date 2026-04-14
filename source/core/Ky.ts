@@ -157,13 +157,10 @@ export class Ky {
 			let response = beforeRequestResponse ?? await ky.#retry(async () => ky.#fetch());
 			let responseFromHook = beforeRequestResponse !== undefined
 				|| ky.#consumeReturnedResponseFromBeforeRetryHook();
-			// `undefined` means a hook stopped the flow without providing a response.
-			// Non-native Responses still continue through Ky if they pass `isResponseInstance()`.
-			if (response === undefined) {
-				return response;
-			}
 
 			for (;;) {
+				// `undefined` means a hook stopped the flow without providing a response.
+				// Non-native Responses still continue through Ky if they pass `isResponseInstance()`.
 				if (response === undefined) {
 					return response;
 				}
