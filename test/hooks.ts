@@ -62,6 +62,8 @@ const createResponseLike = (response: Response): any => ({
 	},
 });
 
+const requestFixtureUrl = 'about:blank';
+
 const createStreamBody = (text: string) => new ReadableStream<Uint8Array>({
 	start(controller) {
 		controller.enqueue(new TextEncoder().encode(text));
@@ -116,7 +118,7 @@ test('hooks can be async', async t => {
 
 test('custom fetch can return Response-like object', async t => {
 	// This URL is only a Request fixture. The custom `fetch` below handles the request, so no network request is made.
-	const responseText = await ky('https://example.com', {
+	const responseText = await ky(requestFixtureUrl, {
 		fetch: async () => createResponseLike(new Response('ok')),
 	}).text();
 
@@ -124,7 +126,7 @@ test('custom fetch can return Response-like object', async t => {
 });
 
 test('custom fetch can return Response-like object tagged as Response', async t => {
-	const responseText = await ky('https://example.com', {
+	const responseText = await ky(requestFixtureUrl, {
 		fetch: async () => createResponseLike(new Response('ok')),
 	}).text();
 
@@ -133,7 +135,7 @@ test('custom fetch can return Response-like object tagged as Response', async t 
 });
 
 test('awaited Response-like object uses parseJson for response.json()', async t => {
-	const response = await ky('https://example.com', {
+	const response = await ky(requestFixtureUrl, {
 		fetch: async () => createResponseLike(new Response('{"foo":true}', {
 			headers: {
 				'content-type': 'application/json',
@@ -164,7 +166,7 @@ test('hooks can be empty object', async t => {
 });
 
 test('beforeRequest hook accepts Request-like object tagged as Request', async t => {
-	const responseText = await ky('https://example.com', {
+	const responseText = await ky(requestFixtureUrl, {
 		fetch: async request => new Response(request.headers.get('x-tagged-request')),
 		hooks: {
 			beforeRequest: [
@@ -308,7 +310,7 @@ test('afterResponse hook can return the provided response', async t => {
 });
 
 test('afterResponse hook ignores non-Response return values', async t => {
-	const responseText = await ky('https://example.com', {
+	const responseText = await ky(requestFixtureUrl, {
 		fetch: async () => new Response('ok'),
 		hooks: {
 			afterResponse: [
@@ -321,7 +323,7 @@ test('afterResponse hook ignores non-Response return values', async t => {
 });
 
 test('afterResponse hook runs for Response-like objects returned by custom fetch', async t => {
-	const responseText = await ky('https://example.com', {
+	const responseText = await ky(requestFixtureUrl, {
 		fetch: async () => createResponseLike(new Response('ok')),
 		hooks: {
 			afterResponse: [
@@ -334,7 +336,7 @@ test('afterResponse hook runs for Response-like objects returned by custom fetch
 });
 
 test('afterResponse hook can read Response-like objects without consuming final body', async t => {
-	const responseText = await ky('https://example.com', {
+	const responseText = await ky(requestFixtureUrl, {
 		fetch: async () => createResponseLike(new Response('ok')),
 		hooks: {
 			afterResponse: [
