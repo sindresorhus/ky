@@ -447,6 +447,8 @@ export class Ky {
 			throw new TypeError('The `onUploadProgress` option must be a function');
 		}
 
+		// `totalTimeout` starts when the request pipeline is created, so it also includes
+		// Ky's internal scheduling and user hook time before the first fetch attempt.
 		this.#startTime = typeof this.#options.totalTimeout === 'number' ? this.#getCurrentTime() : undefined;
 	}
 

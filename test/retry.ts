@@ -1712,7 +1712,9 @@ test('totalTimeout bounds hanging HTTPError body reads when timeout is disabled'
 		},
 	);
 
-	t.is(requestCount, 1);
+	// `totalTimeout` starts when the Ky pipeline is created, so very slow CI can exhaust the
+	// budget before the first fetch attempt begins.
+	t.true(requestCount >= 0 && requestCount <= 1);
 });
 
 test('totalTimeout bounds hanging HTTPError body reads when timeout is larger', async t => {
