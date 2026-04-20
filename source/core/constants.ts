@@ -118,6 +118,8 @@ export type ForceRetryOptions = {
 
 	**Note:** The custom request's `signal` will be replaced with Ky's managed signal to handle timeouts and user-provided abort signals correctly. If the original request body has been consumed, you must provide a new body or clone the request before consuming.
 
+	**Warning:** Custom retry requests are not sanitized. If you reuse headers across origins, remove any credentials you do not want forwarded.
+
 	@example
 	```
 	// Fallback to a different endpoint

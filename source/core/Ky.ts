@@ -875,7 +875,11 @@ export class Ky {
 		// Apply custom request from forced retry before beforeRetry hooks
 		// Ensure the custom request has the correct managed signal for timeouts and user aborts
 		if (error instanceof ForceRetryError && error.customRequest) {
-			this.#assignRequest(new globalThis.Request(error.customRequest, this.#options.signal ? {signal: this.#options.signal} : undefined));
+			const customRequest = new globalThis.Request(error.customRequest, this.#options.signal ? {signal: this.#options.signal} : undefined);
+			// Replacement Requests are authoritative by design. Do not rewrite headers here,
+			// even for cross-origin retries. Callers using `ky.retry({request})` explicitly
+			// opted into the exact Request they constructed.
+			this.#assignRequest(customRequest);
 		}
 
 		for (const hook of this.#options.hooks.beforeRetry) {
@@ -898,6 +902,8 @@ export class Ky {
 			}
 
 			if (isRequestInstance(hookResult)) {
+				// Same contract as `ky.retry({request})`: a Request returned from `beforeRetry`
+				// is used as-is rather than being sanitized or otherwise rewritten by Ky.
 				this.#assignRequest(hookResult);
 				break;
 			}
