@@ -84,6 +84,14 @@ const isRequestInstance = (value: unknown): value is Request =>
 const isResponseInstance = (value: unknown): value is Response =>
 	value instanceof globalThis.Response || objectToString.call(value) === '[object Response]';
 
+const cloneSearchParametersForInitHook = (searchParameters: SearchParamsOption | undefined): SearchParamsOption | undefined => {
+	if (Array.isArray(searchParameters)) {
+		return searchParameters.map(parameter => [...parameter]) as SearchParamsOption;
+	}
+
+	return cloneShallow(searchParameters) as SearchParamsOption | undefined;
+};
+
 // Shallow-clone mutable option properties so init hook mutations don't leak across requests.
 function cloneInitHookOptions(options: Options): Options {
 	const clonedOptions: Options = {
@@ -91,7 +99,7 @@ function cloneInitHookOptions(options: Options): Options {
 		json: cloneShallow(options.json),
 		context: cloneShallow(options.context)!,
 		headers: cloneShallow(options.headers)!,
-		searchParams: cloneShallow(options.searchParams) as SearchParamsOption | undefined,
+		searchParams: cloneSearchParametersForInitHook(options.searchParams),
 	};
 
 	if (options.retry !== undefined) {

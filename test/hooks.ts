@@ -4900,6 +4900,36 @@ test('init hook in-place mutations do not leak across requests', async t => {
 	t.deepEqual(seenRequestIdentifiers, ['1', '2']);
 });
 
+test('init hook tuple searchParams mutations do not leak across requests', async t => {
+	let requestIdentifier = 0;
+	const seenInitialValues: string[] = [];
+	const seenRequestIdentifiers: string[] = [];
+
+	const api = ky.extend({
+		searchParams: [['requestId', 'seed']],
+		hooks: {
+			init: [
+				options => {
+					const searchParameters = options.searchParams as string[][];
+					seenInitialValues.push(searchParameters[0]![1]!);
+					searchParameters[0]![1] = String(++requestIdentifier);
+				},
+			],
+		},
+	});
+
+	const fetch: typeof globalThis.fetch = async request => {
+		seenRequestIdentifiers.push(new URL(request.url).searchParams.get('requestId')!);
+		return new Response('ok');
+	};
+
+	await api.get('https://example.com', {fetch});
+	await api.get('https://example.com', {fetch});
+
+	t.deepEqual(seenInitialValues, ['seed', 'seed']);
+	t.deepEqual(seenRequestIdentifiers, ['1', '2']);
+});
+
 test('init hook in-place retry mutations do not leak across requests', async t => {
 	const seenLimits: number[] = [];
 
