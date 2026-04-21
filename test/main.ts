@@ -1118,6 +1118,77 @@ test('init hook deletion over merged defaults and input URL', async t => {
 	t.false(url.searchParams.has('foo'));
 });
 
+test('init hook preserves merged URLSearchParams deletions', async t => {
+	const server = await createHttpTestServer(t);
+
+	server.get('/', (request, response) => {
+		response.end(request.url);
+	});
+
+	const api = ky.create({searchParams: new URLSearchParams({foo: '1'})}).extend({
+		searchParams: {foo: undefined},
+		hooks: {
+			init: [
+				() => {}, // eslint-disable-line @typescript-eslint/no-empty-function
+			],
+		},
+	});
+
+	const response = await api.get(`${server.url}?foo=from-url&bar=2`);
+	const url = new URL(await response.text(), server.url);
+
+	t.false(url.searchParams.has('foo'));
+	t.is(url.searchParams.get('bar'), '2');
+});
+
+test('init hook preserves merged plain object deletions', async t => {
+	const server = await createHttpTestServer(t);
+
+	server.get('/', (request, response) => {
+		response.end(request.url);
+	});
+
+	const api = ky.create({searchParams: {foo: '1'}}).extend({
+		searchParams: {foo: undefined},
+		hooks: {
+			init: [
+				() => {}, // eslint-disable-line @typescript-eslint/no-empty-function
+			],
+		},
+	});
+
+	const response = await api.get(`${server.url}?foo=from-url&bar=2`);
+	const url = new URL(await response.text(), server.url);
+
+	t.false(url.searchParams.has('foo'));
+	t.is(url.searchParams.get('bar'), '2');
+});
+
+test('init hook can re-add deleted URLSearchParams keys in place', async t => {
+	const server = await createHttpTestServer(t);
+
+	server.get('/', (request, response) => {
+		response.end(request.url);
+	});
+
+	const api = ky.create({searchParams: new URLSearchParams({foo: '1'})}).extend({
+		searchParams: {foo: undefined},
+		hooks: {
+			init: [
+				options => {
+					(options.searchParams as URLSearchParams).append('foo', '2');
+				},
+			],
+		},
+	});
+
+	const response = await api.get(`${server.url}?foo=from-url&bar=2`);
+	const url = new URL(await response.text(), server.url);
+
+	t.deepEqual(url.searchParams.getAll('foo'), ['2']);
+	t.is(url.searchParams.get('bar'), '2');
+});
+
 test('re-adding a key after an earlier deletion across merge layers', async t => {
 	const server = await createHttpTestServer(t);
 

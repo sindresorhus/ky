@@ -436,6 +436,14 @@ export class Ky {
 
 		if (hasSearchParameters(this.#options.searchParams)) {
 			const url = new URL(this.request.url);
+			const deleted = (this.#options.searchParams as any)?.[deletedParametersSymbol] as Set<string> | undefined;
+
+			if (deleted) {
+				// Remove keys from the input URL first so later searchParams entries can intentionally re-add them.
+				for (const key of deleted) {
+					url.searchParams.delete(key);
+				}
+			}
 
 			if (typeof this.#options.searchParams === 'string') {
 				const stringSearchParameters = this.#options.searchParams.replace(/^\?/, '');
@@ -460,13 +468,6 @@ export class Ky {
 					if (value === undefined) {
 						url.searchParams.delete(key);
 					}
-				}
-			}
-
-			const deleted = (this.#options.searchParams as any)?.[deletedParametersSymbol] as Set<string> | undefined;
-			if (deleted) {
-				for (const key of deleted) {
-					url.searchParams.delete(key);
 				}
 			}
 

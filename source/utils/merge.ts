@@ -88,7 +88,14 @@ const isPlainObject = (value: unknown): value is Record<string, unknown> => {
 
 export const cloneShallow = <T>(value: T): T => {
 	if (value instanceof URLSearchParams) {
-		return new URLSearchParams(value) as T;
+		const copy = new URLSearchParams(value) as URLSearchParams & {[deletedParametersSymbol]?: Set<string>};
+		const deleted = (value as URLSearchParams & {[deletedParametersSymbol]?: Set<string>})[deletedParametersSymbol];
+		if (deleted) {
+			// Preserve internal deletion markers so init-hook cloning does not resurrect params removed during option merging.
+			copy[deletedParametersSymbol] = new Set(deleted);
+		}
+
+		return copy as T;
 	}
 
 	if (value instanceof globalThis.Headers) {
