@@ -2039,6 +2039,39 @@ test('NetworkError wraps fetch network errors', async t => {
 	t.is(error.message, 'Request failed due to a network error: GET https://example.com/');
 });
 
+test('NetworkError wraps Safari network errors with domain', async t => {
+	const error = await t.throwsAsync(
+		ky('https://example.com', {
+			retry: 0,
+			async fetch() {
+				const error = new TypeError('Load failed (api.example.com)');
+				error.stack = undefined;
+				throw error;
+			},
+		}),
+	);
+
+	t.true(error instanceof NetworkError);
+	t.true(isNetworkError(error));
+	t.true(error!.cause instanceof TypeError);
+	t.is((error!.cause as TypeError).message, 'Load failed (api.example.com)');
+});
+
+test('NetworkError does not wrap stacked Safari Load failed errors with domain', async t => {
+	const error = await t.throwsAsync(
+		ky('https://example.com', {
+			retry: 0,
+			async fetch() {
+				throw new TypeError('Load failed (api.example.com)');
+			},
+		}),
+	);
+
+	t.true(error instanceof TypeError);
+	t.false(isNetworkError(error));
+	t.is(error.message, 'Load failed (api.example.com)');
+});
+
 test('non-network TypeError is not retried', async t => {
 	let fetchCallCount = 0;
 
