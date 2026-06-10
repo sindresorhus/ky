@@ -264,6 +264,13 @@ export const deepMerge = <T>(...sources: Array<Partial<T> | undefined>): T => {
 					continue;
 				}
 
+				// `retry` accepts a number as shorthand for `{limit: number}`. Expand it before
+				// merging so extending a numeric `retry` with an object keeps the limit instead
+				// of dropping it (e.g. `ky.create({retry: 3}).extend({retry: {methods: ['get']}})`).
+				if (key === 'retry' && isObject(value) && !isReplace && typeof returnValue[key] === 'number') {
+					returnValue = {...returnValue, [key]: {limit: returnValue[key]}};
+				}
+
 				if (isObject(value) && !isReplace && key in returnValue) {
 					value = deepMerge(returnValue[key], value);
 				}

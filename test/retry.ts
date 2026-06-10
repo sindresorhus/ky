@@ -433,6 +433,25 @@ test('retry - can provide retry as number', async t => {
 	t.is(requestCount, 5);
 });
 
+test('retry - extending a numeric `retry` with an object keeps the limit', async t => {
+	let requestCount = 0;
+
+	const server = await createHttpTestServer(t);
+	server.get('/', async (_request, response) => {
+		requestCount++;
+		response.sendStatus(408);
+	});
+
+	// `retry: 3` is shorthand for `{limit: 3}`. Extending it with an object
+	// should preserve that limit instead of falling back to the default.
+	const extended = ky.create({retry: 3}).extend({retry: {methods: ['get']}});
+
+	await t.throwsAsync(extended(server.url).text(), {
+		message: /Request Timeout/,
+	});
+	t.is(requestCount, 4);
+});
+
 test('doesn\'t retry on 413 with empty statusCodes and methods', async t => {
 	let requestCount = 0;
 
