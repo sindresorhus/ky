@@ -204,7 +204,7 @@ const appendSearchParameters = (target: any, source: any): URLSearchParams => {
 };
 
 // TODO: Make this strongly-typed (no `any`).
-export const deepMerge = <T>(...sources: Array<Partial<T> | undefined>): T => {
+const deepMergeInternal = <T>(isRoot: boolean, ...sources: Array<Partial<T> | undefined>): T => {
 	let returnValue: any = {};
 	let headers: KyHeadersInit = {};
 	let hooks = {};
@@ -267,12 +267,14 @@ export const deepMerge = <T>(...sources: Array<Partial<T> | undefined>): T => {
 				// `retry` accepts a number as shorthand for `{limit: number}`. Expand it before
 				// merging so extending a numeric `retry` with an object keeps the limit instead
 				// of dropping it (e.g. `ky.create({retry: 3}).extend({retry: {methods: ['get']}})`).
-				if (key === 'retry' && isObject(value) && !isReplace && typeof returnValue[key] === 'number') {
+				// Scoped to the root options level so it never rewrites nested user data that
+				// happens to contain a `retry` key (e.g. a `json` request body).
+				if (isRoot && key === 'retry' && isObject(value) && !isReplace && typeof returnValue[key] === 'number') {
 					returnValue = {...returnValue, [key]: {limit: returnValue[key]}};
 				}
 
 				if (isObject(value) && !isReplace && key in returnValue) {
-					value = deepMerge(returnValue[key], value);
+					value = deepMergeInternal(false, returnValue[key], value);
 				}
 
 				returnValue = {...returnValue, [key]: value};
@@ -317,3 +319,6 @@ export const deepMerge = <T>(...sources: Array<Partial<T> | undefined>): T => {
 
 	return returnValue;
 };
+
+export const deepMerge = <T>(...sources: Array<Partial<T> | undefined>): T =>
+	deepMergeInternal<T>(true, ...sources);
