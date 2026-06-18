@@ -694,6 +694,19 @@ test('throws when retry.statusCodes is not an array', async t => {
 	});
 });
 
+test('throws when retry.afterStatusCodes is not an array', async t => {
+	const server = await createHttpTestServer(t);
+
+	t.throws(() => {
+		void ky(server.url, {
+			retry: {
+				// @ts-expect-error
+				afterStatusCodes: 413,
+			},
+		});
+	});
+});
+
 test('retry options ignore undefined overrides and keep defaults', async t => {
 	let requestCount = 0;
 

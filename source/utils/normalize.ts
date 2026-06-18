@@ -41,6 +41,10 @@ export const normalizeRetryOptions = (retry: number | RetryOptions = {}): Intern
 		throw new Error('retry.statusCodes must be an array');
 	}
 
+	if (retry.afterStatusCodes && !Array.isArray(retry.afterStatusCodes)) {
+		throw new Error('retry.afterStatusCodes must be an array');
+	}
+
 	const normalizedRetry = Object.fromEntries(Object.entries({
 		...retry,
 		methods: retry.methods?.map(method => method.toLowerCase()),
