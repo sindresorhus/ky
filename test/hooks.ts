@@ -5059,6 +5059,34 @@ test('init hook in-place json mutations do not leak across requests', async t =>
 	t.deepEqual(seenRequestIdentifiers, ['1', '2']);
 });
 
+test('init hook nested json mutations do not leak across requests', async t => {
+	let requestIdentifier = 0;
+	const seenRequestIdentifiers: Array<string | undefined> = [];
+
+	const api = ky.extend({
+		json: {meta: {}},
+		hooks: {
+			init: [
+				options => {
+					const json = options.json as {meta: {requestId?: string}};
+					json.meta.requestId ??= String(++requestIdentifier);
+				},
+			],
+		},
+	});
+
+	const fetch: typeof globalThis.fetch = async request => {
+		const body = await request.text();
+		seenRequestIdentifiers.push(JSON.parse(body).meta.requestId);
+		return new Response('ok');
+	};
+
+	await api.post('https://example.com', {fetch});
+	await api.post('https://example.com', {fetch});
+
+	t.deepEqual(seenRequestIdentifiers, ['1', '2']);
+});
+
 test('init hooks preserve non-plain json values', async t => {
 	const createdAt = new Date('2024-01-01T00:00:00.000Z');
 
@@ -5192,6 +5220,38 @@ test('init hook in-place context mutations do not leak across requests', async t
 			beforeRequest: [
 				({options}) => {
 					seenRequestIdentifiers.push(options.context.requestIdentifier as number);
+				},
+			],
+		},
+	});
+
+	await api.get('https://example.com', {
+		fetch: async () => new Response('ok'),
+	});
+
+	await api.get('https://example.com', {
+		fetch: async () => new Response('ok'),
+	});
+
+	t.deepEqual(seenRequestIdentifiers, [1, 2]);
+});
+
+test('init hook nested context mutations do not leak across requests', async t => {
+	const seenRequestIdentifiers: Array<number | undefined> = [];
+	let requestIdentifier = 0;
+
+	const api = ky.extend({
+		context: {trace: {}},
+		hooks: {
+			init: [
+				options => {
+					const context = options.context as {trace: {requestIdentifier?: number}};
+					context.trace.requestIdentifier ??= ++requestIdentifier;
+				},
+			],
+			beforeRequest: [
+				({options}) => {
+					seenRequestIdentifiers.push((options.context.trace as {requestIdentifier?: number}).requestIdentifier);
 				},
 			],
 		},

@@ -92,12 +92,41 @@ const cloneSearchParametersForInitHook = (searchParameters: SearchParamsOption |
 	return cloneShallow(searchParameters) as SearchParamsOption | undefined;
 };
 
-// Shallow-clone mutable option properties so init hook mutations don't leak across requests.
+const isPlainObject = (value: unknown): value is Record<string, unknown> => {
+	if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+		return false;
+	}
+
+	const prototype = Object.getPrototypeOf(value);
+	return prototype === Object.prototype || prototype === null;
+};
+
+// Deep-clone plain objects/arrays so init hooks can mutate NESTED `json`/`context` config
+// without leaking state across requests. Non-plain values (Date, URLSearchParams, Headers,
+// class instances, functions) are passed through `cloneShallow`, preserving their identity/type.
+const cloneDeepForInitHook = <T>(value: T): T => {
+	if (Array.isArray(value)) {
+		return value.map(item => cloneDeepForInitHook(item)) as T;
+	}
+
+	if (isPlainObject(value)) {
+		const copy: Record<string, unknown> = {};
+		for (const key of Object.keys(value as Record<string, unknown>)) {
+			copy[key] = cloneDeepForInitHook((value as Record<string, unknown>)[key]);
+		}
+
+		return copy as T;
+	}
+
+	return cloneShallow(value);
+};
+
+// Clone mutable option properties so init hook mutations don't leak across requests.
 function cloneInitHookOptions(options: Options): Options {
 	const clonedOptions: Options = {
 		...options,
-		json: cloneShallow(options.json),
-		context: cloneShallow(options.context)!,
+		json: cloneDeepForInitHook(options.json),
+		context: cloneDeepForInitHook(options.context)!,
 		headers: cloneShallow(options.headers)!,
 		searchParams: cloneSearchParametersForInitHook(options.searchParams),
 	};
