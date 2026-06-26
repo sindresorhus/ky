@@ -101,9 +101,11 @@ const isPlainObject = (value: unknown): value is Record<string, unknown> => {
 	return prototype === Object.prototype || prototype === null;
 };
 
-// Deep-clone plain objects/arrays so init hooks can mutate NESTED `json`/`context` config
+// Deep-clone plain objects/arrays so init hooks can mutate NESTED `context` metadata
 // without leaking state across requests. Non-plain values (Date, URLSearchParams, Headers,
 // class instances, functions) are passed through `cloneShallow`, preserving their identity/type.
+// Only used for `context`: `json` is intentionally cloned shallowly (see `cloneInitHookOptions`)
+// because it is arbitrary serializer input and may be cyclic or huge.
 const cloneDeepForInitHook = <T>(value: T): T => {
 	if (Array.isArray(value)) {
 		return value.map(item => cloneDeepForInitHook(item)) as T;
@@ -122,10 +124,14 @@ const cloneDeepForInitHook = <T>(value: T): T => {
 };
 
 // Clone mutable option properties so init hook mutations don't leak across requests.
+// `json` is cloned shallowly: it is typed as `unknown` and `stringifyJson` is the documented
+// escape hatch for custom serialization, so Ky must not recursively walk it (deep-cloning
+// cyclic or huge serializer input throws `RangeError: Maximum call stack size exceeded`).
+// `context` is request metadata Ky owns, so it is safe to deep-clone for nested-mutation isolation.
 function cloneInitHookOptions(options: Options): Options {
 	const clonedOptions: Options = {
 		...options,
-		json: cloneDeepForInitHook(options.json),
+		json: cloneShallow(options.json),
 		context: cloneDeepForInitHook(options.context)!,
 		headers: cloneShallow(options.headers)!,
 		searchParams: cloneSearchParametersForInitHook(options.searchParams),

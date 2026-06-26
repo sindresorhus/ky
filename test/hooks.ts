@@ -5059,34 +5059,6 @@ test('init hook in-place json mutations do not leak across requests', async t =>
 	t.deepEqual(seenRequestIdentifiers, ['1', '2']);
 });
 
-test('init hook nested json mutations do not leak across requests', async t => {
-	let requestIdentifier = 0;
-	const seenRequestIdentifiers: Array<string | undefined> = [];
-
-	const api = ky.extend({
-		json: {meta: {}},
-		hooks: {
-			init: [
-				options => {
-					const json = options.json as {meta: {requestId?: string}};
-					json.meta.requestId ??= String(++requestIdentifier);
-				},
-			],
-		},
-	});
-
-	const fetch: typeof globalThis.fetch = async request => {
-		const body = await request.text();
-		seenRequestIdentifiers.push(JSON.parse(body).meta.requestId);
-		return new Response('ok');
-	};
-
-	await api.post('https://example.com', {fetch});
-	await api.post('https://example.com', {fetch});
-
-	t.deepEqual(seenRequestIdentifiers, ['1', '2']);
-});
-
 test('init hooks preserve non-plain json values', async t => {
 	const createdAt = new Date('2024-01-01T00:00:00.000Z');
 
@@ -5121,6 +5093,33 @@ test('custom stringifyJson receives cyclic json unchanged when init hooks are ab
 	}).json<{ok: boolean}>();
 
 	t.is(receivedJson, json);
+	t.deepEqual(response, {ok: true});
+});
+
+test('custom stringifyJson receives cyclic json without crashing when init hooks are present', async t => {
+	const json: {self?: unknown} = {};
+	json.self = json;
+
+	let stringifyCalls = 0;
+
+	const response = await ky.post('https://example.com', {
+		fetch: async request => new Response(await request.text()),
+		json,
+		stringifyJson(data) {
+			stringifyCalls++;
+			t.is((data as {self?: unknown}).self !== undefined, true);
+			return '{"ok":true}';
+		},
+		hooks: {
+			init: [
+				options => {
+					options.headers = {'x-init': 'present'};
+				},
+			],
+		},
+	}).json<{ok: boolean}>();
+
+	t.is(stringifyCalls, 1);
 	t.deepEqual(response, {ok: true});
 });
 
