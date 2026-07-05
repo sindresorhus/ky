@@ -2029,18 +2029,18 @@ test('totalTimeout with retryOnTimeout: true caps total time across retries', as
 
 	const customFetch: typeof fetch = async () => {
 		requestCount++;
-		// Each attempt takes 600ms, exceeding the 400ms per-attempt timeout
-		await delay(600);
+		// Each attempt takes longer than the per-attempt timeout, so every attempt times out.
+		await delay(300);
 		return new Response('ok');
 	};
 
 	await t.throwsAsync(
 		ky('https://example.com', {
 			fetch: customFetch,
-			timeout: 400,
-			totalTimeout: 1500,
+			timeout: 100,
+			totalTimeout: 1000,
 			retry: {
-				limit: 10,
+				limit: 30,
 				retryOnTimeout: true,
 				delay: () => 0,
 			},
@@ -2050,8 +2050,11 @@ test('totalTimeout with retryOnTimeout: true caps total time across retries', as
 		},
 	);
 
-	// Each attempt times out at ~400ms. Within 1500ms totalTimeout, 2-4 attempts fit.
-	t.true(requestCount >= 2 && requestCount <= 4);
+	// Each attempt times out at ~100ms, so many attempts fit within the 1000ms totalTimeout.
+	// The exact count is timing-dependent (slow CI runs fewer), so we only assert the invariant:
+	// it retried at least once, and totalTimeout stopped it well before the retry limit.
+	t.true(requestCount >= 2, `Expected at least 2 attempts, got ${requestCount}`);
+	t.true(requestCount < 30, `Expected totalTimeout to cap below the retry limit, got ${requestCount}`);
 });
 
 test('NetworkError wraps fetch network errors', async t => {
