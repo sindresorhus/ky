@@ -23,7 +23,7 @@ export type RetryOptions = {
 	/**
 	The HTTP methods allowed to retry.
 
-	@default ['get', 'put', 'head', 'delete', 'options', 'trace']
+	@default ['get', 'put', 'head', 'delete', 'options', 'trace', 'query']
 	*/
 	methods?: HttpMethod[];
 

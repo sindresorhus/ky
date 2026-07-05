@@ -108,6 +108,33 @@ defaultBrowsersTest('prefix option', async (t: ExecutionContext, page: Page) => 
 	t.deepEqual(results, ['rainbow', 'rainbow', 'rainbow', 'rainbow', 'rainbow', 'rainbow', 'rainbow']);
 });
 
+defaultBrowsersTest('QUERY request', async (t: ExecutionContext, page: Page) => {
+	t.plan(2);
+
+	server.get('/', (_request, response) => {
+		response.end();
+	});
+
+	server.all('/test', (request, response) => {
+		t.is(request.method, 'QUERY');
+		response.json(request.body);
+	});
+
+	await page.goto(server.url);
+	await addKyScriptToPage(page);
+
+	const json = {
+		foo: true,
+	};
+
+	const result = await page.evaluate(async ({url, json}) => globalThis.ky.query(`${url}/test`, {json}).json(), {
+		url: server.url,
+		json,
+	});
+
+	t.deepEqual(result, json);
+});
+
 defaultBrowsersTest('aborting a request', async (t: ExecutionContext, page: Page) => {
 	server.get('/', (_request, response) => {
 		response.end('meow');

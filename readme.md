@@ -173,6 +173,7 @@ console.log(bytes instanceof Uint8Array);
 ### ky.patch(input, options?)
 ### ky.head(input, options?)
 ### ky.delete(input, options?)
+### ky.query(input, options?)
 
 Sets `options.method` to the method name and makes a request.
 
@@ -199,7 +200,7 @@ Default: `'get'`
 
 HTTP method used to make the request.
 
-Internally, the standard methods (`GET`, `POST`, `PUT`, `PATCH`, `HEAD` and `DELETE`) are uppercased in order to avoid server errors due to case sensitivity.
+Internally, the standard methods (`GET`, `POST`, `PUT`, `PATCH`, `HEAD`, `DELETE`, and `QUERY`) are uppercased in order to avoid server errors due to case sensitivity.
 
 ##### json
 
@@ -277,7 +278,7 @@ Notes:
 Type: `object | number`\
 Default:
 - `limit`: `2`
-- `methods`: `get` `put` `head` `delete` `options` `trace`
+- `methods`: `get` `put` `head` `delete` `options` `trace` `query`
 - `statusCodes`: [`408`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/408) [`413`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/413) [`429`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/429) [`500`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/500) [`502`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/502) [`503`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/503) [`504`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/504)
 - `afterStatusCodes`: [`413`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/413), [`429`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/429), [`503`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/503)
 - `maxRetryAfter`: `Infinity`

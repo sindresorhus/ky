@@ -36,7 +36,7 @@ export const supportsAbortSignal = typeof globalThis.AbortSignal === 'function' 
 export const supportsResponseStreams = typeof globalThis.ReadableStream === 'function';
 export const supportsFormData = typeof globalThis.FormData === 'function';
 
-export const requestMethods = ['get', 'post', 'put', 'patch', 'head', 'delete'] as const;
+export const requestMethods = ['get', 'post', 'put', 'patch', 'head', 'delete', 'query'] as const;
 
 const validate = <T extends Array<true>>() => undefined as unknown as T;
 validate<[

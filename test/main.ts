@@ -113,6 +113,26 @@ test('DELETE request', async t => {
 	t.is(await ky.delete(server.url).text(), 'DELETE');
 });
 
+test('QUERY request', async t => {
+	t.plan(3);
+
+	const server = await createHttpTestServer(t);
+	server.all('/', (request, response) => {
+		t.is(request.method, 'QUERY');
+		t.is(request.headers['content-type'], 'application/json');
+		response.json(request.body);
+	});
+
+	const json = {
+		foo: true,
+	};
+
+	const responseJson = await ky.query<typeof json>(server.url, {json}).json();
+
+	expectTypeOf(responseJson).toEqualTypeOf<typeof json>();
+	t.deepEqual(responseJson, json);
+});
+
 test('POST JSON', async t => {
 	t.plan(2);
 

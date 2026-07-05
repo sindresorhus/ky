@@ -70,6 +70,14 @@ export type KyInstance = {
 	head: (url: Input, options?: Options) => ResponsePromise;
 
 	/**
+	Fetch the given `url` using the option `{method: 'query'}`.
+
+	@param url - `Request` object, `URL` object, or URL string.
+	@returns A promise with `Body` methods added.
+	*/
+	query: <T>(url: Input, options?: Options) => ResponsePromise<T>;
+
+	/**
 	Create a new Ky instance with complete new defaults, without inheriting from any parent instance.
 
 	@returns A new Ky instance.
