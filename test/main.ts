@@ -782,20 +782,373 @@ test('invalid timeout option', async t => {
 	t.is(requestCount, 0);
 });
 
-test('timeout option is cancelled when the promise is resolved', async t => {
+test.serial('timeout option is cancelled when the promise is resolved', async t => {
 	const server = await createHttpTestServer(t);
 
 	server.get('/', (request, response) => {
 		response.end(request.method);
 	});
 
+	const originalSetTimeout = globalThis.setTimeout;
+	const originalClearTimeout = globalThis.clearTimeout;
+	let requestTimeoutId: ReturnType<typeof globalThis.setTimeout> | undefined;
+	let didClearRequestTimeout = false;
+
+	globalThis.setTimeout = ((handler, delayMs, ...arguments_) => {
+		const timeoutId = originalSetTimeout(handler, delayMs, ...arguments_);
+		if (delayMs === 2000) {
+			requestTimeoutId = timeoutId;
+		}
+
+		return timeoutId;
+	}) as typeof globalThis.setTimeout;
+
+	globalThis.clearTimeout = (timeoutId => {
+		if (timeoutId === requestTimeoutId) {
+			didClearRequestTimeout = true;
+		}
+
+		originalClearTimeout(timeoutId);
+	}) as typeof globalThis.clearTimeout;
+
+	try {
+		await ky(server.url, {timeout: 2000});
+	} finally {
+		globalThis.setTimeout = originalSetTimeout;
+		globalThis.clearTimeout = originalClearTimeout;
+	}
+
+	t.truthy(requestTimeoutId);
+	t.true(didClearRequestTimeout);
+});
+
+test.serial('timeout option is cancelled when a shortcut body read is resolved', async t => {
+	const request = ky('https://example.com', {
+		fetch: async () => new Response('ok'),
+		timeout: 2000,
+	});
+
+	await request;
+
+	const originalSetTimeout = globalThis.setTimeout;
+	const originalClearTimeout = globalThis.clearTimeout;
+	let bodyTimeoutId: ReturnType<typeof globalThis.setTimeout> | undefined;
+	let didClearBodyTimeout = false;
+
+	globalThis.setTimeout = ((handler, delayMs, ...arguments_) => {
+		const timeoutId = originalSetTimeout(handler, delayMs, ...arguments_);
+		if (delayMs === 2000) {
+			bodyTimeoutId = timeoutId;
+		}
+
+		return timeoutId;
+	}) as typeof globalThis.setTimeout;
+
+	globalThis.clearTimeout = (timeoutId => {
+		if (timeoutId === bodyTimeoutId) {
+			didClearBodyTimeout = true;
+		}
+
+		originalClearTimeout(timeoutId);
+	}) as typeof globalThis.clearTimeout;
+
+	try {
+		t.is(await request.text(), 'ok');
+	} finally {
+		globalThis.setTimeout = originalSetTimeout;
+		globalThis.clearTimeout = originalClearTimeout;
+	}
+
+	t.truthy(bodyTimeoutId);
+	t.true(didClearBodyTimeout);
+});
+
+test('timeout bounds a never-ending successful response body', async t => {
+	let didStartBodyRead = false;
+
+	const customFetch: typeof fetch = async () => {
+		const response = new Response(undefined, {
+			status: 200,
+			headers: {'content-type': 'application/json'},
+		});
+
+		response.text = async () => {
+			didStartBodyRead = true;
+			return new Promise<string>(resolve => {
+				t.teardown(() => {
+					resolve('');
+				});
+			});
+		};
+
+		return response;
+	};
+
 	const start = Date.now();
+	await t.throwsAsync(ky('https://example.com', {
+		fetch: customFetch,
+		timeout: 50,
+	}).json(), {
+		instanceOf: TimeoutError,
+	});
+	t.true(didStartBodyRead);
+	t.true(Date.now() - start < 2000);
+});
 
-	await ky(server.url, {timeout: 2000});
+test('totalTimeout bounds a never-ending successful response body', async t => {
+	let didStartBodyRead = false;
 
-	const duration = start - Date.now();
+	const customFetch: typeof fetch = async () => {
+		const response = new Response(undefined, {status: 200});
+		response.text = async () => {
+			didStartBodyRead = true;
+			return new Promise<string>(resolve => {
+				t.teardown(() => {
+					resolve('');
+				});
+			});
+		};
 
-	t.true(duration < 10);
+		return response;
+	};
+
+	const start = Date.now();
+	await t.throwsAsync(ky('https://example.com', {
+		fetch: customFetch,
+		timeout: false,
+		totalTimeout: 50,
+	}).text(), {
+		instanceOf: TimeoutError,
+	});
+	t.true(didStartBodyRead);
+	t.true(Date.now() - start < 2000);
+});
+
+test('beforeError hook receives totalTimeout exhausted before a shortcut body read starts', async t => {
+	let didReadBody = false;
+	let hookError: Error | undefined;
+
+	const customFetch: typeof fetch = async () => {
+		const response = new Response('ok');
+		response.text = async () => {
+			didReadBody = true;
+			return 'ok';
+		};
+
+		return response;
+	};
+
+	const response = ky('https://example.com', {
+		fetch: customFetch,
+		timeout: false,
+		totalTimeout: 250,
+		hooks: {
+			beforeError: [
+				({error}) => {
+					hookError = error;
+					error.message = 'pre-read-timeout-beforeError';
+					return error;
+				},
+			],
+		},
+	});
+
+	await response;
+	await delay(300);
+
+	await t.throwsAsync(response.text(), {
+		instanceOf: TimeoutError,
+		message: 'pre-read-timeout-beforeError',
+	});
+
+	t.false(didReadBody);
+	t.true(hookError instanceof TimeoutError);
+});
+
+test('timeout aborts a never-ending successful response body read', async t => {
+	let didAbort = false;
+	const customFetch: typeof fetch = async request => {
+		request.signal.addEventListener('abort', () => {
+			didAbort = true;
+		}, {once: true});
+
+		const body = new ReadableStream<Uint8Array>({
+			start(controller) {
+				controller.enqueue(new TextEncoder().encode('partial'));
+			},
+		});
+
+		return new Response(body, {status: 200});
+	};
+
+	await t.throwsAsync(ky('https://example.com', {
+		fetch: customFetch,
+		timeout: 50,
+	}).text(), {
+		instanceOf: TimeoutError,
+	});
+
+	t.true(didAbort);
+});
+
+test('timeout does not retry a never-ending successful response body read', async t => {
+	let requestCount = 0;
+	const customFetch: typeof fetch = async () => {
+		requestCount++;
+
+		const body = new ReadableStream<Uint8Array>({
+			start(controller) {
+				controller.enqueue(new TextEncoder().encode('partial'));
+			},
+		});
+
+		return new Response(body, {status: 200});
+	};
+
+	await t.throwsAsync(ky('https://example.com', {
+		fetch: customFetch,
+		timeout: 50,
+		retry: {
+			limit: 2,
+			delay: () => 0,
+			retryOnTimeout: true,
+		},
+	}).text(), {
+		instanceOf: TimeoutError,
+	});
+
+	t.is(requestCount, 1);
+});
+
+test('beforeError hook receives successful response body TimeoutError', async t => {
+	let hookError: Error | undefined;
+	const customFetch: typeof fetch = async () => {
+		const body = new ReadableStream<Uint8Array>({
+			start(controller) {
+				controller.enqueue(new TextEncoder().encode('partial'));
+			},
+		});
+
+		return new Response(body, {status: 200});
+	};
+
+	await t.throwsAsync(ky('https://example.com', {
+		fetch: customFetch,
+		timeout: 50,
+		hooks: {
+			beforeError: [
+				({error}) => {
+					hookError = error;
+					error.message = 'body-timeout-beforeError';
+					return error;
+				},
+			],
+		},
+	}).text(), {
+		instanceOf: TimeoutError,
+		message: 'body-timeout-beforeError',
+	});
+
+	t.true(hookError instanceof TimeoutError);
+});
+
+test('totalTimeout bounds hanging parseJson on successful response shortcut', async t => {
+	let parseJsonCalled = false;
+	let hookError: Error | undefined;
+	const start = Date.now();
+	await t.throwsAsync(ky('https://example.com', {
+		fetch: async () => new Response('{"value":1}', {
+			headers: {'content-type': 'application/json'},
+		}),
+		timeout: false,
+		totalTimeout: 250,
+		parseJson: async () => new Promise<never>(() => {
+			parseJsonCalled = true;
+			// Intentionally never settles
+		}),
+		hooks: {
+			beforeError: [
+				({error}) => {
+					hookError = error;
+					error.message = 'parse-timeout-beforeError';
+					return error;
+				},
+			],
+		},
+	}).json(), {
+		instanceOf: TimeoutError,
+		message: 'parse-timeout-beforeError',
+	});
+
+	t.true(parseJsonCalled);
+	t.true(hookError instanceof TimeoutError);
+	t.true(Date.now() - start < 2000);
+});
+
+test('totalTimeout bounds hanging schema validation on successful response shortcut', async t => {
+	let schemaValidationCalled = false;
+	const schema = createSchema(async () => new Promise<never>(() => {
+		schemaValidationCalled = true;
+		// Intentionally never settles
+	}));
+
+	const start = Date.now();
+	await t.throwsAsync(ky('https://example.com', {
+		fetch: async () => new Response('{"value":1}', {
+			headers: {'content-type': 'application/json'},
+		}),
+		timeout: false,
+		totalTimeout: 250,
+	}).json(schema), {
+		instanceOf: TimeoutError,
+	});
+
+	t.true(schemaValidationCalled);
+	t.true(Date.now() - start < 2000);
+});
+
+test.serial('timeout false does not apply a successful response body timeout', async t => {
+	const originalSetTimeout = globalThis.setTimeout;
+	const scheduledDelays: number[] = [];
+	globalThis.setTimeout = ((handler, delayMs, ...arguments_) => {
+		if (delayMs === 10_000) {
+			scheduledDelays.push(delayMs);
+		}
+
+		const testDelay = delayMs === 10_000 ? 0 : delayMs;
+		return originalSetTimeout(handler, testDelay, ...arguments_);
+	}) as typeof globalThis.setTimeout;
+
+	const abortController = new AbortController();
+	const request = ky('https://example.com', {
+		async fetch(request) {
+			const body = new ReadableStream<Uint8Array>({
+				start(controller) {
+					controller.enqueue(new TextEncoder().encode('partial'));
+					request.signal.addEventListener('abort', () => {
+						controller.error(new DOMException('Aborted', 'AbortError'));
+					}, {once: true});
+				},
+			});
+
+			return new Response(body);
+		},
+		signal: abortController.signal,
+		timeout: false,
+	}).text();
+
+	try {
+		t.is(await Promise.race([
+			request.then(() => 'settled').catch(() => 'settled'),
+			delay(50).then(() => 'pending'),
+		]), 'pending');
+	} finally {
+		abortController.abort();
+		await request.catch(() => undefined);
+		globalThis.setTimeout = originalSetTimeout;
+	}
+
+	t.deepEqual(scheduledDelays, []);
 });
 
 test('normalizing retry options does not mutate the caller retry object', async t => {

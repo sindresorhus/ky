@@ -30,6 +30,10 @@ import {findUnknownOptions, hasSearchParameters} from '../utils/options.js';
 import isRawNetworkError from '../utils/is-network-error.js';
 import {isHTTPError, isNetworkError, isTimeoutError} from '../utils/type-guards.js';
 import {
+	calculateRetryTimingDelay,
+	getRetryTimingHeader,
+} from './retry-timing.js';
+import {
 	maxSafeTimeout,
 	responseTypes,
 	stop,
@@ -44,6 +48,11 @@ import {
 const maxErrorResponseBodySize = 10 * 1024 * 1024;
 const prefixUrlRenamedErrorMessage = 'The `prefixUrl` option has been renamed `prefix` in v2 and enhanced to allow slashes in input. See also the new `baseUrl` option for improved flexibility with standard URL resolution: https://github.com/sindresorhus/ky#baseurl';
 const timedOutResponseData = Symbol('timedOutResponseData');
+
+type ErrorDataTimeout = {
+	milliseconds: number;
+	fromTotalTimeout: boolean;
+};
 
 const createTextDecoder = (contentType: string): TextDecoder => {
 	const match = /;\s*charset\s*=\s*(?:"([^"]+)"|([^;,\s]+))/i.exec(contentType);
@@ -256,35 +265,7 @@ export class Ky {
 			try {
 				return await function_();
 			} catch (error: unknown) {
-				// Non-Error throws (e.g., thrown strings) pass through unchanged
-				if (!(error instanceof Error)) {
-					throw error;
-				}
-
-				// Errors thrown by beforeRetry hooks must propagate unchanged.
-				if (ky.#beforeRetryHookErrors.has(error)) {
-					throw error;
-				}
-
-				let processedError: Error = error;
-				for (const hook of ky.#options.hooks.beforeError) {
-					// `request` is the current failing request. `options` intentionally remains the
-					// stable normalized Ky options snapshot for the same reason as `HTTPError` above.
-					// eslint-disable-next-line no-await-in-loop
-					const hookResult: unknown = await hook({
-						request: ky.request,
-						options: ky.#getNormalizedOptions(),
-						error: processedError,
-						retryCount: ky.#retryCount,
-					});
-
-					// Only overwrite if the hook returns a valid Error instance.
-					if (hookResult instanceof Error) {
-						processedError = hookResult;
-					}
-				}
-
-				throw processedError;
+				await ky.#throwProcessedError(error);
 			} finally {
 				const originalRequest = ky.#originalRequest;
 
@@ -313,23 +294,26 @@ export class Ky {
 				const response = await result;
 
 				if (type !== 'json') {
-					return response[type]();
+					return ky.#raceBodyRead(async () => response[type](), response);
 				}
 
-				const text = await response.text();
-				if (text === '') {
-					if (schema !== undefined) {
-						return validateJsonWithSchema(undefined, schema);
+				const text = await ky.#raceBodyRead(async () => response.text(), response) as string;
+				const request = ky.#getResponseRequest(response);
+				return ky.#raceWithTotalTimeout(async () => {
+					if (text === '') {
+						if (schema !== undefined) {
+							return validateJsonWithSchema(undefined, schema);
+						}
+
+						return JSON.parse(text);
 					}
 
-					return JSON.parse(text);
-				}
+					const jsonValue = initHookOptions.parseJson
+						? await initHookOptions.parseJson(text, {request, response})
+						: JSON.parse(text);
 
-				const jsonValue = initHookOptions.parseJson
-					? await initHookOptions.parseJson(text, {request: ky.#getResponseRequest(response), response})
-					: JSON.parse(text);
-
-				return schema === undefined ? jsonValue : validateJsonWithSchema(jsonValue, schema);
+					return schema === undefined ? jsonValue : validateJsonWithSchema(jsonValue, schema);
+				}, request);
 			};
 		}
 
@@ -349,8 +333,7 @@ export class Ky {
 	public request: Request;
 	#abortController?: AbortController;
 	#retryCount = 0;
-	// eslint-disable-next-line @typescript-eslint/prefer-readonly -- False positive: #input is reassigned on line 202
-	#input: Input;
+	readonly #input: Input;
 	readonly #options: InternalOptions;
 	#originalRequest?: Request;
 	readonly #userProvidedAbortSignal?: AbortSignal;
@@ -519,21 +502,17 @@ export class Ky {
 			throw error;
 		}
 
-		// User-provided shouldRetry function takes precedence over default checks (retryOnTimeout, status codes, etc.)
 		if (this.#options.retry.shouldRetry !== undefined) {
 			const result = await this.#options.retry.shouldRetry({error: errorObject, retryCount: this.#retryCount + 1});
 
-			// Strict boolean checking - only exact true/false are handled specially
+			// Only exact booleans override the default retry checks.
 			if (result === false) {
 				throw error;
 			}
 
 			if (result === true) {
-				// Force retry - skip all other validation and return delay
 				return this.#calculateDelay();
 			}
-
-			// If undefined or any other value, fall through to default behavior
 		}
 
 		// Default timeout behavior
@@ -550,25 +529,13 @@ export class Ky {
 				throw error;
 			}
 
-			const retryAfter = error.response.headers.get('Retry-After')
-				?? error.response.headers.get('RateLimit-Reset')
-				?? error.response.headers.get('X-RateLimit-Retry-After') // Symfony-based services
-				?? error.response.headers.get('X-RateLimit-Reset') // GitHub
-				?? error.response.headers.get('X-Rate-Limit-Reset'); // Twitter
-			if (retryAfter && this.#options.retry.afterStatusCodes.includes(error.response.status)) {
-				let after = Number(retryAfter) * 1000;
-				if (Number.isNaN(after)) {
-					after = Date.parse(retryAfter) - Date.now();
-				} else if (after >= Date.parse('2024-01-01')) {
-					// A large number is treated as a timestamp (fixed threshold protects against clock skew)
-					after -= Date.now();
+			const retryTimingHeader = getRetryTimingHeader(error.response.headers);
+			if (retryTimingHeader && this.#options.retry.afterStatusCodes.includes(error.response.status)) {
+				const after = calculateRetryTimingDelay(retryTimingHeader);
+				if (after === undefined) {
+					// Malformed retry timing headers should not disable retries; they only lose their server-provided timing.
+					return this.#calculateDelay();
 				}
-
-				if (!Number.isFinite(after)) {
-					return Math.min(this.#options.retry.maxRetryAfter, this.#calculateDelay());
-				}
-
-				after = Math.max(0, after);
 
 				// Don't apply jitter when server provides explicit retry timing
 				return Math.min(this.#options.retry.maxRetryAfter, after);
@@ -606,11 +573,48 @@ export class Ky {
 		return response;
 	}
 
+	async #throwProcessedError(error: unknown): Promise<never> {
+		// Non-Error throws (e.g., thrown strings) pass through unchanged
+		if (!(error instanceof Error)) {
+			throw error;
+		}
+
+		// Errors thrown by beforeRetry hooks must propagate unchanged.
+		if (this.#beforeRetryHookErrors.has(error)) {
+			throw error;
+		}
+
+		let processedError: Error = error;
+		for (const hook of this.#options.hooks.beforeError) {
+			// `request` is the current failing request. `options` intentionally remains the
+			// stable normalized Ky options snapshot for the same reason as `HTTPError` above.
+			// eslint-disable-next-line no-await-in-loop
+			const hookResult: unknown = await hook({
+				request: this.request,
+				options: this.#getNormalizedOptions(),
+				error: processedError,
+				retryCount: this.#retryCount,
+			});
+
+			// Only overwrite if the hook returns a valid Error instance.
+			if (hookResult instanceof Error) {
+				processedError = hookResult;
+			}
+		}
+
+		throw processedError;
+	}
+
 	async #getResponseData(response: Response): Promise<unknown> {
 		// Even with request timeouts disabled, bound error-body reads so retries and error propagation
 		// cannot be stalled indefinitely by never-ending response streams.
-		const text = await this.#readResponseText(response, this.#getErrorDataTimeout());
+		const readTimeout = this.#getErrorDataTimeout();
+		const text = await this.#readResponseText(response, readTimeout.milliseconds);
 		if (text === timedOutResponseData) {
+			if (readTimeout.fromTotalTimeout) {
+				throw new TimeoutError(this.request);
+			}
+
 			this.#throwIfTotalTimeoutExhausted();
 			return undefined;
 		}
@@ -623,8 +627,13 @@ export class Ky {
 			return text;
 		}
 
-		const data = await this.#parseJson(text, response, this.#getErrorDataTimeout(), this.#getResponseRequest(response));
+		const parseTimeout = this.#getErrorDataTimeout();
+		const data = await this.#parseJson(text, response, parseTimeout.milliseconds, this.#getResponseRequest(response));
 		if (data === timedOutResponseData) {
+			if (parseTimeout.fromTotalTimeout) {
+				throw new TimeoutError(this.request);
+			}
+
 			this.#throwIfTotalTimeoutExhausted();
 			return undefined;
 		}
@@ -632,18 +641,107 @@ export class Ky {
 		return data;
 	}
 
-	#getErrorDataTimeout(): number {
+	#getErrorDataTimeout(): ErrorDataTimeout {
 		const errorDataTimeout = this.#options.timeout === false ? 10_000 : this.#options.timeout;
 		const remainingTotal = this.#getRemainingTotalTimeout();
 		if (remainingTotal === undefined) {
-			return errorDataTimeout;
+			return {
+				milliseconds: errorDataTimeout,
+				fromTotalTimeout: false,
+			};
 		}
 
 		if (remainingTotal <= 0) {
 			throw new TimeoutError(this.request);
 		}
 
-		return Math.min(errorDataTimeout, remainingTotal);
+		return {
+			milliseconds: Math.min(errorDataTimeout, remainingTotal),
+			fromTotalTimeout: remainingTotal <= errorDataTimeout,
+		};
+	}
+
+	#getBodyReadTimeout(): number | undefined {
+		const remainingTotal = this.#getRemainingTotalTimeout();
+		if (remainingTotal !== undefined) {
+			if (remainingTotal <= 0) {
+				throw new TimeoutError(this.request);
+			}
+
+			return this.#options.timeout === false
+				? remainingTotal
+				: Math.min(this.#options.timeout, remainingTotal);
+		}
+
+		return this.#options.timeout === false ? undefined : this.#options.timeout;
+	}
+
+	// Unlike error bodies (`#getResponseData`), a successful body read has no fallback value to return -
+	// the caller's `.json()`/`.text()`/etc. promise must settle, so a timeout here always rejects.
+	async #raceBodyRead(createBodyPromise: () => Promise<unknown>, response: Response): Promise<unknown> {
+		let timeoutMs: number | undefined;
+		try {
+			timeoutMs = this.#getBodyReadTimeout();
+		} catch (error: unknown) {
+			await this.#throwProcessedError(error);
+		}
+
+		const bodyPromise = createBodyPromise();
+		if (timeoutMs === undefined) {
+			return bodyPromise;
+		}
+
+		const result = await Promise.race([
+			bodyPromise,
+			new Promise<typeof timedOutResponseData>(resolve => {
+				const timeoutId = setTimeout(() => {
+					resolve(timedOutResponseData);
+				}, timeoutMs);
+				void bodyPromise.finally(() => {
+					clearTimeout(timeoutId);
+				}).catch(() => undefined);
+			}),
+		]);
+
+		if (result === timedOutResponseData) {
+			// The stream is locked by the native body method's own reader by this point, so
+			// `response.body.cancel()` would reject as "already locked". Aborting the request's
+			// signal is what actually interrupts the underlying network read.
+			this.#abortController?.abort();
+			await this.#throwProcessedError(new TimeoutError(this.#getResponseRequest(response)));
+		}
+
+		return result;
+	}
+
+	async #raceWithTotalTimeout<T>(operation: () => Promise<T>, request: Request): Promise<T> {
+		const remainingTotal = this.#getRemainingTotalTimeout();
+		if (remainingTotal === undefined) {
+			return operation();
+		}
+
+		if (remainingTotal <= 0) {
+			await this.#throwProcessedError(new TimeoutError(request));
+		}
+
+		const operationPromise = operation();
+		const result = await Promise.race<T | typeof timedOutResponseData>([
+			operationPromise,
+			new Promise<typeof timedOutResponseData>(resolve => {
+				const timeoutId = setTimeout(() => {
+					resolve(timedOutResponseData);
+				}, remainingTotal);
+				void operationPromise.finally(() => {
+					clearTimeout(timeoutId);
+				}).catch(() => undefined);
+			}),
+		]);
+
+		if (result === timedOutResponseData) {
+			await this.#throwProcessedError(new TimeoutError(request));
+		}
+
+		return result as T;
 	}
 
 	#isJsonContentType(contentType: string): boolean {

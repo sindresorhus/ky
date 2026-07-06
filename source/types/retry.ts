@@ -30,19 +30,21 @@ export type RetryOptions = {
 	/**
 	The HTTP status codes allowed to retry.
 
+	`413 Payload Too Large` is only retried when the response includes a retry timing header.
+
 	@default [408, 413, 429, 500, 502, 503, 504]
 	*/
 	statusCodes?: number[];
 
 	/**
-	The HTTP status codes allowed to retry with a `Retry-After` header.
+	The retriable HTTP status codes that should respect retry timing headers. These status codes must also be included in `statusCodes`.
 
 	@default [413, 429, 503]
 	*/
 	afterStatusCodes?: number[];
 
 	/**
-	If the `Retry-After` header is greater than `maxRetryAfter`, it will use `maxRetryAfter`.
+	If the retry delay from a retry timing header is greater than `maxRetryAfter`, Ky will use `maxRetryAfter`.
 
 	@default Infinity
 	*/
@@ -80,7 +82,7 @@ export type RetryOptions = {
 
 	Alternatively, pass a function to implement custom jitter strategies.
 
-	Note: Jitter is not applied when the server provides a `Retry-After` header, as the server's explicit timing should be respected.
+	Note: Jitter is not applied when the server provides a retry timing header, as the server's explicit timing should be respected.
 
 	@default undefined (no jitter)
 
@@ -107,7 +109,7 @@ export type RetryOptions = {
 	jitter?: boolean | ((delay: number) => number) | undefined;
 
 	/**
-	Whether to retry when the request times out.
+	Whether to retry when the request times out before a response is returned. Timeouts while reading a response body through Ky shortcut methods are not retried because the response has already been received.
 
 	@default false
 
