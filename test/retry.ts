@@ -89,6 +89,41 @@ test('not on POST', async t => {
 	t.is(requestCount, 1);
 });
 
+test('QUERY retries by default', async t => {
+	let requestCount = 0;
+	const receivedBodies: unknown[] = [];
+	const receivedMethods: string[] = [];
+
+	const server = await createHttpTestServer(t);
+	server.all('/', (request, response) => {
+		requestCount++;
+		receivedMethods.push(request.method);
+		receivedBodies.push(request.body);
+
+		if (requestCount === defaultRetryCount + 1) {
+			response.json(request.body);
+		} else {
+			response.sendStatus(500);
+		}
+	});
+
+	const json = {
+		foo: true,
+	};
+
+	const result = await ky.query(server.url, {
+		json,
+		retry: {
+			delay: () => 0,
+		},
+	}).json();
+
+	t.deepEqual(result, json);
+	t.is(requestCount, defaultRetryCount + 1);
+	t.deepEqual(receivedMethods, ['QUERY', 'QUERY', 'QUERY']);
+	t.deepEqual(receivedBodies, [json, json, json]);
+});
+
 test('respect Retry-After: 0 and retry immediately', async t => {
 	const retryCount = 4;
 	let requestCount = 0;

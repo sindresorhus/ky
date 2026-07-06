@@ -43,6 +43,26 @@ test('method defaults to "GET"', async t => {
 	);
 });
 
+test('QUERY method is normalized', async t => {
+	const server = await createHttpTestServer(t);
+	server.all('/', (_request, response) => {
+		response.end();
+	});
+
+	t.plan(1);
+
+	await ky(server.url, {
+		method: 'query',
+		hooks: {
+			beforeRequest: [
+				({options}) => {
+					t.is(options.method, 'QUERY');
+				},
+			],
+		},
+	});
+});
+
 test.failing('custom method remains identical', async t => {
 	const server = await createHttpTestServer(t);
 	server.all('/', (_request, response) => {

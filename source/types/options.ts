@@ -8,7 +8,7 @@ export type SearchParamsInit = string | string[][] | Record<string, string> | UR
 // eslint-disable-next-line unicorn/prevent-abbreviations
 export type SearchParamsOption = SearchParamsInit | Record<string, string | number | boolean | undefined> | Array<Array<string | number | boolean>>;
 
-export type RequestHttpMethod = 'get' | 'post' | 'put' | 'patch' | 'head' | 'delete';
+export type RequestHttpMethod = 'get' | 'post' | 'put' | 'patch' | 'head' | 'delete' | 'query';
 export type HttpMethod = LiteralUnion<RequestHttpMethod | 'options' | 'trace', string>;
 
 export type Input = string | URL | Request;
@@ -400,7 +400,7 @@ export interface Options extends KyOptions, Omit<RequestInit, 'headers'> { // es
 	/**
 	HTTP method used to make the request.
 
-	Internally, the standard methods (`GET`, `POST`, `PUT`, `PATCH`, `HEAD` and `DELETE`) are uppercased in order to avoid server errors due to case sensitivity.
+	Internally, the standard methods (`GET`, `POST`, `PUT`, `PATCH`, `HEAD`, `DELETE`, and `QUERY`) are uppercased in order to avoid server errors due to case sensitivity.
 	*/
 	method?: LiteralUnion<HttpMethod, string>;
 

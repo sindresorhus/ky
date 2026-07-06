@@ -5,7 +5,7 @@ import type {HttpMethod, RequestHttpMethod} from '../types/options.js';
 export const normalizeRequestMethod = (input: string): string =>
 	requestMethods.includes(input as RequestHttpMethod) ? input.toUpperCase() : input;
 
-const retryMethods: HttpMethod[] = ['get', 'put', 'head', 'delete', 'options', 'trace'];
+const retryMethods: HttpMethod[] = ['get', 'put', 'head', 'delete', 'options', 'trace', 'query'];
 
 const retryStatusCodes = [408, 413, 429, 500, 502, 503, 504];
 
