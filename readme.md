@@ -294,9 +294,11 @@ If `retry` is a number, it will be used as `limit` and other defaults will remai
 
 Network errors (e.g., DNS failures, connection refused, offline) are automatically retried for retriable methods. Only errors recognized as network errors are retried; other errors (e.g., programming bugs) are thrown immediately. Use `shouldRetry` to customize this behavior.
 
-If the response provides an HTTP status contained in `afterStatusCodes`, Ky will wait until the date, delay, or timestamp given in the [`Retry-After`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Retry-After) header has passed to retry the request. If `Retry-After` is missing, the non-standard [`RateLimit-Reset`](https://www.ietf.org/archive/id/draft-polli-ratelimit-headers-05.html#section-3.3) header is used in its place as a fallback. If the provided status code is not in the list, the [`Retry-After`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Retry-After) header will be ignored.
+`413 Payload Too Large` is only retried when the response includes a retry timing header.
 
-If [`Retry-After`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Retry-After) header is greater than `maxRetryAfter`, it will use `maxRetryAfter`.
+When the response status is contained in both `statusCodes` and `afterStatusCodes`, Ky uses retry timing headers to choose the retry delay. [`Retry-After`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Retry-After) may provide a delay in seconds or an HTTP-date. If `Retry-After` is missing, Ky falls back to rate-limit timing headers (`RateLimit-Reset`, `X-RateLimit-Retry-After`, `X-RateLimit-Reset`, and `X-Rate-Limit-Reset`). Numeric `Retry-After` and `X-RateLimit-Retry-After` values are interpreted as delay seconds. Numeric `RateLimit-Reset`, `X-RateLimit-Reset`, and `X-Rate-Limit-Reset` values may also be interpreted as current-era Unix timestamps. If the status code is not in `afterStatusCodes`, retry timing headers will be ignored.
+
+If the retry delay from a retry timing header is greater than `maxRetryAfter`, Ky will use `maxRetryAfter`.
 
 The `backoffLimit` option is the upper limit of the delay per retry in milliseconds.
 To clamp the delay, set `backoffLimit` to 1000, for example.
@@ -306,9 +308,9 @@ The `delay` option can be used to change how the delay between retries is calcul
 
 The `jitter` option adds random jitter to retry delays to prevent thundering herd problems. When many clients retry simultaneously (e.g., after hitting a rate limit), they can overwhelm the server again. Jitter adds randomness to break this synchronization. Set to `true` to use full jitter, which randomizes the delay between 0 and the computed delay. Alternatively, pass a function to implement custom jitter strategies.
 
-**Note:** Jitter is not applied when the server provides a `Retry-After` header, as the server's explicit timing should be respected.
+**Note:** Jitter is not applied when the server provides a retry timing header, as the server's explicit timing should be respected.
 
-The `retryOnTimeout` option determines whether to retry when a request times out. By default, retries are not triggered following a [timeout](#timeout).
+The `retryOnTimeout` option determines whether to retry when a request times out before a response is returned. By default, retries are not triggered following a [timeout](#timeout). Timeouts while reading a response body through Ky shortcut methods are not retried because the response has already been received.
 
 The `shouldRetry` option provides custom retry logic that **takes precedence over the default retry checks** (`retryOnTimeout`, status code checks, etc.) for retriable methods. It is only called after the retry limit and method checks pass.
 
@@ -330,7 +332,7 @@ const json = await ky('https://example.com', {
 	retry: {
 		limit: 10,
 		methods: ['get'],
-		statusCodes: [413],
+		statusCodes: [500],
 		backoffLimit: 3000
 	}
 }).json();
@@ -413,7 +415,7 @@ const json = await ky('https://example.com', {
 Type: `number | false`\
 Default: `10000`
 
-Per-attempt timeout in milliseconds for getting a response, applied independently to each retry. Cannot be greater than 2147483647. See also [`totalTimeout`](#totaltimeout).
+Per-attempt timeout in milliseconds for getting a response, applied independently to each retry. Ky shortcut methods also use this value as a separate timeout for reading the response body. Cannot be greater than 2147483647. See also [`totalTimeout`](#totaltimeout).
 
 If set to `false`, there will be no per-attempt timeout.
 
@@ -538,7 +540,7 @@ The hook can return a [`Request`](https://developer.mozilla.org/en-US/docs/Web/A
 
 The `retryCount` is always `>= 1`, since this hook is only called during retries, not on the initial request.
 
-If the request received a response, the error will be of type `HTTPError`. The `Response` object will be available at `error.response`, and the pre-parsed response body will be available at `error.data`. Be aware that some types of errors, such as network errors, inherently mean that a response was not received. In that case, the error will be an instance of `NetworkError` instead of `HTTPError`.
+If the request received a response, the error will be of type `HTTPError`. The `Response` object will be available at `error.response`, and the pre-parsed response body may be available at `error.data`. Be aware that some types of errors, such as network errors, inherently mean that a response was not received. In that case, the error will be an instance of `NetworkError` instead of `HTTPError`.
 
 You can prevent Ky from retrying the request by throwing an error. Ky will not handle it in any way and the error will be propagated to the request initiator. The rest of the `beforeRetry` hooks will not be called in this case. Alternatively, you can return the [`ky.stop`](#kystop) symbol to do the same thing but without propagating an error (this has some limitations, see `ky.stop` docs for details).
 
@@ -1241,7 +1243,7 @@ try {
 
 Exposed for `instanceof` checks. The error has a `response` property with the [`Response` object](https://developer.mozilla.org/en-US/docs/Web/API/Response), `request` property with the [`Request` object](https://developer.mozilla.org/en-US/docs/Web/API/Request), and `options` property with normalized options (either passed to `ky` when creating an instance with `ky.create()` or directly when performing the request).
 
-It also has a `data` property with the pre-parsed response body. For JSON responses (based on `Content-Type`), the body is parsed using the [`parseJson` option](#parsejson) if set, or `JSON.parse` by default. For other content types, it is set as plain text. If the body is empty or parsing fails, `data` will be `undefined`. To avoid hanging or excessive buffering, `error.data` population is bounded by the request timeout and a 10 MiB response body size limit. The `data` property is populated before [`beforeError`](#hooks) hooks run, so hooks can access it.
+It also has a `data` property with the pre-parsed response body. For JSON responses (based on `Content-Type`), the body is parsed using the [`parseJson` option](#parsejson) if set, or `JSON.parse` by default. For other content types, it is set as plain text. If the body is empty, unreadable, too large, parsing fails, or the error-data read/parse timeout is reached, `data` will be `undefined`. To avoid hanging or excessive buffering, `error.data` body reads and async JSON parsing are bounded by the request timeout (or 10 seconds when `timeout` is disabled), any remaining `totalTimeout` budget, and a 10 MiB response body size limit. If `totalTimeout` expires while populating `error.data`, Ky throws `TimeoutError` instead of `HTTPError`. The `data` property is populated before [`beforeError`](#hooks) hooks run, so hooks can access it.
 
 Be aware that some types of errors, such as network errors, inherently mean that a response was not received. In that case, the error will be an instance of [`NetworkError`](#networkerror) instead of `HTTPError` and will not contain a `response` property.
 

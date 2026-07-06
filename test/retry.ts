@@ -1,5 +1,6 @@
+import process from 'node:process';
 import {setTimeout as delay} from 'node:timers/promises';
-import test from 'ava';
+import test, {type ExecutionContext} from 'ava';
 import ky, {
 	NetworkError,
 	TimeoutError,
@@ -14,6 +15,73 @@ const fixture = 'fixture';
 const defaultRetryCount = 2;
 const retryAfterOn500 = 2;
 const retryAfterOn413 = 2;
+const retryAfterTimestampText = '1704067200';
+const retryAfterTimestampScheduledDelay = 2_147_483_647;
+const httpDateDayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const httpDateLongDayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+const httpDateMonths = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+const formatHttpTime = (date: Date) => [
+	date.getUTCHours(),
+	date.getUTCMinutes(),
+	date.getUTCSeconds(),
+].map(value => value.toString().padStart(2, '0')).join(':');
+
+const formatAsctimeDate = (date: Date) => {
+	const day = date.getUTCDate().toString().padStart(2, ' ');
+
+	return `${httpDateDayNames[date.getUTCDay()]} ${httpDateMonths[date.getUTCMonth()]} ${day} ${formatHttpTime(date)} ${date.getUTCFullYear()}`;
+};
+
+const formatRfc850Date = (date: Date) => {
+	const day = date.getUTCDate().toString().padStart(2, '0');
+	const year = (date.getUTCFullYear() % 100).toString().padStart(2, '0');
+
+	return `${httpDateLongDayNames[date.getUTCDay()]}, ${day}-${httpDateMonths[date.getUTCMonth()]}-${year} ${formatHttpTime(date)} GMT`;
+};
+
+const withCapturedTimeouts = async (body: (scheduledDelays: number[]) => Promise<void>) => {
+	const originalSetTimeout = globalThis.setTimeout;
+	const scheduledDelays: number[] = [];
+
+	globalThis.setTimeout = ((handler, delayMs, ...arguments_) => {
+		if (typeof delayMs === 'number') {
+			scheduledDelays.push(delayMs);
+		}
+
+		const testDelayMs = typeof delayMs === 'number' && delayMs > 1_000_000 ? 0 : delayMs;
+		return originalSetTimeout(handler, testDelayMs, ...arguments_);
+	}) as typeof globalThis.setTimeout;
+
+	try {
+		await body(scheduledDelays);
+	} finally {
+		globalThis.setTimeout = originalSetTimeout;
+	}
+};
+
+const createSingleRetryHeaderServer = async (t: ExecutionContext, headers: Record<string, string | number>) => {
+	let requestCount = 0;
+
+	const server = await createHttpTestServer(t);
+	server.get('/', (_request, response) => {
+		requestCount++;
+		if (requestCount === 2) {
+			response.end(fixture);
+			return;
+		}
+
+		response.writeHead(429, headers);
+		response.end('');
+	});
+
+	return {
+		server,
+		get requestCount() {
+			return requestCount;
+		},
+	};
+};
 
 test('network error', async t => {
 	let requestCount = 0;
@@ -156,7 +224,306 @@ test('respect Retry-After: 0 and retry immediately', async t => {
 	t.is(requestCount, 5);
 });
 
-test('RateLimit-Reset is treated the same as Retry-After', async t => {
+test.serial('Retry-After number is treated as delay seconds, not timestamp', async t => {
+	const retryServer = await createSingleRetryHeaderServer(t, {
+		'Retry-After': retryAfterTimestampText,
+	});
+
+	await withCapturedTimeouts(async scheduledDelays => {
+		t.is(await ky(retryServer.server.url, {
+			retry: {
+				limit: 1,
+			},
+		}).text(), fixture);
+
+		t.true(scheduledDelays.includes(retryAfterTimestampScheduledDelay));
+	});
+
+	t.is(retryServer.requestCount, 2);
+});
+
+test.serial('invalid Retry-After number 0x10 falls back to retry delay', async t => {
+	const retryServer = await createSingleRetryHeaderServer(t, {
+		'Retry-After': '0x10',
+	});
+
+	await withCapturedTimeouts(async scheduledDelays => {
+		t.is(await ky(retryServer.server.url, {
+			timeout: false,
+			retry: {
+				limit: 1,
+				delay: () => 10,
+			},
+		}).text(), fixture);
+
+		t.true(scheduledDelays.includes(10));
+	});
+
+	t.is(retryServer.requestCount, 2);
+});
+
+test.serial('X-RateLimit-Retry-After number is treated as delay seconds, not timestamp', async t => {
+	const retryServer = await createSingleRetryHeaderServer(t, {
+		'X-RateLimit-Retry-After': retryAfterTimestampText,
+	});
+
+	await withCapturedTimeouts(async scheduledDelays => {
+		t.is(await ky(retryServer.server.url, {
+			retry: {
+				limit: 1,
+			},
+		}).text(), fixture);
+
+		t.true(scheduledDelays.includes(retryAfterTimestampScheduledDelay));
+	});
+
+	t.is(retryServer.requestCount, 2);
+});
+
+test.serial('Retry-After takes precedence over RateLimit-Reset', async t => {
+	const retryServer = await createSingleRetryHeaderServer(t, {
+		'Retry-After': '1',
+		'RateLimit-Reset': retryAfterTimestampText,
+	});
+
+	await withCapturedTimeouts(async scheduledDelays => {
+		t.is(await ky(retryServer.server.url, {
+			retry: {
+				limit: 1,
+			},
+		}).text(), fixture);
+
+		t.true(scheduledDelays.includes(1000));
+		t.false(scheduledDelays.includes(retryAfterTimestampScheduledDelay));
+	});
+
+	t.is(retryServer.requestCount, 2);
+});
+
+test.serial('invalid Retry-After does not fall back to RateLimit-Reset', async t => {
+	const retryServer = await createSingleRetryHeaderServer(t, {
+		'Retry-After': '1e3',
+		'RateLimit-Reset': retryAfterTimestampText,
+	});
+
+	await withCapturedTimeouts(async scheduledDelays => {
+		t.is(await ky(retryServer.server.url, {
+			retry: {
+				limit: 1,
+				delay: () => 23,
+			},
+		}).text(), fixture);
+
+		t.true(scheduledDelays.includes(23));
+		t.false(scheduledDelays.includes(retryAfterTimestampScheduledDelay));
+	});
+
+	t.is(retryServer.requestCount, 2);
+});
+
+test.serial('empty Retry-After does not fall back to RateLimit-Reset', async t => {
+	const retryServer = await createSingleRetryHeaderServer(t, {
+		'Retry-After': '',
+		'RateLimit-Reset': retryAfterTimestampText,
+	});
+
+	await withCapturedTimeouts(async scheduledDelays => {
+		t.is(await ky(retryServer.server.url, {
+			retry: {
+				limit: 1,
+				delay: () => 31,
+			},
+		}).text(), fixture);
+
+		t.true(scheduledDelays.includes(31));
+		t.false(scheduledDelays.includes(retryAfterTimestampScheduledDelay));
+	});
+
+	t.is(retryServer.requestCount, 2);
+});
+
+test.serial('non-standard Retry-After date falls back to retry delay', async t => {
+	const retryServer = await createSingleRetryHeaderServer(t, {
+		'Retry-After': 'Sun Nov 06 1994 08:49:37 GMT',
+	});
+
+	await withCapturedTimeouts(async scheduledDelays => {
+		t.is(await ky(retryServer.server.url, {
+			retry: {
+				limit: 1,
+				delay: () => 29,
+			},
+		}).text(), fixture);
+
+		t.true(scheduledDelays.includes(29));
+	});
+
+	t.is(retryServer.requestCount, 2);
+});
+
+for (const [dateFormat, formatDate] of [
+	['RFC 850', formatRfc850Date],
+	['asctime', formatAsctimeDate],
+] as const) {
+	test.serial(`Retry-After supports obsolete HTTP-date format: ${dateFormat}`, async t => {
+		const retryAfterDate = formatDate(new Date(Date.now() + 2_000_000));
+		const retryServer = await createSingleRetryHeaderServer(t, {
+			'Retry-After': retryAfterDate,
+		});
+
+		await withCapturedTimeouts(async scheduledDelays => {
+			t.is(await ky(retryServer.server.url, {
+				retry: {
+					limit: 1,
+					delay: () => 13,
+				},
+			}).text(), fixture);
+
+			t.true(scheduledDelays.some(delay => delay > 1_000_000));
+			t.false(scheduledDelays.includes(13));
+		});
+
+		t.is(retryServer.requestCount, 2);
+	});
+}
+
+test.serial('Retry-After asctime HTTP-date is parsed as GMT', async t => {
+	const retryAfterDate = formatAsctimeDate(new Date(Date.now() + 2_000_000));
+	const retryServer = await createSingleRetryHeaderServer(t, {
+		'Retry-After': retryAfterDate,
+	});
+
+	const timeZone = process.env.TZ;
+	try {
+		process.env.TZ = 'Pacific/Kiritimati';
+		await withCapturedTimeouts(async scheduledDelays => {
+			t.is(await ky(retryServer.server.url, {
+				retry: {
+					limit: 1,
+					delay: () => 13,
+				},
+			}).text(), fixture);
+
+			t.true(scheduledDelays.some(delay => delay > 1_000_000));
+			t.false(scheduledDelays.includes(13));
+		});
+	} finally {
+		if (timeZone === undefined) {
+			delete process.env.TZ;
+		} else {
+			process.env.TZ = timeZone;
+		}
+	}
+
+	t.is(retryServer.requestCount, 2);
+});
+
+test.serial('Retry-After HTTP-date supports a leap second', async t => {
+	const now = Date.now();
+	const retryAfterInstant = new Date(now + 2_000_000);
+	retryAfterInstant.setUTCSeconds(59, 0);
+	const day = retryAfterInstant.getUTCDate().toString().padStart(2, '0');
+	const hours = retryAfterInstant.getUTCHours().toString().padStart(2, '0');
+	const minutes = retryAfterInstant.getUTCMinutes().toString().padStart(2, '0');
+	const dayName = httpDateDayNames[retryAfterInstant.getUTCDay()];
+	const month = httpDateMonths[retryAfterInstant.getUTCMonth()];
+	const retryAfterDate = `${dayName}, ${day} ${month} ${retryAfterInstant.getUTCFullYear()} ${hours}:${minutes}:60 GMT`;
+	const expectedDelay = retryAfterInstant.getTime() + 1000 - now;
+
+	const retryServer = await createSingleRetryHeaderServer(t, {
+		'Retry-After': retryAfterDate,
+	});
+
+	const dateNow = Date.now;
+	try {
+		Date.now = () => now;
+		await withCapturedTimeouts(async scheduledDelays => {
+			t.is(await ky(retryServer.server.url, {
+				retry: {
+					limit: 1,
+					delay: () => 13,
+				},
+			}).text(), fixture);
+
+			t.true(scheduledDelays.includes(expectedDelay));
+			t.false(scheduledDelays.includes(expectedDelay - 1000));
+			t.false(scheduledDelays.includes(13));
+		});
+	} finally {
+		Date.now = dateNow;
+	}
+
+	t.is(retryServer.requestCount, 2);
+});
+
+test.serial('Retry-After RFC 850 HTTP-date applies the two-digit year rule', async t => {
+	const retryAfterDate = new Date(Date.now() + 2000);
+	retryAfterDate.setUTCFullYear(retryAfterDate.getUTCFullYear() + 49);
+
+	const retryServer = await createSingleRetryHeaderServer(t, {
+		'Retry-After': formatRfc850Date(retryAfterDate),
+	});
+
+	await withCapturedTimeouts(async scheduledDelays => {
+		t.is(await ky(retryServer.server.url, {
+			retry: {
+				limit: 1,
+				delay: () => 13,
+			},
+		}).text(), fixture);
+
+		t.true(scheduledDelays.some(delay => delay > 1_000_000));
+		t.false(scheduledDelays.includes(13));
+	});
+
+	t.is(retryServer.requestCount, 2);
+});
+
+test.serial('Retry-After RFC 850 HTTP-date more than 50 years in the future is interpreted as past', async t => {
+	const retryAfterDate = new Date(Date.now() + 2000);
+	retryAfterDate.setUTCFullYear(retryAfterDate.getUTCFullYear() + 51);
+
+	const retryServer = await createSingleRetryHeaderServer(t, {
+		'Retry-After': formatRfc850Date(retryAfterDate),
+	});
+
+	await withCapturedTimeouts(async scheduledDelays => {
+		t.is(await ky(retryServer.server.url, {
+			retry: {
+				limit: 1,
+				delay: () => 13,
+				maxRetryAfter: 1,
+			},
+		}).text(), fixture);
+
+		t.true(scheduledDelays.includes(0));
+		t.false(scheduledDelays.includes(1));
+		t.false(scheduledDelays.includes(13));
+	});
+
+	t.is(retryServer.requestCount, 2);
+});
+
+test.serial('invalid Retry-After HTTP-date components fall back to retry delay', async t => {
+	const retryServer = await createSingleRetryHeaderServer(t, {
+		'Retry-After': 'Sun, 32 Dec 2030 25:99:99 GMT',
+	});
+
+	await withCapturedTimeouts(async scheduledDelays => {
+		t.is(await ky(retryServer.server.url, {
+			retry: {
+				limit: 1,
+				delay: () => 17,
+			},
+		}).text(), fixture);
+
+		t.true(scheduledDelays.includes(17));
+	});
+
+	t.is(retryServer.requestCount, 2);
+});
+
+test('RateLimit-Reset delay seconds are respected like Retry-After', async t => {
 	let requestCount = 0;
 
 	const server = await createHttpTestServer(t);
@@ -186,7 +553,8 @@ test('RateLimit-Reset is treated the same as Retry-After', async t => {
 	t.is(requestCount, 3);
 });
 
-test('RateLimit-Reset with time since epoch', async t => {
+test.serial('RateLimit-Reset with time since epoch', async t => {
+	const now = Date.UTC(2026, 0, 1);
 	let requestCount = 0;
 
 	const server = await createHttpTestServer(t);
@@ -196,26 +564,104 @@ test('RateLimit-Reset with time since epoch', async t => {
 		if (requestCount === defaultRetryCount + 1) {
 			response.end(fixture);
 		} else {
-			const twoSecondsByDelta = 2;
-			const oneSecondByEpoch = (Date.now() / 1000) + 1;
+			const oneSecondByDelta = 1;
+			const threeSecondsByEpoch = (now / 1000) + 3;
 			response.writeHead(429, {
-				'RateLimit-Reset': (requestCount < 2) ? twoSecondsByDelta : oneSecondByEpoch,
+				'RateLimit-Reset': (requestCount < 2) ? oneSecondByDelta : threeSecondsByEpoch,
 			});
 
 			response.end('');
 		}
 	});
 
-	await withPerformance({
-		t,
-		expectedDuration: 2000 + 1000,
-		async test() {
+	const dateNow = Date.now;
+	try {
+		Date.now = () => now;
+		await withCapturedTimeouts(async scheduledDelays => {
 			t.is(await ky(server.url).text(), fixture);
-		},
-	});
+
+			t.true(scheduledDelays.includes(1000));
+			t.true(scheduledDelays.includes(3000));
+			t.true(scheduledDelays.indexOf(1000) < scheduledDelays.indexOf(3000));
+			t.false(scheduledDelays.includes(retryAfterTimestampScheduledDelay));
+		});
+	} finally {
+		Date.now = dateNow;
+	}
 
 	t.is(requestCount, 3);
 });
+
+test.serial('empty RateLimit-Reset falls back to retry delay', async t => {
+	const retryServer = await createSingleRetryHeaderServer(t, {
+		'RateLimit-Reset': '',
+	});
+
+	await withCapturedTimeouts(async scheduledDelays => {
+		t.is(await ky(retryServer.server.url, {
+			retry: {
+				limit: 1,
+				delay: () => 37,
+			},
+		}).text(), fixture);
+
+		t.true(scheduledDelays.includes(37));
+	});
+
+	t.is(retryServer.requestCount, 2);
+});
+
+test.serial('empty RateLimit-Reset does not fall back to lower-priority reset alias', async t => {
+	const retryServer = await createSingleRetryHeaderServer(t, {
+		'RateLimit-Reset': '',
+		'X-RateLimit-Reset': retryAfterTimestampText,
+	});
+
+	await withCapturedTimeouts(async scheduledDelays => {
+		t.is(await ky(retryServer.server.url, {
+			retry: {
+				limit: 1,
+				delay: () => 41,
+			},
+		}).text(), fixture);
+
+		t.true(scheduledDelays.includes(41));
+		t.false(scheduledDelays.includes(retryAfterTimestampScheduledDelay));
+	});
+
+	t.is(retryServer.requestCount, 2);
+});
+
+for (const rateLimitResetHeader of ['X-RateLimit-Reset', 'X-Rate-Limit-Reset']) {
+	test.serial(`${rateLimitResetHeader} supports time since epoch`, async t => {
+		const now = Date.UTC(2026, 0, 1);
+		const retryServer = await createSingleRetryHeaderServer(t, {
+			[rateLimitResetHeader]: (now / 1000) + 2,
+		});
+
+		const dateNow = Date.now;
+		try {
+			Date.now = () => now;
+			await withCapturedTimeouts(async scheduledDelays => {
+				t.is(await ky(retryServer.server.url, {
+					retry: {
+						limit: 1,
+						delay: () => 7,
+						maxRetryAfter: 3500,
+					},
+				}).text(), fixture);
+
+				t.true(scheduledDelays.includes(2000));
+				t.false(scheduledDelays.includes(3500));
+				t.false(scheduledDelays.includes(7));
+			});
+		} finally {
+			Date.now = dateNow;
+		}
+
+		t.is(retryServer.requestCount, 2);
+	});
+}
 
 test('respect 413 Retry-After', async t => {
 	const startTime = Date.now();
@@ -240,7 +686,7 @@ test('respect 413 Retry-After', async t => {
 	t.is(requestCount, retryAfterOn413 + 1);
 });
 
-test('respect 413 Retry-After with timestamp', async t => {
+test('respect 413 Retry-After with HTTP date', async t => {
 	const startTime = Date.now();
 	let requestCount = 0;
 
@@ -300,6 +746,31 @@ test('respect custom `afterStatusCodes` (500) with Retry-After header', async t 
 	const timeElapsedInMs = Number(await ky(server.url, {retry: {afterStatusCodes: [500]}}).text());
 	t.true(timeElapsedInMs >= retryAfterOn500 * 1000);
 	t.is(requestCount, retryAfterOn500 + 1);
+});
+
+test('custom `afterStatusCodes` does not retry statuses missing from `statusCodes`', async t => {
+	let requestCount = 0;
+
+	const server = await createHttpTestServer(t);
+	server.get('/', (_request, response) => {
+		requestCount++;
+		response.writeHead(400, {
+			'Retry-After': 1,
+		});
+		response.end('');
+	});
+
+	await t.throwsAsync(
+		ky(server.url, {
+			retry: {
+				afterStatusCodes: [400],
+			},
+		}).text(),
+		{
+			message: /Bad Request/,
+		},
+	);
+	t.is(requestCount, 1);
 });
 
 test('respect number of retries', async t => {
@@ -419,7 +890,7 @@ test('respect maxRetryAfter', async t => {
 	t.is(requestCount, 5);
 });
 
-test('invalid Retry-After header falls back to retry delay', async t => {
+test.serial('invalid Retry-After header falls back to retry delay', async t => {
 	let requestCount = 0;
 
 	const server = await createHttpTestServer(t);
@@ -436,20 +907,54 @@ test('invalid Retry-After header falls back to retry delay', async t => {
 		response.end(fixture);
 	});
 
-	const result = await Promise.race([
-		ky(server.url, {
+	await withCapturedTimeouts(async scheduledDelays => {
+		t.is(await ky(server.url, {
 			timeout: false,
 			retry: {
 				limit: 1,
-				delay: () => 10,
+				delay: () => 50,
+				maxRetryAfter: 10,
 			},
-		}).text(),
-		delay(2000).then(() => {
-			throw new Error('Retry took too long');
-		}),
-	]);
+		}).text(), fixture);
 
-	t.is(result, fixture);
+		t.true(scheduledDelays.includes(50));
+		t.false(scheduledDelays.includes(10));
+	});
+
+	t.is(requestCount, 2);
+});
+
+test.serial('invalid 413 Retry-After header falls back to retry delay', async t => {
+	let requestCount = 0;
+
+	const server = await createHttpTestServer(t);
+	server.get('/', (_request, response) => {
+		requestCount++;
+		if (requestCount === 1) {
+			response.writeHead(413, {
+				'Retry-After': 'not-a-valid-value',
+			});
+			response.end('');
+			return;
+		}
+
+		response.end(fixture);
+	});
+
+	await withCapturedTimeouts(async scheduledDelays => {
+		t.is(await ky(server.url, {
+			timeout: false,
+			retry: {
+				limit: 1,
+				delay: () => 50,
+				maxRetryAfter: 10,
+			},
+		}).text(), fixture);
+
+		t.true(scheduledDelays.includes(50));
+		t.false(scheduledDelays.includes(10));
+	});
+
 	t.is(requestCount, 2);
 });
 
@@ -1269,9 +1774,9 @@ test('shouldRetry: custom business logic with HTTPError', async t => {
 	server.get('/', (_request, response) => {
 		requestCount++;
 		if (requestCount === 1) {
-			response.sendStatus(429); // Rate limit
+			response.sendStatus(400);
 		} else if (requestCount === 2) {
-			response.sendStatus(500); // Server error
+			response.sendStatus(500);
 		} else {
 			response.end(fixture);
 		}
@@ -1284,12 +1789,10 @@ test('shouldRetry: custom business logic with HTTPError', async t => {
 				const {HTTPError} = await import('../source/index.js');
 				if (error instanceof HTTPError) {
 					const {status} = error.response;
-					// Retry on 429 but only first attempt
-					if (status === 429 && retryCount <= 1) {
+					if (status === 400 && retryCount <= 1) {
 						return true;
 					}
 
-					// Don't retry on 4xx
 					if (status >= 400 && status < 500) {
 						return false;
 					}
@@ -1417,36 +1920,6 @@ test('Retry-After delay is bounded by totalTimeout budget', async t => {
 	t.is(requestCount, 1);
 });
 
-test('Retry-After timestamp delay is bounded by totalTimeout budget', async t => {
-	let requestCount = 0;
-	const server = await createHttpTestServer(t);
-	server.get('/', (_request, response) => {
-		requestCount++;
-		const timestamp = Math.ceil(Date.now() / 1000) + 5;
-		response.writeHead(429, {
-			'Retry-After': timestamp,
-		});
-		response.end('');
-	});
-
-	let timeoutError: Error | undefined;
-	await withPerformance({
-		t,
-		expectedDuration: 1000,
-		async test() {
-			timeoutError = await t.throwsAsync(ky(server.url, {
-				totalTimeout: 1000,
-				retry: {
-					limit: 15,
-				},
-			}).text());
-		},
-	});
-
-	t.is(timeoutError?.name, 'TimeoutError');
-	t.is(requestCount, 1);
-});
-
 test('shouldRetry: precedence over retryOnTimeout', async t => {
 	let requestCount = 0;
 
@@ -1482,7 +1955,7 @@ test('shouldRetry: works with synchronous function', async t => {
 	server.get('/', (_request, response) => {
 		requestCount++;
 		if (requestCount <= 2) {
-			response.sendStatus(500);
+			response.sendStatus(400);
 		} else {
 			response.end(fixture);
 		}
@@ -1621,7 +2094,7 @@ test('shouldRetry: handles Promise return value correctly', async t => {
 	server.get('/', (_request, response) => {
 		requestCount++;
 		if (requestCount <= 2) {
-			response.sendStatus(500);
+			response.sendStatus(400);
 		} else {
 			response.end(fixture);
 		}
@@ -1716,6 +2189,7 @@ test('totalTimeout with timeout: false - exceeds total budget', async t => {
 test('totalTimeout bounds hanging HTTPError body reads when timeout is disabled', async t => {
 	t.timeout(2000);
 	let requestCount = 0;
+	let hookError: Error | undefined;
 
 	const customFetch: typeof fetch = async () => {
 		requestCount++;
@@ -1736,20 +2210,29 @@ test('totalTimeout bounds hanging HTTPError body reads when timeout is disabled'
 		ky('https://example.com', {
 			fetch: customFetch,
 			timeout: false,
-			totalTimeout: 50,
+			totalTimeout: 250,
 			retry: {
 				limit: 5,
 				delay: () => 0,
 			},
+			hooks: {
+				beforeError: [
+					({error}) => {
+						hookError = error;
+						error.message = 'http-error-body-timeout-beforeError';
+						return error;
+					},
+				],
+			},
 		}).text(),
 		{
 			name: 'TimeoutError',
+			message: 'http-error-body-timeout-beforeError',
 		},
 	);
 
-	// `totalTimeout` starts when the Ky pipeline is created, so very slow CI can exhaust the
-	// budget before the first fetch attempt begins.
-	t.true(requestCount >= 0 && requestCount <= 1);
+	t.is(requestCount, 1);
+	t.true(hookError instanceof TimeoutError);
 });
 
 test('totalTimeout bounds hanging HTTPError body reads when timeout is larger', async t => {
@@ -1775,7 +2258,7 @@ test('totalTimeout bounds hanging HTTPError body reads when timeout is larger', 
 		ky('https://example.com', {
 			fetch: customFetch,
 			timeout: 1000,
-			totalTimeout: 50,
+			totalTimeout: 250,
 			retry: {
 				limit: 5,
 				delay: () => 0,
@@ -1786,8 +2269,53 @@ test('totalTimeout bounds hanging HTTPError body reads when timeout is larger', 
 		},
 	);
 
-	// `totalTimeout` starts when the Ky pipeline is created, so very slow CI can exhaust the budget before the first fetch attempt begins.
-	t.true(requestCount >= 0 && requestCount <= 1);
+	t.is(requestCount, 1);
+});
+
+test.serial('totalTimeout is rechecked after per-attempt HTTPError body timeout', async t => {
+	t.timeout(2000);
+	const originalPerformanceNow = globalThis.performance.now;
+	let performanceNowCallCount = 0;
+	let requestCount = 0;
+
+	const customFetch: typeof fetch = async () => {
+		requestCount++;
+
+		const body = new ReadableStream<Uint8Array>({
+			start(controller) {
+				controller.enqueue(new TextEncoder().encode('{"error":"partial"'));
+			},
+		});
+
+		return new Response(body, {
+			status: 500,
+			headers: {'content-type': 'application/json'},
+		});
+	};
+
+	globalThis.performance.now = () => {
+		performanceNowCallCount++;
+		return performanceNowCallCount < 4 ? 0 : 100;
+	};
+
+	try {
+		await t.throwsAsync(
+			ky('https://example.com', {
+				fetch: customFetch,
+				timeout: 50,
+				totalTimeout: 51,
+				retry: 0,
+			}).text(),
+			{
+				name: 'TimeoutError',
+			},
+		);
+	} finally {
+		globalThis.performance.now = originalPerformanceNow;
+	}
+
+	t.is(requestCount, 1);
+	t.true(performanceNowCallCount >= 4);
 });
 
 test('totalTimeout bounds hanging HTTPError parseJson when timeout is disabled', async t => {
@@ -1806,7 +2334,7 @@ test('totalTimeout bounds hanging HTTPError parseJson when timeout is disabled',
 		ky('https://example.com', {
 			fetch: customFetch,
 			timeout: false,
-			totalTimeout: 50,
+			totalTimeout: 250,
 			parseJson: async () => new Promise<never>(() => {
 				// Intentionally never settles
 			}),
@@ -1820,8 +2348,7 @@ test('totalTimeout bounds hanging HTTPError parseJson when timeout is disabled',
 		},
 	);
 
-	// `totalTimeout` starts when the Ky pipeline is created, so very slow CI can exhaust the budget before the first fetch attempt begins.
-	t.true(requestCount >= 0 && requestCount <= 1);
+	t.is(requestCount, 1);
 });
 
 test('totalTimeout smaller than timeout - effective timeout is capped', async t => {
@@ -1925,7 +2452,7 @@ test('totalTimeout caps total time while timeout caps each attempt', async t => 
 		ky('https://example.com', {
 			fetch: customFetch,
 			timeout: 300,
-			totalTimeout: 500,
+			totalTimeout: 800,
 			retry: {
 				limit: 10,
 				delay: () => 0,
@@ -1936,8 +2463,7 @@ test('totalTimeout caps total time while timeout caps each attempt', async t => 
 		},
 	);
 
-	// Each attempt takes ~200ms. Within 500ms totalTimeout, at most 2-3 attempts fit.
-	t.true(requestCount >= 2 && requestCount <= 3);
+	t.true(requestCount >= 2 && requestCount < 10, `Expected totalTimeout to allow retries but cap below the retry limit, got ${requestCount}`);
 });
 
 test('totalTimeout works with ky.create()', async t => {
@@ -1970,6 +2496,7 @@ test('totalTimeout can be overridden via extend()', async t => {
 
 	const customFetch: typeof fetch = async () => {
 		requestCount++;
+		await delay(10);
 		if (requestCount <= 2) {
 			return new Response('', {status: 500});
 		}
@@ -1979,7 +2506,7 @@ test('totalTimeout can be overridden via extend()', async t => {
 
 	const parent = ky.create({
 		fetch: customFetch,
-		totalTimeout: 100,
+		totalTimeout: 1,
 		retry: {
 			limit: 3,
 			delay: () => 0,
@@ -2038,7 +2565,7 @@ test('totalTimeout with retryOnTimeout: true caps total time across retries', as
 		ky('https://example.com', {
 			fetch: customFetch,
 			timeout: 100,
-			totalTimeout: 1000,
+			totalTimeout: 2000,
 			retry: {
 				limit: 30,
 				retryOnTimeout: true,
@@ -2050,11 +2577,7 @@ test('totalTimeout with retryOnTimeout: true caps total time across retries', as
 		},
 	);
 
-	// Each attempt times out at ~100ms, so many attempts fit within the 1000ms totalTimeout.
-	// The exact count is timing-dependent (slow CI runs fewer), so we only assert the invariant:
-	// it retried at least once, and totalTimeout stopped it well before the retry limit.
-	t.true(requestCount >= 2, `Expected at least 2 attempts, got ${requestCount}`);
-	t.true(requestCount < 30, `Expected totalTimeout to cap below the retry limit, got ${requestCount}`);
+	t.true(requestCount >= 2 && requestCount < 30, `Expected retryOnTimeout to retry but totalTimeout to cap below the retry limit, got ${requestCount}`);
 });
 
 test('NetworkError wraps fetch network errors', async t => {
