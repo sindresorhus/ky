@@ -916,7 +916,7 @@ test('totalTimeout bounds a never-ending successful response body', async t => {
 	await t.throwsAsync(ky('https://example.com', {
 		fetch: customFetch,
 		timeout: false,
-		totalTimeout: 50,
+		totalTimeout: 500,
 	}).text(), {
 		instanceOf: TimeoutError,
 	});

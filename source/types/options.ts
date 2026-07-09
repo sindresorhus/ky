@@ -172,6 +172,8 @@ export type KyOptions = {
 
 	If `retry` is a number, it will be used as `limit` and other defaults will remain in place.
 
+	`retry.limit`, including numeric shorthand, must be a finite, non-negative integer.
+
 	Network errors (e.g., DNS failures, connection refused, offline) are automatically retried for retriable methods. Only errors recognized as network errors are retried; other errors (e.g., programming bugs) are thrown immediately. Use `shouldRetry` to customize this behavior.
 
 	`413 Payload Too Large` is only retried when the response includes a retry timing header.
@@ -206,6 +208,8 @@ export type KyOptions = {
 
 	/**
 	Overall timeout in milliseconds for the entire operation, including retries and delays. Throws a `TimeoutError` if exceeded. Cannot be greater than 2147483647.
+
+	`beforeError` hooks run after an error is produced and are not bounded by `totalTimeout`.
 
 	If set to `false` or not specified, there is no overall timeout.
 
@@ -444,13 +448,15 @@ export interface Options extends KyOptions, Omit<RequestInit, 'headers'> { // es
 	headers?: KyHeadersInit;
 }
 
+type NormalizedRetryOptions = Required<Omit<RetryOptions, 'shouldRetry'>> & Pick<RetryOptions, 'shouldRetry'>;
+
 export type InternalOptions = Required<
 	Omit<Options, 'hooks' | 'retry' | 'context' | 'throwHttpErrors'>,
-'fetch' | 'prefix' | 'timeout' | 'totalTimeout'
+	'fetch' | 'prefix' | 'timeout' | 'totalTimeout'
 > & {
 	headers: Required<Headers>;
 	hooks: Required<Hooks>;
-	retry: Required<Omit<RetryOptions, 'shouldRetry'>> & Pick<RetryOptions, 'shouldRetry'>;
+	retry: NormalizedRetryOptions;
 	prefix: string;
 	context: Record<string, unknown>;
 	throwHttpErrors: boolean | ((status: number) => boolean);
@@ -459,18 +465,19 @@ export type InternalOptions = Required<
 /**
 Normalized options passed to the `fetch` call and hooks.
 */
-export interface NormalizedOptions extends RequestInit { // eslint-disable-line @typescript-eslint/consistent-type-definitions -- This must stay an interface so that it can be extended outside of Ky for use in `ky.create`.
+export interface NormalizedOptions extends Readonly<RequestInit> { // eslint-disable-line @typescript-eslint/consistent-type-definitions -- This must stay an interface so that it can be extended outside of Ky for use in `ky.create`.
 	// Extended from `RequestInit`, but ensured to be set (not optional).
-	method: NonNullable<RequestInit['method']>;
-	credentials?: NonNullable<RequestInit['credentials']>;
+	readonly method: NonNullable<RequestInit['method']>;
+	readonly credentials?: NonNullable<RequestInit['credentials']>;
+	readonly headers: Headers;
 
 	// Extended from custom `KyOptions`, but ensured to be set (not optional).
-	retry: RetryOptions;
-	baseUrl?: Options['baseUrl'];
-	prefix: string;
-	onDownloadProgress: Options['onDownloadProgress'];
-	onUploadProgress: Options['onUploadProgress'];
-	context: Record<string, unknown>;
+	readonly retry: NormalizedRetryOptions;
+	readonly baseUrl?: Options['baseUrl'];
+	readonly prefix: string;
+	readonly onDownloadProgress?: NonNullable<Options['onDownloadProgress']>;
+	readonly onUploadProgress?: NonNullable<Options['onUploadProgress']>;
+	readonly context: Record<string, unknown>;
 }
 
 export type {RetryOptions, ShouldRetryState} from './retry.js';

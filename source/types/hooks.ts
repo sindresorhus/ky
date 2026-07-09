@@ -29,7 +29,7 @@ export type InitHook = (options: Options) => void;
 
 export type BeforeRequestState = {
 	request: KyRequest;
-	options: NormalizedOptions;
+	options: Readonly<NormalizedOptions>;
 
 	/**
 	The number of retries attempted. Always `0`, since `beforeRequest` hooks run once before retry handling begins.
@@ -41,7 +41,7 @@ export type BeforeRequestHook = (state: BeforeRequestState) => Request | Respons
 
 export type BeforeRetryState = {
 	request: KyRequest;
-	options: NormalizedOptions;
+	options: Readonly<NormalizedOptions>;
 	error: Error;
 
 	/**
@@ -54,7 +54,7 @@ export type BeforeRetryHook = (state: BeforeRetryState) => Request | Response | 
 
 export type BeforeErrorState = {
 	request: KyRequest;
-	options: NormalizedOptions;
+	options: Readonly<NormalizedOptions>;
 
 	// `Error` (not `KyError`) because this receives all errors, including non-Ky ones.
 	error: Error;
@@ -72,7 +72,7 @@ export type BeforeErrorHook = (state: BeforeErrorState) => Error | Promise<Error
 
 export type AfterResponseState = {
 	request: KyRequest;
-	options: NormalizedOptions;
+	options: Readonly<NormalizedOptions>;
 	response: KyResponse;
 
 	/**

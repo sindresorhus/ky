@@ -22,7 +22,7 @@
 		"node": ">=22"
 	},
 	"scripts": {
-		"test": "xo && npm run build && ava",
+		"test": "xo && npm run build && tsc --project tsconfig.test.json && ava",
 		"debug": "PWDEBUG=1 ava --timeout=2m",
 		"release": "np",
 		"build": "del-cli distribution && tsc --project tsconfig.dist.json",

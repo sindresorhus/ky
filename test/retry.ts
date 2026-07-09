@@ -795,6 +795,209 @@ test('respect number of retries', async t => {
 	t.is(requestCount, 4);
 });
 
+test('rejects invalid retry limits', t => {
+	for (const limit of [Number.NaN, Number.POSITIVE_INFINITY, -1, 1.5]) {
+		t.throws(() => {
+			void ky('https://example.com', {
+				retry: {
+					limit,
+				},
+			});
+		}, {
+			instanceOf: TypeError,
+			message: '`retry.limit` must be a finite, non-negative integer',
+		});
+
+		t.throws(() => {
+			void ky('https://example.com', {retry: limit});
+		}, {
+			instanceOf: TypeError,
+			message: '`retry.limit` must be a finite, non-negative integer',
+		});
+	}
+});
+
+test('rejects non-number retry limits', t => {
+	for (const limit of ['NaN', true, null]) {
+		t.throws(() => {
+			void ky('https://example.com', {
+				retry: {
+					limit: limit as never,
+				},
+			});
+		}, {
+			instanceOf: TypeError,
+			message: '`retry.limit` must be a finite, non-negative integer',
+		});
+	}
+});
+
+test('does not enable retries after sending an uncloned request body', async t => {
+	let requestCount = 0;
+
+	await t.throwsAsync(
+		ky('https://example.com', {
+			method: 'put',
+			body: 'body',
+			async fetch(input) {
+				requestCount++;
+				await (input as Request).text();
+				return new Response(null, {status: 500});
+			},
+			retry: {
+				limit: 0,
+				methods: ['put'],
+			},
+			hooks: {
+				afterResponse: [({options}) => {
+					options.retry.limit = 1;
+				}],
+			},
+		}).text(),
+		{
+			message: /status code 500/,
+		},
+	);
+
+	t.is(requestCount, 1);
+});
+
+test('allows response hooks to disable retries', async t => {
+	let requestCount = 0;
+
+	await t.throwsAsync(
+		ky('https://example.com', {
+			async fetch() {
+				requestCount++;
+				return new Response(null, {status: 500});
+			},
+			retry: {
+				limit: 1,
+				delay: () => 0,
+			},
+			hooks: {
+				afterResponse: [({options}) => {
+					options.retry.limit = 0;
+				}],
+			},
+		}).text(),
+		{
+			message: /status code 500/,
+		},
+	);
+
+	t.is(requestCount, 1);
+});
+
+test('uses the retry limit set by a beforeRequest hook that returns a response', async t => {
+	let requestCount = 0;
+
+	const response = await ky('https://example.com', {
+		async fetch() {
+			requestCount++;
+			return new Response('ok');
+		},
+		retry: {
+			limit: 0,
+			delay: () => 0,
+		},
+		hooks: {
+			beforeRequest: [({options}) => {
+				options.retry.limit = 1;
+				return new Response(null, {status: 500});
+			}],
+			afterResponse: [({response, retryCount}) => {
+				if (retryCount === 0 && response.status === 500) {
+					return ky.retry();
+				}
+			}],
+		},
+	}).text();
+
+	t.is(response, 'ok');
+	t.is(requestCount, 1);
+});
+
+test('uses the normalized retry limit when cloning request bodies', async t => {
+	let requestCount = 0;
+
+	await t.throwsAsync(
+		ky('https://example.com', {
+			method: 'put',
+			body: 'body',
+			async fetch(input) {
+				requestCount++;
+				await (input as Request).text();
+				return new Response(null, {status: 500});
+			},
+			retry: {
+				limit: 1,
+				methods: ['put'],
+				delay: () => 0,
+			},
+			hooks: {
+				init: [options => {
+					options.retry = {
+						limit: undefined,
+						methods: ['put'],
+						delay: () => 0,
+					};
+				}],
+			},
+		}).text(),
+		{
+			message: /status code 500/,
+		},
+	);
+
+	t.is(requestCount, 3);
+});
+
+test('rejects invalid retry option values', t => {
+	for (const retry of [true, 'NaN', []]) {
+		t.throws(() => {
+			void ky('https://example.com', {retry: retry as never});
+		}, {
+			instanceOf: TypeError,
+			message: '`retry` must be a number or an object',
+		});
+
+		t.throws(() => {
+			void ky('https://example.com', {
+				retry: retry as never,
+				hooks: {
+					init: [() => undefined],
+				},
+			});
+		}, {
+			instanceOf: TypeError,
+			message: '`retry` must be a number or an object',
+		});
+	}
+});
+
+test('init hooks can sanitize retry options before validation', async t => {
+	let requestCount = 0;
+
+	await t.throwsAsync(
+		ky('https://example.com', {
+			async fetch() {
+				requestCount++;
+				return new Response(null, {status: 500});
+			},
+			retry: {
+				limit: Number.NaN,
+			},
+			hooks: {
+				init: [options => {
+					options.retry = 0;
+				}],
+			},
+		}).text(),
+	);
+	t.is(requestCount, 1);
+});
+
 test('respect retry methods', async t => {
 	let requestCount = 0;
 
@@ -1252,6 +1455,18 @@ test('throws when retry.methods is not an array', async t => {
 			},
 		});
 	});
+
+	t.throws(() => {
+		void ky(server.url, {
+			retry: {
+				// @ts-expect-error
+				methods: 'get',
+			},
+			hooks: {
+				init: [() => undefined],
+			},
+		});
+	});
 });
 
 test('throws when retry.statusCodes is not an array', async t => {
@@ -1265,6 +1480,178 @@ test('throws when retry.statusCodes is not an array', async t => {
 			},
 		});
 	});
+
+	t.throws(() => {
+		void ky(server.url, {
+			retry: {
+				// @ts-expect-error
+				statusCodes: 403,
+			},
+			hooks: {
+				init: [() => undefined],
+			},
+		});
+	});
+});
+
+test('throws when retry.afterStatusCodes is not an array', async t => {
+	const server = await createHttpTestServer(t);
+
+	t.throws(() => {
+		void ky(server.url, {
+			retry: {
+				// @ts-expect-error
+				afterStatusCodes: 503,
+			},
+		});
+	});
+
+	t.throws(() => {
+		void ky(server.url, {
+			retry: {
+				// @ts-expect-error
+				afterStatusCodes: 503,
+			},
+			hooks: {
+				init: [() => undefined],
+			},
+		});
+	});
+});
+
+test('throws when retry array options are falsy non-arrays', t => {
+	for (const [key, value] of [
+		['methods', 0],
+		['statusCodes', false],
+		['afterStatusCodes', null],
+	] as const) {
+		const retry = {[key]: value};
+
+		t.throws(() => {
+			void ky('https://example.com', {
+				retry: retry as never,
+			});
+		});
+
+		t.throws(() => {
+			void ky('https://example.com', {
+				retry: retry as never,
+				hooks: {
+					init: [() => undefined],
+				},
+			});
+		});
+	}
+});
+
+test('request hooks cannot mutate default retry status codes', async t => {
+	await ky('https://example.com', {
+		async fetch() {
+			return new Response('ok');
+		},
+		hooks: {
+			beforeRequest: [({options}) => {
+				options.retry.statusCodes!.push(418);
+			}],
+		},
+	}).text();
+
+	let requestCount = 0;
+	await t.throwsAsync(
+		ky('https://example.com', {
+			async fetch() {
+				requestCount++;
+				return new Response(null, {status: 418});
+			},
+		}).text(),
+		{
+			message: /status code 418/,
+		},
+	);
+
+	t.is(requestCount, 1);
+});
+
+test('request hooks cannot mutate custom retry arrays', async t => {
+	const retry = {
+		limit: 1,
+		statusCodes: [500],
+		afterStatusCodes: [500],
+		delay: () => 0,
+	};
+
+	await ky('https://example.com', {
+		retry,
+		async fetch() {
+			return new Response('ok');
+		},
+		hooks: {
+			beforeRequest: [({options}) => {
+				options.retry.statusCodes.push(418);
+				options.retry.afterStatusCodes.push(418);
+			}],
+		},
+	}).text();
+
+	t.deepEqual(retry.statusCodes, [500]);
+	t.deepEqual(retry.afterStatusCodes, [500]);
+
+	let requestCount = 0;
+	await t.throwsAsync(
+		ky('https://example.com', {
+			retry,
+			async fetch() {
+				requestCount++;
+				return new Response(null, {status: 418});
+			},
+		}).text(),
+		{
+			message: /status code 418/,
+		},
+	);
+
+	t.is(requestCount, 1);
+});
+
+test('validates retry array mutations from response hooks', async t => {
+	await t.throwsAsync(
+		ky('https://example.com', {
+			async fetch() {
+				return new Response(null, {status: 500});
+			},
+			hooks: {
+				afterResponse: [({options}) => {
+					options.retry.statusCodes = null as never;
+				}],
+			},
+		}).text(),
+		{
+			message: 'retry.statusCodes must be an array',
+		},
+	);
+});
+
+test('validates retry array mutations before sending the request', async t => {
+	let requestCount = 0;
+
+	await t.throwsAsync(
+		ky('https://example.com', {
+			async fetch() {
+				requestCount++;
+				return new Response('ok');
+			},
+			hooks: {
+				beforeRequest: [({options}) => {
+					options.retry.statusCodes = null as never;
+				}],
+			},
+		}).text(),
+		{
+			message: 'retry.statusCodes must be an array',
+		},
+	);
+
+	t.is(requestCount, 0);
 });
 
 test('retry options ignore undefined overrides and keep defaults', async t => {
@@ -1719,6 +2106,36 @@ test('shouldRetry: returns true cannot exceed totalTimeout budget', async t => {
 	);
 	// At most 1-2 attempts fit within the 500ms totalTimeout (each takes ~300ms)
 	t.true(requestCount >= 1 && requestCount <= 2);
+});
+
+test('totalTimeout bounds a never-ending shouldRetry callback', async t => {
+	let markCallbackStarted: () => void;
+	const callbackStarted = new Promise<void>(resolve => {
+		markCallbackStarted = resolve;
+	});
+	const neverSettlingPromise = new Promise<never>(() => {
+		void 0;
+	});
+
+	const request = ky('https://example.com', {
+		fetch: async () => new Response('error', {status: 500}),
+		totalTimeout: 500,
+		retry: {
+			async shouldRetry() {
+				markCallbackStarted();
+				await neverSettlingPromise;
+			},
+		},
+	}).text();
+
+	await callbackStarted;
+
+	const result = await Promise.race([
+		request.catch((error: unknown) => error),
+		delay(2000).then(() => 'still pending'),
+	]);
+
+	t.true(result instanceof TimeoutError);
 });
 
 test('shouldRetry: returns false - prevents retry', async t => {

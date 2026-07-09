@@ -749,6 +749,140 @@ test('beforeRequest hook on initial request cannot bypass totalTimeout budget', 
 	t.is(fetchCallCount, 0);
 });
 
+test('totalTimeout bounds a never-ending beforeRequest hook', async t => {
+	let markHookStarted: () => void;
+	const hookStarted = new Promise<void>(resolve => {
+		markHookStarted = resolve;
+	});
+	const neverSettlingPromise = new Promise<never>(() => {
+		void 0;
+	});
+
+	const request = ky('https://example.com', {
+		fetch: async () => new Response('ok'),
+		totalTimeout: 500,
+		hooks: {
+			beforeRequest: [
+				async () => {
+					markHookStarted();
+					await neverSettlingPromise;
+				},
+			],
+		},
+	}).text();
+
+	await hookStarted;
+
+	const result = await Promise.race([
+		request.catch((error: unknown) => error),
+		delay(2000).then(() => 'still pending'),
+	]);
+
+	t.true(result instanceof TimeoutError);
+});
+
+test.serial('totalTimeout rejects a hook result produced after the deadline', async t => {
+	const originalPerformanceNow = globalThis.performance.now;
+	let currentTime = 0;
+	let didCancelBody = false;
+	globalThis.performance.now = () => currentTime;
+
+	t.teardown(() => {
+		globalThis.performance.now = originalPerformanceNow;
+	});
+
+	await t.throwsAsync(
+		ky('https://example.com', {
+			totalTimeout: 500,
+			hooks: {
+				beforeRequest: [
+					() => {
+						currentTime = 501;
+						return new Response(new ReadableStream({
+							cancel() {
+								didCancelBody = true;
+							},
+						}));
+					},
+				],
+			},
+		}),
+		{
+			instanceOf: TimeoutError,
+		},
+	);
+
+	await delay(0);
+	t.true(didCancelBody);
+});
+
+test.serial('totalTimeout takes precedence over a hook error produced after the deadline', async t => {
+	const originalPerformanceNow = globalThis.performance.now;
+	let currentTime = 0;
+	globalThis.performance.now = () => currentTime;
+
+	t.teardown(() => {
+		globalThis.performance.now = originalPerformanceNow;
+	});
+
+	await t.throwsAsync(
+		ky('https://example.com', {
+			totalTimeout: 500,
+			hooks: {
+				beforeRequest: [
+					() => {
+						currentTime = 501;
+						throw new Error('late hook error');
+					},
+				],
+			},
+		}),
+		{
+			instanceOf: TimeoutError,
+		},
+	);
+});
+
+test('totalTimeout bounds a never-ending afterResponse hook', async t => {
+	let markHookStarted: () => void;
+	let didAbort = false;
+	const hookStarted = new Promise<void>(resolve => {
+		markHookStarted = resolve;
+	});
+	const neverSettlingPromise = new Promise<never>(() => {
+		void 0;
+	});
+
+	const request = ky('https://example.com', {
+		async fetch(request) {
+			request.signal.addEventListener('abort', () => {
+				didAbort = true;
+			}, {once: true});
+
+			return new Response('ok');
+		},
+		totalTimeout: 500,
+		hooks: {
+			afterResponse: [
+				async () => {
+					markHookStarted();
+					await neverSettlingPromise;
+				},
+			],
+		},
+	}).text();
+
+	await hookStarted;
+
+	const result = await Promise.race([
+		request.catch((error: unknown) => error),
+		delay(2000).then(() => 'still pending'),
+	]);
+
+	t.true(result instanceof TimeoutError);
+	t.true(didAbort);
+});
+
 test('beforeRequest hook runs only once and does not run again on retry', async t => {
 	let fetchCallCount = 0;
 	let beforeRequestCallCount = 0;
@@ -1077,6 +1211,50 @@ test('beforeRetry hook respects totalTimeout budget', async t => {
 
 	t.is(beforeRetryCallCount, 1);
 	t.is(fetchCallCount, 1);
+});
+
+test('totalTimeout bounds a never-ending beforeRetry hook', async t => {
+	let markHookStarted: () => void;
+	let beforeErrorCallCount = 0;
+	const hookStarted = new Promise<void>(resolve => {
+		markHookStarted = resolve;
+	});
+	const neverSettlingPromise = new Promise<never>(() => {
+		void 0;
+	});
+
+	const request = ky('https://example.com', {
+		fetch: async () => new Response('error', {status: 500}),
+		totalTimeout: 500,
+		retry: {
+			limit: 1,
+			delay: () => 0,
+		},
+		hooks: {
+			beforeRetry: [
+				async () => {
+					markHookStarted();
+					await neverSettlingPromise;
+				},
+			],
+			beforeError: [
+				({error}) => {
+					beforeErrorCallCount++;
+					return error;
+				},
+			],
+		},
+	}).text();
+
+	await hookStarted;
+
+	const result = await Promise.race([
+		request.catch((error: unknown) => error),
+		delay(2000).then(() => 'still pending'),
+	]);
+
+	t.true(result instanceof TimeoutError);
+	t.is(beforeErrorCallCount, 1);
 });
 
 test('catches beforeRetry thrown errors', async t => {
@@ -1611,11 +1789,17 @@ test('Ky-specific options are not included in normalized options passed to hooks
 					t.false('timeout' in options);
 					t.false('throwHttpErrors' in options);
 					t.false('fetch' in options);
+					t.false(Object.hasOwn(options, 'onDownloadProgress'));
+					t.false(Object.hasOwn(options, 'onUploadProgress'));
 
 					// Verify options object is frozen (can't add/modify properties)
 					t.throws(() => {
 						// @ts-expect-error - Testing freeze behavior
 						options.newProperty = 'test';
+					});
+
+					t.throws(() => {
+						Object.assign(options, {retry: options.retry});
 					});
 
 					// Verify nested objects like headers are still mutable

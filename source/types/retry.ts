@@ -15,6 +15,7 @@ export type ShouldRetryState = {
 export type RetryOptions = {
 	/**
 	The number of times to retry failed requests.
+	Must be a finite, non-negative integer.
 
 	@default 2
 	*/
