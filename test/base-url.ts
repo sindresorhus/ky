@@ -47,6 +47,85 @@ test('baseUrl option', async t => {
 	await server.close();
 });
 
+test('baseUrl rejects slashless HTTP URLs', async t => {
+	let fetchCallCount = 0;
+	const fetch: typeof globalThis.fetch = async () => {
+		fetchCallCount++;
+		return new Response('attacker');
+	};
+
+	const inputs = [
+		'http:example.com/collect',
+		'https:example.com/collect',
+		'HTTP:example.com/collect',
+		'HTTPS:example.com/collect',
+		' http:example.com/collect',
+		' https:example.com/collect',
+		'\0http:example.com/collect',
+		'\0https:example.com/collect',
+		'\thttp:example.com/collect',
+		'\thttps:example.com/collect',
+		'\nhttp:example.com/collect',
+		'\nhttps:example.com/collect',
+		'\rhttp:example.com/collect',
+		'\rhttps:example.com/collect',
+		'h\tttp:example.com/collect',
+		'h\tttps:example.com/collect',
+		'http:\nexample.com/collect',
+		'https:\nexample.com/collect',
+		'http:\rexample.com/collect',
+		'https:\rexample.com/collect',
+		String.raw`http:\example.com/collect`,
+		String.raw`https:\example.com/collect`,
+		String.raw`http:\\example.com/collect`,
+		String.raw`https:\\example.com/collect`,
+		String.raw`http:/\example.com/collect`,
+		String.raw`https:/\example.com/collect`,
+		String.raw`http:\/example.com/collect`,
+		String.raw`https:\/example.com/collect`,
+	];
+
+	for (const input of inputs) {
+		t.throws(
+			() => {
+				void ky(input, {
+					baseUrl: 'https://trusted.test/api/',
+					fetch,
+					headers: {
+						authorization: 'Bearer secret',
+					},
+				});
+			},
+			{
+				instanceOf: TypeError,
+				message: '`input` url protocol must be followed by `//` when using `baseUrl`',
+			},
+		);
+	}
+
+	let absoluteUrl: string | undefined;
+	const absoluteFetch: typeof globalThis.fetch = async input => {
+		absoluteUrl = new Request(input).url;
+		return new Response('ok');
+	};
+
+	await t.notThrowsAsync(ky('http://example.test/collect', {
+		baseUrl: 'https://trusted.test/api/',
+		fetch: absoluteFetch,
+	}).text());
+	t.is(absoluteUrl, 'http://example.test/collect');
+
+	await t.notThrowsAsync(ky('https://example.test/collect', {
+		baseUrl: 'https://trusted.test/api/',
+		fetch: absoluteFetch,
+	}).text());
+	t.is(absoluteUrl, 'https://example.test/collect');
+
+	await Promise.resolve();
+
+	t.is(fetchCallCount, 0);
+});
+
 test('baseUrl is exposed on normalized hook options', async t => {
 	const server = await createHttpTestServer();
 	let receivedBaseUrl: URL | string | undefined;

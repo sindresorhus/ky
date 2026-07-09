@@ -83,6 +83,10 @@ const cloneRetryOptions = (retry: RetryOptions | number): RetryOptions | number 
 };
 
 const objectToString = Object.prototype.toString;
+const leadingC0ControlOrSpacePattern = /^[\0-\u0020]+/g;
+const asciiTabOrNewLinePattern = /[\t\n\r]/g;
+const schemePattern = /^[a-z][\d+.a-z-]*:/i;
+const malformedHttpProtocolPattern = /^https?:(?!\/\/)/i;
 
 const isRequestInstance = (value: unknown): value is Request =>
 	value instanceof globalThis.Request || objectToString.call(value) === '[object Request]';
@@ -92,6 +96,12 @@ const isRequestInstance = (value: unknown): value is Request =>
 // body consumption, `json()` decoration, and any enabled stream features.
 const isResponseInstance = (value: unknown): value is Response =>
 	value instanceof globalThis.Response || objectToString.call(value) === '[object Response]';
+
+const isAbsoluteInput = (input: string): boolean =>
+	schemePattern.test(input);
+
+const normalizeInputForProtocolCheck = (input: string): string =>
+	input.replaceAll(leadingC0ControlOrSpacePattern, '').replaceAll(asciiTabOrNewLinePattern, '');
 
 const cloneSearchParametersForInitHook = (searchParameters: SearchParamsOption | undefined): SearchParamsOption | undefined => {
 	if (Array.isArray(searchParameters)) {
@@ -377,12 +387,13 @@ export class Ky {
 			}
 
 			if (this.#options.baseUrl) {
-				let absoluteInput: URL | undefined;
-				try {
-					absoluteInput = new URL(this.#input);
-				} catch {}
+				const normalizedInput = normalizeInputForProtocolCheck(this.#input);
 
-				if (!absoluteInput) {
+				if (malformedHttpProtocolPattern.test(normalizedInput)) {
+					throw new TypeError('`input` url protocol must be followed by `//` when using `baseUrl`');
+				}
+
+				if (!isAbsoluteInput(normalizedInput)) {
 					this.#input = new URL(this.#input, (new Request(this.#options.baseUrl)).url);
 				}
 			}
