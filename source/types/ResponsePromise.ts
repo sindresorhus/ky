@@ -1,5 +1,5 @@
 /**
-Returns a `Response` object with `Body` methods added for convenience. So you can, for example, call `ky.get(input).json()` directly without having to await the `Response` first. When called like that, an appropriate `Accept` header will be set depending on the body method used. Unlike the `Body` methods of `window.fetch`, these will throw an `HTTPError` if the response status is not in the range of `200...299`. Also, `.json()` throws if the body is empty or the response status is `204`.
+Returns a `Response` object with `Body` methods added for convenience. So you can, for example, call `ky.get(input).json()` directly without having to await the `Response` first. When called like that, an appropriate `Accept` header will be set depending on the body method used. Unlike the `Body` methods of `window.fetch`, these will throw an `HTTPError` if the response status is not in the range of `200...299`. Note that `.json()` will throw if the body is empty, as it cannot be parsed. However, you can use the `parseJson` option to add custom handling for empty bodies.
 */
 import {type KyResponse} from './response.js';
 import type {StandardSchemaV1, StandardSchemaV1InferOutput} from './standard-schema.js';

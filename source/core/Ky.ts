@@ -300,12 +300,12 @@ export class Ky {
 				const text = await ky.#raceBodyRead(async () => response.text(), response) as string;
 				const request = ky.#getResponseRequest(response);
 				return ky.#raceWithTotalTimeout(async () => {
-					if (text === '') {
-						if (schema !== undefined) {
-							return validateJsonWithSchema(undefined, schema);
-						}
+					if (text === '' && schema !== undefined) {
+						const jsonValue = initHookOptions.parseJson
+							? await initHookOptions.parseJson(text, {request, response})
+							: undefined;
 
-						return JSON.parse(text);
+						return validateJsonWithSchema(jsonValue, schema);
 					}
 
 					const jsonValue = initHookOptions.parseJson

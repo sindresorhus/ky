@@ -329,42 +329,40 @@ test('.json() with 204 response and empty body', async t => {
 	});
 });
 
-test('.json() with 204 response does not call parseJson', async t => {
+test('.json() with 204 response is overriden by parseJson', async t => {
 	const server = await createHttpTestServer(t);
 	server.get('/', async (_request, response) => {
 		response.status(204).end();
 	});
 
 	let parseJsonCalled = false;
-	await t.throwsAsync(ky(server.url, {
+	const responseJson = await ky.get(server.url, {
 		parseJson() {
 			parseJsonCalled = true;
-			return undefined;
+			return {parsed: true};
 		},
-	}).json(), {
-		message: /Unexpected end of JSON input/,
-	});
+	}).json();
 
-	t.false(parseJsonCalled);
+	t.true(parseJsonCalled);
+	t.deepEqual(responseJson, {parsed: true});
 });
 
-test('.json() with empty body does not call parseJson', async t => {
+test('.json() with empty body is overriden by parseJson', async t => {
 	const server = await createHttpTestServer(t);
 	server.get('/', async (_request, response) => {
 		response.end();
 	});
 
 	let parseJsonCalled = false;
-	await t.throwsAsync(ky(server.url, {
+	const responseJson = await ky.get(server.url, {
 		parseJson() {
 			parseJsonCalled = true;
-			return undefined;
+			return {parsed: true};
 		},
-	}).json(), {
-		message: /Unexpected end of JSON input/,
-	});
+	}).json();
 
-	t.false(parseJsonCalled);
+	t.true(parseJsonCalled);
+	t.deepEqual(responseJson, {parsed: true});
 });
 
 test('.json(schema) returns validated output and infers type', async t => {
@@ -603,7 +601,7 @@ test('.json(schema) validates 204 responses as undefined', async t => {
 	t.deepEqual(error?.issues, issues);
 });
 
-test('.json(schema) with empty body does not call parseJson before validation', async t => {
+test('.json(schema) with empty body calls parseJson before validation', async t => {
 	const server = await createHttpTestServer(t);
 	server.get('/', (_request, response) => {
 		response.end();
@@ -617,15 +615,15 @@ test('.json(schema) with empty body does not call parseJson before validation', 
 	const responseJson = await ky.get(server.url, {
 		parseJson(text) {
 			parseJsonCalled = true;
-			return JSON.parse(text);
+			return {parsed: true};
 		},
 	}).json(schema);
 
-	t.false(parseJsonCalled);
-	t.is(responseJson, 'empty:undefined');
+	t.true(parseJsonCalled);
+	t.is(responseJson, 'non-empty');
 });
 
-test('.json(schema) with 204 response does not call parseJson before validation', async t => {
+test('.json(schema) with 204 response calls parseJson before validation', async t => {
 	const server = await createHttpTestServer(t);
 	server.get('/', (_request, response) => {
 		response.status(204).end();
@@ -639,12 +637,12 @@ test('.json(schema) with 204 response does not call parseJson before validation'
 	const responseJson = await ky.get(server.url, {
 		parseJson(text) {
 			parseJsonCalled = true;
-			return JSON.parse(text);
+			return {parsed: true};
 		},
 	}).json(schema);
 
-	t.false(parseJsonCalled);
-	t.is(responseJson, 'empty:undefined');
+	t.true(parseJsonCalled);
+	t.is(responseJson, 'non-empty');
 });
 
 test('.json(schema) with invalid JSON body throws parse error before validation', async t => {
