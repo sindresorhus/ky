@@ -2540,6 +2540,17 @@ test('merges signals from instance and request options', async t => {
 	const error = (await t.throwsAsync(response))!;
 	t.true(['DOMException', 'Error'].includes(error.constructor.name));
 	t.is(error.name, 'AbortError');
+
+	const freshRequestController = new AbortController();
+	const instanceResponse = instance.get(server.url, {
+		signal: freshRequestController.signal,
+	});
+
+	instanceController.abort();
+
+	const instanceError = (await t.throwsAsync(instanceResponse))!;
+	t.true(['DOMException', 'Error'].includes(instanceError.constructor.name));
+	t.is(instanceError.name, 'AbortError');
 });
 
 test('ky.extend() with replaceOption replaces signal instead of merging', async t => {
