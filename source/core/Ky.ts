@@ -48,6 +48,7 @@ import {
 const maxErrorResponseBodySize = 10 * 1024 * 1024;
 const prefixUrlRenamedErrorMessage = 'The `prefixUrl` option has been renamed `prefix` in v2 and enhanced to allow slashes in input. See also the new `baseUrl` option for improved flexibility with standard URL resolution: https://github.com/sindresorhus/ky#baseurl';
 const timedOutResponseData = Symbol('timedOutResponseData');
+const timedOutOperation = Symbol('timedOutOperation');
 
 type ErrorDataTimeout = {
 	milliseconds: number;
@@ -69,20 +70,33 @@ const createTextDecoder = (contentType: string): TextDecoder => {
 const invalidSchemaMessage = 'The `schema` argument must follow the Standard Schema specification';
 
 const cloneRetryOptions = (retry: RetryOptions | number): RetryOptions | number => {
-	if (typeof retry !== 'object') {
-		return retry;
+	if (retry === null || typeof retry !== 'object' || Array.isArray(retry)) {
+		return retry as RetryOptions | number;
 	}
 
+	const clonedRetry = {...retry};
+
 	// Clone nested arrays too so init hooks can mutate retry config without leaking state across requests.
-	return {
-		...retry,
-		...(retry.methods && {methods: [...retry.methods]}),
-		...(retry.statusCodes && {statusCodes: [...retry.statusCodes]}),
-		...(retry.afterStatusCodes && {afterStatusCodes: [...retry.afterStatusCodes]}),
-	};
+	if (Array.isArray(clonedRetry.methods)) {
+		clonedRetry.methods = [...clonedRetry.methods];
+	}
+
+	if (Array.isArray(clonedRetry.statusCodes)) {
+		clonedRetry.statusCodes = [...clonedRetry.statusCodes];
+	}
+
+	if (Array.isArray(clonedRetry.afterStatusCodes)) {
+		clonedRetry.afterStatusCodes = [...clonedRetry.afterStatusCodes];
+	}
+
+	return clonedRetry;
 };
 
 const objectToString = Object.prototype.toString;
+const leadingC0ControlOrSpacePattern = /^[\0-\u0020]+/g;
+const asciiTabOrNewLinePattern = /[\t\n\r]/g;
+const schemePattern = /^[a-z][\d+.a-z-]*:/i;
+const malformedHttpProtocolPattern = /^https?:(?!\/\/)/i;
 
 const isRequestInstance = (value: unknown): value is Request =>
 	value instanceof globalThis.Request || objectToString.call(value) === '[object Request]';
@@ -92,6 +106,12 @@ const isRequestInstance = (value: unknown): value is Request =>
 // body consumption, `json()` decoration, and any enabled stream features.
 const isResponseInstance = (value: unknown): value is Response =>
 	value instanceof globalThis.Response || objectToString.call(value) === '[object Response]';
+
+const isAbsoluteInput = (input: string): boolean =>
+	schemePattern.test(input);
+
+const normalizeInputForProtocolCheck = (input: string): string =>
+	input.replaceAll(leadingC0ControlOrSpacePattern, '').replaceAll(asciiTabOrNewLinePattern, '');
 
 const cloneSearchParametersForInitHook = (searchParameters: SearchParamsOption | undefined): SearchParamsOption | undefined => {
 	if (Array.isArray(searchParameters)) {
@@ -171,6 +191,10 @@ export class Ky {
 			// Delay the fetch so that body method shortcuts can set the Accept header
 			await Promise.resolve();
 			const beforeRequestResponse = await ky.#runBeforeRequestHooks();
+			if (beforeRequestResponse !== undefined) {
+				ky.#retryLimit = normalizeRetryOptions(ky.#options.retry).limit;
+			}
+
 			let response = beforeRequestResponse ?? await ky.#retry(async () => ky.#fetch());
 			let responseFromHook = beforeRequestResponse !== undefined
 				|| ky.#consumeReturnedResponseFromBeforeRetryHook();
@@ -299,21 +323,21 @@ export class Ky {
 
 				const text = await ky.#raceBodyRead(async () => response.text(), response) as string;
 				const request = ky.#getResponseRequest(response);
-				return ky.#raceWithTotalTimeout(async () => {
-					if (text === '' && schema !== undefined) {
-						const jsonValue = initHookOptions.parseJson
-							? await initHookOptions.parseJson(text, {request, response})
-							: undefined;
-
-						return validateJsonWithSchema(jsonValue, schema);
-					}
-
+				const parsedResult = await ky.#raceWithTotalTimeout(async () => {
 					const jsonValue = initHookOptions.parseJson
 						? await initHookOptions.parseJson(text, {request, response})
-						: JSON.parse(text);
+						: (text === '' && schema !== undefined
+							? undefined
+							: JSON.parse(text));
 
 					return schema === undefined ? jsonValue : validateJsonWithSchema(jsonValue, schema);
-				}, request);
+				});
+
+				if (parsedResult === timedOutOperation) {
+					await ky.#throwProcessedError(new TimeoutError(request));
+				}
+
+				return parsedResult;
 			};
 		}
 
@@ -333,6 +357,7 @@ export class Ky {
 	public request: Request;
 	#abortController?: AbortController;
 	#retryCount = 0;
+	#retryLimit: number;
 	readonly #input: Input;
 	readonly #options: InternalOptions;
 	#originalRequest?: Request;
@@ -364,6 +389,7 @@ export class Ky {
 			fetch: options.fetch ?? globalThis.fetch.bind(globalThis),
 			context: options.context ?? {},
 		};
+		this.#retryLimit = this.#options.retry.limit;
 
 		if (typeof this.#input !== 'string' && !(this.#input instanceof URL || this.#input instanceof globalThis.Request)) {
 			throw new TypeError('`input` must be a string, URL, or Request');
@@ -377,12 +403,13 @@ export class Ky {
 			}
 
 			if (this.#options.baseUrl) {
-				let absoluteInput: URL | undefined;
-				try {
-					absoluteInput = new URL(this.#input);
-				} catch {}
+				const normalizedInput = normalizeInputForProtocolCheck(this.#input);
 
-				if (!absoluteInput) {
+				if (malformedHttpProtocolPattern.test(normalizedInput)) {
+					throw new TypeError('`input` url protocol must be followed by `//` when using `baseUrl`');
+				}
+
+				if (!isAbsoluteInput(normalizedInput)) {
 					this.#input = new URL(this.#input, (new Request(this.#options.baseUrl)).url);
 				}
 			}
@@ -467,25 +494,26 @@ export class Ky {
 		this.#startTime = typeof this.#options.totalTimeout === 'number' ? this.#getCurrentTime() : undefined;
 	}
 
-	#calculateDelay(): number {
-		const retryDelay = this.#options.retry.delay(this.#retryCount + 1);
+	#calculateDelay(retry: InternalOptions['retry']): number {
+		const retryDelay = retry.delay(this.#retryCount + 1);
 
 		let jitteredDelay = retryDelay;
-		if (this.#options.retry.jitter === true) {
+		if (retry.jitter === true) {
 			jitteredDelay = Math.random() * retryDelay;
-		} else if (typeof this.#options.retry.jitter === 'function') {
-			jitteredDelay = this.#options.retry.jitter(retryDelay);
+		} else if (typeof retry.jitter === 'function') {
+			jitteredDelay = retry.jitter(retryDelay);
 
 			if (!Number.isFinite(jitteredDelay) || jitteredDelay < 0) {
 				jitteredDelay = retryDelay;
 			}
 		}
 
-		return Math.min(this.#options.retry.backoffLimit, jitteredDelay);
+		return Math.min(retry.backoffLimit, jitteredDelay);
 	}
 
 	async #calculateRetryDelay(error: unknown) {
-		if (this.#retryCount >= this.#options.retry.limit) {
+		const retry = normalizeRetryOptions(this.#options.retry);
+		if (this.#retryCount >= Math.min(retry.limit, this.#retryLimit)) {
 			throw error;
 		}
 
@@ -494,16 +522,20 @@ export class Ky {
 
 		// Handle forced retry from afterResponse hook - skip method check and shouldRetry
 		if (errorObject instanceof ForceRetryError) {
-			return errorObject.customDelay ?? this.#calculateDelay();
+			return errorObject.customDelay ?? this.#calculateDelay(retry);
 		}
 
 		// Check if method is retriable for non-forced retries
-		if (!this.#options.retry.methods.includes(this.request.method.toLowerCase())) {
+		if (!retry.methods.includes(this.request.method.toLowerCase())) {
 			throw error;
 		}
 
-		if (this.#options.retry.shouldRetry !== undefined) {
-			const result = await this.#options.retry.shouldRetry({error: errorObject, retryCount: this.#retryCount + 1});
+		const {shouldRetry} = retry;
+		if (shouldRetry !== undefined) {
+			const result = await this.#raceWithTotalTimeout(async () => shouldRetry({error: errorObject, retryCount: this.#retryCount + 1}));
+			if (result === timedOutOperation) {
+				throw new TimeoutError(this.request);
+			}
 
 			// Only exact booleans override the default retry checks.
 			if (result === false) {
@@ -511,41 +543,41 @@ export class Ky {
 			}
 
 			if (result === true) {
-				return this.#calculateDelay();
+				return this.#calculateDelay(retry);
 			}
 		}
 
 		// Default timeout behavior
 		if (isTimeoutError(error)) {
-			if (!this.#options.retry.retryOnTimeout) {
+			if (!retry.retryOnTimeout) {
 				throw error;
 			}
 
-			return this.#calculateDelay();
+			return this.#calculateDelay(retry);
 		}
 
 		if (isHTTPError(error)) {
-			if (!this.#options.retry.statusCodes.includes(error.response.status)) {
+			if (!retry.statusCodes.includes(error.response.status)) {
 				throw error;
 			}
 
 			const retryTimingHeader = getRetryTimingHeader(error.response.headers);
-			if (retryTimingHeader && this.#options.retry.afterStatusCodes.includes(error.response.status)) {
+			if (retryTimingHeader && retry.afterStatusCodes.includes(error.response.status)) {
 				const after = calculateRetryTimingDelay(retryTimingHeader);
 				if (after === undefined) {
 					// Malformed retry timing headers should not disable retries; they only lose their server-provided timing.
-					return this.#calculateDelay();
+					return this.#calculateDelay(retry);
 				}
 
 				// Don't apply jitter when server provides explicit retry timing
-				return Math.min(this.#options.retry.maxRetryAfter, after);
+				return Math.min(retry.maxRetryAfter, after);
 			}
 
 			if (error.response.status === 413) {
 				throw error;
 			}
 
-			return this.#calculateDelay();
+			return this.#calculateDelay(retry);
 		}
 
 		// Only retry known retriable error types. Unknown errors (e.g., programming bugs) are not retried.
@@ -553,7 +585,7 @@ export class Ky {
 			throw error;
 		}
 
-		return this.#calculateDelay();
+		return this.#calculateDelay(retry);
 	}
 
 	#decorateResponse(response: Response): Response {
@@ -562,10 +594,6 @@ export class Ky {
 		if (this.#options.parseJson) {
 			response.json = async () => {
 				const text = await response.text();
-				if (text === '') {
-					return JSON.parse(text);
-				}
-
 				return this.#options.parseJson!(text, {request, response});
 			};
 		}
@@ -714,34 +742,55 @@ export class Ky {
 		return result;
 	}
 
-	async #raceWithTotalTimeout<T>(operation: () => Promise<T>, request: Request): Promise<T> {
+	async #raceWithTotalTimeout<T>(operation: () => Promise<T>): Promise<T | typeof timedOutOperation> {
 		const remainingTotal = this.#getRemainingTotalTimeout();
 		if (remainingTotal === undefined) {
 			return operation();
 		}
 
 		if (remainingTotal <= 0) {
-			await this.#throwProcessedError(new TimeoutError(request));
+			this.#abortController?.abort();
+			return timedOutOperation;
 		}
 
-		const operationPromise = operation();
-		const result = await Promise.race<T | typeof timedOutResponseData>([
-			operationPromise,
-			new Promise<typeof timedOutResponseData>(resolve => {
-				const timeoutId = setTimeout(() => {
-					resolve(timedOutResponseData);
+		let timeoutId: ReturnType<typeof setTimeout> | undefined;
+		try {
+			const timeoutPromise = new Promise<typeof timedOutOperation>(resolve => {
+				timeoutId = setTimeout(() => {
+					resolve(timedOutOperation);
 				}, remainingTotal);
-				void operationPromise.finally(() => {
-					clearTimeout(timeoutId);
-				}).catch(() => undefined);
-			}),
-		]);
+			});
+			const operationResult = Promise.resolve()
+				.then(operation)
+				.then(value => ({status: 'fulfilled', value} as const))
+				.catch((error: unknown) => ({status: 'rejected', error} as const));
+			const result = await Promise.race([operationResult, timeoutPromise]);
+			const remainingAfterOperation = this.#getRemainingTotalTimeout();
+			const didTimeOut = result === timedOutOperation || (remainingAfterOperation !== undefined && remainingAfterOperation <= 0);
+			if (didTimeOut) {
+				this.#abortController?.abort();
 
-		if (result === timedOutResponseData) {
-			await this.#throwProcessedError(new TimeoutError(request));
+				if (result === timedOutOperation) {
+					void operationResult.then(result => {
+						if (result.status === 'fulfilled') {
+							this.#cancelReturnedBody(result.value);
+						}
+					});
+				} else if (result.status === 'fulfilled') {
+					this.#cancelReturnedBody(result.value);
+				}
+
+				return timedOutOperation;
+			}
+
+			if (result.status === 'rejected') {
+				throw result.error;
+			}
+
+			return result.value;
+		} finally {
+			clearTimeout(timeoutId);
 		}
-
-		return result as T;
 	}
 
 	#isJsonContentType(contentType: string): boolean {
@@ -849,6 +898,14 @@ export class Ky {
 		this.#cancelBody(response.body ?? undefined);
 	}
 
+	#cancelReturnedBody(value: unknown): void {
+		if (isResponseInstance(value)) {
+			this.#cancelResponseBody(value);
+		} else if (isRequestInstance(value)) {
+			this.#cancelBody(value.body ?? undefined);
+		}
+	}
+
 	#createManagedSignal(): AbortSignal {
 		return this.#userProvidedAbortSignal
 			? AbortSignal.any([this.#userProvidedAbortSignal, this.#abortController!.signal])
@@ -865,11 +922,15 @@ export class Ky {
 	async #runBeforeRequestHooks(): Promise<Response | undefined> {
 		for (const hook of this.#options.hooks.beforeRequest) {
 			// eslint-disable-next-line no-await-in-loop
-			const result = await hook({
+			const result = await this.#raceWithTotalTimeout(async () => hook({
 				request: this.request,
 				options: this.#getNormalizedOptions(),
 				retryCount: 0,
-			});
+			}));
+
+			if (result === timedOutOperation) {
+				throw new TimeoutError(this.request);
+			}
 
 			if (isRequestInstance(result)) {
 				this.#assignRequest(result);
@@ -891,12 +952,16 @@ export class Ky {
 			let modifiedResponse;
 			try {
 				// eslint-disable-next-line no-await-in-loop
-				modifiedResponse = await hook({
+				modifiedResponse = await this.#raceWithTotalTimeout(async () => hook({
 					request: this.request,
 					options: this.#getNormalizedOptions(),
 					response: hookResponse,
 					retryCount: this.#retryCount,
-				});
+				}));
+
+				if (modifiedResponse === timedOutOperation) {
+					throw new TimeoutError(this.request);
+				}
 			} catch (error) {
 				// Cancel both responses to prevent memory leaks when hook throws
 				if (hookResponse !== response) {
@@ -982,15 +1047,15 @@ export class Ky {
 		}
 
 		for (const hook of this.#options.hooks.beforeRetry) {
-			let hookResult: Awaited<ReturnType<typeof hook>>;
+			let hookResult: Awaited<ReturnType<typeof hook>> | typeof timedOutOperation;
 			try {
 				// eslint-disable-next-line no-await-in-loop
-				hookResult = await hook({
+				hookResult = await this.#raceWithTotalTimeout(async () => hook({
 					request: this.request,
 					options: this.#getNormalizedOptions(),
 					error: error as Error,
 					retryCount: this.#retryCount + 1,
-				});
+				}));
 			} catch (hookError) {
 				// Preserve the original request error path (`throw error`) so beforeError hooks can still run.
 				if (hookError instanceof Error && hookError !== error) {
@@ -998,6 +1063,10 @@ export class Ky {
 				}
 
 				throw hookError;
+			}
+
+			if (hookResult === timedOutOperation) {
+				throw new TimeoutError(this.request);
 			}
 
 			if (isRequestInstance(hookResult)) {
@@ -1041,7 +1110,8 @@ export class Ky {
 		}
 
 		const nonRequestOptions = findUnknownOptions(this.#options);
-		const retryRequest = this.#options.retry.limit > 0 ? this.request.clone() : undefined;
+		this.#retryLimit = normalizeRetryOptions(this.#options.retry).limit;
+		const retryRequest = this.#retryLimit > 0 ? this.request.clone() : undefined;
 		const request = this.#wrapRequestWithUploadProgress(this.request, this.#options.body ?? undefined);
 
 		// Cloning is done here to prepare in advance for retries.

@@ -16,10 +16,10 @@ export class HTTPError<T = unknown> extends KyError {
 	override name = 'HTTPError' as const;
 	response: KyResponse<T>;
 	request: KyRequest;
-	options: NormalizedOptions;
+	options: Readonly<NormalizedOptions>;
 	data: T | string | undefined;
 
-	constructor(response: Response, request: Request, options: NormalizedOptions) {
+	constructor(response: Response, request: Request, options: Readonly<NormalizedOptions>) {
 		const code = (response.status || response.status === 0) ? response.status : '';
 		const title = response.statusText ?? '';
 		const status = `${code} ${title}`.trim();

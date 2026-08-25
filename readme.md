@@ -292,6 +292,8 @@ Controls retry behavior. Each field is documented individually below.
 
 If `retry` is a number, it will be used as `limit` and other defaults will remain in place.
 
+`retry.limit`, including numeric shorthand, must be a finite, non-negative integer.
+
 Network errors (e.g., DNS failures, connection refused, offline) are automatically retried for retriable methods. Only errors recognized as network errors are retried; other errors (e.g., programming bugs) are thrown immediately. Use `shouldRetry` to customize this behavior.
 
 `413 Payload Too Large` is only retried when the response includes a retry timing header.
@@ -425,6 +427,8 @@ Type: `number | false`\
 Default: `false`
 
 Overall timeout in milliseconds for the entire operation, including retries and delays. Throws a `TimeoutError` if exceeded. Cannot be greater than 2147483647.
+
+`beforeError` hooks run after an error is produced and are not bounded by `totalTimeout`.
 
 If set to `false` or not specified, there is no overall timeout.
 

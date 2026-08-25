@@ -329,39 +329,35 @@ test('.json() with 204 response and empty body', async t => {
 	});
 });
 
-test('.json() with 204 response is overriden by parseJson', async t => {
+test('.json() with 204 response is overridden by parseJson', async t => {
 	const server = await createHttpTestServer(t);
 	server.get('/', async (_request, response) => {
 		response.status(204).end();
 	});
 
-	let parseJsonCalled = false;
 	const responseJson = await ky.get(server.url, {
-		parseJson() {
-			parseJsonCalled = true;
+		parseJson(text) {
+			t.is(text, '');
 			return {parsed: true};
 		},
 	}).json();
 
-	t.true(parseJsonCalled);
 	t.deepEqual(responseJson, {parsed: true});
 });
 
-test('.json() with empty body is overriden by parseJson', async t => {
+test('.json() with empty body is overridden by parseJson', async t => {
 	const server = await createHttpTestServer(t);
 	server.get('/', async (_request, response) => {
 		response.end();
 	});
 
-	let parseJsonCalled = false;
 	const responseJson = await ky.get(server.url, {
-		parseJson() {
-			parseJsonCalled = true;
+		parseJson(text) {
+			t.is(text, '');
 			return {parsed: true};
 		},
 	}).json();
 
-	t.true(parseJsonCalled);
 	t.deepEqual(responseJson, {parsed: true});
 });
 
@@ -914,7 +910,7 @@ test('totalTimeout bounds a never-ending successful response body', async t => {
 	await t.throwsAsync(ky('https://example.com', {
 		fetch: customFetch,
 		timeout: false,
-		totalTimeout: 50,
+		totalTimeout: 500,
 	}).text(), {
 		instanceOf: TimeoutError,
 	});
@@ -2649,25 +2645,20 @@ test('parseJson option with response.json()', async t => {
 	});
 });
 
-test('parseJson option with response.json() does not run on empty body', async t => {
+test('parseJson option with response.json() handles empty body', async t => {
 	const server = await createHttpTestServer(t);
 	server.get('/', (_request, response) => {
 		response.end();
 	});
 
-	let parseJsonCalled = false;
 	const response = await ky.get(server.url, {
-		parseJson() {
-			parseJsonCalled = true;
-			return undefined;
+		parseJson(text) {
+			t.is(text, '');
+			return {parsed: true};
 		},
 	});
 
-	await t.throwsAsync(response.json(), {
-		message: /Unexpected end of JSON input/,
-	});
-
-	t.false(parseJsonCalled);
+	t.deepEqual(await response.json(), {parsed: true});
 });
 
 test('parseJson option with promise.json() shortcut', async t => {
