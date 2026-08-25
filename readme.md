@@ -758,7 +758,6 @@ import ky from 'ky';
 const response = await ky('https://example.com', {
 	onDownloadProgress: (progress, chunk) => {
 		// Example output:
-		// `0% - 0 of 1271 bytes`
 		// `100% - 1271 of 1271 bytes`
 		console.log(`${progress.percent * 100}% - ${progress.transferredBytes} of ${progress.totalBytes} bytes`);
 	}
@@ -788,7 +787,6 @@ const response = await ky.post('https://example.com/upload', {
 	body: largeFile,
 	onUploadProgress: (progress, chunk) => {
 		// Example output:
-		// `0% - 0 of 1271 bytes`
 		// `100% - 1271 of 1271 bytes`
 		console.log(`${progress.percent * 100}% - ${progress.transferredBytes} of ${progress.totalBytes} bytes`);
 	}

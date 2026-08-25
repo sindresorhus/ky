@@ -342,6 +342,36 @@ browserTest('onDownloadProgress works', [chromium, webkit], async (t: ExecutionC
 	t.is(result.text, 'meow');
 });
 
+defaultBrowsersTest('onDownloadProgress completes for an empty response body', async (t: ExecutionContext, page: Page) => {
+	server.get('/', (_request, response) => {
+		response.end('meow');
+	});
+
+	server.get('/test', (_request, response) => {
+		response.header('content-length', '0').end();
+	});
+
+	await page.goto(server.url);
+	await addKyScriptToPage(page);
+
+	const result = await page.evaluate(async (url: string) => {
+		const progressEvents: Array<{progress: Progress; chunkLength: number}> = [];
+		const text = await globalThis.ky(`${url}/test`, {
+			onDownloadProgress(progress, chunk) {
+				progressEvents.push({progress, chunkLength: chunk.byteLength});
+			},
+		}).text();
+
+		return {progressEvents, text};
+	}, server.url);
+
+	t.is(result.text, '');
+	t.deepEqual(result.progressEvents, [{
+		progress: {percent: 1, totalBytes: 0, transferredBytes: 0},
+		chunkLength: 0,
+	}]);
+});
+
 defaultBrowsersTest('throws if onDownloadProgress is not a function', async (t: ExecutionContext, page: Page) => {
 	server.get('/', (_request, response) => {
 		response.end();
