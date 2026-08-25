@@ -324,17 +324,11 @@ export class Ky {
 				const text = await ky.#raceBodyRead(async () => response.text(), response) as string;
 				const request = ky.#getResponseRequest(response);
 				const parsedResult = await ky.#raceWithTotalTimeout(async () => {
-					if (text === '') {
-						if (schema !== undefined) {
-							return validateJsonWithSchema(undefined, schema);
-						}
-
-						return JSON.parse(text);
-					}
-
 					const jsonValue = initHookOptions.parseJson
 						? await initHookOptions.parseJson(text, {request, response})
-						: JSON.parse(text);
+						: (text === '' && schema !== undefined
+							? undefined
+							: JSON.parse(text));
 
 					return schema === undefined ? jsonValue : validateJsonWithSchema(jsonValue, schema);
 				});
@@ -600,10 +594,6 @@ export class Ky {
 		if (this.#options.parseJson) {
 			response.json = async () => {
 				const text = await response.text();
-				if (text === '') {
-					return JSON.parse(text);
-				}
-
 				return this.#options.parseJson!(text, {request, response});
 			};
 		}
