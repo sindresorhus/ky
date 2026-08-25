@@ -256,7 +256,7 @@ export type KyOptions = {
 	Download progress event handler.
 
 	@param progress - Object containing download progress information.
-	@param chunk - Data that was received. Note: It's empty for the first call.
+	@param chunk - Data that was received. When an empty response body stream completes, the callback receives an empty chunk.
 
 	@example
 	```
@@ -280,7 +280,7 @@ export type KyOptions = {
 	Note: Requires [request stream support](https://caniuse.com/wf-fetch-request-streams) and HTTP/2 for HTTPS connections (in Chromium-based browsers). In unsupported environments, this handler is silently ignored.
 
 	@param progress - Object containing upload progress information.
-	@param chunk - Data that was sent. Note: It's empty for the last call.
+	@param chunk - Data that was sent. When an empty request body stream completes, the callback receives an empty chunk.
 
 	@example
 	```

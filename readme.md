@@ -750,7 +750,7 @@ The function receives these arguments:
   - `percent` is a number between 0 and 1 representing the progress percentage.
   - `transferredBytes` is the number of bytes transferred so far.
   - `totalBytes` is the total number of bytes to be transferred. This is an estimate and may be 0 if the total size cannot be determined.
-- `chunk` is an instance of `Uint8Array` containing the data that was received. Note: It's empty for the first call.
+- `chunk` is an instance of `Uint8Array` containing the data that was received. When an empty response body stream completes, the callback receives an empty chunk.
 
 ```js
 import ky from 'ky';
@@ -779,7 +779,7 @@ The function receives these arguments:
   - `percent` is a number between 0 and 1 representing the progress percentage.
   - `transferredBytes` is the number of bytes transferred so far.
   - `totalBytes` is the total number of bytes to be transferred. This is an estimate and may be 0 if the total size cannot be determined.
-- `chunk` is an instance of `Uint8Array` containing the data that was sent. Note: It's empty for the last call.
+- `chunk` is an instance of `Uint8Array` containing the data that was sent. When an empty request body stream completes, the callback receives an empty chunk.
 
 ```js
 import ky from 'ky';
