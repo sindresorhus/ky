@@ -2542,6 +2542,53 @@ test('merges signals from instance and request options', async t => {
 	t.is(error.name, 'AbortError');
 });
 
+test('ky.extend() with replaceOption replaces signal instead of merging', async t => {
+	const server = await createHttpTestServer(t);
+	server.get('/', (_request, response) => {
+		response.end('success');
+	});
+
+	const parentController = new AbortController();
+	const replacementController = new AbortController();
+	const base = ky.create({signal: parentController.signal});
+	const extended = base.extend({signal: replaceOption(replacementController.signal)});
+
+	parentController.abort();
+	t.is(await extended(server.url).text(), 'success');
+
+	replacementController.abort();
+	const error = (await t.throwsAsync(extended(server.url)))!;
+	t.is(error.name, 'AbortError');
+});
+
+test('ky.extend() with signal set to undefined removes parent signal', async t => {
+	const server = await createHttpTestServer(t);
+	server.get('/', (_request, response) => {
+		response.end('success');
+	});
+
+	const parentController = new AbortController();
+	const base = ky.create({signal: parentController.signal});
+	const extended = base.extend({signal: undefined});
+
+	parentController.abort();
+	t.is(await extended(server.url).text(), 'success');
+});
+
+test('signal option handling does not affect nested JSON properties', async t => {
+	const server = await createHttpTestServer(t);
+	server.post('/', (request, response) => {
+		response.json(request.body);
+	});
+
+	const nestedController = new AbortController();
+	const base = ky.create({json: {unicorn: true, signal: nestedController.signal}});
+	const extended = base.extend({json: {signal: undefined}});
+
+	const result = await extended.post(server.url).json();
+	t.deepEqual(result, {unicorn: true});
+});
+
 test('supports Request instance as input', async t => {
 	const server = await createHttpTestServer(t);
 	const inputRequest = new Request(server.url, {method: 'POST'});
