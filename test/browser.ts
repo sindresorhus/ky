@@ -194,7 +194,7 @@ defaultBrowsersTest('should copy origin response info when using `onDownloadProg
 	});
 });
 
-defaultBrowsersTest('should not copy response body with 204 status code when using `onDownloadProgress` ', async (t: ExecutionContext, page: Page) => {
+defaultBrowsersTest('should not copy response body with 204 status code when using `onDownloadProgress`', async (t: ExecutionContext, page: Page) => {
 	const status = 204;
 	const statusText = 'No content';
 	server.get('/', (_request, response) => {
@@ -210,24 +210,19 @@ defaultBrowsersTest('should not copy response body with 204 status code when usi
 	await page.goto(server.url);
 	await addKyScriptToPage(page);
 	const data = await page.evaluate(async (url: string) => {
-		const progress: any = [];
-		let totalBytes = 0;
+		const progress: Progress[] = [];
 		const response = await globalThis.ky.get(`${url}/test`, {
 			onDownloadProgress(progressEvent) {
 				progress.push(progressEvent);
 			},
-		}).then(async v => {
-			totalBytes = Number(v.headers.get('content-length')) || 0;
-			return ({
-				headers: v.headers.get('X-ky-Header'),
-				status: v.status,
-				statusText: v.statusText,
-			});
-		});
+		}).then(v => ({
+			headers: v.headers.get('X-ky-Header'),
+			status: v.status,
+			statusText: v.statusText,
+		}));
 		return {
 			response,
 			progress,
-			totalBytes,
 		};
 	}, server.url);
 

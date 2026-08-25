@@ -749,7 +749,7 @@ The function receives these arguments:
 - `progress` is an object with these properties:
   - `percent` is a number between 0 and 1 representing the progress percentage.
   - `transferredBytes` is the number of bytes transferred so far.
-  - `totalBytes` is the total number of bytes to be transferred. This is an estimate and may be 0 if the total size cannot be determined.
+  - `totalBytes` is the total number of bytes to be transferred. This is an estimate and may be 0 for an empty transfer or when the total size cannot be determined.
 - `chunk` is an instance of `Uint8Array` containing the data that was received. When an empty response body stream completes, the callback receives an empty chunk.
 
 ```js
@@ -777,7 +777,7 @@ The function receives these arguments:
 - `progress` is an object with these properties:
   - `percent` is a number between 0 and 1 representing the progress percentage.
   - `transferredBytes` is the number of bytes transferred so far.
-  - `totalBytes` is the total number of bytes to be transferred. This is an estimate and may be 0 if the total size cannot be determined.
+  - `totalBytes` is the total number of bytes to be transferred. This is an estimate and may be 0 for an empty transfer or when the total size cannot be determined.
 - `chunk` is an instance of `Uint8Array` containing the data that was sent. When an empty request body stream completes, the callback receives an empty chunk.
 
 ```js

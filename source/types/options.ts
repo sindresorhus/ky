@@ -25,7 +25,7 @@ export type Progress = {
 	transferredBytes: number;
 
 	/**
-	The total number of bytes to be transferred. This is an estimate and may be `0` if the total size cannot be determined.
+	The total number of bytes to be transferred. This is an estimate and may be `0` for an empty transfer or when the total size cannot be determined.
 	*/
 	totalBytes: number;
 };
