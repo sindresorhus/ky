@@ -2573,6 +2573,11 @@ test('ky.extend() with signal set to undefined removes parent signal', async t =
 
 	parentController.abort();
 	t.is(await extended(server.url).text(), 'success');
+
+	const requestController = new AbortController();
+	requestController.abort();
+	const error = (await t.throwsAsync(extended(server.url, {signal: requestController.signal})))!;
+	t.is(error.name, 'AbortError');
 });
 
 test('signal option handling does not affect nested JSON properties', async t => {

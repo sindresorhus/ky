@@ -227,12 +227,10 @@ const deepMergeInternal = <T>(isRoot: boolean, ...sources: Array<Partial<T> | un
 				const isRootSignal = isRoot && key === 'signal';
 				if (isRootSignal && (isReplace || value === undefined)) {
 					signals.length = 0;
-					delete returnValue.signal;
 				}
 
 				// Special handling for AbortSignal instances at the root options level
 				if (isRootSignal && value instanceof globalThis.AbortSignal) {
-					delete returnValue.signal;
 					signals.push(value);
 					continue;
 				}
@@ -311,7 +309,7 @@ const deepMergeInternal = <T>(isRoot: boolean, ...sources: Array<Partial<T> | un
 		returnValue.searchParams = searchParameters;
 	}
 
-	if (signals.length > 0 && !Object.hasOwn(returnValue, 'signal')) {
+	if (signals.length > 0) {
 		if (signals.length === 1) {
 			returnValue.signal = signals[0];
 		} else if (supportsAbortSignal) {
@@ -319,7 +317,7 @@ const deepMergeInternal = <T>(isRoot: boolean, ...sources: Array<Partial<T> | un
 		} else {
 			// When AbortSignal.any is not available, use the last signal
 			// This maintains the previous behavior before signal merging was added
-			// This can be remove when the `supportsAbortSignal` check is removed.`
+			// This can be removed when the `supportsAbortSignal` check is removed.
 			returnValue.signal = signals.at(-1);
 		}
 	}
