@@ -68,10 +68,9 @@ const withProgress = (stream: ReadableStream<Uint8Array>, totalBytes: number, on
 			previousChunk = currentChunk;
 		},
 		flush() {
-			if (previousChunk) {
-				transferredBytes += previousChunk.byteLength;
-				onProgress?.({percent: 1, totalBytes: Math.max(totalBytes, transferredBytes), transferredBytes}, previousChunk);
-			}
+			const finalChunk = previousChunk ?? new Uint8Array();
+			transferredBytes += finalChunk.byteLength;
+			onProgress?.({percent: 1, totalBytes: Math.max(totalBytes, transferredBytes), transferredBytes}, finalChunk);
 		},
 	}));
 };
