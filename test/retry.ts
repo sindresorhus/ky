@@ -1041,56 +1041,43 @@ test('respect retry methods', async t => {
 	t.is(requestCount, defaultRetryCount + 1);
 });
 
-test('respect maxRetryAfter', async t => {
-	const retryCount = 4;
+test.serial('respect maxRetryAfter', async t => {
 	let requestCount = 0;
-
-	const server = await createHttpTestServer(t);
-	server.get('/', (_request, response) => {
+	const customFetch = async () => {
 		requestCount++;
-
-		if (requestCount === retryCount + 1) {
-			response.end(fixture);
-		} else {
-			response.writeHead(413, {
-				'Retry-After': 1,
+		return requestCount === 2
+			? new Response(fixture)
+			: new Response(null, {
+				status: 413,
+				headers: {'Retry-After': '2000'},
 			});
+	};
 
-			response.end('');
-		}
+	await withCapturedTimeouts(async scheduledDelays => {
+		t.is(await ky('https://example.com', {
+			timeout: false,
+			fetch: customFetch,
+			retry: {
+				limit: 1,
+				maxRetryAfter: 1_500_000,
+			},
+		}).text(), fixture);
+		t.is(requestCount, 2);
+
+		requestCount = 0;
+		t.is(await ky('https://example.com', {
+			timeout: false,
+			fetch: customFetch,
+			retry: {
+				limit: 1,
+				maxRetryAfter: 3_000_000,
+			},
+		}).text(), fixture);
+		t.is(requestCount, 2);
+
+		const relevantScheduledDelays = scheduledDelays.filter(delay => delay === 1_500_000 || delay === 2_000_000);
+		t.deepEqual(relevantScheduledDelays, [1_500_000, 2_000_000]);
 	});
-
-	await withPerformance({
-		t,
-		expectedDuration: 420 + 420 + 420 + 420,
-		async test() {
-			t.is(await ky(server.url, {
-				retry: {
-					limit: retryCount,
-					maxRetryAfter: 420,
-				},
-			}).text(), fixture);
-		},
-	});
-
-	t.is(requestCount, 5);
-
-	requestCount = 0;
-
-	await withPerformance({
-		t,
-		expectedDuration: 1000 + 1000 + 1000 + 1000,
-		async test() {
-			t.is(await ky(server.url, {
-				retry: {
-					limit: retryCount,
-					maxRetryAfter: 2000,
-				},
-			}).text(), fixture);
-		},
-	});
-
-	t.is(requestCount, 5);
 });
 
 test.serial('invalid Retry-After header falls back to retry delay', async t => {
