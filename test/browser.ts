@@ -215,13 +215,14 @@ defaultBrowsersTest('should not copy response body with 204 status code when usi
 			onDownloadProgress(progressEvent) {
 				progress.push(progressEvent);
 			},
-		}).then(v => ({
-			headers: v.headers.get('X-ky-Header'),
-			status: v.status,
-			statusText: v.statusText,
-		}));
+		});
 		return {
-			response,
+			response: {
+				headers: response.headers.get('X-ky-Header'),
+				status: response.status,
+				statusText: response.statusText,
+				text: await response.text(),
+			},
 			progress,
 		};
 	}, server.url);
@@ -230,6 +231,7 @@ defaultBrowsersTest('should not copy response body with 204 status code when usi
 		status,
 		headers: 'ky',
 		statusText,
+		text: '',
 	});
 	t.deepEqual(data.progress, []);
 });
