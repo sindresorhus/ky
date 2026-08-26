@@ -220,15 +220,20 @@ const deepMergeInternal = <T>(isRoot: boolean, ...sources: Array<Partial<T> | un
 			returnValue = [...returnValue, ...source];
 		} else if (isObject(source)) {
 			for (let [key, value] of Object.entries(source)) {
-				// Special handling for AbortSignal instances
-				if (key === 'signal' && value instanceof globalThis.AbortSignal) {
-					signals.push(value);
-					continue;
-				}
-
 				const replaceState = getReplaceState(value);
 				const {isReplace} = replaceState;
 				value = replaceState.value;
+
+				const isRootSignal = isRoot && key === 'signal';
+				if (isRootSignal && (isReplace || value === undefined)) {
+					signals.length = 0;
+				}
+
+				// Special handling for AbortSignal instances at the root options level
+				if (isRootSignal && value instanceof globalThis.AbortSignal) {
+					signals.push(value);
+					continue;
+				}
 
 				// Special handling for context - shallow merge only
 				if (key === 'context') {
@@ -312,7 +317,7 @@ const deepMergeInternal = <T>(isRoot: boolean, ...sources: Array<Partial<T> | un
 		} else {
 			// When AbortSignal.any is not available, use the last signal
 			// This maintains the previous behavior before signal merging was added
-			// This can be remove when the `supportsAbortSignal` check is removed.`
+			// This can be removed when the `supportsAbortSignal` check is removed.
 			returnValue.signal = signals.at(-1);
 		}
 	}

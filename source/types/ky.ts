@@ -97,6 +97,8 @@ export type KyInstance = {
 
 	By default, `.extend()` deep-merges options: hooks are appended, headers are merged, and search parameters are accumulated. Use `replaceOption` when you want to fully replace a merged property instead.
 
+	When extending an instance, signals are combined. Use `replaceOption(signal)` to replace inherited signals, or `signal: undefined` to remove them.
+
 	You can also refer to parent defaults by providing a function to `.extend()`.
 
 	@example
