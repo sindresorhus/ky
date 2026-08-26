@@ -1012,6 +1012,8 @@ const response = await api.get('version');
 
 By default, `.extend()` deep-merges options: hooks are appended, headers are merged, and search parameters are accumulated. Use [`replaceOption`](#replaceoption) when you want to fully replace a merged property instead.
 
+When extending an instance, signals are combined. Use `replaceOption(signal)` to replace inherited signals, or `signal: undefined` to remove them.
+
 ```js
 import ky, {replaceOption} from 'ky';
 
