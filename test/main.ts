@@ -472,12 +472,43 @@ test('.json(schema) keeps the caller in the error stack with and without totalTi
 		return value;
 	}
 
+	async function schemaValidationEntryPoint(totalTimeout: number | false) {
+		await schemaValidationCaller(totalTimeout);
+	}
+
 	for (const totalTimeout of [false, 10_000] as const) {
 		// eslint-disable-next-line no-await-in-loop
-		const error = await t.throwsAsync(schemaValidationCaller(totalTimeout), {instanceOf: SchemaValidationError});
+		const error = await t.throwsAsync(schemaValidationEntryPoint(totalTimeout), {instanceOf: SchemaValidationError});
 
 		t.regex(error?.stack ?? '', /schemaValidationCaller/);
+		t.regex(error?.stack ?? '', /schemaValidationEntryPoint/);
 	}
+});
+
+test('.json(schema) preserves async validator errors without aborting the request', async t => {
+	let requestSignal: AbortSignal | undefined;
+	let validationError: Error | undefined;
+	const schema = createSchema(async () => {
+		await delay(0);
+		validationError = new Error('validate exploded');
+		throw validationError;
+	});
+
+	async function asyncValidationCaller() {
+		await ky('https://example.com', {
+			async fetch(request) {
+				requestSignal = request.signal;
+				return new Response('{"value":1}');
+			},
+			totalTimeout: 10_000,
+		}).json(schema);
+	}
+
+	const error = await t.throwsAsync(asyncValidationCaller(), {message: 'validate exploded'});
+
+	t.is(error, validationError);
+	t.regex(error?.stack ?? '', /asyncValidationCaller/);
+	t.false(requestSignal?.aborted);
 });
 
 test('.json(schema) throws TypeError for invalid schema objects', async t => {
