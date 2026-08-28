@@ -459,6 +459,27 @@ test('.json(schema) throws SchemaValidationError when validation fails', async t
 	t.deepEqual(error?.issues, issues);
 });
 
+test('.json(schema) keeps the caller in the error stack with and without totalTimeout', async t => {
+	const server = await createHttpTestServer(t);
+	server.get('/', (_request, response) => {
+		response.json({value: 'invalid'});
+	});
+
+	const schema = createSchema<{value: number}>(() => ({issues: [{message: 'Expected {value:number}'}]}));
+
+	async function schemaValidationCaller(totalTimeout: number | false) {
+		const {value} = await ky.get(server.url, {totalTimeout}).json(schema);
+		return value;
+	}
+
+	for (const totalTimeout of [false, 10_000] as const) {
+		// eslint-disable-next-line no-await-in-loop
+		const error = await t.throwsAsync(schemaValidationCaller(totalTimeout), {instanceOf: SchemaValidationError});
+
+		t.regex(error?.stack ?? '', /schemaValidationCaller/);
+	}
+});
+
 test('.json(schema) throws TypeError for invalid schema objects', async t => {
 	const server = await createHttpTestServer(t);
 	server.get('/', (_request, response) => {
