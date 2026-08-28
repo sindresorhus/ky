@@ -749,8 +749,8 @@ The function receives these arguments:
 - `progress` is an object with these properties:
   - `percent` is a number between 0 and 1 representing the progress percentage.
   - `transferredBytes` is the number of bytes transferred so far.
-  - `totalBytes` is the total number of bytes to be transferred. This is an estimate and may be 0 if the total size cannot be determined.
-- `chunk` is an instance of `Uint8Array` containing the data that was received. Note: It's empty for the first call.
+  - `totalBytes` is the total number of bytes to be transferred. This is an estimate and may be 0 for an empty transfer or when the total size cannot be determined.
+- `chunk` is an instance of `Uint8Array` containing the data that was received. When an empty response body stream completes, the callback receives an empty chunk.
 
 ```js
 import ky from 'ky';
@@ -758,7 +758,6 @@ import ky from 'ky';
 const response = await ky('https://example.com', {
 	onDownloadProgress: (progress, chunk) => {
 		// Example output:
-		// `0% - 0 of 1271 bytes`
 		// `100% - 1271 of 1271 bytes`
 		console.log(`${progress.percent * 100}% - ${progress.transferredBytes} of ${progress.totalBytes} bytes`);
 	}
@@ -778,8 +777,8 @@ The function receives these arguments:
 - `progress` is an object with these properties:
   - `percent` is a number between 0 and 1 representing the progress percentage.
   - `transferredBytes` is the number of bytes transferred so far.
-  - `totalBytes` is the total number of bytes to be transferred. This is an estimate and may be 0 if the total size cannot be determined.
-- `chunk` is an instance of `Uint8Array` containing the data that was sent. Note: It's empty for the last call.
+  - `totalBytes` is the total number of bytes to be transferred. This is an estimate and may be 0 for an empty transfer or when the total size cannot be determined.
+- `chunk` is an instance of `Uint8Array` containing the data that was sent. When an empty request body stream completes, the callback receives an empty chunk.
 
 ```js
 import ky from 'ky';
@@ -788,7 +787,6 @@ const response = await ky.post('https://example.com/upload', {
 	body: largeFile,
 	onUploadProgress: (progress, chunk) => {
 		// Example output:
-		// `0% - 0 of 1271 bytes`
 		// `100% - 1271 of 1271 bytes`
 		console.log(`${progress.percent * 100}% - ${progress.transferredBytes} of ${progress.totalBytes} bytes`);
 	}

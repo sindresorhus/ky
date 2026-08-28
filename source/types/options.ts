@@ -25,7 +25,7 @@ export type Progress = {
 	transferredBytes: number;
 
 	/**
-	The total number of bytes to be transferred. This is an estimate and may be `0` if the total size cannot be determined.
+	The total number of bytes to be transferred. This is an estimate and may be `0` for an empty transfer or when the total size cannot be determined.
 	*/
 	totalBytes: number;
 };
@@ -256,7 +256,7 @@ export type KyOptions = {
 	Download progress event handler.
 
 	@param progress - Object containing download progress information.
-	@param chunk - Data that was received. Note: It's empty for the first call.
+	@param chunk - Data that was received. When an empty response body stream completes, the callback receives an empty chunk.
 
 	@example
 	```
@@ -265,7 +265,6 @@ export type KyOptions = {
 	const response = await ky('https://example.com', {
 		onDownloadProgress: (progress, chunk) => {
 			// Example output:
-			// `0% - 0 of 1271 bytes`
 			// `100% - 1271 of 1271 bytes`
 			console.log(`${progress.percent * 100}% - ${progress.transferredBytes} of ${progress.totalBytes} bytes`);
 		}
@@ -280,7 +279,7 @@ export type KyOptions = {
 	Note: Requires [request stream support](https://caniuse.com/wf-fetch-request-streams) and HTTP/2 for HTTPS connections (in Chromium-based browsers). In unsupported environments, this handler is silently ignored.
 
 	@param progress - Object containing upload progress information.
-	@param chunk - Data that was sent. Note: It's empty for the last call.
+	@param chunk - Data that was sent. When an empty request body stream completes, the callback receives an empty chunk.
 
 	@example
 	```
@@ -290,7 +289,6 @@ export type KyOptions = {
 		body: largeFile,
 		onUploadProgress: (progress, chunk) => {
 			// Example output:
-			// `0% - 0 of 1271 bytes`
 			// `100% - 1271 of 1271 bytes`
 			console.log(`${progress.percent * 100}% - ${progress.transferredBytes} of ${progress.totalBytes} bytes`);
 		}

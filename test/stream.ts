@@ -4,6 +4,29 @@ import {createLargeBlob} from './helpers/create-large-file.js';
 import {createHttpTestServer} from './helpers/create-http-test-server.js';
 import {parseRawBody, parseJsonBody} from './helpers/parse-body.js';
 
+test('empty request body completes upload progress', async t => {
+	const server = await createHttpTestServer(t, {bodyParser: false});
+	server.post('/', async (request, response) => {
+		response.json({body: await parseRawBody(request)});
+	});
+
+	const progressEvents: Array<{progress: Progress; chunk: Uint8Array}> = [];
+	const response = await ky
+		.post(server.url, {
+			body: '',
+			onUploadProgress(progress, chunk) {
+				progressEvents.push({progress, chunk});
+			},
+		})
+		.json<{body: string}>();
+
+	t.is(response.body, '');
+	t.deepEqual(progressEvents, [{
+		progress: {percent: 1, totalBytes: 0, transferredBytes: 0},
+		chunk: new Uint8Array(),
+	}]);
+});
+
 test('POST JSON with upload progress', async t => {
 	const server = await createHttpTestServer(t, {bodyParser: false});
 	server.post('/', async (request, response) => {
@@ -515,6 +538,26 @@ test('ReadableStream upload emits stable non-final progress and completes once',
 	t.is(completedProgressEvents.length, 1, 'Should complete exactly once');
 	const finalProgress = completedProgressEvents[0];
 	t.is(finalProgress.transferredBytes, response.receivedBytes);
+});
+
+test('empty response body completes download progress', async t => {
+	const server = await createHttpTestServer(t);
+	server.get('/', (_request, response) => {
+		response.header('content-length', '0').end();
+	});
+
+	const progressEvents: Array<{progress: Progress; chunk: Uint8Array}> = [];
+	const responseText = await ky(server.url, {
+		onDownloadProgress(progress, chunk) {
+			progressEvents.push({progress, chunk});
+		},
+	}).text();
+
+	t.is(responseText, '');
+	t.deepEqual(progressEvents, [{
+		progress: {percent: 1, totalBytes: 0, transferredBytes: 0},
+		chunk: new Uint8Array(),
+	}]);
 });
 
 test('onDownloadProgress cancels original response body', async t => {

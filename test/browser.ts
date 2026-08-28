@@ -194,7 +194,7 @@ defaultBrowsersTest('should copy origin response info when using `onDownloadProg
 	});
 });
 
-defaultBrowsersTest('should not copy response body with 204 status code when using `onDownloadProgress` ', async (t: ExecutionContext, page: Page) => {
+defaultBrowsersTest('should not copy response body with 204 status code when using `onDownloadProgress`', async (t: ExecutionContext, page: Page) => {
 	const status = 204;
 	const statusText = 'No content';
 	server.get('/', (_request, response) => {
@@ -210,24 +210,20 @@ defaultBrowsersTest('should not copy response body with 204 status code when usi
 	await page.goto(server.url);
 	await addKyScriptToPage(page);
 	const data = await page.evaluate(async (url: string) => {
-		const progress: any = [];
-		let totalBytes = 0;
+		const progress: Progress[] = [];
 		const response = await globalThis.ky.get(`${url}/test`, {
 			onDownloadProgress(progressEvent) {
 				progress.push(progressEvent);
 			},
-		}).then(async v => {
-			totalBytes = Number(v.headers.get('content-length')) || 0;
-			return ({
-				headers: v.headers.get('X-ky-Header'),
-				status: v.status,
-				statusText: v.statusText,
-			});
 		});
 		return {
-			response,
+			response: {
+				headers: response.headers.get('X-ky-Header'),
+				status: response.status,
+				statusText: response.statusText,
+				text: await response.text(),
+			},
 			progress,
-			totalBytes,
 		};
 	}, server.url);
 
@@ -235,6 +231,7 @@ defaultBrowsersTest('should not copy response body with 204 status code when usi
 		status,
 		headers: 'ky',
 		statusText,
+		text: '',
 	});
 	t.deepEqual(data.progress, []);
 });
@@ -340,6 +337,36 @@ browserTest('onDownloadProgress works', [chromium, webkit], async (t: ExecutionC
 		[{percent: 1, transferredBytes: 4, totalBytes: 4}, 'ow'],
 	]);
 	t.is(result.text, 'meow');
+});
+
+defaultBrowsersTest('onDownloadProgress completes for an empty response body', async (t: ExecutionContext, page: Page) => {
+	server.get('/', (_request, response) => {
+		response.end('meow');
+	});
+
+	server.get('/test', (_request, response) => {
+		response.header('content-length', '0').end();
+	});
+
+	await page.goto(server.url);
+	await addKyScriptToPage(page);
+
+	const result = await page.evaluate(async (url: string) => {
+		const progressEvents: Array<{progress: Progress; chunkLength: number}> = [];
+		const text = await globalThis.ky(`${url}/test`, {
+			onDownloadProgress(progress, chunk) {
+				progressEvents.push({progress, chunkLength: chunk.byteLength});
+			},
+		}).text();
+
+		return {progressEvents, text};
+	}, server.url);
+
+	t.is(result.text, '');
+	t.deepEqual(result.progressEvents, [{
+		progress: {percent: 1, totalBytes: 0, transferredBytes: 0},
+		chunkLength: 0,
+	}]);
 });
 
 defaultBrowsersTest('throws if onDownloadProgress is not a function', async (t: ExecutionContext, page: Page) => {
