@@ -1463,6 +1463,129 @@ test('searchParams option merges with existing query when hash is present', asyn
 	);
 });
 
+test('searchParams preserves the body of a Request input', async t => {
+	const server = await createHttpTestServer(t);
+	server.post('/', (request, response) => {
+		response.json({url: request.url, body: request.body});
+	});
+
+	const request = new Request(server.url, {method: 'POST', body: fixture});
+	const result = await ky(request, {searchParams: {foo: '1'}}).json<{url: string; body: string}>();
+
+	t.is(result.url, '/?foo=1');
+	t.is(result.body, fixture);
+});
+
+test('searchParams preserves the JSON body and headers of a Request input', async t => {
+	const server = await createHttpTestServer(t);
+	server.post('/', (request, response) => {
+		response.json({url: request.url, body: request.body, custom: request.headers['x-custom']});
+	});
+
+	const request = new Request(server.url, {
+		method: 'POST',
+		body: JSON.stringify({hello: 'world'}),
+		headers: {'content-type': 'application/json', 'x-custom': 'unicorn'},
+	});
+	const result = await ky(request, {searchParams: {foo: '1'}}).json<{url: string; body: unknown; custom: string}>();
+
+	t.is(result.url, '/?foo=1');
+	t.deepEqual(result.body, {hello: 'world'});
+	t.is(result.custom, 'unicorn');
+});
+
+test('searchParams with a Request input still prefers the body option', async t => {
+	const server = await createHttpTestServer(t);
+	server.post('/', (request, response) => {
+		response.json({body: request.body, contentLength: request.headers['content-length']});
+	});
+
+	const request = new Request(server.url, {method: 'POST', body: 'ignored'});
+	const result = await ky(request, {body: fixture, searchParams: {foo: '1'}, keepalive: true}).json<{body: string; contentLength: string}>();
+
+	t.is(result.body, fixture);
+	t.is(result.contentLength, String(fixture.length));
+});
+
+test('searchParams preserves a Request input body across retries', async t => {
+	let requestCount = 0;
+	const server = await createHttpTestServer(t);
+	server.post('/', (request, response) => {
+		requestCount++;
+		if (requestCount === 1) {
+			response.sendStatus(500);
+			return;
+		}
+
+		response.json({body: request.body});
+	});
+
+	const request = new Request(server.url, {method: 'POST', body: fixture});
+	const result = await ky(request, {
+		searchParams: {foo: '1'},
+		retry: {limit: 1, methods: ['post'], delay: () => 0},
+	}).json<{body: string}>();
+
+	t.is(requestCount, 2);
+	t.is(result.body, fixture);
+});
+
+test('searchParams drops an inherited Request input body with keepalive', async t => {
+	const request = new Request('https://example.com', {method: 'POST', body: fixture});
+
+	await ky(request, {
+		searchParams: {foo: '1'},
+		keepalive: true,
+		async fetch(request) {
+			t.is(request.url, 'https://example.com/?foo=1');
+			t.true(request.keepalive);
+			t.is(request.body, null);
+			return new Response();
+		},
+	});
+});
+
+test('searchParams drops an inherited Request input body in no-cors mode', async t => {
+	const request = new Request('https://example.com', {method: 'POST', body: fixture});
+
+	await ky(request, {
+		searchParams: {foo: '1'},
+		mode: 'no-cors',
+		async fetch(request) {
+			t.is(request.url, 'https://example.com/?foo=1');
+			t.is(request.mode, 'no-cors');
+			t.is(request.body, null);
+			return new Response();
+		},
+	});
+});
+
+test('searchParams preserves keepalive inherited from a Request input', async t => {
+	const request = new Request('https://example.com', {method: 'POST', body: fixture, keepalive: true});
+
+	await ky(request, {
+		searchParams: {foo: '1'},
+		async fetch(request) {
+			t.true(request.keepalive);
+			t.is(request.body, null);
+			return new Response();
+		},
+	});
+});
+
+test('searchParams preserves no-cors mode inherited from a Request input', async t => {
+	const request = new Request('https://example.com', {method: 'POST', body: fixture, mode: 'no-cors'});
+
+	await ky(request, {
+		searchParams: {foo: '1'},
+		async fetch(request) {
+			t.is(request.mode, 'no-cors');
+			t.is(request.body, null);
+			return new Response();
+		},
+	});
+});
+
 test('init hook deletion over merged defaults and input URL', async t => {
 	const server = await createHttpTestServer(t);
 

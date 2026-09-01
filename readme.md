@@ -219,6 +219,8 @@ Accepts any value supported by [`URLSearchParams()`](https://developer.mozilla.o
 
 When passing an object, setting a value to `undefined` deletes the parameter, while `null` values are preserved and converted to the string `'null'`.
 
+When `input` is a [`Request`](https://developer.mozilla.org/en-US/docs/Web/API/Request) with a body, the body is sent as a stream, which requires [request stream support](https://caniuse.com/wf-fetch-request-streams) and HTTP/2 for HTTPS connections (in Chromium-based browsers). In environments without request stream support, when `keepalive` is true, or when the effective mode is `'no-cors'`, the inherited body is dropped. A compatible body passed explicitly with the `body` option is still used.
+
 ##### baseUrl
 
 Type: `string | URL`
