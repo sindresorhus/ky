@@ -277,9 +277,10 @@ export class Ky {
 					throw new Error('Streams are not supported in your environment. `ReadableStream` is missing.');
 				}
 
-				const progressResponse = response.clone();
+				const progressResponse = streamResponse(response.clone(), ky.#options.onDownloadProgress);
+				ky.#setResponseRequest(progressResponse, ky.#getResponseRequest(response));
 				ky.#cancelResponseBody(response);
-				return streamResponse(progressResponse, ky.#options.onDownloadProgress);
+				return ky.#decorateResponse(progressResponse);
 			}
 
 			return response;

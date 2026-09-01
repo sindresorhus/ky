@@ -2831,6 +2831,53 @@ test('parseJson option with response.json()', async t => {
 	});
 });
 
+test('parseJson option with response.json() and onDownloadProgress', async t => {
+	const json = {hello: 'world'};
+
+	const server = await createHttpTestServer(t);
+	server.get('/', async (_request, response) => {
+		response.json(json);
+	});
+
+	let didReportProgress = false;
+	const response = await ky.get(server.url, {
+		onDownloadProgress() {
+			didReportProgress = true;
+		},
+		parseJson: text => ({
+			...JSON.parse(text),
+			extra: 'extraValue',
+		}),
+	});
+
+	t.deepEqual(await response.json(), {
+		...json,
+		extra: 'extraValue',
+	});
+	t.true(didReportProgress);
+});
+
+test('parseJson receives the request and the streamed response with onDownloadProgress', async t => {
+	const server = await createHttpTestServer(t);
+	server.get('/', async (_request, response) => {
+		response.json({hello: 'world'});
+	});
+
+	let context: {request: Request; response: Response} | undefined;
+	const response = await ky.get(server.url, {
+		onDownloadProgress: () => undefined,
+		parseJson(text, parseContext) {
+			context = parseContext;
+			return JSON.parse(text);
+		},
+	});
+
+	await response.json();
+
+	t.is(context?.request.url, `${server.url}/`);
+	t.is(context?.response, response);
+});
+
 test('parseJson option with response.json() handles empty body', async t => {
 	const server = await createHttpTestServer(t);
 	server.get('/', (_request, response) => {
