@@ -170,6 +170,19 @@ test('json manual `content-type` header', async t => {
 	t.is(headers['content-type'], 'custom');
 });
 
+test('json option overrides `content-type` inherited from a Request input body', async t => {
+	const server = await createHttpTestServer(t);
+	server.post('/', echoHeaders);
+
+	const headers = await ky(new Request(server.url, {method: 'POST', body: 'plain'}), {
+		json: {
+			foo: true,
+		},
+	}).json<IncomingHttpHeaders>();
+
+	t.is(headers['content-type'], 'application/json');
+});
+
 test('form-data manual `content-type` header', async t => {
 	const server = await createHttpTestServer(t);
 	server.post('/', echoHeaders);

@@ -427,14 +427,18 @@ export class Ky {
 			this.#options.duplex = 'half';
 		}
 
+		// A `Request` input's headers are already merged in, so only a content-type from `options.headers` counts as user-provided.
+		const userProvidedContentType = options.headers && new globalThis.Headers(options.headers as HeadersInit).has('content-type');
+
 		if (this.#options.json !== undefined) {
 			this.#options.body = this.#options.stringifyJson?.(this.#options.json) ?? JSON.stringify(this.#options.json);
-			this.#options.headers.set('content-type', this.#options.headers.get('content-type') ?? 'application/json');
+			if (!userProvidedContentType) {
+				this.#options.headers.set('content-type', 'application/json');
+			}
 		}
 
 		// To provide correct form boundary, Content-Type header should be deleted when creating Request from another Request with FormData/URLSearchParams body
 		// Only delete if user didn't explicitly provide a custom content-type
-		const userProvidedContentType = options.headers && new globalThis.Headers(options.headers as HeadersInit).has('content-type');
 		if (
 			this.#input instanceof globalThis.Request
 			&& ((supportsFormData && this.#options.body instanceof globalThis.FormData) || this.#options.body instanceof URLSearchParams)
