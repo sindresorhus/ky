@@ -63,6 +63,17 @@ test('QUERY method is normalized', async t => {
 	});
 });
 
+test('mixed-case standard method is uppercased', async t => {
+	const server = await createHttpTestServer(t);
+	server.all('/', (request, response) => {
+		response.end(request.method);
+	});
+
+	t.is(await ky(server.url, {method: 'Patch'}).text(), 'PATCH');
+	t.is(await ky(server.url, {method: 'Query'}).text(), 'QUERY');
+	t.is(await ky(server.url, {method: 'Delete'}).text(), 'DELETE');
+});
+
 test.failing('custom method remains identical', async t => {
 	const server = await createHttpTestServer(t);
 	server.all('/', (_request, response) => {
