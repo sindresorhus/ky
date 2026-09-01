@@ -1407,6 +1407,89 @@ test('beforeError is not called when beforeRetry throws non-Error', async t => {
 	t.false(beforeErrorHookCalled);
 });
 
+test('hooks receive a fresh signal when retrying after a timeout', async t => {
+	let requestCount = 0;
+	const observedAbortStates: boolean[] = [];
+
+	const response = await ky('https://example.com', {
+		timeout: 50,
+		retry: {
+			limit: 1,
+			retryOnTimeout: true,
+			delay: () => 0,
+		},
+		async fetch(request) {
+			requestCount++;
+			if (requestCount === 1) {
+				await new Promise<void>(resolve => {
+					(request as Request).signal.addEventListener('abort', () => {
+						resolve();
+					}, {once: true});
+				});
+				throw new DOMException('aborted', 'AbortError');
+			}
+
+			return new Response('ok');
+		},
+		hooks: {
+			beforeRetry: [
+				({request, options}) => {
+					observedAbortStates.push(request.signal.aborted, options.signal!.aborted);
+				},
+			],
+			afterResponse: [
+				({request, options}) => {
+					observedAbortStates.push(request.signal.aborted, options.signal!.aborted);
+				},
+			],
+		},
+	});
+
+	t.is(await response.text(), 'ok');
+	t.deepEqual(observedAbortStates, [false, false, false, false]);
+});
+
+test('beforeError receives a fresh signal when a retry after a timeout fails', async t => {
+	let requestCount = 0;
+	let observedAbortState: boolean | undefined;
+
+	await t.throwsAsync(
+		ky('https://example.com', {
+			timeout: 50,
+			retry: {
+				limit: 1,
+				retryOnTimeout: true,
+				delay: () => 0,
+			},
+			async fetch(request) {
+				requestCount++;
+				if (requestCount === 1) {
+					await new Promise<void>(resolve => {
+						(request as Request).signal.addEventListener('abort', () => {
+							resolve();
+						}, {once: true});
+					});
+					throw new DOMException('aborted', 'AbortError');
+				}
+
+				return new Response('error', {status: 500});
+			},
+			hooks: {
+				beforeError: [
+					({error, options}) => {
+						observedAbortState = options.signal!.aborted;
+						return error;
+					},
+				],
+			},
+		}),
+		{name: 'HTTPError'},
+	);
+
+	t.is(requestCount, 2);
+	t.false(observedAbortState);
+});
+
 test('beforeError runs when beforeRetry rethrows TimeoutError', async t => {
 	let beforeErrorHookCalled = false;
 	let beforeRetryHookCalled = false;

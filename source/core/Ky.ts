@@ -1045,6 +1045,13 @@ export class Ky {
 
 		this.#throwIfTotalTimeoutExhausted();
 
+		// Reset abortController if it was aborted (happens on timeout retry) so hooks and the retried request get a fresh signal
+		if (this.#abortController?.signal.aborted) {
+			this.#abortController = new globalThis.AbortController();
+			this.#options.signal = this.#createManagedSignal();
+			this.#assignRequest(new globalThis.Request(this.request, {signal: this.#options.signal}));
+		}
+
 		// Apply custom request from forced retry before beforeRetry hooks
 		// Ensure the custom request has the correct managed signal for timeouts and user aborts
 		if (error instanceof ForceRetryError && error.customRequest) {
@@ -1110,14 +1117,6 @@ export class Ky {
 	}
 
 	async #fetch(): Promise<Response> {
-		// Reset abortController if it was aborted (happens on timeout retry)
-		if (this.#abortController?.signal.aborted) {
-			this.#abortController = new globalThis.AbortController();
-			this.#options.signal = this.#createManagedSignal();
-			// Recreate request with new signal
-			this.request = new globalThis.Request(this.request, {signal: this.#options.signal});
-		}
-
 		const nonRequestOptions = findUnknownOptions(this.#options);
 		this.#retryLimit = normalizeRetryOptions(this.#options.retry).limit;
 		const retryRequest = this.#retryLimit > 0 ? this.request.clone() : undefined;
