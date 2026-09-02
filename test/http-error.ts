@@ -209,14 +209,14 @@ test('HTTPError#data does not hang when async parseJson never resolves', async t
 		headers: {'content-type': 'application/json'},
 	});
 
+	const {promise: neverSettles} = Promise.withResolvers<never>();
+
 	const start = Date.now();
 	const error = await t.throwsAsync<HTTPError>(ky('https://example.com', {
 		fetch: customFetch,
 		retry: 0,
 		timeout: 500,
-		parseJson: async () => new Promise<never>(resolve => {
-			void resolve;
-		}),
+		parseJson: async () => neverSettles,
 	}));
 	t.true(error instanceof HTTPError);
 	t.is(error?.data, undefined);
