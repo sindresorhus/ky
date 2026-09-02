@@ -331,7 +331,12 @@ export class Ky {
 							? undefined
 							: JSON.parse(text));
 
-					return schema === undefined ? jsonValue : validateJsonWithSchema(jsonValue, schema);
+					if (schema === undefined) {
+						return jsonValue;
+					}
+
+					// eslint-disable-next-line no-return-await, @typescript-eslint/return-await -- Awaiting here preserves the caller's async stack when schema validation fails.
+					return await validateJsonWithSchema(jsonValue, schema);
 				});
 
 				if (parsedResult === timedOutOperation) {
@@ -758,7 +763,8 @@ export class Ky {
 	async #raceWithTotalTimeout<T>(operation: () => Promise<T>): Promise<T | typeof timedOutOperation> {
 		const remainingTotal = this.#getRemainingTotalTimeout();
 		if (remainingTotal === undefined) {
-			return operation();
+			// eslint-disable-next-line no-return-await, @typescript-eslint/return-await -- Awaiting here preserves the caller's async stack when the operation fails.
+			return await operation();
 		}
 
 		if (remainingTotal <= 0) {
@@ -773,34 +779,33 @@ export class Ky {
 					resolve(timedOutOperation);
 				}, remainingTotal);
 			});
-			const operationResult = Promise.resolve()
-				.then(operation)
-				.then(value => ({status: 'fulfilled', value} as const))
-				.catch((error: unknown) => ({status: 'rejected', error} as const));
-			const result = await Promise.race([operationResult, timeoutPromise]);
+			const operationPromise = operation();
+			const result = await Promise.race([operationPromise, timeoutPromise]);
 			const remainingAfterOperation = this.#getRemainingTotalTimeout();
 			const didTimeOut = result === timedOutOperation || (remainingAfterOperation !== undefined && remainingAfterOperation <= 0);
 			if (didTimeOut) {
 				this.#abortController?.abort();
 
 				if (result === timedOutOperation) {
-					void operationResult.then(result => {
-						if (result.status === 'fulfilled') {
-							this.#cancelReturnedBody(result.value);
-						}
-					});
-				} else if (result.status === 'fulfilled') {
-					this.#cancelReturnedBody(result.value);
+					void operationPromise.then(value => {
+						this.#cancelReturnedBody(value);
+					}).catch(() => undefined);
+				} else {
+					this.#cancelReturnedBody(result);
 				}
 
 				return timedOutOperation;
 			}
 
-			if (result.status === 'rejected') {
-				throw result.error;
+			return result;
+		} catch (error: unknown) {
+			const remainingAfterOperation = this.#getRemainingTotalTimeout();
+			if (remainingAfterOperation !== undefined && remainingAfterOperation <= 0) {
+				this.#abortController?.abort();
+				return timedOutOperation;
 			}
 
-			return result.value;
+			throw error;
 		} finally {
 			clearTimeout(timeoutId);
 		}

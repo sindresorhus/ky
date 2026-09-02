@@ -816,6 +816,39 @@ test.serial('totalTimeout rejects a hook result produced after the deadline', as
 	t.true(didCancelBody);
 });
 
+test('totalTimeout cancels a hook response produced after the timer wins', async t => {
+	let resolveHook: (response: Response) => void;
+	let didCancelBody = false;
+	let markHookStarted: () => void;
+	const hookStarted = new Promise<void>(resolve => {
+		markHookStarted = resolve;
+	});
+
+	const request = ky('https://example.com', {
+		totalTimeout: 500,
+		hooks: {
+			beforeRequest: [
+				async () => new Promise<Response>(resolve => {
+					resolveHook = resolve;
+					markHookStarted();
+				}),
+			],
+		},
+	});
+
+	await hookStarted;
+	await t.throwsAsync(request, {instanceOf: TimeoutError});
+
+	resolveHook(new Response(new ReadableStream({
+		cancel() {
+			didCancelBody = true;
+		},
+	})));
+	await delay(0);
+
+	t.true(didCancelBody);
+});
+
 test.serial('totalTimeout takes precedence over a hook error produced after the deadline', async t => {
 	const originalPerformanceNow = globalThis.performance.now;
 	let currentTime = 0;
