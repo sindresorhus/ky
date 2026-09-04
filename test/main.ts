@@ -2563,6 +2563,17 @@ test('ky.extend() with replaceOption on multiple options at once', async t => {
 	t.deepEqual(callOrder, ['extended']);
 });
 
+test('body class instances like Blob replace instance defaults instead of being merged', async t => {
+	const server = await createHttpTestServer(t, {bodyParser: false});
+	server.post('/', async (request, response) => {
+		response.end(await parseRawBody(request));
+	});
+
+	const api = ky.create({body: new Blob(['default'])});
+
+	t.is(await api.post(server.url, {body: new Blob(['request'])}).text(), 'request');
+});
+
 test('ky.extend() with replaceOption replaces context instead of merging', async t => {
 	const server = await createHttpTestServer(t);
 	server.get('/', (_request, response) => {

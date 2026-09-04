@@ -1196,6 +1196,122 @@ test('retry - shorthand expansion does not rewrite nested user data with a `retr
 	t.deepEqual(body.retry, {foo: 'bar'});
 });
 
+test('merging does not rewrite nested user data with a `searchParams` key', async t => {
+	let receivedBody: unknown;
+	const client = ky.create({json: {searchParams: 'a=1'}}).extend({json: {searchParams: 'b=2'}});
+
+	// A `searchParams` key inside the `json` body is user data, not the `searchParams` option,
+	// so option merging must not convert it to `URLSearchParams`.
+	await client.post('https://example.com', {
+		async fetch(request) {
+			receivedBody = await (request as Request).json();
+			return new Response('ok');
+		},
+	});
+
+	t.deepEqual(receivedBody, {searchParams: 'b=2'});
+});
+
+test('merging does not rewrite nested user data with a `hooks` key', async t => {
+	let receivedBody: unknown;
+	const client = ky.create({json: {hooks: ['a']}}).extend({json: {hooks: ['b']}});
+
+	// A `hooks` key inside the `json` body is user data, not the `hooks` option,
+	// so option merging must not replace it with a hooks object.
+	await client.post('https://example.com', {
+		async fetch(request) {
+			receivedBody = await (request as Request).json();
+			return new Response('ok');
+		},
+	});
+
+	t.deepEqual(receivedBody, {hooks: ['a', 'b']});
+});
+
+test('merging does not rewrite nested user data with a `context` key', async t => {
+	let receivedBody: unknown;
+	const client = ky.create({json: {context: {a: {x: 1}}}}).extend({json: {context: {a: {y: 2}, b: 3}}});
+
+	// A `context` key inside the `json` body is user data, not the `context` option,
+	// so option merging must deep-merge it like any other user data instead of
+	// shallow-merging it or rejecting non-object values.
+	await client.post('https://example.com', {
+		async fetch(request) {
+			receivedBody = await (request as Request).json();
+			return new Response('ok');
+		},
+	});
+
+	t.deepEqual(receivedBody, {context: {a: {x: 1, y: 2}, b: 3}});
+});
+
+test('merging replaces class instances inside nested user data instead of merging them into plain objects', async t => {
+	let receivedBody: unknown;
+	const client = ky.create({json: {date: new Date(0)}});
+
+	// A `Date` is not a plain object, so it must be replaced as a whole rather than having its (non-existent) own properties merged into `{}`.
+	await client.post('https://example.com', {
+		json: {date: new Date(1000)},
+		async fetch(request) {
+			receivedBody = await (request as Request).json();
+			return new Response('ok');
+		},
+	});
+
+	t.deepEqual(receivedBody, {date: '1970-01-01T00:00:01.000Z'});
+});
+
+test('merging replaces class instances inside nested user data when extending', async t => {
+	let receivedBody: unknown;
+	const client = ky.create({json: {date: new Date(0), keep: true}}).extend({json: {date: new Date(1000)}});
+
+	await client.post('https://example.com', {
+		async fetch(request) {
+			receivedBody = await (request as Request).json();
+			return new Response('ok');
+		},
+	});
+
+	t.deepEqual(receivedBody, {date: '1970-01-01T00:00:01.000Z', keep: true});
+});
+
+test('merging still deep-merges null-prototype objects inside nested user data', async t => {
+	let receivedBody: unknown;
+	const nested = Object.create(null) as Record<string, unknown>;
+	nested.b = 2;
+	const client = ky.create({json: {nested: {a: 1}}});
+
+	await client.post('https://example.com', {
+		json: {nested},
+		async fetch(request) {
+			receivedBody = await (request as Request).json();
+			return new Response('ok');
+		},
+	});
+
+	t.deepEqual(receivedBody, {nested: {a: 1, b: 2}});
+});
+
+test('merging still concatenates arrays inside nested options', async t => {
+	let retryMethods: string[] | undefined;
+	const client = ky.create({retry: {methods: ['get']}}).extend({retry: {methods: ['post']}});
+
+	await client('https://example.com', {
+		async fetch() {
+			return new Response('ok');
+		},
+		hooks: {
+			beforeRequest: [
+				({options}) => {
+					retryMethods = options.retry.methods;
+				},
+			],
+		},
+	});
+
+	t.deepEqual(retryMethods, ['get', 'post']);
+});
+
 test('doesn\'t retry on 413 with empty statusCodes and methods', async t => {
 	let requestCount = 0;
 

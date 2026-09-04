@@ -176,6 +176,45 @@ test('fetch-only options like dispatcher are passed to fetch', async t => {
 	await ky(fixture, {dispatcher: mockDispatcher, fetch: customFetch}).text();
 });
 
+test('class instance options like dispatcher replace instance defaults instead of being merged into plain objects', async t => {
+	t.plan(2);
+
+	class Agent {
+		constructor(readonly name: string) {}
+
+		// eslint-disable-next-line @typescript-eslint/no-empty-function
+		dispatch() {}
+	}
+
+	const defaultAgent = new Agent('default');
+	const requestAgent = new Agent('request');
+
+	const customFetch: typeof fetch = async (request, init) => {
+		t.is(init.dispatcher, requestAgent);
+		t.true(init.dispatcher instanceof Agent);
+		return new Response(request.url);
+	};
+
+	const api = ky.create({dispatcher: defaultAgent, fetch: customFetch});
+	await api(fixture, {dispatcher: requestAgent}).text();
+});
+
+test('plain object options replace class instance defaults instead of being merged into them', async t => {
+	t.plan(1);
+
+	class Agent {
+		constructor(readonly name: string) {}
+	}
+
+	const customFetch: typeof fetch = async (request, init) => {
+		t.deepEqual(init.dispatcher, {name: 'request'});
+		return new Response(request.url);
+	};
+
+	const api = ky.create({dispatcher: new Agent('default'), fetch: customFetch});
+	await api(fixture, {dispatcher: {name: 'request'}}).text();
+});
+
 test.serial('fetch-only options like dispatcher are passed to fetch even when Request is patched', async t => {
 	t.plan(1);
 

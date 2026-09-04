@@ -86,6 +86,9 @@ const isPlainObject = (value: unknown): value is Record<string, unknown> => {
 	return prototype === Object.prototype || prototype === null;
 };
 
+// Only plain objects and arrays are merged. Class instances (for example, a `Date` in `json` or an undici `Agent` in `dispatcher`) are replaced as a whole, since merging their own properties into a plain object would strip their prototype.
+const isMergeable = (value: unknown): value is Record<string, unknown> | unknown[] => isPlainObject(value) || Array.isArray(value);
+
 export const cloneShallow = <T>(value: T): T => {
 	if (value instanceof URLSearchParams) {
 		const copy = new URLSearchParams(value) as URLSearchParams & {[deletedParametersSymbol]?: Set<string>};
@@ -235,8 +238,10 @@ const deepMergeInternal = <T>(isRoot: boolean, ...sources: Array<Partial<T> | un
 					continue;
 				}
 
-				// Special handling for context - shallow merge only
-				if (key === 'context') {
+				// Special handling for context - shallow merge only.
+				// Scoped to the root options level so it never rewrites nested user data that
+				// happens to contain a `context` key (e.g. a `json` request body).
+				if (isRoot && key === 'context') {
 					if (value !== undefined && value !== null && (!isObject(value) || Array.isArray(value))) {
 						throw new TypeError('The `context` option must be an object');
 					}
@@ -253,8 +258,10 @@ const deepMergeInternal = <T>(isRoot: boolean, ...sources: Array<Partial<T> | un
 					continue;
 				}
 
-				// Special handling for searchParams
-				if (key === 'searchParams') {
+				// Special handling for searchParams.
+				// Scoped to the root options level so it never rewrites nested user data that
+				// happens to contain a `searchParams` key (e.g. a `json` request body).
+				if (isRoot && key === 'searchParams') {
 					if (value === undefined || value === null) {
 						// Explicit undefined or null removes searchParams
 						searchParameters = undefined;
@@ -278,14 +285,16 @@ const deepMergeInternal = <T>(isRoot: boolean, ...sources: Array<Partial<T> | un
 					returnValue = {...returnValue, [key]: {limit: returnValue[key]}};
 				}
 
-				if (isObject(value) && !isReplace && key in returnValue) {
-					value = deepMergeInternal(false, returnValue[key], value);
+				if (!isReplace && isMergeable(returnValue[key]) && isMergeable(value)) {
+					value = deepMergeInternal<unknown>(false, returnValue[key], value);
 				}
 
 				returnValue = {...returnValue, [key]: value};
 			}
 
-			if (isObject((source as any).hooks)) {
+			// Scoped to the root options level so it never rewrites nested user data that
+			// happens to contain a `hooks` key (e.g. a `json` request body).
+			if (isRoot && isObject((source as any).hooks)) {
 				const {value: hookValue, isReplace} = getReplaceState((source as any).hooks);
 				hooks = isReplace
 					? mergeHooks({}, hookValue)
@@ -294,7 +303,9 @@ const deepMergeInternal = <T>(isRoot: boolean, ...sources: Array<Partial<T> | un
 				returnValue.hooks = hooks;
 			}
 
-			if (isObject((source as any).headers)) {
+			// Scoped to the root options level so it never rewrites nested user data that
+			// happens to contain a `headers` key (e.g. a `json` request body).
+			if (isRoot && isObject((source as any).headers)) {
 				const {value: headerValue, isReplace} = getReplaceState((source as any).headers);
 				headers = isReplace
 					? cloneShallow(headerValue as KyHeadersInit)
