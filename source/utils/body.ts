@@ -75,6 +75,26 @@ const withProgress = (stream: ReadableStream<Uint8Array>, totalBytes: number, on
 	}));
 };
 
+const copyResponseMetadata = (response: Response, originalResponse: Response): Response => {
+	const nativeClone = response.clone.bind(response);
+
+	Object.defineProperties(response, {
+		// The `Response` constructor cannot set these, so copy them over from the original response.
+		url: {value: originalResponse.url},
+		redirected: {value: originalResponse.redirected},
+		type: {value: originalResponse.type},
+		// Native `clone()` creates a new `Response`, which would drop them again.
+		// Keep the shim replaceable like `Response.prototype.clone` for instrumentation and mocks.
+		clone: {
+			value: () => copyResponseMetadata(nativeClone(), response),
+			writable: true,
+			configurable: true,
+		},
+	});
+
+	return response;
+};
+
 export const streamResponse = (response: Response, onDownloadProgress: Options['onDownloadProgress']) => {
 	if (!response.body) {
 		return response;
@@ -86,12 +106,10 @@ export const streamResponse = (response: Response, onDownloadProgress: Options['
 		headers: response.headers,
 	};
 
-	if (response.status === 204) {
-		return new Response(null, responseInit);
-	}
-
 	const totalBytes = Math.max(0, Number(response.headers.get('content-length')) || 0);
-	return new Response(withProgress(response.body, totalBytes, onDownloadProgress), responseInit);
+	const body = response.status === 204 ? null : withProgress(response.body, totalBytes, onDownloadProgress);
+
+	return copyResponseMetadata(new Response(body, responseInit), response);
 };
 
 // eslint-disable-next-line @typescript-eslint/no-restricted-types

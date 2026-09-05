@@ -560,6 +560,97 @@ test('empty response body completes download progress', async t => {
 	}]);
 });
 
+test('onDownloadProgress preserves response url, redirected, and type', async t => {
+	const server = await createHttpTestServer(t);
+	server.get('/', (_request, response) => {
+		response.end('ok');
+	});
+	server.get('/redirect', (_request, response) => {
+		response.redirect(302, '/');
+	});
+
+	const response = await ky(`${server.url}/redirect`, {
+		// eslint-disable-next-line @typescript-eslint/no-empty-function
+		onDownloadProgress() {},
+	});
+
+	t.is(await response.text(), 'ok');
+	t.is(response.url, `${server.url}/`);
+	t.true(response.redirected);
+	t.is(response.type, 'basic');
+});
+
+test('onDownloadProgress preserves response metadata through repeated clones', async t => {
+	const server = await createHttpTestServer(t);
+	server.get('/', (_request, response) => {
+		response.end('ok');
+	});
+	server.get('/redirect', (_request, response) => {
+		response.redirect(302, '/');
+	});
+
+	const progressEvents: Progress[] = [];
+	const response = await ky(`${server.url}/redirect`, {
+		onDownloadProgress(progress) {
+			progressEvents.push(progress);
+		},
+	});
+	const clone = response.clone();
+	const nestedClone = clone.clone();
+
+	for (const currentResponse of [response, clone, nestedClone]) {
+		t.is(currentResponse.url, `${server.url}/`);
+		t.true(currentResponse.redirected);
+		t.is(currentResponse.type, 'basic');
+	}
+
+	t.deepEqual(await Promise.all([response.text(), clone.text(), nestedClone.text()]), ['ok', 'ok', 'ok']);
+	t.is(progressEvents.filter(progress => progress.percent === 1).length, 1);
+	t.throws(() => clone.clone(), {instanceOf: TypeError});
+});
+
+test('onDownloadProgress keeps clone writable and configurable', async t => {
+	const server = await createHttpTestServer(t);
+	server.get('/', (_request, response) => {
+		response.end('ok');
+	});
+
+	const response = await ky(server.url, {
+		// eslint-disable-next-line @typescript-eslint/no-empty-function
+		onDownloadProgress() {},
+	});
+	const originalClone = response.clone;
+	let cloneCallCount = 0;
+
+	response.clone = () => {
+		cloneCallCount++;
+		return originalClone();
+	};
+
+	const clone = response.clone();
+
+	t.is(cloneCallCount, 1);
+	t.is(await clone.text(), 'ok');
+	t.true(Object.getOwnPropertyDescriptor(response, 'clone')?.configurable);
+});
+
+test('onDownloadProgress preserves the final url and redirected state without redirects', async t => {
+	const server = await createHttpTestServer(t);
+	server.get('/', (_request, response) => {
+		response.end('ok');
+	});
+
+	const response = await ky(server.url, {
+		searchParams: {foo: 'bar'},
+		// eslint-disable-next-line @typescript-eslint/no-empty-function
+		onDownloadProgress() {},
+	});
+
+	t.is(await response.text(), 'ok');
+	t.is(response.url, `${server.url}/?foo=bar`);
+	t.false(response.redirected);
+});
+
 test('onDownloadProgress cancels original response body', async t => {
 	let originalResponse: Response | undefined;
 	let didReportProgress = false;
