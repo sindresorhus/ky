@@ -140,7 +140,7 @@ export type RetryOptions = {
 	Should return:
 	- `true` to force a retry (bypasses `retryOnTimeout`, status code checks, and other validations)
 	- `false` to prevent a retry (no retry will occur)
-	- `undefined` to use the default retry logic (`retryOnTimeout`, status codes, network errors). Unrecognized error types are not retried.
+	- `undefined` (or nothing) to use the default retry logic (`retryOnTimeout`, status codes, network errors). Unrecognized error types are not retried.
 
 	@default undefined
 
@@ -174,5 +174,5 @@ export type RetryOptions = {
 	}).json();
 	```
 	*/
-	shouldRetry?: (state: ShouldRetryState) => boolean | undefined | Promise<boolean | undefined>;
+	shouldRetry?: (state: ShouldRetryState) => boolean | void | Promise<boolean | void>;
 };

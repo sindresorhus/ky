@@ -62,3 +62,21 @@ const withoutSignal: Options = {signal: undefined};
 expectTypeOf(withoutHooks.hooks?.beforeRequest).toEqualTypeOf<BeforeRequestHook[] | undefined>();
 // eslint-disable-next-line @typescript-eslint/no-restricted-types
 expectTypeOf(withoutSignal.signal).toEqualTypeOf<AbortSignal | null | undefined>();
+
+// `shouldRetry` may return nothing to fall back to the default retry logic, like every hook type.
+const shouldRetryOptions: Options = {
+	retry: {
+		shouldRetry() {
+			// Nothing to decide here.
+		},
+	},
+};
+const asyncShouldRetryOptions: Options = {
+	retry: {
+		async shouldRetry() {
+			await Promise.resolve();
+		},
+	},
+};
+expectTypeOf(shouldRetryOptions.retry).toMatchTypeOf<RetryOptions | number | undefined>();
+expectTypeOf(asyncShouldRetryOptions.retry).toMatchTypeOf<RetryOptions | number | undefined>();

@@ -305,7 +305,7 @@ The `shouldRetry` option provides custom retry logic that **takes precedence ove
 The function receives a state object with the error and retry count (starts at 1 for the first retry), and should return:
 - `true` to force a retry (bypasses `retryOnTimeout`, status code checks, and other default validations)
 - `false` to prevent a retry (no retry will occur)
-- `undefined` to use the default retry logic (`retryOnTimeout`, status codes, network errors). Unrecognized error types are not retried.
+- `undefined` (or nothing) to use the default retry logic (`retryOnTimeout`, status codes, network errors). Unrecognized error types are not retried.
 
 **General example**
 
