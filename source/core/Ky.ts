@@ -758,30 +758,32 @@ export class Ky {
 			await this.#throwProcessedError(error);
 		}
 
-		// A connection dropped while streaming the body surfaces as a raw runtime `TypeError`. Wrap it like fetch-phase network errors so it is recognizable and runs `beforeError` hooks.
-		const bodyPromise = createBodyPromise().catch(async (error: unknown) => {
-			if (isRawNetworkError(error)) {
-				await this.#throwProcessedError(new NetworkError(this.#getResponseRequest(response), {cause: error as Error}));
-			}
-
-			throw error;
-		});
-
-		if (timeoutMs === undefined) {
-			return bodyPromise;
-		}
-
-		const result = await Promise.race([
-			bodyPromise,
-			new Promise<typeof timedOutResponseData>(resolve => {
+		const bodyPromise = createBodyPromise();
+		const timeoutPromise = timeoutMs === undefined
+			? undefined
+			: new Promise<typeof timedOutResponseData>(resolve => {
 				const timeoutId = setTimeout(() => {
 					resolve(timedOutResponseData);
 				}, timeoutMs);
 				void bodyPromise.finally(() => {
 					clearTimeout(timeoutId);
 				}).catch(() => undefined);
-			}),
-		]);
+			});
+
+		let result: unknown;
+		try {
+			result = timeoutPromise === undefined
+				? await bodyPromise
+				: await Promise.race([bodyPromise, timeoutPromise]);
+		} catch (error: unknown) {
+			// A connection dropped while streaming the body surfaces as a raw runtime `TypeError`. Wrap it like fetch-phase network errors so it is recognizable and runs `beforeError` hooks.
+			// This only happens on the awaited path, so a body that fails after the timeout already won does not run the hooks again.
+			if (isRawNetworkError(error)) {
+				await this.#throwProcessedError(new NetworkError(this.#getResponseRequest(response), {cause: error as Error}));
+			}
+
+			throw error;
+		}
 
 		if (result === timedOutResponseData) {
 			// The stream is locked by the native body method's own reader by this point, so

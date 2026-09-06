@@ -3451,6 +3451,41 @@ test('body read errors that are not network errors are thrown unchanged', async 
 	t.false(beforeErrorCalled);
 });
 
+test('a body failing after the body read timed out does not run beforeError hooks again', async t => {
+	const hookErrorNames: string[] = [];
+
+	const error = await t.throwsAsync(
+		ky('https://example.com', {
+			retry: 0,
+			timeout: 50,
+			async fetch() {
+				// A body stream that ignores the abort signal and fails on its own later.
+				return new Response(new ReadableStream({
+					start(controller) {
+						controller.enqueue(new TextEncoder().encode('partial'));
+						setTimeout(() => {
+							controller.error(new TypeError('terminated'));
+						}, 150);
+					},
+				}));
+			},
+			hooks: {
+				beforeError: [
+					({error}) => {
+						hookErrorNames.push(error.name);
+						return error;
+					},
+				],
+			},
+		}).text(),
+		{instanceOf: TimeoutError},
+	);
+
+	t.is(error.name, 'TimeoutError');
+	await delay(300);
+	t.deepEqual(hookErrorNames, ['TimeoutError']);
+});
+
 test('native body methods on the returned response are not wrapped', async t => {
 	const {server} = await createCutConnectionServer(t);
 
