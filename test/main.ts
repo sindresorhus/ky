@@ -3133,6 +3133,100 @@ test('parseJson receives the request and the streamed response with onDownloadPr
 	t.is(context?.response, response);
 });
 
+test('parseJson option is kept by response.clone()', async t => {
+	const json = {hello: 'world'};
+
+	const server = await createHttpTestServer(t);
+	server.get('/', async (_request, response) => {
+		response.json(json);
+	});
+
+	const parseJson = (text: string) => ({
+		...JSON.parse(text),
+		extra: 'extraValue',
+	});
+	const expected = {
+		...json,
+		extra: 'extraValue',
+	};
+
+	const response = await ky.get(server.url, {parseJson});
+	t.deepEqual(await response.clone().json(), expected);
+	t.deepEqual(await response.clone().clone().json(), expected);
+	t.deepEqual(await response.json(), expected);
+
+	const progressResponse = await ky.get(server.url, {
+		parseJson,
+		onDownloadProgress: () => undefined,
+	});
+	const progressClone = progressResponse.clone().clone();
+	t.is(progressClone.url, `${server.url}/`);
+	t.is(progressClone.redirected, false);
+	t.is(progressClone.type, 'basic');
+	t.deepEqual(await progressClone.json(), expected);
+	t.deepEqual(await progressResponse.clone().json(), expected);
+	t.deepEqual(await progressResponse.json(), expected);
+});
+
+test('parseJson option is kept by response.clone() inside afterResponse hooks', async t => {
+	const server = await createHttpTestServer(t);
+	server.get('/', async (_request, response) => {
+		response.json({hello: 'world'});
+	});
+
+	const hookResults: unknown[] = [];
+	const response = await ky.get(server.url, {
+		parseJson: text => ({
+			...JSON.parse(text),
+			extra: 'extraValue',
+		}),
+		hooks: {
+			afterResponse: [
+				async ({response}) => {
+					hookResults.push(await response.clone().json());
+				},
+				async ({response}) => {
+					hookResults.push(await response.clone().json());
+					return new Response(response.body, response);
+				},
+			],
+		},
+	});
+
+	t.deepEqual(hookResults, [
+		{hello: 'world', extra: 'extraValue'},
+		{hello: 'world', extra: 'extraValue'},
+	]);
+	// The final response is decorated even when a hook constructed it.
+	t.deepEqual(await response.clone().json(), {hello: 'world', extra: 'extraValue'});
+	t.deepEqual(await response.json(), {hello: 'world', extra: 'extraValue'});
+});
+
+test('parseJson receives the cloned response and the original request for response.clone()', async t => {
+	const server = await createHttpTestServer(t);
+	server.get('/', async (_request, response) => {
+		response.json({hello: 'world'});
+	});
+
+	const contexts: Array<{request: Request; response: Response}> = [];
+	const response = await ky.get(server.url, {
+		parseJson(text, parseContext) {
+			contexts.push(parseContext);
+			return JSON.parse(text);
+		},
+	});
+
+	const clone = response.clone();
+	await clone.json();
+	await response.json();
+
+	t.is(contexts.length, 2);
+	t.is(contexts[0]?.response, clone);
+	t.is(contexts[1]?.response, response);
+	t.is(contexts[0]?.request.url, `${server.url}/`);
+	t.is(contexts[0]?.request, contexts[1]?.request);
+});
+
 test('parseJson option with response.json() handles empty body', async t => {
 	const server = await createHttpTestServer(t);
 	server.get('/', (_request, response) => {

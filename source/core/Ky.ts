@@ -373,6 +373,7 @@ export class Ky {
 	readonly #startTime: number | undefined;
 	#returnedResponseFromBeforeRetryHook = false;
 	readonly #responseRequests = new WeakMap<Response, Request>();
+	readonly #decoratedResponses = new WeakSet<Response>();
 
 	// eslint-disable-next-line complexity
 	constructor(input: Input, options: Options = {}) {
@@ -607,14 +608,21 @@ export class Ky {
 	}
 
 	#decorateResponse(response: Response): Response {
+		if (!this.#options.parseJson || this.#decoratedResponses.has(response)) {
+			return response;
+		}
+
+		this.#decoratedResponses.add(response);
 		const request = this.#getResponseRequest(response);
 
-		if (this.#options.parseJson) {
-			response.json = async () => {
-				const text = await response.text();
-				return this.#options.parseJson!(text, {request, response});
-			};
-		}
+		response.json = async () => {
+			const text = await response.text();
+			return this.#options.parseJson!(text, {request, response});
+		};
+
+		// `clone()` returns a fresh `Response` that would otherwise fall back to the native `json()`.
+		const nativeClone = response.clone.bind(response);
+		response.clone = () => this.#decorateResponse(this.#setResponseRequest(nativeClone(), request));
 
 		return response;
 	}
