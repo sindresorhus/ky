@@ -19,7 +19,8 @@ const createInstance = (defaults?: Partial<Options>): KyInstance => {
 	ky.create = (newDefaults?: Partial<Options>) => createInstance(validateAndMerge(newDefaults));
 	ky.extend = (newDefaults?: Partial<Options> | ((parentDefaults: Partial<Options>) => Partial<Options>)) => {
 		if (typeof newDefaults === 'function') {
-			newDefaults = newDefaults(defaults ?? {});
+			// Pass a copy so mutations inside the callback cannot leak into this instance's defaults. The copy is shallow for nested values in unmerged options like `retry` or `json`, so replace those instead of mutating them in place.
+			newDefaults = newDefaults(validateAndMerge(defaults));
 		}
 
 		return createInstance(validateAndMerge(defaults, newDefaults));

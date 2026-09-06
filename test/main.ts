@@ -2123,6 +2123,52 @@ test('ky.extend() with function overrides primitives in parent defaults', async 
 	}
 });
 
+test('ky.extend() with function does not let the callback mutate the parent defaults', async t => {
+	const server = await createHttpTestServer(t);
+	server.get('/', (request, response) => {
+		response.json({
+			headers: request.headers,
+			url: request.url,
+		});
+	});
+
+	const callOrder: string[] = [];
+
+	const parent = ky.create({
+		headers: {'x-parent': 'parent'},
+		searchParams: {parent: '1'},
+		context: {parent: true},
+		hooks: {
+			beforeRequest: [
+				({options}) => {
+					callOrder.push(`parent:${JSON.stringify(options.context)}`);
+				},
+			],
+		},
+	});
+
+	// Mutating the received defaults must not leak into the parent instance.
+	const child = parent.extend(parentDefaults => {
+		(parentDefaults.headers as Record<string, string>)['x-child'] = 'child';
+		(parentDefaults.searchParams as Record<string, string>)['child'] = '1';
+		parentDefaults.context!['child'] = true;
+		parentDefaults.hooks!.beforeRequest!.push(() => {
+			callOrder.push('child');
+		});
+		return {};
+	});
+
+	for (const instance of [child, parent]) {
+		callOrder.length = 0;
+		// eslint-disable-next-line no-await-in-loop
+		const {headers, url} = await instance(server.url).json<{headers: Record<string, string>; url: string}>();
+		t.is(headers['x-parent'], 'parent');
+		t.false('x-child' in headers);
+		t.is(url, '/?parent=1');
+		t.deepEqual(callOrder, ['parent:{"parent":true}']);
+	}
+});
+
 test('ky.extend() with function retains parent defaults when not specified', async t => {
 	const server = await createHttpTestServer(t);
 	server.use((request, response) => {
