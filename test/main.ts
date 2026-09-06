@@ -1638,6 +1638,58 @@ test('searchParams preserves no-cors mode inherited from a Request input', async
 	});
 });
 
+test('searchParams preserves request options inherited from a Request input', async t => {
+	const request = new Request('https://example.com', {
+		credentials: 'include',
+		cache: 'no-store',
+		redirect: 'manual',
+		integrity: 'sha256-47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=',
+	});
+
+	await ky(request, {
+		searchParams: {foo: '1'},
+		async fetch(request) {
+			t.is(request.url, 'https://example.com/?foo=1');
+			t.is(request.credentials, 'include');
+			t.is(request.cache, 'no-store');
+			t.is(request.redirect, 'manual');
+			t.is(request.integrity, 'sha256-47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=');
+			return new Response();
+		},
+	});
+});
+
+test('searchParams lets options override request options inherited from a Request input', async t => {
+	const request = new Request('https://example.com', {credentials: 'include', cache: 'no-store'});
+
+	await ky(request, {
+		searchParams: {foo: '1'},
+		credentials: 'omit',
+		async fetch(request) {
+			t.is(request.url, 'https://example.com/?foo=1');
+			t.is(request.credentials, 'omit');
+			t.is(request.cache, 'no-store');
+			return new Response();
+		},
+	});
+});
+
+test('searchParams keeps request options from a Request input across retries', async t => {
+	const request = new Request('https://example.com', {credentials: 'include', redirect: 'manual'});
+	const seen: Array<[RequestCredentials, RequestRedirect]> = [];
+
+	await ky(request, {
+		searchParams: {foo: '1'},
+		retry: {limit: 1, delay: () => 0},
+		async fetch(request) {
+			seen.push([request.credentials, request.redirect]);
+			return new Response(null, {status: seen.length === 1 ? 500 : 200});
+		},
+	});
+
+	t.deepEqual(seen, [['include', 'manual'], ['include', 'manual']]);
+});
+
 test('init hook deletion over merged defaults and input URL', async t => {
 	const server = await createHttpTestServer(t);
 
