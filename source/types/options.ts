@@ -1,5 +1,5 @@
 import type {LiteralUnion, Required} from './common.js';
-import type {Hooks} from './hooks.js';
+import type {Hooks, NormalizedHooks} from './hooks.js';
 import type {RetryOptions} from './retry.js';
 
 // eslint-disable-next-line unicorn/prevent-abbreviations
@@ -404,7 +404,7 @@ export type KyOptionsRegistry = {[K in keyof KyOptions]-?: true};
 /**
 Options are the same as `window.fetch`, except for the KyOptions
 */
-export interface Options extends KyOptions, Omit<RequestInit, 'headers'> { // eslint-disable-line @typescript-eslint/consistent-type-definitions -- This must stay an interface so that it can be extended outside of Ky for use in `ky.create`.
+export interface Options extends KyOptions, Omit<RequestInit, 'headers' | 'signal'> { // eslint-disable-line @typescript-eslint/consistent-type-definitions -- This must stay an interface so that it can be extended outside of Ky for use in `ky.create`.
 	/**
 	HTTP method used to make the request.
 
@@ -448,6 +448,14 @@ export interface Options extends KyOptions, Omit<RequestInit, 'headers'> { // es
 	```
 	*/
 	headers?: KyHeadersInit;
+
+	/**
+	An `AbortSignal` to abort the request.
+
+	When extending an instance, signals are combined. Use `replaceOption(signal)` to replace inherited signals, or `signal: undefined` to remove them.
+	*/
+	// eslint-disable-next-line @typescript-eslint/no-restricted-types
+	signal?: AbortSignal | null | undefined;
 }
 
 type NormalizedRetryOptions = Required<Omit<RetryOptions, 'shouldRetry'>> & Pick<RetryOptions, 'shouldRetry'>;
@@ -457,7 +465,7 @@ export type InternalOptions = Required<
 	'fetch' | 'prefix' | 'timeout' | 'totalTimeout'
 > & {
 	headers: Required<Headers>;
-	hooks: Required<Hooks>;
+	hooks: NormalizedHooks;
 	retry: NormalizedRetryOptions;
 	prefix: string;
 	context: Record<string, unknown>;

@@ -113,7 +113,7 @@ export type Hooks = {
 
 	@default []
 	*/
-	init?: InitHook[];
+	init?: InitHook[] | undefined;
 
 	/**
 	This hook enables you to modify the request right before it is sent. Ky will make no further changes to the request after this. The hook function receives a state object with the normalized request, options, and retry count. You could, for example, modify `request.headers` here.
@@ -164,7 +164,7 @@ export type Hooks = {
 
 	@default []
 	*/
-	beforeRequest?: BeforeRequestHook[];
+	beforeRequest?: BeforeRequestHook[] | undefined;
 
 	/**
 	This hook enables you to modify the request right before retry. Ky will make no further changes to the request after this. The hook function receives a state object with the normalized request, options, an error instance, and retry count. You could, for example, modify `request.headers` here.
@@ -246,7 +246,7 @@ export type Hooks = {
 
 	@default []
 	*/
-	beforeRetry?: BeforeRetryHook[];
+	beforeRetry?: BeforeRetryHook[] | undefined;
 
 	/**
 	This hook enables you to modify any error right before it is thrown. The hook function receives a state object with the current request, the normalized Ky options, the error, and retry count, and should return an `Error` instance.
@@ -288,7 +288,7 @@ export type Hooks = {
 	});
 	```
 	*/
-	beforeError?: BeforeErrorHook[];
+	beforeError?: BeforeErrorHook[] | undefined;
 
 	/**
 	This hook enables you to read and optionally modify the response. The hook function receives a state object with the normalized request, options, a clone of the response, and retry count. The return value of the hook function will be used by Ky as the response object if it's an instance of [`Response`](https://developer.mozilla.org/en-US/docs/Web/API/Response).
@@ -361,5 +361,10 @@ export type Hooks = {
 	});
 	```
 	*/
-	afterResponse?: AfterResponseHook[];
+	afterResponse?: AfterResponseHook[] | undefined;
 };
+
+/**
+Hooks after normalization: every hook type is present as an array.
+*/
+export type NormalizedHooks = {[Key in keyof Hooks]-?: NonNullable<Hooks[Key]>};

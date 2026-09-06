@@ -453,7 +453,7 @@ export class Ky {
 			this.#options.headers.delete('content-type');
 		}
 
-		this.request = new globalThis.Request(this.#input, this.#options);
+		this.request = new globalThis.Request(this.#input, this.#options as RequestInit);
 
 		if (hasSearchParameters(this.#options.searchParams)) {
 			const url = new URL(this.request.url);

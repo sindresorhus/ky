@@ -1,5 +1,5 @@
 import type {KyHeadersInit, Options} from '../types/options.js';
-import type {Hooks} from '../types/hooks.js';
+import type {Hooks, NormalizedHooks} from '../types/hooks.js';
 import {supportsAbortSignal} from '../core/constants.js';
 import {isObject} from './is.js';
 
@@ -130,7 +130,7 @@ const mergeHeaderContainers = (source1: KyHeadersInit, source2: KyHeadersInit): 
 	return mergeHeaders(source1, source2);
 };
 
-function newHookValue<K extends keyof Hooks>(original: Hooks, incoming: Hooks, property: K): Required<Hooks>[K] {
+function newHookValue<K extends keyof Hooks>(original: Hooks, incoming: Hooks, property: K): NormalizedHooks[K] {
 	if (Object.hasOwn(incoming, property) && incoming[property] === undefined) {
 		return [];
 	}
@@ -138,13 +138,13 @@ function newHookValue<K extends keyof Hooks>(original: Hooks, incoming: Hooks, p
 	// A single hook type can be wrapped in `replaceOption()` to replace only that array instead of the whole `hooks` object.
 	const {isReplace, value} = getReplaceState(incoming[property]);
 	if (isReplace) {
-		return [...(value ?? [])] as Required<Hooks>[K];
+		return [...(value ?? [])] as NormalizedHooks[K];
 	}
 
-	return deepMerge<Required<Hooks>[K]>(original[property] ?? [], value ?? []);
+	return deepMerge<NormalizedHooks[K]>(original[property] ?? [], value ?? []);
 }
 
-export const mergeHooks = (original: Hooks = {}, incoming: Hooks = {}): Required<Hooks> => (
+export const mergeHooks = (original: Hooks = {}, incoming: Hooks = {}): NormalizedHooks => (
 	{
 		init: newHookValue(original, incoming, 'init'),
 		beforeRequest: newHookValue(original, incoming, 'beforeRequest'),

@@ -1,5 +1,6 @@
 import {expectTypeOf} from 'expect-type';
 import type {
+	BeforeRequestHook,
 	BeforeRequestState,
 	HTTPError,
 	NormalizedOptions,
@@ -54,3 +55,10 @@ beforeRequestState.options.customOption = 'value';
 
 // @ts-expect-error - Module-augmented options attached to errors are frozen too.
 httpError.options.customOption = 'value';
+
+// Documented ways to remove inherited values must type-check with `exactOptionalPropertyTypes`.
+const withoutHooks: Options = {hooks: {beforeRequest: undefined, afterResponse: []}};
+const withoutSignal: Options = {signal: undefined};
+expectTypeOf(withoutHooks.hooks?.beforeRequest).toEqualTypeOf<BeforeRequestHook[] | undefined>();
+// eslint-disable-next-line @typescript-eslint/no-restricted-types
+expectTypeOf(withoutSignal.signal).toEqualTypeOf<AbortSignal | null | undefined>();
