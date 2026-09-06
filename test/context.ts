@@ -146,6 +146,61 @@ test('context defaults to empty object when not provided', async t => {
 	}).json();
 });
 
+test('context defaults to empty object in init hooks', async t => {
+	const seenContexts: unknown[] = [];
+	const options = {
+		fetch: async () => new Response('ok'),
+	};
+
+	await ky('https://example.com', {
+		...options,
+		hooks: {
+			init: [
+				options => {
+					seenContexts.push(options.context);
+					// The readme promises an object, so hooks can add to it without checks.
+					options.context!['fromInit'] = true;
+				},
+			],
+			beforeRequest: [
+				({options}) => {
+					seenContexts.push(options.context);
+				},
+			],
+		},
+	});
+
+	t.deepEqual(seenContexts, [{fromInit: true}, {fromInit: true}]);
+
+	// Also when the init hook comes from an extended instance and the request passes no context.
+	seenContexts.length = 0;
+	await ky.extend({
+		hooks: {
+			init: [
+				options => {
+					seenContexts.push(options.context);
+				},
+			],
+		},
+	})('https://example.com', options);
+	t.deepEqual(seenContexts, [{}]);
+
+	// A provided context is passed through unchanged.
+	seenContexts.length = 0;
+	await ky('https://example.com', {
+		...options,
+		context: {id: 1},
+		hooks: {
+			init: [
+				options => {
+					seenContexts.push(options.context);
+				},
+			],
+		},
+	});
+	t.deepEqual(seenContexts, [{id: 1}]);
+});
+
 test('context is shallow merged', async t => {
 	const server = await createHttpTestServer(t);
 	server.get('/', (_request, response) => {

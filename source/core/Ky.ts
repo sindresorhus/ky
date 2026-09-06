@@ -126,7 +126,8 @@ function cloneInitHookOptions(options: Options): Options {
 	const clonedOptions: Options = {
 		...options,
 		json: cloneShallow(options.json),
-		context: cloneShallow(options.context)!,
+		// `context` is documented to always be an object in every hook, including `init`.
+		context: cloneShallow(options.context) ?? {},
 		headers: cloneShallow(options.headers)!,
 		searchParams: cloneSearchParametersForInitHook(options.searchParams),
 	};
