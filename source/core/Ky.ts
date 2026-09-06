@@ -758,7 +758,15 @@ export class Ky {
 			await this.#throwProcessedError(error);
 		}
 
-		const bodyPromise = createBodyPromise();
+		// A connection dropped while streaming the body surfaces as a raw runtime `TypeError`. Wrap it like fetch-phase network errors so it is recognizable and runs `beforeError` hooks.
+		const bodyPromise = createBodyPromise().catch(async (error: unknown) => {
+			if (isRawNetworkError(error)) {
+				await this.#throwProcessedError(new NetworkError(this.#getResponseRequest(response), {cause: error as Error}));
+			}
+
+			throw error;
+		});
+
 		if (timeoutMs === undefined) {
 			return bodyPromise;
 		}

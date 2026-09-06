@@ -3364,3 +3364,98 @@ test('NetworkError is thrown when timeout is disabled', async t => {
 	t.is(error.name, 'NetworkError');
 	t.true(error.cause instanceof TypeError);
 });
+
+const createCutConnectionServer = async (t: ExecutionContext) => {
+	const server = await createHttpTestServer(t);
+	let requestCount = 0;
+	server.get('/', (request, response) => {
+		requestCount++;
+		response.set('content-type', 'application/json');
+		response.write('{"partial":');
+		setTimeout(() => {
+			request.socket.destroy();
+		}, 20);
+	});
+
+	return {
+		server,
+		getRequestCount: () => requestCount,
+	};
+};
+
+test('NetworkError wraps a connection dropped while reading the body through shortcuts', async t => {
+	const {server} = await createCutConnectionServer(t);
+
+	for (const method of ['text', 'json', 'arrayBuffer', 'blob', 'bytes'] as const) {
+		// eslint-disable-next-line no-await-in-loop
+		const error = await t.throwsAsync(ky(server.url, {retry: 0})[method]());
+
+		t.true(error instanceof NetworkError, method);
+		t.true(isNetworkError(error), method);
+		t.is(error.request.url, `${server.url}/`, method);
+		t.true(error.cause instanceof TypeError, method);
+		t.is(error.message, `Request failed due to a network error: GET ${server.url}/`, method);
+	}
+});
+
+test('body read NetworkError runs beforeError hooks and is not retried', async t => {
+	const {server, getRequestCount} = await createCutConnectionServer(t);
+	const hookErrors: Array<{error: Error; retryCount: number}> = [];
+
+	const error = await t.throwsAsync(
+		ky(server.url, {
+			retry: {limit: 2, delay: () => 0},
+			hooks: {
+				beforeError: [
+					({error, retryCount}) => {
+						hookErrors.push({error, retryCount});
+						error.message = 'modified-by-beforeError';
+						return error;
+					},
+				],
+			},
+		}).json(),
+	);
+
+	t.is(error.message, 'modified-by-beforeError');
+	t.true(isNetworkError(error));
+	t.is(hookErrors.length, 1);
+	t.is(hookErrors[0]?.error, error);
+	t.is(hookErrors[0]?.retryCount, 0);
+	t.is(getRequestCount(), 1);
+});
+
+test('body read errors that are not network errors are thrown unchanged', async t => {
+	const server = await createHttpTestServer(t);
+	server.get('/', (_request, response) => {
+		response.set('content-type', 'application/json').end('{invalid');
+	});
+
+	let beforeErrorCalled = false;
+	const error = await t.throwsAsync(
+		ky(server.url, {
+			retry: 0,
+			hooks: {
+				beforeError: [
+					({error}) => {
+						beforeErrorCalled = true;
+						return error;
+					},
+				],
+			},
+		}).json(),
+		{instanceOf: SyntaxError},
+	);
+
+	t.false(isNetworkError(error));
+	t.false(beforeErrorCalled);
+});
+
+test('native body methods on the returned response are not wrapped', async t => {
+	const {server} = await createCutConnectionServer(t);
+
+	const response = await ky(server.url, {retry: 0});
+	const error = await t.throwsAsync(response.text(), {instanceOf: TypeError});
+
+	t.false(isNetworkError(error));
+});
