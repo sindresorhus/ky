@@ -131,9 +131,17 @@ const mergeHeaderContainers = (source1: KyHeadersInit, source2: KyHeadersInit): 
 };
 
 function newHookValue<K extends keyof Hooks>(original: Hooks, incoming: Hooks, property: K): Required<Hooks>[K] {
-	return (Object.hasOwn(incoming, property) && incoming[property] === undefined)
-		? []
-		: deepMerge<Required<Hooks>[K]>(original[property] ?? [], incoming[property] ?? []);
+	if (Object.hasOwn(incoming, property) && incoming[property] === undefined) {
+		return [];
+	}
+
+	// A single hook type can be wrapped in `replaceOption()` to replace only that array instead of the whole `hooks` object.
+	const {isReplace, value} = getReplaceState(incoming[property]);
+	if (isReplace) {
+		return [...(value ?? [])] as Required<Hooks>[K];
+	}
+
+	return deepMerge<Required<Hooks>[K]>(original[property] ?? [], value ?? []);
 }
 
 export const mergeHooks = (original: Hooks = {}, incoming: Hooks = {}): Required<Hooks> => (

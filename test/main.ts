@@ -2469,6 +2469,152 @@ test('ky.extend() with consecutive replaceOption calls each fully replace', asyn
 	t.deepEqual(callOrder, ['second']);
 });
 
+test('ky.extend() with replaceOption on a single hook type replaces only that hook type', async t => {
+	const server = await createHttpTestServer(t);
+	server.get('/', (_request, response) => {
+		response.end();
+	});
+
+	const callOrder: string[] = [];
+
+	const base = ky.create({
+		hooks: {
+			beforeRequest: [
+				() => {
+					callOrder.push('base-beforeRequest');
+				},
+			],
+			afterResponse: [
+				() => {
+					callOrder.push('base-afterResponse');
+				},
+			],
+		},
+	});
+
+	const extended = base.extend({
+		hooks: {
+			beforeRequest: replaceOption([
+				() => {
+					callOrder.push('replaced-beforeRequest');
+				},
+			]),
+		},
+	});
+
+	await extended(server.url);
+
+	t.deepEqual(callOrder, ['replaced-beforeRequest', 'base-afterResponse']);
+});
+
+test('replaceOption on a single hook type works at the request level', async t => {
+	const server = await createHttpTestServer(t);
+	server.get('/', (_request, response) => {
+		response.end();
+	});
+
+	const callOrder: string[] = [];
+
+	const base = ky.create({
+		hooks: {
+			beforeRequest: [
+				() => {
+					callOrder.push('base');
+				},
+			],
+		},
+	});
+
+	await base(server.url, {
+		hooks: {
+			beforeRequest: replaceOption([
+				() => {
+					callOrder.push('request');
+				},
+			]),
+		},
+	});
+
+	t.deepEqual(callOrder, ['request']);
+});
+
+test('ky.extend() with replaceOption([]) on a single hook type clears only that hook type', async t => {
+	const server = await createHttpTestServer(t);
+	server.get('/', (_request, response) => {
+		response.end();
+	});
+
+	const callOrder: string[] = [];
+
+	const base = ky.create({
+		hooks: {
+			beforeRequest: [
+				() => {
+					callOrder.push('beforeRequest');
+				},
+			],
+			afterResponse: [
+				() => {
+					callOrder.push('afterResponse');
+				},
+			],
+		},
+	});
+
+	const extended = base.extend({
+		hooks: {
+			beforeRequest: replaceOption([]),
+		},
+	});
+
+	await extended(server.url);
+
+	t.deepEqual(callOrder, ['afterResponse']);
+});
+
+test('ky.extend() with replaceOption on a single hook type followed by normal extend appends correctly', async t => {
+	const server = await createHttpTestServer(t);
+	server.get('/', (_request, response) => {
+		response.end();
+	});
+
+	const callOrder: string[] = [];
+
+	const base = ky.create({
+		hooks: {
+			beforeRequest: [
+				() => {
+					callOrder.push('base');
+				},
+			],
+		},
+	});
+
+	const replaced = base.extend({
+		hooks: {
+			beforeRequest: replaceOption([
+				() => {
+					callOrder.push('replaced');
+				},
+			]),
+		},
+	});
+
+	const appended = replaced.extend({
+		hooks: {
+			beforeRequest: [
+				() => {
+					callOrder.push('appended');
+				},
+			],
+		},
+	});
+
+	await appended(server.url);
+
+	t.deepEqual(callOrder, ['replaced', 'appended']);
+});
+
 test('ky.extend() with replaceOption on headers followed by normal extend merges correctly', async t => {
 	const server = await createHttpTestServer(t);
 	server.get('/', (request, response) => {
