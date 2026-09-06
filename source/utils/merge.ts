@@ -63,6 +63,20 @@ export const validateAndMerge = (...sources: Array<Partial<Options> | undefined>
 
 export const mergeHeaders = (source1: KyHeadersInit = {}, source2: KyHeadersInit = {}) => {
 	const result = new globalThis.Headers(source1 as RequestInit['headers']);
+
+	// The `Headers` constructor would turn an `undefined` value into the string `'undefined'`, so plain objects are applied directly to keep the documented deletion behavior (for example, from `init` hooks).
+	if (isPlainObject(source2)) {
+		for (const [key, value] of Object.entries(source2)) {
+			if (value === undefined) {
+				result.delete(key);
+			} else {
+				result.set(key, value as string);
+			}
+		}
+
+		return result;
+	}
+
 	const isHeadersInstance = source2 instanceof globalThis.Headers;
 	const source = new globalThis.Headers(source2 as RequestInit['headers']);
 

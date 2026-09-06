@@ -14,7 +14,8 @@ const echoHeaders: RequestHandler = (request, response) => {
 };
 
 test.serial('works with nullish headers even in old browsers', async t => {
-	t.plan(4);
+	// One `Headers` construction while merging headers, plus the two response assertions.
+	t.plan(3);
 
 	const server = await createHttpTestServer(t);
 	server.get('/', echoHeaders);
@@ -461,4 +462,85 @@ test('remove header by extending instance (plain object and Headers instance)', 
 
 	t.false('rainbow' in response);
 	t.true('unicorn' in response);
+});
+
+test('remove header by setting it to undefined in an init hook (inherited from defaults)', async t => {
+	const server = await createHttpTestServer(t);
+	server.get('/', echoHeaders);
+
+	const api = ky.create({
+		headers: {
+			rainbow: 'rainbow',
+			unicorn: 'unicorn',
+		},
+		hooks: {
+			init: [
+				options => {
+					(options.headers as Record<string, string | undefined>)['rainbow'] = undefined;
+				},
+			],
+		},
+	});
+
+	const response = await api(server.url).json<IncomingHttpHeaders>();
+
+	t.is(response['unicorn'], 'unicorn');
+	t.false('rainbow' in response);
+});
+
+test('remove header by setting it to undefined in an init hook (inherited from a Request input)', async t => {
+	const server = await createHttpTestServer(t);
+	server.get('/', echoHeaders);
+
+	const response = await ky(new Request(server.url, {headers: {rainbow: 'rainbow', unicorn: 'unicorn'}}), {
+		hooks: {
+			init: [
+				options => {
+					options.headers = {rainbow: undefined};
+				},
+			],
+		},
+	}).json<IncomingHttpHeaders>();
+
+	t.is(response['unicorn'], 'unicorn');
+	t.false('rainbow' in response);
+});
+
+test('init hook headers object with undefined values only sends defined headers', async t => {
+	const server = await createHttpTestServer(t);
+	server.get('/', echoHeaders);
+
+	const response = await ky(server.url, {
+		hooks: {
+			init: [
+				options => {
+					options.headers = {
+						rainbow: undefined,
+						unicorn: 'unicorn',
+					};
+				},
+			],
+		},
+	}).json<IncomingHttpHeaders>();
+
+	t.is(response['unicorn'], 'unicorn');
+	t.false('rainbow' in response);
+});
+
+test('json option sets `content-type` when an init hook removes the header with undefined', async t => {
+	const server = await createHttpTestServer(t);
+	server.post('/', echoHeaders);
+
+	const headers = await ky.post(server.url, {
+		json: {foo: true},
+		hooks: {
+			init: [
+				options => {
+					options.headers = {'content-type': undefined};
+				},
+			],
+		},
+	}).json<IncomingHttpHeaders>();
+
+	t.is(headers['content-type'], 'application/json');
 });
