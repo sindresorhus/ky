@@ -1807,6 +1807,112 @@ test('re-adding a key after an earlier deletion across merge layers', async t =>
 	t.is(url.searchParams.get('foo'), '2');
 });
 
+test('re-adding a key after an earlier deletion still removes it from the input URL', async t => {
+	const server = await createHttpTestServer(t);
+
+	server.get('/', (request, response) => {
+		response.end(request.url);
+	});
+
+	const api = ky.create({searchParams: {page: undefined}});
+
+	const response = await api.get(`${server.url}?page=5&keep=1`, {
+		searchParams: {page: '2'},
+	});
+
+	const url = new URL(await response.text(), server.url);
+	t.deepEqual(url.searchParams.getAll('page'), ['2']);
+	t.is(url.searchParams.get('keep'), '1');
+});
+
+test('re-adding a key after an earlier deletion through .extend() still removes it from the input URL', async t => {
+	const server = await createHttpTestServer(t);
+
+	server.get('/', (request, response) => {
+		response.end(request.url);
+	});
+
+	const api = ky.create({searchParams: {page: '1'}})
+		.extend({searchParams: {page: undefined}})
+		.extend({searchParams: {page: '2'}});
+
+	const response = await api.get(`${server.url}?page=5`);
+
+	const url = new URL(await response.text(), server.url);
+	t.deepEqual(url.searchParams.getAll('page'), ['2']);
+});
+
+test('re-adding a key with an array after an earlier deletion still removes it from the input URL', async t => {
+	const server = await createHttpTestServer(t);
+
+	server.get('/', (request, response) => {
+		response.end(request.url);
+	});
+
+	const api = ky.create({searchParams: {page: undefined}});
+
+	const response = await api.get(`${server.url}?page=5`, {
+		searchParams: [['page', '2'], ['page', '3']],
+	});
+
+	const url = new URL(await response.text(), server.url);
+	t.deepEqual(url.searchParams.getAll('page'), ['2', '3']);
+});
+
+test('re-adding a key with a string after an earlier deletion still removes it from the input URL', async t => {
+	const server = await createHttpTestServer(t);
+
+	server.get('/', (request, response) => {
+		response.end(request.url);
+	});
+
+	const api = ky.create({searchParams: {page: undefined}});
+
+	const response = await api.get(`${server.url}?page=5`, {
+		searchParams: 'page=2',
+	});
+
+	const url = new URL(await response.text(), server.url);
+	t.deepEqual(url.searchParams.getAll('page'), ['2']);
+});
+
+test('a deletion after a re-add still wins', async t => {
+	const server = await createHttpTestServer(t);
+
+	server.get('/', (request, response) => {
+		response.end(request.url);
+	});
+
+	const api = ky.create({searchParams: {page: undefined}})
+		.extend({searchParams: {page: '2'}})
+		.extend({searchParams: {page: undefined}});
+
+	const response = await api.get(`${server.url}?page=5&keep=1`);
+
+	const url = new URL(await response.text(), server.url);
+	t.false(url.searchParams.has('page'));
+	t.is(url.searchParams.get('keep'), '1');
+});
+
+test('merging a URLSearchParams layer that deleted and re-added a key keeps the re-added value', async t => {
+	const server = await createHttpTestServer(t);
+
+	server.get('/', (request, response) => {
+		response.end(request.url);
+	});
+
+	const api = ky.create({searchParams: {page: '1'}})
+		.extend({searchParams: {page: undefined}})
+		.extend({searchParams: {page: '2'}})
+		.extend({searchParams: {other: '3'}});
+
+	const response = await api.get(`${server.url}?page=5`);
+
+	const url = new URL(await response.text(), server.url);
+	t.deepEqual(url.searchParams.getAll('page'), ['2']);
+	t.is(url.searchParams.get('other'), '3');
+});
+
 test('deletion from a replaceOption(...) boundary', async t => {
 	const server = await createHttpTestServer(t);
 

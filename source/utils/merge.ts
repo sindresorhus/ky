@@ -182,6 +182,7 @@ export const deletedParametersSymbol = Symbol('deletedParameters');
 
 const appendSearchParameters = (target: any, source: any): URLSearchParams => {
 	const result = new URLSearchParams() as URLSearchParams & {[deletedParametersSymbol]?: Set<string>};
+	// Deleted keys stay marked even when a later layer re-adds the key, so the key is still removed from the input URL before the re-added value is appended.
 	const deleted = new Set<string>();
 
 	for (const input of [target, source]) {
@@ -190,17 +191,17 @@ const appendSearchParameters = (target: any, source: any): URLSearchParams => {
 		}
 
 		if (input instanceof URLSearchParams) {
-			for (const [key, value] of input.entries()) {
-				result.append(key, value);
-				deleted.delete(key);
-			}
-
+			// A merged `URLSearchParams` already applied its own deletions before any re-added entries, so its deletions only apply to what was merged before it.
 			const inputDeleted = (input as any)[deletedParametersSymbol] as Set<string> | undefined;
 			if (inputDeleted) {
 				for (const key of inputDeleted) {
 					result.delete(key);
 					deleted.add(key);
 				}
+			}
+
+			for (const [key, value] of input.entries()) {
+				result.append(key, value);
 			}
 		} else if (Array.isArray(input)) {
 			for (const pair of input) {
@@ -209,7 +210,6 @@ const appendSearchParameters = (target: any, source: any): URLSearchParams => {
 				}
 
 				result.append(String(pair[0]), String(pair[1]));
-				deleted.delete(String(pair[0]));
 			}
 		} else if (isObject(input)) {
 			for (const [key, value] of Object.entries(input)) {
@@ -218,7 +218,6 @@ const appendSearchParameters = (target: any, source: any): URLSearchParams => {
 					deleted.add(key);
 				} else {
 					result.append(key, String(value));
-					deleted.delete(key);
 				}
 			}
 		} else {
@@ -226,7 +225,6 @@ const appendSearchParameters = (target: any, source: any): URLSearchParams => {
 			const parameters = new URLSearchParams(input);
 			for (const [key, value] of parameters.entries()) {
 				result.append(key, value);
-				deleted.delete(key);
 			}
 		}
 	}
