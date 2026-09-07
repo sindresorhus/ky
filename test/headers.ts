@@ -778,3 +778,299 @@ test('json option sets `content-type` when an init hook removes the header with 
 
 	t.is(headers['content-type'], 'application/json');
 });
+
+test('remove a `Request` input header by setting it to undefined in the request options', async t => {
+	const server = await createHttpTestServer(t);
+	server.get('/', echoHeaders);
+
+	const response = await ky(new Request(server.url, {headers: {rainbow: 'rainbow', unicorn: 'unicorn'}}), {
+		headers: {rainbow: undefined},
+	}).json<IncomingHttpHeaders>();
+
+	t.is(response['unicorn'], 'unicorn');
+	t.false('rainbow' in response);
+});
+
+test('remove a `Request` input header with a differently cased name in the request options', async t => {
+	const server = await createHttpTestServer(t);
+	server.get('/', echoHeaders);
+
+	const response = await ky(new Request(server.url, {headers: {'X-Rainbow': 'rainbow', unicorn: 'unicorn'}}), {
+		headers: {'x-rainbow': undefined},
+	}).json<IncomingHttpHeaders>();
+
+	t.is(response['unicorn'], 'unicorn');
+	t.false('x-rainbow' in response);
+});
+
+test('remove a `Request` input header by setting it to undefined in instance defaults', async t => {
+	const server = await createHttpTestServer(t);
+	server.get('/', echoHeaders);
+
+	const instance = ky.create({headers: {rainbow: undefined}});
+	const response = await instance(new Request(server.url, {headers: {rainbow: 'rainbow', unicorn: 'unicorn'}})).json<IncomingHttpHeaders>();
+
+	t.is(response['unicorn'], 'unicorn');
+	t.false('rainbow' in response);
+});
+
+test('header removal set to undefined survives extending the instance', async t => {
+	const server = await createHttpTestServer(t);
+	server.get('/', echoHeaders);
+
+	const instance = ky.create({headers: {rainbow: undefined}}).extend({headers: {'x-extended': 'yes'}});
+	const response = await instance(new Request(server.url, {headers: {rainbow: 'rainbow'}})).json<IncomingHttpHeaders>();
+
+	t.is(response['x-extended'], 'yes');
+	t.false('rainbow' in response);
+});
+
+test('a header set to undefined in instance defaults can be set again in the request options', async t => {
+	const server = await createHttpTestServer(t);
+	server.get('/', echoHeaders);
+
+	const instance = ky.create({headers: {rainbow: undefined}});
+	const response = await instance(new Request(server.url, {headers: {rainbow: 'rainbow'}}), {
+		headers: {rainbow: 'request'},
+	}).json<IncomingHttpHeaders>();
+
+	t.is(response['rainbow'], 'request');
+});
+
+test('a header set to undefined in the request options removes the value from instance defaults and a `Request` input', async t => {
+	const server = await createHttpTestServer(t);
+	server.get('/', echoHeaders);
+
+	const instance = ky.create({headers: {rainbow: 'instance', unicorn: 'unicorn'}});
+	const response = await instance(new Request(server.url, {headers: {rainbow: 'request'}}), {
+		headers: {rainbow: undefined},
+	}).json<IncomingHttpHeaders>();
+
+	t.is(response['unicorn'], 'unicorn');
+	t.false('rainbow' in response);
+});
+
+test('headers set to undefined in the request options are not visible to `beforeRequest` hooks', async t => {
+	const server = await createHttpTestServer(t);
+	server.get('/', echoHeaders);
+
+	let hookHeaders: string[] | undefined;
+	await ky(server.url, {
+		headers: {rainbow: undefined, unicorn: 'unicorn'},
+		hooks: {
+			beforeRequest: [
+				({request, options}) => {
+					hookHeaders = [...options.headers.keys(), ...request.headers.keys()];
+				},
+			],
+		},
+	});
+
+	t.false(hookHeaders!.includes('rainbow'));
+	t.true(hookHeaders!.includes('unicorn'));
+});
+
+test('`json` option removes a `content-type` header set to undefined from a `Request` input', async t => {
+	const server = await createHttpTestServer(t);
+	server.post('/', echoHeaders);
+
+	const headers = await ky.post(new Request(server.url, {method: 'POST', body: 'text', headers: {'content-type': 'text/custom'}}), {
+		json: {foo: true},
+		headers: {'content-type': undefined},
+	}).json<IncomingHttpHeaders>();
+
+	t.is(headers['content-type'], 'application/json');
+});
+
+test('remove a `Request` input header with a shortcut method and a plain object', async t => {
+	const server = await createHttpTestServer(t);
+	server.post('/', echoHeaders);
+
+	const response = await ky.post(new Request(server.url, {method: 'POST', body: 'text', headers: {'x-token': 'secret'}}), {
+		headers: {'x-token': undefined},
+	}).json<IncomingHttpHeaders>();
+
+	t.false('x-token' in response);
+	t.is(response['content-type'], 'text/plain;charset=UTF-8');
+});
+
+test('remove the automatic `content-type` of a `Request` input body with undefined', async t => {
+	const server = await createHttpTestServer(t);
+	server.post('/', echoHeaders);
+
+	const response = await ky.post(new Request(server.url, {method: 'POST', body: 'text'}), {
+		headers: {'content-type': undefined},
+	}).json<IncomingHttpHeaders>();
+
+	t.false('content-type' in response);
+});
+
+test('remove a `Request` input header with the function form of `.extend()`', async t => {
+	const server = await createHttpTestServer(t);
+	server.get('/', echoHeaders);
+
+	const instance = ky.create({headers: {'x-parent': 'parent'}}).extend(parentDefaults => ({
+		headers: {...parentDefaults.headers as Record<string, string>, rainbow: undefined},
+	}));
+	const response = await instance(new Request(server.url, {headers: {rainbow: 'rainbow'}})).json<IncomingHttpHeaders>();
+
+	t.is(response['x-parent'], 'parent');
+	t.false('rainbow' in response);
+});
+
+test('remove a `Request` input header with `replaceOption()` headers containing undefined', async t => {
+	const server = await createHttpTestServer(t);
+	server.get('/', echoHeaders);
+
+	const instance = ky.create({headers: {'x-parent': 'parent'}}).extend({
+		headers: replaceOption({rainbow: undefined, unicorn: 'unicorn'}),
+	});
+	const response = await instance(new Request(server.url, {headers: {rainbow: 'rainbow'}})).json<IncomingHttpHeaders>();
+
+	t.false('x-parent' in response);
+	t.false('rainbow' in response);
+	t.is(response['unicorn'], 'unicorn');
+});
+
+test('an init hook can set a header that was removed with undefined in the request options', async t => {
+	const server = await createHttpTestServer(t);
+	server.get('/', echoHeaders);
+
+	const response = await ky(new Request(server.url, {headers: {rainbow: 'rainbow'}}), {
+		headers: {rainbow: undefined},
+		hooks: {
+			init: [
+				options => {
+					t.is((options.headers as Record<string, string | undefined>)['rainbow'], undefined);
+					t.true('rainbow' in (options.headers as Record<string, string | undefined>));
+					(options.headers as Record<string, string | undefined>)['rainbow'] = 'from-init';
+				},
+			],
+		},
+	}).json<IncomingHttpHeaders>();
+
+	t.is(response['rainbow'], 'from-init');
+});
+
+test('headers set to undefined in the request options do not affect other requests of the instance', async t => {
+	const server = await createHttpTestServer(t);
+	server.get('/', echoHeaders);
+
+	const instance = ky.create({headers: {rainbow: 'instance'}});
+	const first = await instance(server.url, {headers: {rainbow: undefined}}).json<IncomingHttpHeaders>();
+	const second = await instance(server.url).json<IncomingHttpHeaders>();
+
+	t.false('rainbow' in first);
+	t.is(second['rainbow'], 'instance');
+});
+
+test('remove a `Request` input header with undefined when instance defaults are a `Headers` instance', async t => {
+	const server = await createHttpTestServer(t);
+	server.get('/', echoHeaders);
+
+	const instance = ky.create({headers: new Headers({'x-instance': '1'})});
+	const response = await instance(new Request(server.url, {headers: {'x-token': 'secret'}}), {
+		headers: {'x-token': undefined},
+	}).json<IncomingHttpHeaders>();
+
+	t.is(response['x-instance'], '1');
+	t.false('x-token' in response);
+});
+
+test('remove a `Request` input header with undefined when instance defaults are an array of pairs', async t => {
+	const server = await createHttpTestServer(t);
+	server.get('/', echoHeaders);
+
+	const instance = ky.create({headers: [['x-instance', '1']]});
+	const response = await instance(new Request(server.url, {headers: {'x-token': 'secret'}}), {
+		headers: {'x-token': undefined},
+	}).json<IncomingHttpHeaders>();
+
+	t.is(response['x-instance'], '1');
+	t.false('x-token' in response);
+});
+
+test('remove a `Request` input header with a `Headers` instance holding the string "undefined"', async t => {
+	const server = await createHttpTestServer(t);
+	server.get('/', echoHeaders);
+
+	const response = await ky(new Request(server.url, {headers: {'x-token': 'secret', unicorn: 'unicorn'}}), {
+		// @ts-expect-error Headers does not support undefined values
+		headers: new Headers({'x-token': undefined}),
+	}).json<IncomingHttpHeaders>();
+
+	t.is(response['unicorn'], 'unicorn');
+	t.false('x-token' in response);
+});
+
+test('remove a `Request` input header with undefined when the request headers are a `Headers` instance', async t => {
+	const server = await createHttpTestServer(t);
+	server.get('/', echoHeaders);
+
+	const instance = ky.create({headers: {'x-token': undefined}});
+	const response = await instance(new Request(server.url, {headers: {'x-token': 'secret'}}), {
+		headers: new Headers({'x-request': '1'}),
+	}).json<IncomingHttpHeaders>();
+
+	t.is(response['x-request'], '1');
+	t.false('x-token' in response);
+});
+
+test('`init` hooks receive plain object headers even when a `Headers` instance was passed', async t => {
+	const server = await createHttpTestServer(t);
+	server.get('/', echoHeaders);
+
+	let initHeaders: unknown;
+	const response = await ky(server.url, {
+		headers: new Headers({'X-Rainbow': 'rainbow'}),
+		hooks: {
+			init: [
+				options => {
+					initHeaders = options.headers;
+				},
+			],
+		},
+	}).json<IncomingHttpHeaders>();
+
+	t.deepEqual(initHeaders, {'x-rainbow': 'rainbow'});
+	t.is(response['x-rainbow'], 'rainbow');
+});
+
+test('a `Request` input header with the literal string "undefined" is sent as-is', async t => {
+	let sentHeaders: string[][] | undefined;
+
+	await ky(new Request('https://example.com', {headers: {'x-a': 'undefined', 'x-b': '1'}}), {
+		async fetch(request) {
+			sentHeaders = [...(request as Request).headers];
+			return new Response('ok');
+		},
+	});
+
+	t.deepEqual(sentHeaders, [['x-a', 'undefined'], ['x-b', '1']]);
+});
+
+test('duplicate `set-cookie` headers on a `Request` input are all sent', async t => {
+	let sentHeaders: string[][] | undefined;
+	const request = new Request('https://example.com');
+	request.headers.append('set-cookie', 'a=1');
+	request.headers.append('set-cookie', 'b=2');
+
+	await ky(request, {
+		async fetch(request) {
+			sentHeaders = [...(request as Request).headers];
+			return new Response('ok');
+		},
+	});
+
+	t.deepEqual(sentHeaders, [['set-cookie', 'a=1'], ['set-cookie', 'b=2']]);
+});
+
+test('`.extend()` callbacks receive plain object headers even when a `Headers` instance was passed', t => {
+	let parentHeaders: unknown;
+	ky.create({headers: new Headers({'X-Rainbow': 'rainbow'})}).extend(parentDefaults => {
+		parentHeaders = parentDefaults.headers;
+		return {};
+	});
+
+	t.deepEqual(parentHeaders, {'x-rainbow': 'rainbow'});
+});

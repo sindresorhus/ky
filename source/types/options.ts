@@ -416,7 +416,7 @@ export interface Options extends KyOptions, Omit<RequestInit, 'headers' | 'signa
 	/**
 	HTTP headers used to make the request.
 
-	You can pass a `Headers` instance or a plain object. Plain object header names are normalized to lowercase when options are merged, so `init` hooks always see lowercase keys.
+	You can pass a `Headers` instance or a plain object. Headers are normalized to a plain object with lowercase names when options are merged, so `init` hooks always see a plain object with lowercase keys. A header removed with `undefined` stays in that object with an `undefined` value.
 
 	You can remove a header with `.extend()` by passing the header with an `undefined` value. Passing `undefined` as a string removes the header only if it comes from a `Headers` instance.
 

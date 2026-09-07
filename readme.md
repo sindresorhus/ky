@@ -440,7 +440,7 @@ Hooks allow modifications during the request lifecycle. Hook functions may be as
 Type: `Function[]`\
 Default: `[]`
 
-This hook enables you to modify the options before they are used to construct the request. The hook function receives the mutable options object and can modify it in place. You could, for example, modify `searchParams`, `headers`, or `json` here.
+This hook enables you to modify the options before they are used to construct the request. The hook function receives the mutable options object and can modify it in place. You could, for example, modify `searchParams`, `headers`, or `json` here. The `headers` option is always a plain object with lowercase names, where a header removed with `undefined` keeps an `undefined` value.
 
 Unlike other hooks, `init` hooks are synchronous. Any error thrown will propagate synchronously and will not be caught by `beforeError` hooks.
 
@@ -930,7 +930,7 @@ Create a new `ky` instance with some defaults overridden with your own.
 
 In contrast to `ky.create()`, `ky.extend()` inherits defaults from its parent.
 
-You can pass headers as a `Headers` instance or a plain object. Plain object header names are normalized to lowercase when options are merged, so `init` hooks always see lowercase keys.
+You can pass headers as a `Headers` instance or a plain object. Headers are normalized to a plain object with lowercase names when options are merged, so `init` hooks always see a plain object with lowercase keys. A header removed with `undefined` stays in that object with an `undefined` value.
 
 You can remove a header with `.extend()` by passing the header with an `undefined` value.
 Passing `undefined` as a string removes the header only if it comes from a `Headers` instance.

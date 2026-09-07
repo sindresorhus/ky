@@ -1252,7 +1252,7 @@ export class Ky {
 		this.request = request;
 	}
 
-	// A replacement `Request` from a hook or `ky.retry({request})` carries its own signal, so re-attach Ky's managed signal to keep timeouts and user aborts working. Request-like objects are used as-is since the `Request` constructor cannot copy them.
+	// A replacement `Request` from a hook or `ky.retry({request})` carries its own signal, so re-attach Ky's managed signal to keep timeouts and user aborts working. Request-like objects are used as-is since the `Request` constructor cannot copy them, so they keep whatever signal they carry, even on a retry after a timeout.
 	#withManagedSignal(request: Request): Request {
 		if (!this.#options.signal || !(request instanceof globalThis.Request)) {
 			return request;

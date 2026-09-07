@@ -62,26 +62,11 @@ export const validateAndMerge = (...sources: Array<Partial<Options> | undefined>
 };
 
 export const mergeHeaders = (source1: KyHeadersInit = {}, source2: KyHeadersInit = {}) => {
+	// The base source is copied as-is. Only the second source carries deletion markers: `undefined` in a plain object (for example, from `init` hooks or merged options), or the string `'undefined'` in a `Headers` instance.
 	const result = new globalThis.Headers(source1 as RequestInit['headers']);
 
-	// The `Headers` constructor would turn an `undefined` value into the string `'undefined'`, so plain objects are applied directly to keep the documented deletion behavior (for example, from `init` hooks).
-	if (isPlainObject(source2)) {
-		for (const [key, value] of Object.entries(source2)) {
-			if (value === undefined) {
-				result.delete(key);
-			} else {
-				result.set(key, value as string);
-			}
-		}
-
-		return result;
-	}
-
-	const isHeadersInstance = source2 instanceof globalThis.Headers;
-	const source = new globalThis.Headers(source2 as RequestInit['headers']);
-
-	for (const [key, value] of source.entries()) {
-		if ((isHeadersInstance && value === 'undefined') || value === undefined) {
+	for (const [key, value] of Object.entries(toHeaderObject(source2))) {
+		if (value === undefined) {
 			result.delete(key);
 		} else {
 			result.set(key, value);
@@ -115,10 +100,6 @@ export const cloneShallow = <T>(value: T): T => {
 		return copy as T;
 	}
 
-	if (value instanceof globalThis.Headers) {
-		return new globalThis.Headers(value) as T;
-	}
-
 	if (Array.isArray(value)) {
 		return [...value] as T;
 	}
@@ -132,27 +113,36 @@ export const cloneShallow = <T>(value: T): T => {
 };
 
 // Header names are case-insensitive, so they are normalized to lowercase (like `Headers` does) so that overrides and `undefined` deletions match regardless of how the name was spelled and `init` hooks can rely on lowercase keys.
-const mergeHeaderObjects = (source1: Record<string, unknown>, source2: Record<string, unknown>): Record<string, string> => {
-	const result = new Map<string, string>();
+// An `undefined` value is kept as a deletion marker so it can still remove a header inherited from a `Request` input when the request is created.
+const mergeHeaderObjects = (source1: Record<string, unknown>, source2: Record<string, unknown>): Record<string, string | undefined> => {
+	const result = new Map<string, string | undefined>();
 
 	for (const [key, value] of [...Object.entries(source1), ...Object.entries(source2)]) {
-		if (value === undefined) {
-			result.delete(key.toLowerCase());
-		} else {
-			result.set(key.toLowerCase(), value as string);
-		}
+		result.set(key.toLowerCase(), value as string | undefined);
 	}
 
 	return Object.fromEntries(result);
 };
 
-const mergeHeaderContainers = (source1: KyHeadersInit, source2: KyHeadersInit): KyHeadersInit => {
-	if (isPlainObject(source1) && isPlainObject(source2)) {
-		return mergeHeaderObjects(source1, source2);
+// Every header source is merged as a plain object so deletion markers survive no matter how the headers were provided. A `Headers` instance cannot hold `undefined`, so its string `'undefined'` counts as a deletion. A plain object is returned as-is, so callers must not mutate the result.
+const toHeaderObject = (source: KyHeadersInit): Record<string, string | undefined> => {
+	if (isPlainObject(source)) {
+		return source as Record<string, string | undefined>;
 	}
 
-	return mergeHeaders(source1, source2);
+	const isHeadersInstance = source instanceof globalThis.Headers;
+	const result: Record<string, string | undefined> = {};
+
+	// A header named `__proto__` is dropped here, because assigning it sets the prototype instead of an own property. This is too much of an edge case to be worth supporting.
+	for (const [key, value] of new globalThis.Headers(source as RequestInit['headers']).entries()) {
+		result[key] = isHeadersInstance && value === 'undefined' ? undefined : value;
+	}
+
+	return result;
 };
+
+const mergeHeaderContainers = (source1: KyHeadersInit, source2: KyHeadersInit): Record<string, string | undefined> =>
+	mergeHeaderObjects(toHeaderObject(source1), toHeaderObject(source2));
 
 function newHookValue<K extends keyof Hooks>(original: Hooks, incoming: Hooks, property: K): NormalizedHooks[K] {
 	if (Object.hasOwn(incoming, property) && incoming[property] === undefined) {
@@ -343,9 +333,7 @@ const deepMergeInternal = <T>(isRoot: boolean, ...sources: Array<Partial<T> | un
 			// happens to contain a `headers` key (e.g. a `json` request body).
 			if (isRoot && isObject((source as any).headers)) {
 				const {value: headerValue, isReplace} = getReplaceState((source as any).headers);
-				headers = isReplace
-					? cloneShallow(headerValue as KyHeadersInit)
-					: mergeHeaderContainers(headers, headerValue as KyHeadersInit);
+				headers = mergeHeaderContainers(isReplace ? {} : headers, headerValue as KyHeadersInit);
 
 				returnValue.headers = headers;
 			}

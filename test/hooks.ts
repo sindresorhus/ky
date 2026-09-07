@@ -5833,7 +5833,8 @@ test('init hook in-place header mutations do not leak across requests', async t 
 		hooks: {
 			init: [
 				options => {
-					(options.headers as Headers).set('x-request-id', String(++requestIdentifier));
+					// Merged headers are always a plain object with lowercase names, even when a `Headers` instance was passed.
+					(options.headers as Record<string, string>)['x-request-id'] = String(++requestIdentifier);
 				},
 			],
 		},
