@@ -5,6 +5,7 @@ import type {RetryOptions} from './retry.js';
 // eslint-disable-next-line unicorn/prevent-abbreviations
 export type SearchParamsInit = string | string[][] | Record<string, string> | URLSearchParams | undefined;
 
+// `null` is intentionally not allowed in the object form even though the runtime sends it as the string `'null'` (like `URLSearchParams` does), so accidental nulls are caught by the type checker.
 // eslint-disable-next-line unicorn/prevent-abbreviations
 export type SearchParamsOption = SearchParamsInit | Record<string, string | number | boolean | undefined> | Array<Array<string | number | boolean>>;
 

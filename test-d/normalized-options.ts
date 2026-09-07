@@ -6,6 +6,7 @@ import type {
 	NormalizedOptions,
 	Options,
 	RetryOptions,
+	SearchParamsOption,
 } from 'ky';
 
 declare module 'ky' {
@@ -80,3 +81,8 @@ const asyncShouldRetryOptions: Options = {
 };
 expectTypeOf(shouldRetryOptions.retry).toMatchTypeOf<RetryOptions | number | undefined>();
 expectTypeOf(asyncShouldRetryOptions.retry).toMatchTypeOf<RetryOptions | number | undefined>();
+
+// `null` is rejected in `searchParams` objects on purpose, even though the runtime sends it as the string `'null'`.
+// @ts-expect-error - `null` is not an allowed search parameter value.
+const searchParametersWithNull: Options = {searchParams: {foo: null}};
+expectTypeOf(searchParametersWithNull.searchParams).toMatchTypeOf<SearchParamsOption | undefined>();

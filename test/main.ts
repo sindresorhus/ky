@@ -1254,6 +1254,7 @@ test('searchParams option with undefined values', async t => {
 		birds: undefined,
 	};
 
+	// `null` is rejected by the type on purpose, but the runtime still sends it as the string `'null'`.
 	const objectWithNull = {
 		cats: 'meow',
 		dogs: null as any,
@@ -1265,6 +1266,10 @@ test('searchParams option with undefined values', async t => {
 
 	// Null values should be preserved as string "null"
 	t.is(await ky(server.url, {searchParams: objectWithNull}).text(), '?cats=meow&dogs=null&opossums=false');
+
+	// The same applies through `.extend()` merging and to the tuple form
+	t.is(await ky.extend({searchParams: {a: null as any}})(server.url, {searchParams: {b: null as any}}).text(), '?a=null&b=null');
+	t.is(await ky(server.url, {searchParams: [['a', null as any]]}).text(), '?a=null');
 });
 
 test('merges searchParams with input URL', async t => {
