@@ -3678,3 +3678,225 @@ test('native body methods on the returned response are not wrapped', async t => 
 
 	t.false(isNetworkError(error));
 });
+
+// Chromium reports a user abort during a fetch or body read as `TypeError: Failed to fetch` instead of an `AbortError`.
+const createAbortDuringBodyFetch = (): typeof fetch => async input => {
+	const {signal} = input as Request;
+	const encoder = new TextEncoder();
+
+	return new Response(new ReadableStream({
+		start(controller) {
+			controller.enqueue(encoder.encode('{"partial":'));
+			const fail = () => {
+				controller.error(new TypeError('Failed to fetch'));
+			};
+
+			if (signal.aborted) {
+				fail();
+				return;
+			}
+
+			signal.addEventListener('abort', fail, {once: true});
+		},
+	}), {headers: {'content-type': 'application/json'}});
+};
+
+const createAbortDuringFetch = (onRequest?: () => void): typeof fetch => async input => {
+	onRequest?.();
+	const {signal} = input as Request;
+
+	return new Promise<Response>((_resolve, reject) => {
+		const fail = () => {
+			reject(new TypeError('Failed to fetch'));
+		};
+
+		if (signal.aborted) {
+			fail();
+			return;
+		}
+
+		signal.addEventListener('abort', fail, {once: true});
+	});
+};
+
+test('a user abort during a body read throws the abort reason instead of NetworkError', async t => {
+	for (const method of ['text', 'json', 'arrayBuffer', 'blob', 'bytes'] as const) {
+		const abortController = new AbortController();
+		const bodyPromise = ky('https://example.com', {retry: 0, signal: abortController.signal, fetch: createAbortDuringBodyFetch()})[method]();
+		abortController.abort();
+
+		// eslint-disable-next-line no-await-in-loop
+		const error = await t.throwsAsync(bodyPromise);
+		t.false(isNetworkError(error), method);
+		t.is(error.name, 'AbortError', method);
+	}
+});
+
+test('a user abort during a body read does not run beforeError hooks with a NetworkError', async t => {
+	const hookErrors: Error[] = [];
+	const abortController = new AbortController();
+	const bodyPromise = ky('https://example.com', {
+		retry: 0,
+		signal: abortController.signal,
+		fetch: createAbortDuringBodyFetch(),
+		hooks: {
+			beforeError: [
+				({error}) => {
+					hookErrors.push(error);
+					return error;
+				},
+			],
+		},
+	}).text();
+	abortController.abort();
+
+	await t.throwsAsync(bodyPromise, {name: 'AbortError'});
+	t.false(hookErrors.some(error => isNetworkError(error)));
+});
+
+test('an abort through a Request input during a body read is not wrapped in NetworkError', async t => {
+	const abortController = new AbortController();
+	const request = new Request('https://example.com', {signal: abortController.signal});
+	const bodyPromise = ky(request, {retry: 0, fetch: createAbortDuringBodyFetch()}).text();
+	abortController.abort();
+
+	const error = await t.throwsAsync(bodyPromise);
+	t.false(isNetworkError(error));
+	t.is(error.name, 'AbortError');
+});
+
+test('an abort through a signal merged from an extended instance during a body read is not wrapped in NetworkError', async t => {
+	const instanceController = new AbortController();
+	const requestController = new AbortController();
+	const api = ky.create({signal: instanceController.signal, retry: 0, fetch: createAbortDuringBodyFetch()});
+	const bodyPromise = api('https://example.com', {signal: requestController.signal}).text();
+	instanceController.abort();
+
+	const error = await t.throwsAsync(bodyPromise);
+	t.false(isNetworkError(error));
+	t.is(error.name, 'AbortError');
+});
+
+test('an abort with a custom reason during a body read throws that reason', async t => {
+	const reason = new Error('custom reason');
+	const abortController = new AbortController();
+	const bodyPromise = ky('https://example.com', {retry: 0, signal: abortController.signal, fetch: createAbortDuringBodyFetch()}).text();
+	abortController.abort(reason);
+
+	await t.throwsAsync(bodyPromise, {is: reason});
+});
+
+test('a user abort during a body read is not wrapped in NetworkError when timeout is disabled', async t => {
+	const abortController = new AbortController();
+	const bodyPromise = ky('https://example.com', {
+		retry: 0,
+		timeout: false,
+		signal: abortController.signal,
+		fetch: createAbortDuringBodyFetch(),
+	}).text();
+	abortController.abort();
+
+	const error = await t.throwsAsync(bodyPromise);
+	t.false(isNetworkError(error));
+	t.is(error.name, 'AbortError');
+});
+
+test('a body read that fails with a network error while the signal is not aborted is still wrapped in NetworkError', async t => {
+	const abortController = new AbortController();
+	const error = await t.throwsAsync(ky('https://example.com', {
+		retry: 0,
+		signal: abortController.signal,
+		async fetch() {
+			return new Response(new ReadableStream({
+				start(controller) {
+					controller.error(new TypeError('Failed to fetch'));
+				},
+			}));
+		},
+	}).text());
+
+	t.true(isNetworkError(error));
+	t.false(abortController.signal.aborted);
+});
+
+test('a user abort during the fetch throws the abort reason instead of NetworkError', async t => {
+	const abortController = new AbortController();
+	const responsePromise = ky('https://example.com', {retry: 0, signal: abortController.signal, fetch: createAbortDuringFetch()});
+	abortController.abort();
+
+	const error = await t.throwsAsync(responsePromise);
+	t.false(isNetworkError(error));
+	t.is(error.name, 'AbortError');
+});
+
+test('a user abort with a custom reason during the fetch throws that reason', async t => {
+	const reason = new Error('custom reason');
+	const abortController = new AbortController();
+	const responsePromise = ky('https://example.com', {retry: 0, signal: abortController.signal, fetch: createAbortDuringFetch()});
+	abortController.abort(reason);
+
+	await t.throwsAsync(responsePromise, {is: reason});
+});
+
+test('a user abort during the fetch is not retried as a network error', async t => {
+	let requestCount = 0;
+	const abortController = new AbortController();
+	const responsePromise = ky('https://example.com', {
+		retry: {limit: 2, delay: () => 0},
+		signal: abortController.signal,
+		fetch: createAbortDuringFetch(() => {
+			requestCount++;
+		}),
+	});
+	abortController.abort();
+
+	const error = await t.throwsAsync(responsePromise);
+	t.is(error.name, 'AbortError');
+	t.is(requestCount, 1);
+});
+
+test('a user abort during the fetch reaches beforeError hooks as the abort reason', async t => {
+	const hookErrors: Error[] = [];
+	const abortController = new AbortController();
+	const responsePromise = ky('https://example.com', {
+		retry: 0,
+		signal: abortController.signal,
+		fetch: createAbortDuringFetch(),
+		hooks: {
+			beforeError: [
+				({error}) => {
+					hookErrors.push(error);
+					return error;
+				},
+			],
+		},
+	});
+	abortController.abort();
+
+	await t.throwsAsync(responsePromise, {name: 'AbortError'});
+	t.is(hookErrors.length, 1);
+	t.is(hookErrors[0]?.name, 'AbortError');
+});
+
+test('a user abort of a retried fetch throws the abort reason instead of NetworkError', async t => {
+	let requestCount = 0;
+	const abortController = new AbortController();
+	const responsePromise = ky('https://example.com', {
+		retry: {limit: 1, delay: () => 0},
+		signal: abortController.signal,
+		async fetch(input) {
+			requestCount++;
+			if (requestCount === 1) {
+				return new Response('error', {status: 500});
+			}
+
+			abortController.abort();
+			return createAbortDuringFetch()(input);
+		},
+	});
+
+	const error = await t.throwsAsync(responsePromise);
+	t.false(isNetworkError(error));
+	t.is(error.name, 'AbortError');
+	t.is(requestCount, 2);
+});

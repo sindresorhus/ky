@@ -262,10 +262,10 @@ browserTest('aborting a request with onDownloadProgress', [chromium], async (t: 
 		setTimeout(() => {
 			controller.abort();
 		}, 500);
-		return request.catch(error_ => error_.toString());
+		return request.catch(error_ => error_.name);
 	}, server.url);
-	// This should be an AbortError like in the 'aborting a request' test, but there is a bug in Chromium
-	t.is(error, 'TypeError: Failed to fetch');
+	// Chromium reports this abort as `TypeError: Failed to fetch`, which Ky replaces with the abort reason.
+	t.is(error, 'AbortError');
 });
 
 defaultBrowsersTest(

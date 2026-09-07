@@ -779,6 +779,7 @@ export class Ky {
 			// A connection dropped while streaming the body surfaces as a raw runtime `TypeError`. Wrap it like fetch-phase network errors so it is recognizable and runs `beforeError` hooks.
 			// This only happens on the awaited path, so a body that fails after the timeout already won does not run the hooks again.
 			if (isRawNetworkError(error)) {
+				this.#throwIfAbortedByUser();
 				await this.#throwProcessedError(new NetworkError(this.#getResponseRequest(response), {cause: error as Error}));
 			}
 
@@ -1198,11 +1199,17 @@ export class Ky {
 			return this.#setResponseRequest(response, request);
 		} catch (error) {
 			if (isRawNetworkError(error)) {
+				this.#throwIfAbortedByUser();
 				throw new NetworkError(this.request, {cause: error as Error});
 			}
 
 			throw error;
 		}
+	}
+
+	// Chromium reports a user abort during a fetch or body read as `TypeError: Failed to fetch`, which would otherwise be mistaken for a dropped connection. Surface the abort reason instead, like other runtimes do.
+	#throwIfAbortedByUser(): void {
+		this.#userProvidedAbortSignal?.throwIfAborted();
 	}
 
 	#getRemainingTotalTimeout(): number | undefined {
