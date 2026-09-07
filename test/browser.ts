@@ -634,3 +634,42 @@ defaultBrowsersTest('request is cancelled on timeout', async (t: ExecutionContex
 
 	t.true(requestAborted, 'Request should be aborted on timeout');
 });
+
+defaultBrowsersTest('an unbound window.fetch works as the fetch option', async (t: ExecutionContext, page: Page) => {
+	let requestCount = 0;
+
+	server.get('/', (_request, response) => {
+		response.end('zebra');
+	});
+
+	server.get('/unicorn', (_request, response) => {
+		response.end('rainbow');
+	});
+
+	server.get('/flaky', (_request, response) => {
+		requestCount++;
+		if (requestCount === 1) {
+			response.sendStatus(500);
+			return;
+		}
+
+		response.end('recovered');
+	});
+
+	await page.goto(server.url);
+	await addKyScriptToPage(page);
+
+	// `window.fetch` is intentional here since the bug only reproduces with a native fetch that checks its `this` value.
+	/* eslint-disable unicorn/prefer-global-this */
+	const results = await page.evaluate(async (url: string) => Promise.all([
+		globalThis.ky(`${url}/unicorn`, {fetch: window.fetch}).text(),
+		globalThis.ky(`${url}/unicorn`, {fetch: window.fetch, timeout: false}).text(),
+		globalThis.ky(`${url}/unicorn`, {fetch: globalThis.fetch}).text(),
+		globalThis.ky.create({fetch: window.fetch})(`${url}/unicorn`).text(),
+		globalThis.ky(`${url}/flaky`, {fetch: window.fetch, retry: {limit: 1, backoffLimit: 0}}).text(),
+	]), server.url);
+	/* eslint-enable unicorn/prefer-global-this */
+
+	t.deepEqual(results, ['rainbow', 'rainbow', 'rainbow', 'rainbow', 'recovered']);
+	t.is(requestCount, 2);
+});

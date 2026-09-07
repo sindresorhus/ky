@@ -1186,11 +1186,13 @@ export class Ky {
 					? this.#options.timeout
 					: Math.min(this.#options.timeout, remainingTotal));
 
+			// Called unbound so a native `window.fetch` is not invoked with the options object as `this`, which throws "Illegal invocation" in browsers.
+			const {fetch} = this.#options;
 			const response = effectiveTimeout === undefined
-				? await this.#options.fetch(request, nonRequestOptions)
+				? await fetch(request, nonRequestOptions)
 				: await timeout(request, nonRequestOptions, this.#abortController, {
 					timeout: effectiveTimeout,
-					fetch: this.#options.fetch,
+					fetch,
 				});
 
 			return this.#setResponseRequest(response, request);

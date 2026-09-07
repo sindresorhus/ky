@@ -516,3 +516,134 @@ test('a fetch that rejects asynchronously does not leave a timer that aborts the
 	t.is(requestCount, 2);
 	t.false(retriedRequestSignalAborted);
 });
+
+test('the fetch option is called without a `this` value', async t => {
+	const thisValues: unknown[] = [];
+
+	const text = await ky(fixture, {
+		retry: 0,
+		async fetch(this: unknown) {
+			thisValues.push(this);
+			return new Response('ok');
+		},
+	}).text();
+
+	t.is(text, 'ok');
+	t.deepEqual(thisValues, [undefined]);
+});
+
+test('the fetch option is called without a `this` value when timeout is disabled', async t => {
+	const thisValues: unknown[] = [];
+
+	const text = await ky(fixture, {
+		retry: 0,
+		timeout: false,
+		async fetch(this: unknown) {
+			thisValues.push(this);
+			return new Response('ok');
+		},
+	}).text();
+
+	t.is(text, 'ok');
+	t.deepEqual(thisValues, [undefined]);
+});
+
+test('the fetch option is called without a `this` value on retries', async t => {
+	const thisValues: unknown[] = [];
+
+	const text = await ky(fixture, {
+		retry: {limit: 2, delay: () => 0},
+		async fetch(this: unknown) {
+			thisValues.push(this);
+			return new Response(thisValues.length < 3 ? 'error' : 'ok', {status: thisValues.length < 3 ? 500 : 200});
+		},
+	}).text();
+
+	t.is(text, 'ok');
+	t.deepEqual(thisValues, [undefined, undefined, undefined]);
+});
+
+test('the fetch option is called without a `this` value on forced retries with a custom request', async t => {
+	const thisValues: unknown[] = [];
+
+	const text = await ky(fixture, {
+		retry: {limit: 1, delay: () => 0},
+		async fetch(this: unknown) {
+			thisValues.push(this);
+			return new Response('ok');
+		},
+		hooks: {
+			afterResponse: [
+				({request}) => {
+					if (thisValues.length === 1) {
+						return ky.retry({request: new Request(request)});
+					}
+				},
+			],
+		},
+	}).text();
+
+	t.is(text, 'ok');
+	t.deepEqual(thisValues, [undefined, undefined]);
+});
+
+test('an unbound global fetch works as the fetch option', async t => {
+	const server = await createHttpTestServer(t);
+	server.get('/', (_request, response) => {
+		response.end('unicorn');
+	});
+
+	t.is(await ky(server.url, {fetch: globalThis.fetch}).text(), 'unicorn');
+	t.is(await ky(server.url, {fetch: globalThis.fetch, timeout: false}).text(), 'unicorn');
+});
+
+test('an unbound global fetch works as an instance default', async t => {
+	const server = await createHttpTestServer(t);
+	server.get('/', (_request, response) => {
+		response.end('unicorn');
+	});
+
+	const api = ky.create({fetch: globalThis.fetch}).extend({retry: 0});
+	t.is(await api(server.url).text(), 'unicorn');
+});
+
+test('an unbound global fetch works with a Request input', async t => {
+	const server = await createHttpTestServer(t);
+	server.get('/', (_request, response) => {
+		response.end('unicorn');
+	});
+
+	t.is(await ky(new Request(server.url), {fetch: globalThis.fetch}).text(), 'unicorn');
+});
+
+test('an unbound global fetch works when searchParams rebuild the request', async t => {
+	const server = await createHttpTestServer(t);
+	server.get('/', (request, response) => {
+		response.end(request.url);
+	});
+
+	t.is(await ky(server.url, {fetch: globalThis.fetch, searchParams: {unicorn: 'rainbow'}}).text(), '/?unicorn=rainbow');
+});
+
+test('a bound fetch still works as the fetch option', async t => {
+	const server = await createHttpTestServer(t);
+	server.get('/', (_request, response) => {
+		response.end('unicorn');
+	});
+
+	t.is(await ky(server.url, {fetch: globalThis.fetch.bind(globalThis)}).text(), 'unicorn');
+});
+
+test('the fetch option inherited through ky.create() and ky.extend() is called without a `this` value', async t => {
+	const thisValues: unknown[] = [];
+
+	const api = ky.create({
+		async fetch(this: unknown) {
+			thisValues.push(this);
+			return new Response('ok');
+		},
+	}).extend({retry: 0});
+
+	t.is(await api(fixture).text(), 'ok');
+	t.deepEqual(thisValues, [undefined]);
+});

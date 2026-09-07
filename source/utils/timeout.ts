@@ -24,8 +24,10 @@ export default async function timeout(
 				reject(new TimeoutError(request));
 			}, options.timeout);
 
+			// Called unbound so a native `window.fetch` is not invoked with `options` as `this`, which throws "Illegal invocation" in browsers.
 			// A synchronous throw rejects the promise, and `finally` still clears the timer so it cannot abort a later retry attempt.
-			options.fetch(request, init).then(resolve).catch(reject);
+			const {fetch} = options;
+			fetch(request, init).then(resolve).catch(reject);
 		});
 	} finally {
 		clearTimeout(timeoutId);
