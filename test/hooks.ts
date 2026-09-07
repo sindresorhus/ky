@@ -5968,3 +5968,253 @@ test('init hook works with ky() direct call', async t => {
 		},
 	});
 });
+
+test('init hook receives an empty headers object when no headers were provided', async t => {
+	t.plan(2);
+
+	const api = ky.extend({
+		fetch: async request => new Response(request.headers.get('x-added')),
+		hooks: {
+			init: [
+				options => {
+					t.deepEqual(options.headers, {});
+					(options.headers as Record<string, string>)['x-added'] = 'yes';
+				},
+			],
+		},
+	});
+
+	t.is(await api('https://example.com').text(), 'yes');
+});
+
+test('init hook can add a header in place when only a Request input carries headers', async t => {
+	t.plan(3);
+
+	const api = ky.extend({
+		fetch: async request => new Response(`${request.headers.get('x-input')}|${request.headers.get('x-added')}`),
+		hooks: {
+			init: [
+				options => {
+					// A `Request` input's headers are merged in when the request is created, not exposed here.
+					t.deepEqual(options.headers, {});
+					(options.headers as Record<string, string>)['x-added'] = 'yes';
+				},
+			],
+		},
+	});
+
+	const response = await api(new Request('https://example.com', {headers: {'x-input': 'kept'}}));
+	t.is(response.status, 200);
+	t.is(await response.text(), 'kept|yes');
+});
+
+test('init hook header added in place overrides the same header from a Request input', async t => {
+	const api = ky.extend({
+		fetch: async request => new Response(request.headers.get('x-shared')),
+		hooks: {
+			init: [
+				options => {
+					(options.headers as Record<string, string>)['x-shared'] = 'from-init';
+				},
+			],
+		},
+	});
+
+	t.is(await api(new Request('https://example.com', {headers: {'x-shared': 'from-input'}})).text(), 'from-init');
+});
+
+test('init hook headers object added in place does not leak across requests', async t => {
+	let callCount = 0;
+	const api = ky.extend({
+		fetch: async request => new Response(String(request.headers.has('x-once'))),
+		hooks: {
+			init: [
+				options => {
+					callCount++;
+					if (callCount === 1) {
+						(options.headers as Record<string, string>)['x-once'] = 'yes';
+					}
+				},
+			],
+		},
+	});
+
+	t.is(await api('https://example.com').text(), 'true');
+	t.is(await api('https://example.com').text(), 'false');
+});
+
+test('init hook can delete a default header in place with undefined', async t => {
+	const api = ky.extend({
+		headers: {'X-Remove': 'present', 'x-keep': 'kept'},
+		fetch: async request => new Response(`${request.headers.has('x-remove')}|${request.headers.get('x-keep')}`),
+		hooks: {
+			init: [
+				options => {
+					t.deepEqual(options.headers, {'x-remove': 'present', 'x-keep': 'kept'});
+					(options.headers as Record<string, string | undefined>)['x-remove'] = undefined;
+				},
+			],
+		},
+	});
+
+	t.is(await api('https://example.com').text(), 'false|kept');
+});
+
+test('init hook can replace headers with a Headers instance', async t => {
+	const api = ky.extend({
+		fetch: async request => new Response(request.headers.get('x-instance')),
+		hooks: {
+			init: [
+				options => {
+					options.headers = new Headers({'x-instance': 'yes'});
+				},
+			],
+		},
+	});
+
+	t.is(await api('https://example.com').text(), 'yes');
+});
+
+test('init hook can set headers to undefined without breaking the request', async t => {
+	const api = ky.extend({
+		headers: {'x-default': 'present'},
+		fetch: async request => new Response(String(request.headers.has('x-default'))),
+		hooks: {
+			init: [
+				options => {
+					options.headers = undefined;
+				},
+			],
+		},
+	});
+
+	t.is(await api('https://example.com').text(), 'false');
+});
+
+test('init hook content-type added in place takes precedence over the json content-type', async t => {
+	const api = ky.extend({
+		fetch: async request => new Response(`${request.headers.get('content-type')}|${await request.text()}`),
+		hooks: {
+			init: [
+				options => {
+					(options.headers as Record<string, string>)['content-type'] = 'application/vnd.custom+json';
+				},
+			],
+		},
+	});
+
+	t.is(await api.post('https://example.com', {json: {a: 1}}).text(), 'application/vnd.custom+json|{"a":1}');
+});
+
+test('later init hooks see headers added in place by earlier init hooks', async t => {
+	t.plan(2);
+
+	const api = ky.extend({
+		fetch: async request => new Response(request.headers.get('x-first')),
+		hooks: {
+			init: [
+				options => {
+					(options.headers as Record<string, string>)['x-first'] = 'one';
+				},
+				options => {
+					t.deepEqual(options.headers, {'x-first': 'one'});
+				},
+			],
+		},
+	});
+
+	t.is(await api('https://example.com').text(), 'one');
+});
+
+test('init hook headers object is a fresh copy of the instance defaults', async t => {
+	const defaults = {'x-default': 'present'};
+	const api = ky.extend({
+		headers: defaults,
+		fetch: async () => new Response('ok'),
+		hooks: {
+			init: [
+				options => {
+					(options.headers as Record<string, string>)['x-mutated'] = 'yes';
+				},
+			],
+		},
+	});
+
+	await api('https://example.com');
+	t.deepEqual(defaults, {'x-default': 'present'});
+});
+
+test('init hook receives an empty headers object with ky.create() and no headers', async t => {
+	t.plan(2);
+
+	const api = ky.create({
+		fetch: async request => new Response(request.headers.get('x-created')),
+		hooks: {
+			init: [
+				options => {
+					t.deepEqual(options.headers, {});
+					(options.headers as Record<string, string>)['x-created'] = 'yes';
+				},
+			],
+		},
+	});
+
+	t.is(await api('https://example.com').text(), 'yes');
+});
+
+test('init hook receives an empty headers object when headers is explicitly undefined', async t => {
+	t.plan(2);
+
+	const api = ky.extend({
+		headers: {'x-default': 'present'},
+		fetch: async request => new Response(`${String(request.headers.has('x-default'))}|${request.headers.get('x-added')}`),
+		hooks: {
+			init: [
+				options => {
+					t.deepEqual(options.headers, {});
+					(options.headers as Record<string, string>)['x-added'] = 'yes';
+				},
+			],
+		},
+	});
+
+	t.is(await api('https://example.com', {headers: undefined}).text(), 'false|yes');
+});
+
+test('init hook header added in place with a mixed-case name is sent', async t => {
+	const api = ky.extend({
+		fetch: async request => new Response(request.headers.get('x-mixed-case')),
+		hooks: {
+			init: [
+				options => {
+					(options.headers as Record<string, string>)['X-Mixed-Case'] = 'yes';
+				},
+			],
+		},
+	});
+
+	t.is(await api('https://example.com').text(), 'yes');
+});
+
+test('init hook header added in place is visible to beforeRequest hooks', async t => {
+	t.plan(2);
+
+	const api = ky.extend({
+		fetch: async () => new Response('ok'),
+		hooks: {
+			init: [
+				options => {
+					(options.headers as Record<string, string>)['x-from-init'] = 'yes';
+				},
+			],
+			beforeRequest: [
+				({request, options}) => {
+					t.is(options.headers.get('x-from-init'), 'yes');
+					t.is(request.headers.get('x-from-init'), 'yes');
+				},
+			],
+		},
+	});
+
+	await api('https://example.com');
+});

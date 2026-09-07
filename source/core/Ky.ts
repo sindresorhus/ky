@@ -128,7 +128,8 @@ function cloneInitHookOptions(options: Options): Options {
 		json: cloneShallow(options.json),
 		// `context` is documented to always be an object in every hook, including `init`.
 		context: cloneShallow(options.context) ?? {},
-		headers: cloneShallow(options.headers)!,
+		// `headers` is documented to always be a plain object in `init` hooks, so hooks can add headers in place even when none were provided.
+		headers: cloneShallow(options.headers) ?? {},
 		searchParams: cloneSearchParametersForInitHook(options.searchParams),
 	};
 
