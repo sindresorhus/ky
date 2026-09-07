@@ -178,6 +178,59 @@ test('beforeRequest hook accepts Request-like object tagged as Request', async t
 	t.is(responseText, 'yes');
 });
 
+test('beforeRequest hook returning a Request-like object still retries after a timeout', async t => {
+	let attempts = 0;
+	const neverSettlingPromise = new Promise<never>(() => {
+		void 0;
+	});
+
+	const text = await ky(requestFixtureUrl, {
+		timeout: 40,
+		retry: {limit: 1, retryOnTimeout: true, delay: () => 1},
+		async fetch(request) {
+			attempts++;
+			t.is((request as Request).headers.get('x-tagged-request'), 'yes');
+			return attempts === 1 ? neverSettlingPromise : new Response('retried');
+		},
+		hooks: {
+			beforeRequest: [
+				({request}) => createRequestLike(withHeader(request, 'x-tagged-request', 'yes')),
+			],
+		},
+	}).text();
+
+	t.is(text, 'retried');
+	t.is(attempts, 2);
+});
+
+test('beforeRetry hook returning a Request-like object still retries after a later timeout', async t => {
+	let attempts = 0;
+	const neverSettlingPromise = new Promise<never>(() => {
+		void 0;
+	});
+
+	const text = await ky(requestFixtureUrl, {
+		timeout: 40,
+		retry: {limit: 2, retryOnTimeout: true, delay: () => 1},
+		async fetch() {
+			attempts++;
+			if (attempts === 1) {
+				throw new TypeError('fetch failed');
+			}
+
+			return attempts === 2 ? neverSettlingPromise : new Response('retried');
+		},
+		hooks: {
+			beforeRetry: [
+				({request, retryCount}) => retryCount === 1 ? createRequestLike(request) : undefined,
+			],
+		},
+	}).text();
+
+	t.is(text, 'retried');
+	t.is(attempts, 3);
+});
+
 test('beforeRequest hook allows modifications', async t => {
 	const server = await createHttpTestServer(t);
 	server.post('/', async (request, response) => {
@@ -2715,6 +2768,326 @@ test('beforeRetry hook can return modified Request with new URL', async t => {
 
 	t.is(result, 'success');
 	t.is(requestCount, 2); // Initial request + 1 retry
+});
+
+test('beforeRequest hook returning a new Request still honors the user abort signal', async t => {
+	const server = await createHttpTestServer(t);
+	// eslint-disable-next-line @typescript-eslint/no-empty-function
+	server.get('/', () => {});
+
+	const abortController = new AbortController();
+	const responsePromise = ky(`${server.url}/original`, {
+		signal: abortController.signal,
+		hooks: {
+			beforeRequest: [
+				() => new Request(server.url),
+			],
+		},
+	});
+
+	setTimeout(() => {
+		abortController.abort();
+	}, 50);
+
+	const error = (await t.throwsAsync(responsePromise))!;
+	t.is(error.name, 'AbortError');
+});
+
+test('beforeRequest hook returning a new Request still aborts the fetch on timeout', async t => {
+	let didAbort = false;
+
+	await t.throwsAsync(ky('https://example.com', {
+		timeout: 50,
+		retry: 0,
+		hooks: {
+			beforeRequest: [
+				() => new Request('https://example.com/other'),
+			],
+		},
+		async fetch(request) {
+			(request as Request).signal.addEventListener('abort', () => {
+				didAbort = true;
+			}, {once: true});
+			await delay(200);
+			return new Response('late');
+		},
+	}), {
+		instanceOf: TimeoutError,
+	});
+
+	t.true(didAbort);
+});
+
+test('beforeRequest hook returning a new Request still aborts a never-ending body read on timeout', async t => {
+	let didAbort = false;
+
+	await t.throwsAsync(ky('https://example.com', {
+		timeout: 50,
+		hooks: {
+			beforeRequest: [
+				() => new Request('https://example.com/other'),
+			],
+		},
+		async fetch(request) {
+			(request as Request).signal.addEventListener('abort', () => {
+				didAbort = true;
+			}, {once: true});
+
+			const body = new ReadableStream<Uint8Array>({
+				start(controller) {
+					controller.enqueue(new TextEncoder().encode('partial'));
+				},
+			});
+
+			return new Response(body, {status: 200});
+		},
+	}).text(), {
+		instanceOf: TimeoutError,
+	});
+
+	t.true(didAbort);
+});
+
+test('beforeRequest hook returning a new Request keeps the signal from a Request input', async t => {
+	const server = await createHttpTestServer(t);
+	// eslint-disable-next-line @typescript-eslint/no-empty-function
+	server.get('/', () => {});
+
+	const abortController = new AbortController();
+	const responsePromise = ky(new Request(`${server.url}/original`, {signal: abortController.signal}), {
+		hooks: {
+			beforeRequest: [
+				() => new Request(server.url),
+			],
+		},
+	});
+
+	setTimeout(() => {
+		abortController.abort();
+	}, 50);
+
+	const error = (await t.throwsAsync(responsePromise))!;
+	t.is(error.name, 'AbortError');
+});
+
+test('beforeRequest hook returning a new Request keeps signals merged from an extended instance', async t => {
+	const server = await createHttpTestServer(t);
+	// eslint-disable-next-line @typescript-eslint/no-empty-function
+	server.get('/', () => {});
+
+	const instanceController = new AbortController();
+	const requestController = new AbortController();
+	const instance = ky.create({
+		signal: instanceController.signal,
+		hooks: {
+			beforeRequest: [
+				() => new Request(server.url),
+			],
+		},
+	});
+
+	const responsePromise = instance(`${server.url}/original`, {signal: requestController.signal});
+
+	setTimeout(() => {
+		instanceController.abort();
+	}, 50);
+
+	const error = (await t.throwsAsync(responsePromise))!;
+	t.is(error.name, 'AbortError');
+});
+
+test('beforeRequest hook returning a Request with an aborted signal still sends the request', async t => {
+	const server = await createHttpTestServer(t);
+	server.get('/', (_request, response) => {
+		response.end('success');
+	});
+
+	const abortController = new AbortController();
+	abortController.abort();
+
+	const result = await ky(`${server.url}/original`, {
+		hooks: {
+			beforeRequest: [
+				() => new Request(server.url, {signal: abortController.signal}),
+			],
+		},
+	}).text();
+
+	t.is(result, 'success');
+});
+
+test('beforeRequest hook returning a new Request keeps its URL, method, headers, and body', async t => {
+	const server = await createHttpTestServer(t);
+	server.put('/replaced', async (request, response) => {
+		response.json({
+			header: request.headers['x-replaced'],
+			body: request.body,
+		});
+	});
+
+	const result = await ky.get(`${server.url}/original`, {
+		hooks: {
+			beforeRequest: [
+				() => new Request(`${server.url}/replaced`, {
+					method: 'PUT',
+					headers: {'x-replaced': 'yes', 'content-type': 'text/plain'},
+					body: 'hello',
+				}),
+			],
+		},
+	}).json();
+
+	t.deepEqual(result, {header: 'yes', body: 'hello'});
+});
+
+test('beforeRequest hook returning a new Request with a body retries with that body', async t => {
+	let requestCount = 0;
+	const bodies: unknown[] = [];
+
+	const server = await createHttpTestServer(t);
+	server.post('/', async (request, response) => {
+		requestCount++;
+		bodies.push(request.body);
+		if (requestCount === 1) {
+			response.sendStatus(500);
+		} else {
+			response.end('success');
+		}
+	});
+
+	const result = await ky.post(`${server.url}/original`, {
+		retry: {limit: 1, methods: ['post'], delay: () => 0},
+		hooks: {
+			beforeRequest: [
+				() => new Request(server.url, {
+					method: 'POST',
+					headers: {'content-type': 'text/plain'},
+					body: 'hello',
+				}),
+			],
+		},
+	}).text();
+
+	t.is(result, 'success');
+	t.is(requestCount, 2);
+	t.deepEqual(bodies, ['hello', 'hello']);
+});
+
+test('beforeRequest hook returning the same request keeps the JSON body', async t => {
+	const server = await createHttpTestServer(t);
+	server.post('/', async (request, response) => {
+		response.json(request.body);
+	});
+
+	const result = await ky.post(server.url, {
+		json: {foo: true},
+		hooks: {
+			beforeRequest: [
+				({request}) => {
+					request.headers.set('x-touched', 'yes');
+					return request;
+				},
+			],
+		},
+	}).json();
+
+	t.deepEqual(result, {foo: true});
+});
+
+test('beforeRetry hook returning a new Request still honors the user abort signal', async t => {
+	let requestCount = 0;
+
+	const abortController = new AbortController();
+	const server = await createHttpTestServer(t);
+	server.get('/', (_request, response) => {
+		requestCount++;
+		if (requestCount === 1) {
+			response.sendStatus(500);
+		} else {
+			// Abort only once the retried request is in flight, so the abort must reach the hook-returned request.
+			abortController.abort();
+		}
+	});
+
+	const responsePromise = ky(server.url, {
+		signal: abortController.signal,
+		retry: {limit: 1, delay: () => 0},
+		hooks: {
+			beforeRetry: [
+				() => new Request(server.url),
+			],
+		},
+	});
+
+	const error = (await t.throwsAsync(responsePromise))!;
+	t.is(error.name, 'AbortError');
+	t.is(requestCount, 2);
+});
+
+test('beforeRetry hook returning a new Request still aborts the retried fetch on timeout', async t => {
+	let requestCount = 0;
+	let didAbort = false;
+
+	await t.throwsAsync(ky('https://example.com', {
+		timeout: 50,
+		retry: {limit: 1, delay: () => 0},
+		hooks: {
+			beforeRetry: [
+				() => new Request('https://example.com/other'),
+			],
+		},
+		async fetch(request) {
+			requestCount++;
+			if (requestCount === 1) {
+				return new Response('error', {status: 500});
+			}
+
+			(request as Request).signal.addEventListener('abort', () => {
+				didAbort = true;
+			}, {once: true});
+			await delay(200);
+			return new Response('late');
+		},
+	}), {
+		instanceOf: TimeoutError,
+	});
+
+	t.is(requestCount, 2);
+	t.true(didAbort);
+});
+
+test('beforeRetry hook returning a new Request with a body sends that body', async t => {
+	let requestCount = 0;
+	const bodies: unknown[] = [];
+
+	const server = await createHttpTestServer(t);
+	server.post('/', async (request, response) => {
+		requestCount++;
+		bodies.push(request.body);
+		if (requestCount === 1) {
+			response.sendStatus(500);
+		} else {
+			response.end('success');
+		}
+	});
+
+	const result = await ky.post(server.url, {
+		body: 'first',
+		headers: {'content-type': 'text/plain'},
+		retry: {limit: 1, methods: ['post'], delay: () => 0},
+		hooks: {
+			beforeRetry: [
+				() => new Request(server.url, {
+					method: 'POST',
+					headers: {'content-type': 'text/plain'},
+					body: 'second',
+				}),
+			],
+		},
+	}).text();
+
+	t.is(result, 'success');
+	t.deepEqual(bodies, ['first', 'second']);
 });
 
 test('beforeRetry hook can return Response to skip retry', async t => {

@@ -987,7 +987,7 @@ export class Ky {
 			}
 
 			if (isRequestInstance(result)) {
-				this.#assignRequest(result);
+				this.#assignRequest(this.#withManagedSignal(result));
 			} else if (isResponseInstance(result)) {
 				return result;
 			}
@@ -1094,17 +1094,16 @@ export class Ky {
 		if (this.#abortController?.signal.aborted) {
 			this.#abortController = new globalThis.AbortController();
 			this.#options.signal = this.#createManagedSignal();
-			this.#assignRequest(new globalThis.Request(this.request, {signal: this.#options.signal}));
+			this.#assignRequest(this.#withManagedSignal(this.request));
 		}
 
 		// Apply custom request from forced retry before beforeRetry hooks
 		// Ensure the custom request has the correct managed signal for timeouts and user aborts
 		if (error instanceof ForceRetryError && error.customRequest) {
-			const customRequest = new globalThis.Request(error.customRequest, this.#options.signal ? {signal: this.#options.signal} : undefined);
 			// Replacement Requests are authoritative by design. Do not rewrite headers here,
 			// even for cross-origin retries. Callers using `ky.retry({request})` explicitly
 			// opted into the exact Request they constructed.
-			this.#assignRequest(customRequest);
+			this.#assignRequest(this.#withManagedSignal(error.customRequest));
 		}
 
 		for (const hook of this.#options.hooks.beforeRetry) {
@@ -1133,7 +1132,7 @@ export class Ky {
 			if (isRequestInstance(hookResult)) {
 				// Same contract as `ky.retry({request})`: a Request returned from `beforeRetry`
 				// is used as-is rather than being sanitized or otherwise rewritten by Ky.
-				this.#assignRequest(hookResult);
+				this.#assignRequest(this.#withManagedSignal(hookResult));
 				break;
 			}
 
@@ -1242,6 +1241,15 @@ export class Ky {
 	#assignRequest(request: Request): void {
 		this.#cachedNormalizedOptions = undefined;
 		this.request = request;
+	}
+
+	// A replacement `Request` from a hook or `ky.retry({request})` carries its own signal, so re-attach Ky's managed signal to keep timeouts and user aborts working. Request-like objects are used as-is since the `Request` constructor cannot copy them.
+	#withManagedSignal(request: Request): Request {
+		if (!this.#options.signal || !(request instanceof globalThis.Request)) {
+			return request;
+		}
+
+		return new globalThis.Request(request, {signal: this.#options.signal});
 	}
 
 	#getResponseRequest(response: Response): Request {
