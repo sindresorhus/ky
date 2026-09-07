@@ -131,14 +131,24 @@ export const cloneShallow = <T>(value: T): T => {
 	return value;
 };
 
-const normalizeHeaderObject = (headers: Record<string, string | undefined>): Record<string, string> =>
-	Object.fromEntries(
-		Object.entries(headers).filter((entry): entry is [string, string] => entry[1] !== undefined),
-	);
+// Header names are case-insensitive, so they are normalized to lowercase (like `Headers` does) so that overrides and `undefined` deletions match regardless of how the name was spelled and `init` hooks can rely on lowercase keys.
+const mergeHeaderObjects = (source1: Record<string, unknown>, source2: Record<string, unknown>): Record<string, string> => {
+	const result = new Map<string, string>();
+
+	for (const [key, value] of [...Object.entries(source1), ...Object.entries(source2)]) {
+		if (value === undefined) {
+			result.delete(key.toLowerCase());
+		} else {
+			result.set(key.toLowerCase(), value as string);
+		}
+	}
+
+	return Object.fromEntries(result);
+};
 
 const mergeHeaderContainers = (source1: KyHeadersInit, source2: KyHeadersInit): KyHeadersInit => {
 	if (isPlainObject(source1) && isPlainObject(source2)) {
-		return normalizeHeaderObject({...source1, ...source2});
+		return mergeHeaderObjects(source1, source2);
 	}
 
 	return mergeHeaders(source1, source2);

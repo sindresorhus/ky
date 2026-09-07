@@ -3,7 +3,7 @@ import process from 'node:process';
 import type {IncomingHttpHeaders} from 'node:http';
 import test from 'ava';
 import type {RequestHandler} from 'express';
-import ky from '../source/index.js';
+import ky, {replaceOption} from '../source/index.js';
 import {createHttpTestServer} from './helpers/create-http-test-server.js';
 
 const timeout = 60_000;
@@ -462,6 +462,240 @@ test('remove header by extending instance (plain object and Headers instance)', 
 
 	t.false('rainbow' in response);
 	t.true('unicorn' in response);
+});
+
+test('remove header by extending instance with a differently cased name (plain objects)', async t => {
+	const server = await createHttpTestServer(t);
+	server.get('/', echoHeaders);
+
+	const original = ky.create({
+		headers: {
+			'X-Rainbow': 'rainbow',
+			'X-Unicorn': 'unicorn',
+		},
+	});
+
+	const extended = original.extend({
+		headers: {
+			'x-rainbow': undefined,
+		},
+	});
+
+	const response = await extended(server.url).json<IncomingHttpHeaders>();
+
+	t.false('x-rainbow' in response);
+	t.is(response['x-unicorn'], 'unicorn');
+});
+
+test('override header by extending instance with a differently cased name (plain objects)', async t => {
+	const server = await createHttpTestServer(t);
+	server.get('/', echoHeaders);
+
+	const original = ky.create({
+		headers: {
+			'X-Rainbow': 'rainbow',
+		},
+	});
+
+	const extended = original.extend({
+		headers: {
+			'x-rainbow': 'double-rainbow',
+		},
+	});
+
+	const response = await extended(server.url).json<IncomingHttpHeaders>();
+
+	t.is(response['x-rainbow'], 'double-rainbow');
+});
+
+test('last extend wins when the same header is set with mixed cases across multiple extends', async t => {
+	const server = await createHttpTestServer(t);
+	server.get('/', echoHeaders);
+
+	const extended = ky
+		.create({headers: {'X-Rainbow': 'first'}})
+		.extend({headers: {'x-rainbow': 'second'}})
+		.extend({headers: {'X-RAINBOW': 'third'}});
+
+	const response = await extended(server.url).json<IncomingHttpHeaders>();
+
+	t.is(response['x-rainbow'], 'third');
+});
+
+test('header removed with a differently cased name can be re-added by a later extend', async t => {
+	const server = await createHttpTestServer(t);
+	server.get('/', echoHeaders);
+
+	const extended = ky
+		.create({headers: {'X-Rainbow': 'rainbow'}})
+		.extend({headers: {'x-rainbow': undefined}})
+		.extend({headers: {'X-RAINBOW': 'again'}});
+
+	const response = await extended(server.url).json<IncomingHttpHeaders>();
+
+	t.is(response['x-rainbow'], 'again');
+});
+
+test('remove header with a differently cased name in per-request options (plain objects)', async t => {
+	const server = await createHttpTestServer(t);
+	server.get('/', echoHeaders);
+
+	const instance = ky.create({
+		headers: {
+			'X-Rainbow': 'rainbow',
+			'X-Unicorn': 'unicorn',
+		},
+	});
+
+	const response = await instance(server.url, {
+		headers: {
+			'x-rainbow': undefined,
+		},
+	}).json<IncomingHttpHeaders>();
+
+	t.false('x-rainbow' in response);
+	t.is(response['x-unicorn'], 'unicorn');
+});
+
+test('override header with a differently cased name in per-request options (plain objects)', async t => {
+	const server = await createHttpTestServer(t);
+	server.get('/', echoHeaders);
+
+	const instance = ky.create({
+		headers: {
+			'X-Rainbow': 'rainbow',
+		},
+	});
+
+	const response = await instance(server.url, {
+		headers: {
+			'x-rainbow': 'double-rainbow',
+		},
+	}).json<IncomingHttpHeaders>();
+
+	t.is(response['x-rainbow'], 'double-rainbow');
+});
+
+test('remove and override differently cased headers in the same extend (plain objects)', async t => {
+	const server = await createHttpTestServer(t);
+	server.get('/', echoHeaders);
+
+	const extended = ky
+		.create({
+			headers: {
+				'X-Rainbow': 'rainbow',
+				'X-Unicorn': 'unicorn',
+				'X-Cat': 'cat',
+			},
+		})
+		.extend({
+			headers: {
+				'x-rainbow': undefined,
+				'x-unicorn': 'double-unicorn',
+			},
+		});
+
+	const response = await extended(server.url).json<IncomingHttpHeaders>();
+
+	t.false('x-rainbow' in response);
+	t.is(response['x-unicorn'], 'double-unicorn');
+	t.is(response['x-cat'], 'cat');
+});
+
+test('remove header with a differently cased name when extending with a function', async t => {
+	const server = await createHttpTestServer(t);
+	server.get('/', echoHeaders);
+
+	const extended = ky
+		.create({headers: {'X-Rainbow': 'rainbow', 'X-Unicorn': 'unicorn'}})
+		.extend(() => ({headers: {'x-rainbow': undefined}}));
+
+	const response = await extended(server.url).json<IncomingHttpHeaders>();
+
+	t.false('x-rainbow' in response);
+	t.is(response['x-unicorn'], 'unicorn');
+});
+
+test('remove header with a differently cased name using a Headers instance over plain object defaults', async t => {
+	const server = await createHttpTestServer(t);
+	server.get('/', echoHeaders);
+
+	const extended = ky
+		.create({headers: {'X-Rainbow': 'rainbow', 'X-Unicorn': 'unicorn'}})
+		.extend({
+			// @ts-expect-error Headers does not support undefined values
+			headers: new Headers({'x-rainbow': undefined}),
+		});
+
+	const response = await extended(server.url).json<IncomingHttpHeaders>();
+
+	t.false('x-rainbow' in response);
+	t.is(response['x-unicorn'], 'unicorn');
+});
+
+test('init hook receives a single value for a header set with different cases across extends', async t => {
+	const server = await createHttpTestServer(t);
+	server.get('/', echoHeaders);
+
+	let headerValue: string | undefined;
+
+	const extended = ky
+		.create({headers: {'X-Rainbow': 'rainbow'}})
+		.extend({headers: {'x-rainbow': 'double-rainbow'}})
+		.extend({
+			hooks: {
+				init: [
+					options => {
+						headerValue = new Headers(options.headers as RequestInit['headers']).get('x-rainbow') ?? undefined;
+					},
+				],
+			},
+		});
+
+	const response = await extended(server.url).json<IncomingHttpHeaders>();
+
+	t.is(headerValue, 'double-rainbow');
+	t.is(response['x-rainbow'], 'double-rainbow');
+});
+
+test('init hook sees plain object header names normalized to lowercase', async t => {
+	const server = await createHttpTestServer(t);
+	server.get('/', echoHeaders);
+
+	let initHeaders: Record<string, string | undefined> | undefined;
+
+	const extended = ky
+		.create({headers: {Authorization: 'token', 'X-Rainbow': 'rainbow'}})
+		.extend({headers: {'x-rainbow': 'double-rainbow'}})
+		.extend({
+			hooks: {
+				init: [
+					options => {
+						initHeaders = {...(options.headers as Record<string, string | undefined>)};
+					},
+				],
+			},
+		});
+
+	const response = await extended(server.url).json<IncomingHttpHeaders>();
+
+	t.deepEqual(initHeaders, {authorization: 'token', 'x-rainbow': 'double-rainbow'});
+	t.is(response.authorization, 'token');
+	t.is(response['x-rainbow'], 'double-rainbow');
+});
+
+test('`replaceOption` headers ignore differently cased defaults', async t => {
+	const server = await createHttpTestServer(t);
+	server.get('/', echoHeaders);
+
+	const extended = ky
+		.create({headers: {'X-Rainbow': 'rainbow', 'X-Unicorn': 'unicorn'}})
+		.extend({headers: replaceOption({'x-unicorn': 'double-unicorn'})});
+
+	const response = await extended(server.url).json<IncomingHttpHeaders>();
+
+	t.false('x-rainbow' in response);
+	t.is(response['x-unicorn'], 'double-unicorn');
 });
 
 test('remove header by setting it to undefined in an init hook (inherited from defaults)', async t => {
