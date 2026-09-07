@@ -310,11 +310,17 @@ const deepMergeInternal = <T>(isRoot: boolean, ...sources: Array<Partial<T> | un
 
 				// `retry` accepts a number as shorthand for `{limit: number}`. Expand it before
 				// merging so extending a numeric `retry` with an object keeps the limit instead
-				// of dropping it (e.g. `ky.create({retry: 3}).extend({retry: {methods: ['get']}})`).
+				// of dropping it (e.g. `ky.create({retry: 3}).extend({retry: {methods: ['get']}})`),
+				// and extending an object `retry` with a number keeps the other options
+				// (e.g. `ky.create({retry: {methods: ['post']}}).extend({retry: 3})`).
 				// Scoped to the root options level so it never rewrites nested user data that
 				// happens to contain a `retry` key (e.g. a `json` request body).
-				if (isRoot && key === 'retry' && isObject(value) && !isReplace && typeof returnValue[key] === 'number') {
-					returnValue = {...returnValue, [key]: {limit: returnValue[key]}};
+				if (isRoot && key === 'retry' && !isReplace) {
+					if (isObject(value) && typeof returnValue[key] === 'number') {
+						returnValue = {...returnValue, [key]: {limit: returnValue[key]}};
+					} else if (typeof value === 'number' && isObject(returnValue[key])) {
+						value = {limit: value};
+					}
 				}
 
 				if (!isReplace && isMergeable(returnValue[key]) && isMergeable(value)) {

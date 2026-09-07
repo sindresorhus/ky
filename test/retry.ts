@@ -2,6 +2,7 @@ import process from 'node:process';
 import {setTimeout as delay} from 'node:timers/promises';
 import test, {type ExecutionContext} from 'ava';
 import ky, {
+	replaceOption,
 	NetworkError,
 	TimeoutError,
 	isKyError,
@@ -1180,6 +1181,189 @@ test('retry - extending a numeric `retry` with an object keeps the limit', async
 		message: /Request Timeout/,
 	});
 	t.is(requestCount, 4);
+});
+
+test('retry - extending an object `retry` with a number keeps the other options', async t => {
+	let requestCount = 0;
+
+	const server = await createHttpTestServer(t);
+	server.post('/', async (_request, response) => {
+		requestCount++;
+		response.sendStatus(500);
+	});
+
+	// `retry: 3` is shorthand for `{limit: 3}`, so extending an object with it
+	// should only change the limit and keep `methods` and `delay`.
+	const extended = ky.create({retry: {methods: ['post'], delay: () => 0}}).extend({retry: 3});
+
+	await t.throwsAsync(extended.post(server.url).text(), {
+		message: /Internal Server Error/,
+	});
+	t.is(requestCount, 4);
+});
+
+test('retry - numeric `retry` in per-request options keeps object defaults', async t => {
+	let requestCount = 0;
+
+	const server = await createHttpTestServer(t);
+	server.post('/', async (_request, response) => {
+		requestCount++;
+		response.sendStatus(500);
+	});
+
+	const instance = ky.create({retry: {methods: ['post'], delay: () => 0}});
+
+	await t.throwsAsync(instance.post(server.url, {retry: 1}).text(), {
+		message: /Internal Server Error/,
+	});
+	t.is(requestCount, 2);
+});
+
+test('retry - numeric `retry: 0` in per-request options disables retries over object defaults', async t => {
+	let requestCount = 0;
+
+	const server = await createHttpTestServer(t);
+	server.post('/', async (_request, response) => {
+		requestCount++;
+		response.sendStatus(500);
+	});
+
+	const instance = ky.create({retry: {methods: ['post'], delay: () => 0}});
+
+	await t.throwsAsync(instance.post(server.url, {retry: 0}).text(), {
+		message: /Internal Server Error/,
+	});
+	t.is(requestCount, 1);
+});
+
+test('retry - number, object, number chain keeps the object options and the last limit', async t => {
+	let normalizedRetry: {limit: number; methods: string[]} | undefined;
+
+	const client = ky
+		.create({retry: 5})
+		.extend({retry: {methods: ['post']}})
+		.extend({retry: 1});
+
+	await client.post('https://example.com', {
+		async fetch() {
+			return new Response('ok');
+		},
+		hooks: {
+			beforeRequest: [
+				({options}) => {
+					normalizedRetry = {limit: options.retry.limit, methods: options.retry.methods};
+				},
+			],
+		},
+	});
+
+	t.deepEqual(normalizedRetry, {limit: 1, methods: ['post']});
+});
+
+test('retry - extending an object `retry` with a number keeps custom status codes', async t => {
+	let requestCount = 0;
+
+	const server = await createHttpTestServer(t);
+	server.get('/', async (_request, response) => {
+		requestCount++;
+		response.sendStatus(418);
+	});
+
+	const extended = ky.create({retry: {statusCodes: [418], delay: () => 0}}).extend({retry: 2});
+
+	await t.throwsAsync(extended(server.url).text(), {
+		message: /I'm a Teapot/,
+	});
+	t.is(requestCount, 3);
+});
+
+test('retry - extending an object `retry` with a number keeps `shouldRetry`', async t => {
+	let requestCount = 0;
+	let shouldRetryCalls = 0;
+
+	const server = await createHttpTestServer(t);
+	server.get('/', async (_request, response) => {
+		requestCount++;
+		response.sendStatus(500);
+	});
+
+	const extended = ky.create({
+		retry: {
+			delay: () => 0,
+			shouldRetry() {
+				shouldRetryCalls++;
+				return false;
+			},
+		},
+	}).extend({retry: 3});
+
+	await t.throwsAsync(extended(server.url).text(), {
+		message: /Internal Server Error/,
+	});
+	t.is(requestCount, 1);
+	t.is(shouldRetryCalls, 1);
+});
+
+test('retry - `replaceOption` with a number replaces the whole object', async t => {
+	let requestCount = 0;
+
+	const server = await createHttpTestServer(t);
+	server.post('/', async (_request, response) => {
+		requestCount++;
+		response.sendStatus(500);
+	});
+
+	// Replacing drops the custom `methods`, so POST falls back to the default non-retriable behavior.
+	const extended = ky.create({retry: {methods: ['post'], delay: () => 0}}).extend({retry: replaceOption(3)});
+
+	await t.throwsAsync(extended.post(server.url).text(), {
+		message: /Internal Server Error/,
+	});
+	t.is(requestCount, 1);
+});
+
+test('retry - init hook sees a numeric `retry` merged into the object defaults', async t => {
+	let initRetry: unknown;
+
+	const client = ky.create({retry: {methods: ['post']}}).extend({retry: 3});
+
+	await client.post('https://example.com', {
+		async fetch() {
+			return new Response('ok');
+		},
+		hooks: {
+			init: [
+				options => {
+					initRetry = options.retry;
+				},
+			],
+		},
+	});
+
+	t.deepEqual(initRetry, {methods: ['post'], limit: 3});
+});
+
+test('retry - invalid numeric `retry` extending an object still throws', t => {
+	const client = ky.create({retry: {methods: ['post']}}).extend({retry: -1});
+
+	t.throws(() => {
+		void client.post('https://example.com');
+	}, {
+		instanceOf: TypeError,
+		message: '`retry.limit` must be a finite, non-negative integer',
+	});
+});
+
+test('retry - numeric shorthand over an object does not rewrite nested user data with a `retry` key', async t => {
+	const server = await createHttpTestServer(t);
+	server.post('/', (request, response) => {
+		response.json({body: request.body});
+	});
+
+	const client = ky.create({json: {retry: {foo: 'bar'}}}).extend({json: {retry: 3}});
+
+	const {body} = await client.post(server.url).json<{body: {retry: unknown}}>();
+	t.is(body.retry, 3);
 });
 
 test('retry - shorthand expansion does not rewrite nested user data with a `retry` key', async t => {
