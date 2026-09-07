@@ -12,21 +12,22 @@ export default async function timeout(
 	abortController: AbortController | undefined,
 	options: TimeoutOptions,
 ): Promise<Response> {
-	return new Promise((resolve, reject) => {
-		const timeoutId = setTimeout(() => {
-			if (abortController) {
-				abortController.abort();
-			}
+	let timeoutId: ReturnType<typeof setTimeout> | undefined;
 
-			reject(new TimeoutError(request));
-		}, options.timeout);
+	try {
+		return await new Promise((resolve, reject) => {
+			timeoutId = setTimeout(() => {
+				if (abortController) {
+					abortController.abort();
+				}
 
-		void options
-			.fetch(request, init)
-			.then(resolve)
-			.catch(reject)
-			.then(() => {
-				clearTimeout(timeoutId);
-			});
-	});
+				reject(new TimeoutError(request));
+			}, options.timeout);
+
+			// A synchronous throw rejects the promise, and `finally` still clears the timer so it cannot abort a later retry attempt.
+			options.fetch(request, init).then(resolve).catch(reject);
+		});
+	} finally {
+		clearTimeout(timeoutId);
+	}
 }

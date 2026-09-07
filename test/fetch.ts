@@ -1,5 +1,6 @@
+import {setTimeout as delay} from 'node:timers/promises';
 import test from 'ava';
-import ky from '../source/index.js';
+import ky, {NetworkError} from '../source/index.js';
 import {createHttpTestServer} from './helpers/create-http-test-server.js';
 
 const fixture = 'https://example.com/unicorn';
@@ -287,4 +288,231 @@ test.serial('vendor-specific options like `next` are passed to fetch even when R
 			delete (Request.prototype as any).next;
 		}
 	}
+});
+
+test('a synchronously throwing fetch rejects with that error', async t => {
+	const error = new Error('sync boom');
+
+	await t.throwsAsync(ky(fixture, {
+		retry: 0,
+		fetch() {
+			throw error;
+		},
+	}), {is: error});
+});
+
+test('a synchronously throwing fetch rejects with that error when timeout is disabled', async t => {
+	const error = new Error('sync boom');
+
+	await t.throwsAsync(ky(fixture, {
+		retry: 0,
+		timeout: false,
+		fetch() {
+			throw error;
+		},
+	}), {is: error});
+});
+
+test('a synchronously thrown non-Error value is propagated as-is', async t => {
+	const error = await t.throwsAsync<unknown>(ky(fixture, {
+		retry: 0,
+		fetch() {
+			// eslint-disable-next-line @typescript-eslint/only-throw-error
+			throw 'sync boom';
+		},
+	}) as unknown as Promise<unknown>, {any: true});
+
+	t.is(error, 'sync boom');
+});
+
+test('a synchronously thrown network error is wrapped in NetworkError and retried', async t => {
+	let requestCount = 0;
+
+	const text = await ky(fixture, {
+		retry: {limit: 1, delay: () => 0},
+		// Not `async` so the throw stays synchronous.
+		// eslint-disable-next-line @typescript-eslint/promise-function-async
+		fetch() {
+			requestCount++;
+			if (requestCount === 1) {
+				throw new TypeError('Failed to fetch');
+			}
+
+			return Promise.resolve(new Response('ok'));
+		},
+	}).text();
+
+	t.is(text, 'ok');
+	t.is(requestCount, 2);
+});
+
+test('a synchronously thrown network error is visible to beforeRetry hooks', async t => {
+	let requestCount = 0;
+	const retryErrors: Error[] = [];
+
+	await ky(fixture, {
+		retry: {limit: 1, delay: () => 0},
+		// Not `async` so the throw stays synchronous.
+		// eslint-disable-next-line @typescript-eslint/promise-function-async
+		fetch() {
+			requestCount++;
+			if (requestCount === 1) {
+				throw new TypeError('Failed to fetch');
+			}
+
+			return Promise.resolve(new Response('ok'));
+		},
+		hooks: {
+			beforeRetry: [
+				({error}) => {
+					retryErrors.push(error);
+				},
+			],
+		},
+	}).text();
+
+	t.is(retryErrors.length, 1);
+	t.true(retryErrors[0] instanceof NetworkError);
+});
+
+test('a synchronously throwing fetch runs beforeError hooks', async t => {
+	const error = new Error('sync boom');
+	const seenErrors: Error[] = [];
+
+	await t.throwsAsync(ky(fixture, {
+		retry: 0,
+		fetch() {
+			throw error;
+		},
+		hooks: {
+			beforeError: [
+				({error}) => {
+					seenErrors.push(error);
+					return error;
+				},
+			],
+		},
+	}), {is: error});
+
+	t.deepEqual(seenErrors, [error]);
+});
+
+test('a synchronously throwing fetch does not turn into a TimeoutError when totalTimeout is set', async t => {
+	const error = new Error('sync boom');
+
+	await t.throwsAsync(ky(fixture, {
+		retry: 0,
+		timeout: 50,
+		totalTimeout: 1000,
+		fetch() {
+			throw error;
+		},
+	}), {is: error});
+});
+
+test('the timeout of a synchronously throwing attempt does not abort the retried attempt', async t => {
+	let requestCount = 0;
+	let retriedRequestSignalAborted: boolean | undefined;
+
+	const text = await ky(fixture, {
+		timeout: 100,
+		retry: {limit: 1, delay: () => 50},
+		// Not `async` so the throw stays synchronous.
+		// eslint-disable-next-line @typescript-eslint/promise-function-async
+		fetch(request) {
+			requestCount++;
+			if (requestCount === 1) {
+				throw new TypeError('Failed to fetch');
+			}
+
+			return (async () => {
+				// Resolve after the first attempt's timeout would have fired, but before this attempt's own timeout.
+				await delay(80);
+				retriedRequestSignalAborted = (request as Request).signal.aborted;
+				return new Response('ok');
+			})();
+		},
+	}).text();
+
+	t.is(text, 'ok');
+	t.is(requestCount, 2);
+	t.false(retriedRequestSignalAborted);
+});
+
+test('the timeout of a synchronously throwing attempt does not abort a retried attempt that reads its body late', async t => {
+	let requestCount = 0;
+
+	const responsePromise = ky(fixture, {
+		timeout: 100,
+		retry: {limit: 1, delay: () => 50},
+		// Not `async` so the throw stays synchronous.
+		// eslint-disable-next-line @typescript-eslint/promise-function-async
+		fetch(request) {
+			requestCount++;
+			if (requestCount === 1) {
+				throw new TypeError('Failed to fetch');
+			}
+
+			const {signal} = request as Request;
+			return Promise.resolve(new Response(new ReadableStream({
+				async pull(controller) {
+					// Deliver the body after the first attempt's timeout would have fired, but within this attempt's own body read timeout.
+					await delay(70);
+					if (signal.aborted) {
+						controller.error(signal.reason);
+						return;
+					}
+
+					controller.enqueue(new TextEncoder().encode('ok'));
+					controller.close();
+				},
+			})));
+		},
+	});
+
+	t.is(await responsePromise.text(), 'ok');
+	t.is(requestCount, 2);
+});
+
+test('a synchronously throwing retry attempt rejects with that error', async t => {
+	let requestCount = 0;
+	const error = new Error('sync boom on retry');
+
+	await t.throwsAsync(ky(fixture, {
+		retry: {limit: 1, delay: () => 0},
+		fetch() {
+			requestCount++;
+			if (requestCount === 1) {
+				throw new TypeError('Failed to fetch');
+			}
+
+			throw error;
+		},
+	}), {is: error});
+
+	t.is(requestCount, 2);
+});
+
+test('a fetch that rejects asynchronously does not leave a timer that aborts the retried attempt', async t => {
+	let requestCount = 0;
+	let retriedRequestSignalAborted: boolean | undefined;
+
+	const text = await ky(fixture, {
+		timeout: 100,
+		retry: {limit: 1, delay: () => 50},
+		async fetch(request) {
+			requestCount++;
+			if (requestCount === 1) {
+				throw new TypeError('Failed to fetch');
+			}
+
+			await delay(80);
+			retriedRequestSignalAborted = (request as Request).signal.aborted;
+			return new Response('ok');
+		},
+	}).text();
+
+	t.is(text, 'ok');
+	t.is(requestCount, 2);
+	t.false(retriedRequestSignalAborted);
 });
