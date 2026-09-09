@@ -17,6 +17,7 @@ import type {StandardSchemaV1} from '../types/standard-schema.js';
 import {streamRequest, streamResponse} from '../utils/body.js';
 import {
 	cloneShallow,
+	cloneDeep,
 	mergeHeaders,
 	mergeHooks,
 	deletedParametersSymbol,
@@ -125,9 +126,10 @@ const cloneSearchParametersForInitHook = (searchParameters: SearchParamsOption |
 function cloneInitHookOptions(options: Options): Options {
 	const clonedOptions: Options = {
 		...options,
-		json: cloneShallow(options.json),
+		// Deep-clone so init-hook mutations to nested values do not leak across requests, matching the nested `retry` cloning below. Non-plain values (functions, class instances) are kept by reference.
+		json: cloneDeep(options.json),
 		// `context` is documented to always be an object in every hook, including `init`.
-		context: cloneShallow(options.context) ?? {},
+		context: cloneDeep(options.context) ?? {},
 		// `headers` is documented to always be a plain object in `init` hooks, so hooks can add headers in place even when none were provided.
 		headers: cloneShallow(options.headers) ?? {},
 		searchParams: cloneSearchParametersForInitHook(options.searchParams),

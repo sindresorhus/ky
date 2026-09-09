@@ -112,6 +112,42 @@ export const cloneShallow = <T>(value: T): T => {
 	return value;
 };
 
+// Recursively clone plain objects and arrays so that `init`-hook mutations to nested `json` or `context` values do not leak into the next request. Non-plain values (functions, class instances, `Date`, `URLSearchParams`, …) are kept by reference, matching how option merging treats them as whole values. The `seen` map keeps shared and cyclic references intact.
+export const cloneDeep = <T>(value: T, seen: WeakMap<Record<string, unknown> | unknown[], unknown> = new WeakMap()): T => {
+	if (!isMergeable(value)) {
+		return value;
+	}
+
+	const existingCopy = seen.get(value);
+	if (existingCopy) {
+		return existingCopy as T;
+	}
+
+	if (Array.isArray(value)) {
+		const copy: unknown[] = [];
+		seen.set(value, copy);
+		for (const item of value) {
+			copy.push(cloneDeep(item, seen));
+		}
+
+		return copy as T;
+	}
+
+	const copy: Record<string, unknown> = {};
+	seen.set(value, copy);
+	for (const key of Object.keys(value)) {
+		// Define instead of assign so a `__proto__` key becomes an own property rather than changing the prototype.
+		Object.defineProperty(copy, key, {
+			value: cloneDeep(value[key], seen),
+			writable: true,
+			enumerable: true,
+			configurable: true,
+		});
+	}
+
+	return copy as T;
+};
+
 // Header names are case-insensitive, so they are normalized to lowercase (like `Headers` does) so that overrides and `undefined` deletions match regardless of how the name was spelled and `init` hooks can rely on lowercase keys.
 // An `undefined` value is kept as a deletion marker so it can still remove a header inherited from a `Request` input when the request is created.
 const mergeHeaderObjects = (source1: Record<string, unknown>, source2: Record<string, unknown>): Record<string, string | undefined> => {

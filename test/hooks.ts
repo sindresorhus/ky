@@ -5732,6 +5732,139 @@ test('init hook in-place json mutations do not leak across requests', async t =>
 	t.deepEqual(seenRequestIdentifiers, ['1', '2']);
 });
 
+test('init hook nested json mutations do not leak across requests', async t => {
+	const seenIds: number[] = [];
+
+	const api = ky.extend({
+		json: {user: {id: 1}},
+		fetch: async () => new Response('ok'),
+		hooks: {
+			init: [
+				options => {
+					const json = options.json as {user: {id: number}};
+					seenIds.push(json.user.id);
+					json.user.id += 10;
+				},
+			],
+		},
+	});
+
+	await api.post('https://example.com');
+	await api.post('https://example.com');
+
+	t.deepEqual(seenIds, [1, 1]);
+});
+
+test('init hook deeply nested json mutations do not leak across requests', async t => {
+	const seenValues: string[] = [];
+
+	const api = ky.extend({
+		json: {a: {b: {c: 'seed'}}},
+		fetch: async () => new Response('ok'),
+		hooks: {
+			init: [
+				options => {
+					const json = options.json as {a: {b: {c: string}}};
+					seenValues.push(json.a.b.c);
+					json.a.b.c = 'mutated';
+				},
+			],
+		},
+	});
+
+	await api.post('https://example.com');
+	await api.post('https://example.com');
+
+	t.deepEqual(seenValues, ['seed', 'seed']);
+});
+
+test('init hook nested json array mutations do not leak across requests', async t => {
+	const seenItems: number[][] = [];
+
+	const api = ky.extend({
+		json: {items: [1]},
+		fetch: async () => new Response('ok'),
+		hooks: {
+			init: [
+				options => {
+					const json = options.json as {items: number[]};
+					seenItems.push([...json.items]);
+					json.items.push(2);
+				},
+			],
+		},
+	});
+
+	await api.post('https://example.com');
+	await api.post('https://example.com');
+
+	t.deepEqual(seenItems, [[1], [1]]);
+});
+
+test('init hook keeps a function value inside json by reference across the deep clone', async t => {
+	const skip = () => undefined;
+	let sawSameFunction = false;
+
+	const response = await ky.post('https://example.com', {
+		fetch: async request => new Response(await request.text()),
+		json: {keep: true, nested: {skip}},
+		stringifyJson: data => JSON.stringify(data),
+		hooks: {
+			init: [
+				options => {
+					sawSameFunction = (options.json as {nested: {skip: unknown}}).nested.skip === skip;
+				},
+			],
+		},
+	}).json();
+
+	t.true(sawSameFunction);
+	t.deepEqual(response, {keep: true, nested: {}});
+});
+
+test('init hook deep-cloning json with a `__proto__` key does not pollute Object.prototype', async t => {
+	const json: {value: number} = JSON.parse('{"__proto__":{"polluted":true},"value":1}');
+
+	await ky.post('https://example.com', {
+		json,
+		fetch: async () => new Response('ok'),
+		hooks: {
+			init: [
+				options => {
+					(options.json as {value: number}).value = 2;
+				},
+			],
+		},
+	});
+
+	const object: Record<string, unknown> = {};
+	t.is(object.polluted, undefined);
+});
+
+test('init hook deep clone handles cyclic json without overflowing', async t => {
+	const json: {value: number; self?: unknown} = {value: 1};
+	json.self = json;
+
+	let seenValue: number | undefined;
+
+	await t.notThrowsAsync(ky.post('https://example.com', {
+		json,
+		stringifyJson: () => '{"ok":true}',
+		fetch: async () => new Response('ok'),
+		hooks: {
+			init: [
+				options => {
+					const clonedJson = options.json as {value: number; self?: unknown};
+					seenValue = clonedJson.value;
+					clonedJson.value = 2;
+				},
+			],
+		},
+	}));
+
+	t.is(seenValue, 1);
+});
+
 test('init hooks preserve non-plain json values', async t => {
 	const createdAt = new Date('2024-01-01T00:00:00.000Z');
 
@@ -5880,6 +6013,50 @@ test('init hook in-place context mutations do not leak across requests', async t
 	});
 
 	t.deepEqual(seenRequestIdentifiers, [1, 2]);
+});
+
+test('init hook nested context mutations do not leak across requests', async t => {
+	const seenCounts: number[] = [];
+
+	const api = ky.extend({
+		context: {session: {count: 0}},
+		fetch: async () => new Response('ok'),
+		hooks: {
+			init: [
+				options => {
+					const {session} = options.context as {session: {count: number}};
+					seenCounts.push(session.count);
+					session.count++;
+				},
+			],
+		},
+	});
+
+	await api.get('https://example.com');
+	await api.get('https://example.com');
+
+	t.deepEqual(seenCounts, [0, 0]);
+});
+
+test('init hook keeps a class-instance context value by reference across the deep clone', async t => {
+	const store = new Map<string, number>();
+	let sawSameStore = false;
+
+	const api = ky.extend({
+		context: {store},
+		fetch: async () => new Response('ok'),
+		hooks: {
+			init: [
+				options => {
+					sawSameStore = (options.context as {store: Map<string, number>}).store === store;
+				},
+			],
+		},
+	});
+
+	await api.get('https://example.com');
+
+	t.true(sawSameStore);
 });
 
 test('multiple init hooks see each other\'s mutations on the shared cloned options', async t => {
