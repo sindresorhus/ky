@@ -163,7 +163,7 @@ Type: `string` | `URL` | `Request`
 
 Same as [`fetch` input](https://developer.mozilla.org/en-US/docs/Web/API/Request/Request#input).
 
-When using a [`Request`](https://developer.mozilla.org/en-US/docs/Web/API/Request) instance as `input`, any URL altering options (such as `baseUrl`) will be ignored.
+When using a [`Request`](https://developer.mozilla.org/en-US/docs/Web/API/Request) instance as `input`, the `prefix` and `baseUrl` options are ignored. The `searchParams` option still applies.
 
 #### options
 
@@ -1545,7 +1545,7 @@ const response = await ky('https://example.com', {
 
 ### Streaming request bodies
 
-To send a [`ReadableStream`](https://developer.mozilla.org/en-US/docs/Web/API/ReadableStream) as the request body, you must pass `duplex: 'half'` per the [Fetch spec](https://fetch.spec.whatwg.org/#dom-requestinit-duplex). Ky can't set this automatically as it changes request semantics for all requests, not just streaming ones.
+You can pass a [`ReadableStream`](https://developer.mozilla.org/en-US/docs/Web/API/ReadableStream) as the request body. Ky sets the `duplex: 'half'` option required by the [Fetch spec](https://fetch.spec.whatwg.org/#dom-requestinit-duplex) for you in environments with [request stream support](https://caniuse.com/wf-fetch-request-streams).
 
 ```js
 import ky from 'ky';
@@ -1559,7 +1559,6 @@ const stream = new ReadableStream({
 
 const response = await ky.post('https://example.com/upload', {
 	body: stream,
-	duplex: 'half',
 });
 ```
 

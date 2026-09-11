@@ -214,6 +214,117 @@ test('`json` option overrides the `body` option', async t => {
 	t.deepEqual(responseJson, json);
 });
 
+test('a streaming request body is sent without passing the `duplex` option', async t => {
+	const server = await createHttpTestServer(t, {bodyParser: false});
+	server.post('/', async (request, response) => {
+		response.send(await parseRawBody(request));
+	});
+
+	const body = 'hello stream';
+	const stream = new ReadableStream({
+		start(controller) {
+			controller.enqueue(new TextEncoder().encode(body));
+			controller.close();
+		},
+	});
+
+	t.is(await ky.post(server.url, {body: stream}).text(), body);
+});
+
+test('a streaming request body is replayed on a retry without passing the `duplex` option', async t => {
+	const server = await createHttpTestServer(t, {bodyParser: false});
+	let attempts = 0;
+	server.post('/', async (request, response) => {
+		attempts++;
+		const body = await parseRawBody(request);
+		if (attempts === 1) {
+			response.sendStatus(500);
+			return;
+		}
+
+		response.send(body);
+	});
+
+	const stream = new ReadableStream({
+		start(controller) {
+			controller.enqueue(new TextEncoder().encode('replay me'));
+			controller.close();
+		},
+	});
+
+	const result = await ky.post(server.url, {
+		body: stream,
+		retry: {methods: ['post'], limit: 1, delay: () => 0},
+	}).text();
+
+	t.is(result, 'replay me');
+	t.is(attempts, 2);
+});
+
+test('a streaming request body survives the `searchParams` request rebuild without passing the `duplex` option', async t => {
+	const server = await createHttpTestServer(t, {bodyParser: false});
+	server.post('/', async (request, response) => {
+		response.send(`${request.originalUrl}|${await parseRawBody(request)}`);
+	});
+
+	const stream = new ReadableStream({
+		start(controller) {
+			controller.enqueue(new TextEncoder().encode('with params'));
+			controller.close();
+		},
+	});
+
+	const result = await ky.post(server.url, {body: stream, searchParams: {foo: 'bar'}}).text();
+
+	t.is(result, '/?foo=bar|with params');
+});
+
+test('a streaming request body reports upload progress without passing the `duplex` option', async t => {
+	const server = await createHttpTestServer(t, {bodyParser: false});
+	server.post('/', async (request, response) => {
+		response.send(await parseRawBody(request));
+	});
+
+	const stream = new ReadableStream({
+		start(controller) {
+			controller.enqueue(new TextEncoder().encode('progress body'));
+			controller.close();
+		},
+	});
+
+	const percentages: number[] = [];
+	const result = await ky.post(server.url, {
+		body: stream,
+		onUploadProgress(progress) {
+			percentages.push(progress.percent);
+		},
+	}).text();
+
+	t.is(result, 'progress body');
+	t.is(percentages.at(-1), 1);
+});
+
+test('a streaming request body keeps a custom `content-type` without passing the `duplex` option', async t => {
+	const server = await createHttpTestServer(t, {bodyParser: false});
+	server.post('/', async (request, response) => {
+		response.send(`${request.headers['content-type']}|${await parseRawBody(request)}`);
+	});
+
+	const stream = new ReadableStream({
+		start(controller) {
+			controller.enqueue(new TextEncoder().encode('typed body'));
+			controller.close();
+		},
+	});
+
+	const result = await ky.post(server.url, {
+		body: stream,
+		headers: {'content-type': 'text/x-custom'},
+	}).text();
+
+	t.is(result, 'text/x-custom|typed body');
+});
+
 test('custom headers', async t => {
 	const server = await createHttpTestServer(t);
 	server.get('/', (request, response) => {
