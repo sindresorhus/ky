@@ -5,7 +5,7 @@ import {KyError} from './KyError.js';
 Error thrown when the request times out. It has a `request` property with the `Request` object.
 */
 export class TimeoutError extends KyError {
-	override name = 'TimeoutError' as const;
+	override name = 'TimeoutError';
 	request: KyRequest;
 
 	constructor(request: Request) {

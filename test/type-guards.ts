@@ -1,6 +1,10 @@
 import {setTimeout as delay} from 'node:timers/promises';
 import test from 'ava';
-import {
+import ky, {
+	HTTPError,
+	NetworkError,
+	ForceRetryError,
+	SchemaValidationError,
 	TimeoutError,
 	isKyError,
 	isHTTPError,
@@ -8,6 +12,34 @@ import {
 	isTimeoutError,
 	isForceRetryError,
 } from '../source/index.js';
+
+test('error names can be customized without changing instance type guards', async t => {
+	const request = new Request('https://example.com');
+	const httpError = await t.throwsAsync(ky(request, {
+		retry: 0,
+		fetch: async () => new Response('Forbidden', {status: 403}),
+	}), {instanceOf: HTTPError});
+
+	for (const [error, guard] of [
+		[httpError, isHTTPError],
+		[new NetworkError(request), isNetworkError],
+		[new TimeoutError(request), isTimeoutError],
+		[new ForceRetryError(), isForceRetryError],
+	] as const) {
+		t.is(error.name, error.constructor.name);
+		error.name = 'CustomError';
+		t.true(error.toString().startsWith('CustomError: '));
+		t.true(guard(error));
+		t.true(isKyError(error));
+	}
+
+	const validationError = new SchemaValidationError([{message: 'Invalid response'}]);
+	t.is(validationError.name, 'SchemaValidationError');
+	validationError.name = 'InvalidResponseError';
+	t.true(validationError.toString().startsWith('InvalidResponseError: '));
+	t.true(validationError instanceof SchemaValidationError);
+	t.false(isKyError(validationError));
+});
 
 test('AbortSignal.timeout errors are not Ky errors', async t => {
 	const signal = AbortSignal.timeout(0);

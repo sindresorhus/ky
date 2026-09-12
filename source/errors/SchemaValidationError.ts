@@ -23,7 +23,7 @@ try {
 ```
 */
 export class SchemaValidationError extends Error {
-	override name = 'SchemaValidationError' as const;
+	override name = 'SchemaValidationError';
 	readonly issues: readonly StandardSchemaV1Issue[];
 
 	constructor(issues: readonly StandardSchemaV1Issue[]) {

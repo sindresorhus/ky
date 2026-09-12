@@ -13,7 +13,7 @@ The response body is automatically consumed when populating `error.data`, so `er
 Be aware that some types of errors, such as network errors, inherently mean that a response was not received. In that case, the error will be an instance of `NetworkError` instead of `HTTPError` and will not contain a `response` property.
 */
 export class HTTPError<T = unknown> extends KyError {
-	override name = 'HTTPError' as const;
+	override name = 'HTTPError';
 	response: KyResponse<T>;
 	request: KyRequest;
 	options: Readonly<NormalizedOptions>;

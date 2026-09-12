@@ -9,7 +9,7 @@ Network errors are automatically retried (for retriable methods). A connection t
 Note: Network errors are detected using runtime-specific heuristics. Unrecognized runtimes may produce errors that are not wrapped in `NetworkError`. Use the `shouldRetry` option to handle such cases.
 */
 export class NetworkError extends KyError {
-	override name = 'NetworkError' as const;
+	override name = 'NetworkError';
 	request: KyRequest;
 
 	constructor(request: Request, options?: {cause?: Error | undefined}) {

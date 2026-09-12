@@ -8,7 +8,7 @@ Error used to signal a forced retry from `afterResponse` hooks.
 This is thrown when `ky.retry()` is returned from an `afterResponse` hook. It is observable in `beforeRetry` and `beforeError` hooks via the `isForceRetryError()` type guard.
 */
 export class ForceRetryError extends KyError {
-	override name = 'ForceRetryError' as const;
+	override name = 'ForceRetryError';
 	customDelay: number | undefined;
 	code: string | undefined;
 	customRequest: Request | undefined;
