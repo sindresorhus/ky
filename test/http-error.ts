@@ -1,6 +1,6 @@
 import test from 'ava';
 import {expectTypeOf} from 'expect-type';
-import ky, {HTTPError, isHTTPError} from '../source/index.js';
+import ky, {HTTPError, isHTTPError, TimeoutError} from '../source/index.js';
 import {type Mutable} from '../source/utils/types.js';
 import {createHttpTestServer} from './helpers/create-http-test-server.js';
 
@@ -221,6 +221,58 @@ test('HTTPError#data does not hang when async parseJson never resolves', async t
 	t.true(error instanceof HTTPError);
 	t.is(error?.data, undefined);
 	t.true(Date.now() - start < 5000);
+});
+
+test.serial('totalTimeout is enforced after synchronous error JSON parsing', async t => {
+	const originalPerformanceNow = globalThis.performance.now;
+	let currentTime = 0;
+	let didParse = false;
+	globalThis.performance.now = () => currentTime;
+	t.teardown(() => {
+		globalThis.performance.now = originalPerformanceNow;
+	});
+
+	await t.throwsAsync(ky('https://example.com', {
+		retry: 0,
+		totalTimeout: 500,
+		async fetch() {
+			return Response.json({error: 'failure'}, {status: 500});
+		},
+		parseJson(text) {
+			didParse = true;
+			currentTime = 501;
+			return JSON.parse(text);
+		},
+	}), {instanceOf: TimeoutError});
+
+	t.true(didParse);
+});
+
+test.serial('totalTimeout is enforced after reading a plain-text error body', async t => {
+	const originalPerformanceNow = globalThis.performance.now;
+	let currentTime = 0;
+	let didRead = false;
+	globalThis.performance.now = () => currentTime;
+	t.teardown(() => {
+		globalThis.performance.now = originalPerformanceNow;
+	});
+
+	await t.throwsAsync(ky('https://example.com', {
+		retry: 0,
+		totalTimeout: 500,
+		async fetch() {
+			return new Response(new ReadableStream({
+				pull(controller) {
+					didRead = true;
+					currentTime = 501;
+					controller.enqueue(new TextEncoder().encode('failure'));
+					controller.close();
+				},
+			}, {highWaterMark: 0}), {status: 500});
+		},
+	}), {instanceOf: TimeoutError});
+
+	t.true(didRead);
 });
 
 test('HTTPError#data does not call parseJson for non-JSON responses', async t => {

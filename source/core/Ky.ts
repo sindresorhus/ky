@@ -246,6 +246,7 @@ export class Ky {
 					const errorToThrow: Error = httpError;
 					// eslint-disable-next-line no-await-in-loop
 					httpError.data = await ky.#getResponseData(currentResponse);
+					ky.#throwIfTotalTimeoutExhausted();
 
 					if (responseFromHook) {
 						throw errorToThrow;
@@ -781,17 +782,21 @@ export class Ky {
 				? await bodyPromise
 				: await Promise.race([bodyPromise, timeoutPromise]);
 		} catch (error: unknown) {
-			// A connection dropped while streaming the body surfaces as a raw runtime `TypeError`. Wrap it like fetch-phase network errors so it is recognizable and runs `beforeError` hooks.
-			// This only happens on the awaited path, so a body that fails after the timeout already won does not run the hooks again.
-			if (isRawNetworkError(error)) {
-				this.#throwIfAbortedByUser();
-				await this.#throwProcessedError(new NetworkError(this.#getResponseRequest(response), {cause: error as Error}));
+			this.#throwIfAbortedByUser();
+			if (this.#getRemainingTotalTimeout() !== 0) {
+				// A connection dropped while streaming the body surfaces as a raw runtime `TypeError`. Wrap it like fetch-phase network errors so it is recognizable and runs `beforeError` hooks.
+				// This only happens on the awaited path, so a body that fails after the timeout already won does not run the hooks again.
+				if (isRawNetworkError(error)) {
+					await this.#throwProcessedError(new NetworkError(this.#getResponseRequest(response), {cause: error as Error}));
+				}
+
+				throw error;
 			}
 
-			throw error;
+			result = timedOutResponseData;
 		}
 
-		if (result === timedOutResponseData) {
+		if (result === timedOutResponseData || this.#getRemainingTotalTimeout() === 0) {
 			// The stream is locked by the native body method's own reader by this point, so
 			// `response.body.cancel()` would reject as "already locked". Aborting the request's
 			// signal is what actually interrupts the underlying network read.
@@ -1204,10 +1209,21 @@ export class Ky {
 					fetch,
 				});
 
+			if (this.#getRemainingTotalTimeout() === 0) {
+				this.#abortController?.abort();
+				this.#cancelResponseBody(response);
+				throw new TimeoutError(request);
+			}
+
 			return this.#setResponseRequest(response, request);
 		} catch (error) {
+			this.#throwIfAbortedByUser();
+			if (this.#getRemainingTotalTimeout() === 0) {
+				this.#abortController?.abort();
+				throw new TimeoutError(request);
+			}
+
 			if (isRawNetworkError(error)) {
-				this.#throwIfAbortedByUser();
 				throw new NetworkError(this.request, {cause: error as Error});
 			}
 

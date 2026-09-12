@@ -15,6 +15,106 @@ import {parseRawBody} from './helpers/parse-body.js';
 import {withPerformance} from './helpers/with-performance.js';
 
 const fixture = 'fixture';
+
+for (const {title, elapsed, totalTimeout, errorType} of [
+	{
+		title: 'expired', elapsed: 100, totalTimeout: 50, errorType: TimeoutError,
+	},
+	{
+		title: 'unexpired', elapsed: 25, totalTimeout: 50, errorType: NetworkError,
+	},
+	{
+		title: 'disabled', elapsed: 100, totalTimeout: false, errorType: NetworkError,
+	},
+] as const) {
+	test.serial(`body read failure respects ${title} totalTimeout`, async t => {
+		const originalPerformanceNow = globalThis.performance.now;
+		let currentTime = 0;
+		globalThis.performance.now = () => currentTime;
+		t.teardown(() => {
+			globalThis.performance.now = originalPerformanceNow;
+		});
+
+		let requestCount = 0;
+		const hookErrors: Error[] = [];
+		const error = await t.throwsAsync(ky('https://example.com', {
+			timeout: false,
+			totalTimeout,
+			async fetch() {
+				requestCount++;
+				return new Response(new ReadableStream({
+					pull(controller) {
+						currentTime = elapsed;
+						controller.error(new TypeError('terminated'));
+					},
+				}, {highWaterMark: 0}));
+			},
+			hooks: {
+				beforeError: [({error}) => {
+					hookErrors.push(error);
+					return error;
+				}],
+			},
+		}).text(), {instanceOf: errorType});
+
+		t.is(error.request.url, 'https://example.com/');
+		t.deepEqual(hookErrors, [error]);
+		t.is(requestCount, 1);
+	});
+}
+
+test.serial('totalTimeout takes precedence when fetch rejects after the deadline', async t => {
+	const originalPerformanceNow = globalThis.performance.now;
+	let currentTime = 0;
+	globalThis.performance.now = () => currentTime;
+	t.teardown(() => {
+		globalThis.performance.now = originalPerformanceNow;
+	});
+
+	let requestCount = 0;
+	let errorHookCount = 0;
+	await t.throwsAsync(ky('https://example.com', {
+		timeout: false,
+		totalTimeout: 50,
+		retry: 0,
+		async fetch() {
+			requestCount++;
+			currentTime = 100;
+			throw new TypeError('fetch failed');
+		},
+		hooks: {
+			beforeError: [({error}) => {
+				errorHookCount++;
+				t.true(error instanceof TimeoutError);
+				return error;
+			}],
+		},
+	}), {instanceOf: TimeoutError});
+	t.is(requestCount, 1);
+	t.is(errorHookCount, 1);
+
+	currentTime = 0;
+	await t.throwsAsync(ky('https://example.com', {
+		timeout: false,
+		totalTimeout: 50,
+		retry: 0,
+		async fetch() {
+			currentTime = 25;
+			throw new TypeError('fetch failed');
+		},
+	}), {instanceOf: NetworkError});
+
+	await t.throwsAsync(ky('https://example.com', {
+		timeout: false,
+		totalTimeout: false,
+		retry: 0,
+		async fetch() {
+			currentTime = 100;
+			throw new TypeError('fetch failed');
+		},
+	}), {instanceOf: NetworkError});
+});
+
 const defaultRetryCount = 2;
 const retryAfterOn500 = 2;
 const retryAfterOn413 = 2;

@@ -1081,6 +1081,88 @@ test('totalTimeout bounds a never-ending successful response body', async t => {
 	t.true(Date.now() - start < 2000);
 });
 
+for (const timeout of [false, 10_000] as const) {
+	test.serial(`totalTimeout rejects a completed fetch past the deadline with timeout ${timeout}`, async t => {
+		const originalPerformanceNow = globalThis.performance.now;
+		let currentTime = 0;
+		let fetchCount = 0;
+		let hookCallCount = 0;
+		let requestSignal: AbortSignal | undefined;
+		let canceledBody = false;
+		globalThis.performance.now = () => currentTime;
+		t.teardown(() => {
+			globalThis.performance.now = originalPerformanceNow;
+		});
+
+		await t.throwsAsync(ky('https://example.com', {
+			timeout,
+			totalTimeout: 500,
+			async fetch(request) {
+				fetchCount++;
+				requestSignal = request.signal;
+				currentTime = 501;
+				return new Response(new ReadableStream({
+					cancel() {
+						canceledBody = true;
+					},
+				}));
+			},
+			hooks: {
+				beforeError: [({error}) => {
+					hookCallCount++;
+					t.true(error instanceof TimeoutError);
+					return error;
+				}],
+			},
+		}), {instanceOf: TimeoutError});
+		t.is(fetchCount, 1);
+		t.is(hookCallCount, 1);
+		t.true(requestSignal?.aborted);
+		t.true(canceledBody);
+	});
+}
+
+for (const method of ['text', 'arrayBuffer', 'json'] as const) {
+	test.serial(`totalTimeout rejects a completed ${method} body read past the deadline`, async t => {
+		const originalPerformanceNow = globalThis.performance.now;
+		let currentTime = 0;
+		let didRead = false;
+		let requestSignal: AbortSignal | undefined;
+		let hookCallCount = 0;
+		globalThis.performance.now = () => currentTime;
+		t.teardown(() => {
+			globalThis.performance.now = originalPerformanceNow;
+		});
+
+		const response = ky('https://example.com', {
+			totalTimeout: 500,
+			async fetch(request) {
+				requestSignal = request.signal;
+				return new Response(new ReadableStream({
+					pull(controller) {
+						didRead = true;
+						currentTime = 501;
+						controller.enqueue(new TextEncoder().encode('{"ok":true}'));
+						controller.close();
+					},
+				}, {highWaterMark: 0}));
+			},
+			hooks: {
+				beforeError: [({error}) => {
+					hookCallCount++;
+					t.true(error instanceof TimeoutError);
+					return error;
+				}],
+			},
+		});
+
+		await t.throwsAsync(response[method](), {instanceOf: TimeoutError});
+		t.true(didRead);
+		t.true(requestSignal?.aborted);
+		t.is(hookCallCount, 1);
+	});
+}
+
 test('beforeError hook receives totalTimeout exhausted before a shortcut body read starts', async t => {
 	let didReadBody = false;
 	let hookError: Error | undefined;
