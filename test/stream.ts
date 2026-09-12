@@ -27,6 +27,36 @@ test('empty request body completes upload progress', async t => {
 	}]);
 });
 
+for (const retryLimit of [0, 1]) {
+	test(`upload progress preserves referrer options with retry limit ${retryLimit}`, async t => {
+		const referrer = 'https://example.com/source';
+		const referrerPolicy = 'no-referrer';
+		const requests: Array<{referrer: string; referrerPolicy: string}> = [];
+		let completedUploads = 0;
+
+		const result = await ky.post('https://example.com', {
+			body: 'payload',
+			referrer,
+			referrerPolicy,
+			retry: {limit: retryLimit, methods: ['post'], delay: () => 0},
+			async fetch(request) {
+				requests.push({referrer: request.referrer, referrerPolicy: request.referrerPolicy});
+				t.is(await request.text(), 'payload');
+				return new Response('ok', {status: requests.length <= retryLimit ? 500 : 200});
+			},
+			onUploadProgress(progress) {
+				if (progress.percent === 1) {
+					completedUploads++;
+				}
+			},
+		}).text();
+
+		t.is(result, 'ok');
+		t.is(completedUploads, retryLimit + 1);
+		t.deepEqual(requests, Array.from({length: retryLimit + 1}, () => ({referrer, referrerPolicy})));
+	});
+}
+
 test('POST JSON with upload progress', async t => {
 	const server = await createHttpTestServer(t, {bodyParser: false});
 	server.post('/', async (request, response) => {

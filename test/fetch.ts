@@ -89,6 +89,37 @@ test('options are correctly passed to Fetch #1', async t => {
 	await ky(fixture, {cache, fetch: customFetch}).text();
 });
 
+for (const searchParameters of [undefined, {page: '2'}]) {
+	test(`Request input preserves referrer options${searchParameters ? ' with searchParams' : ''}`, async t => {
+		const referrer = 'https://example.com/source';
+		const referrerPolicy = 'no-referrer';
+		const request = new Request(fixture, {referrer, referrerPolicy});
+
+		const result = await ky(request, {
+			searchParams: searchParameters,
+			async fetch(request) {
+				return Response.json({referrer: request.referrer, referrerPolicy: request.referrerPolicy});
+			},
+		}).json();
+
+		t.deepEqual(result, {referrer, referrerPolicy});
+	});
+
+	test(`Request input allows overriding referrer options${searchParameters ? ' with searchParams' : ''}`, async t => {
+		const request = new Request(fixture, {referrer: 'https://example.com/source', referrerPolicy: 'no-referrer'});
+		const result = await ky(request, {
+			referrer: '',
+			referrerPolicy: 'same-origin',
+			searchParams: searchParameters,
+			async fetch(request) {
+				return Response.json({referrer: request.referrer, referrerPolicy: request.referrerPolicy});
+			},
+		}).json();
+
+		t.deepEqual(result, {referrer: '', referrerPolicy: 'same-origin'});
+	});
+}
+
 test('options are correctly passed to Fetch #2', async t => {
 	const server = await createHttpTestServer(t);
 

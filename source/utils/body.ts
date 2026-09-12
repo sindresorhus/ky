@@ -125,5 +125,7 @@ export const streamRequest = (request: Request, onUploadProgress: Options['onUpl
 		// @ts-expect-error - Types are outdated.
 		duplex: 'half',
 		body: withProgress(request.body, totalBytes, onUploadProgress),
+		referrer: request.referrer,
+		referrerPolicy: request.referrerPolicy,
 	});
 };

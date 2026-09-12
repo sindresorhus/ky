@@ -391,6 +391,8 @@ export class Ky {
 			headers: mergeHeaders((this.#input as Request).headers, options.headers),
 			hooks: mergeHooks({}, options.hooks),
 			method: normalizeRequestMethod(options.method ?? (this.#input as Request).method ?? 'GET'),
+			referrer: options.referrer ?? (this.#input as Request).referrer,
+			referrerPolicy: options.referrerPolicy ?? (this.#input as Request).referrerPolicy,
 			// eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing
 			prefix: String(options.prefix || ''),
 			retry: normalizeRetryOptions(options.retry),
