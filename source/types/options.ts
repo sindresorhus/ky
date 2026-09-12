@@ -333,7 +333,7 @@ export type KyOptions = {
 	const json = await api('https://example.com').json();
 	```
 	*/
-	fetch?: ((input: Input, init?: RequestInit) => Promise<Response>) | undefined;
+	fetch?: ((input: Request, init?: RequestInit) => Promise<Response>) | undefined;
 
 	/**
 	User-defined data passed to hooks.

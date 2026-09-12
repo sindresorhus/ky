@@ -1,8 +1,9 @@
 import {TimeoutError} from '../errors/TimeoutError.js';
+import type {InternalOptions} from '../types/options.js';
 
 export type TimeoutOptions = {
 	timeout: number;
-	fetch: typeof fetch;
+	fetch: InternalOptions['fetch'];
 };
 
 // `Promise.race()` workaround (#91)

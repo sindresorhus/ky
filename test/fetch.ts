@@ -5,6 +5,29 @@ import {createHttpTestServer} from './helpers/create-http-test-server.js';
 
 const fixture = 'https://example.com/unicorn';
 
+for (const timeout of [false, 1000] as const) {
+	test(`custom fetch receives a normalized Request with timeout ${timeout}`, async t => {
+		for (const input of [fixture, new URL(fixture), new Request(fixture)]) {
+			// eslint-disable-next-line no-await-in-loop
+			const response = await ky(input, {
+				timeout,
+				method: 'POST',
+				json: {answer: 42},
+				searchParams: {page: 2},
+				async fetch(request) {
+					t.true(request instanceof Request);
+					t.is(request.method, 'POST');
+					t.is(request.url, `${fixture}?page=2`);
+					t.is(request.headers.get('content-type'), 'application/json');
+					t.deepEqual(await request.json(), {answer: 42});
+					return new Response('ok');
+				},
+			}).text();
+			t.is(response, 'ok');
+		}
+	});
+}
+
 test('undefined restores native fetch without changing the parent', async t => {
 	const server = await createHttpTestServer(t);
 	let requestCount = 0;
