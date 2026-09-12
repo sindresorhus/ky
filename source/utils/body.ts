@@ -114,7 +114,7 @@ export const streamResponse = (response: Response, onDownloadProgress: Options['
 
 // eslint-disable-next-line @typescript-eslint/no-restricted-types
 export const streamRequest = (request: Request, onUploadProgress: Options['onUploadProgress'], originalBody?: BodyInit | null) => {
-	if (!request.body) {
+	if (!request.body || request.keepalive || request.mode === 'no-cors') {
 		return request;
 	}
 

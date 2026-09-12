@@ -57,6 +57,30 @@ for (const retryLimit of [0, 1]) {
 	});
 }
 
+for (const [name, options] of [
+	['keepalive', {keepalive: true}],
+	['no-cors', {mode: 'no-cors'}],
+] as const) {
+	test(`upload progress does not prevent ${name} requests`, async t => {
+		const server = await createHttpTestServer(t, {bodyParser: false});
+		server.post('/', async (request, response) => {
+			response.end(await parseRawBody(request));
+		});
+
+		let progressCalls = 0;
+		const result = await ky.post(server.url, {
+			...options,
+			body: 'payload',
+			onUploadProgress() {
+				progressCalls++;
+			},
+		}).text();
+
+		t.is(result, 'payload');
+		t.is(progressCalls, 0);
+	});
+}
+
 test('POST JSON with upload progress', async t => {
 	const server = await createHttpTestServer(t, {bodyParser: false});
 	server.post('/', async (request, response) => {
