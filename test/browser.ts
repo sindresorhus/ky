@@ -3,7 +3,6 @@ import busboy from 'busboy';
 import express from 'express';
 import {
 	chromium,
-	firefox,
 	webkit,
 	type Page,
 } from 'playwright';
@@ -402,7 +401,7 @@ defaultBrowsersTest('throws if does not support ReadableStream', async (t: Execu
 	t.is(error, 'Error: Streams are not supported in your environment. `ReadableStream` is missing.');
 });
 
-browserTest('onUploadProgress is silently ignored when request streams are unsupported', [firefox, webkit], async (t: ExecutionContext, page: Page) => {
+defaultBrowsersTest('onUploadProgress is silently ignored when request streams are unsupported', async (t: ExecutionContext, page: Page) => {
 	server.get('/', (_request, response) => {
 		response.end();
 	});
@@ -413,6 +412,8 @@ browserTest('onUploadProgress is silently ignored when request streams are unsup
 	});
 
 	await page.goto(server.url);
+	// Simulate missing stream support instead of relying on a browser version's capabilities.
+	await page.addScriptTag({content: 'window.ReadableStream = undefined;\n'});
 	await addKyScriptToPage(page);
 
 	const result = await page.evaluate(async (url: string) => {
