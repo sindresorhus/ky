@@ -4219,3 +4219,78 @@ test.serial('a user abort of a retried fetch throws the abort reason instead of 
 	t.is(error.name, 'AbortError');
 	t.is(requestCount, 2);
 });
+
+for (const explicitParentRetry of [false, true]) {
+	test(`replacing retry methods works with explicit parent retry ${explicitParentRetry}`, async t => {
+		let fetchCalls = 0;
+		let hookCalls = 0;
+		const parent = ky.create({
+			retry: explicitParentRetry ? {limit: 2} : undefined,
+			async fetch() {
+				fetchCalls++;
+				return new Response(fetchCalls === 1 ? 'Try again' : 'ok', {status: fetchCalls === 1 ? 500 : 200});
+			},
+		});
+		const api = parent.extend({
+			retry: {methods: replaceOption(['post']), delay: () => 0},
+			hooks: {
+				beforeRequest: [({options}) => {
+					hookCalls++;
+					t.deepEqual(options.retry.methods, ['post']);
+				}],
+			},
+		});
+
+		t.is(await api.post('https://example.com').text(), 'ok');
+		t.is(fetchCalls, 2);
+		t.is(hookCalls, 1);
+	});
+}
+
+for (const property of ['statusCodes', 'afterStatusCodes'] as const) {
+	test(`replacing retry ${property} without parent retry options retains Retry-After handling`, async t => {
+		let fetchCalls = 0;
+		let hookCalls = 0;
+		const api = ky.extend({
+			retry: {
+				[property]: replaceOption([500]),
+				...(property === 'statusCodes' ? {afterStatusCodes: [500]} : {}),
+				delay() {
+					t.fail('Retry-After must determine the delay');
+					return 0;
+				},
+			},
+			hooks: {
+				beforeRequest: [({options}) => {
+					hookCalls++;
+					t.deepEqual(options.retry[property], [500]);
+				}],
+			},
+			async fetch() {
+				fetchCalls++;
+				return new Response(fetchCalls === 1 ? 'Try again' : 'ok', {
+					status: fetchCalls === 1 ? 500 : 200,
+					headers: {'retry-after': '0'},
+				});
+			},
+		});
+
+		t.is(await api('https://example.com').text(), 'ok');
+		t.is(fetchCalls, 2);
+		t.is(hookCalls, 1);
+	});
+}
+
+test('replacing the whole retry option also resolves nested list replacements', async t => {
+	let fetchCalls = 0;
+	const api = ky.create({retry: {limit: 0, methods: ['get']}}).extend({
+		retry: replaceOption({methods: replaceOption(['post']), delay: () => 0}),
+		async fetch() {
+			fetchCalls++;
+			return new Response(fetchCalls === 1 ? 'Try again' : 'ok', {status: fetchCalls === 1 ? 500 : 200});
+		},
+	});
+
+	t.is(await api.post('https://example.com').text(), 'ok');
+	t.is(fetchCalls, 2);
+});
