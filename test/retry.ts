@@ -1,6 +1,7 @@
 import process from 'node:process';
 import {setTimeout as delay} from 'node:timers/promises';
 import test, {type ExecutionContext} from 'ava';
+import LeakDetector from 'jest-leak-detector';
 import ky, {
 	replaceOption,
 	NetworkError,
@@ -3878,12 +3879,43 @@ test('a user abort during the fetch reaches beforeError hooks as the abort reaso
 	t.is(hookErrors[0]?.name, 'AbortError');
 });
 
-test('a user abort of a retried fetch throws the abort reason instead of NetworkError', async t => {
+test('retries preserve the request referrer and referrer policy', async t => {
+	const requests: Request[] = [];
+	const referrer = 'https://example.com/source';
+	const referrerPolicy = 'no-referrer';
+
+	await ky('https://example.com', {
+		referrer,
+		referrerPolicy,
+		retry: {limit: 1, delay: () => 0},
+		async fetch(input) {
+			requests.push(input as Request);
+			return new Response('', {status: requests.length === 1 ? 500 : 200});
+		},
+	});
+
+	t.is(requests.length, 2);
+	for (const request of requests) {
+		t.is(request.referrer, referrer);
+		t.is(request.referrerPolicy, referrerPolicy);
+	}
+});
+
+test.serial('a user abort of a retried fetch throws the abort reason instead of NetworkError', async t => {
 	let requestCount = 0;
 	const abortController = new AbortController();
 	const responsePromise = ky('https://example.com', {
+		timeout: 1000,
 		retry: {limit: 1, delay: () => 0},
 		signal: abortController.signal,
+		hooks: {
+			beforeRetry: [async () => {
+				// Collect intermediate controllers created by Request.clone() before aborting the retry.
+				const detector = new LeakDetector({});
+				await detector.isLeaking();
+				await detector.isLeaking();
+			}],
+		},
 		async fetch(input) {
 			requestCount++;
 			if (requestCount === 1) {

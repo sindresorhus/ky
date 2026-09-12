@@ -422,6 +422,21 @@ browserTest('onUploadProgress is silently ignored when request streams are unsup
 			.ky(url, {
 				method: 'post',
 				body: 'hello',
+				hooks: {
+					beforeRequest: [({request}) => {
+						// Accessing the body can turn it into a stream, even when streaming uploads are unsupported.
+						Object.defineProperty(request, 'body', {
+							configurable: true,
+							get() {
+								throw new Error('The request body must not be accessed before fetch');
+							},
+						});
+					}],
+				},
+				async fetch(request, options) {
+					Reflect.deleteProperty(request as Request, 'body');
+					return globalThis.fetch(request, options);
+				},
 				onUploadProgress() {
 					progressCalled = true;
 				},

@@ -1167,7 +1167,8 @@ export class Ky {
 	async #fetch(): Promise<Response> {
 		const nonRequestOptions = findUnknownOptions(this.#options);
 		this.#retryLimit = normalizeRetryOptions(this.#options.retry).limit;
-		const retryRequest = this.#retryLimit > 0 ? this.request.clone() : undefined;
+		// Reattach the managed signal because Node.js can garbage-collect the abort controller used by Request.clone().
+		const retryRequest = this.#retryLimit > 0 ? this.#withManagedSignal(this.request.clone()) : undefined;
 		const request = this.#wrapRequestWithUploadProgress(this.request, this.#options.body ?? undefined);
 
 		// Cloning is done here to prepare in advance for retries.
@@ -1261,7 +1262,11 @@ export class Ky {
 			return request;
 		}
 
-		return new globalThis.Request(request, {signal: this.#options.signal});
+		return new globalThis.Request(request, {
+			signal: this.#options.signal,
+			referrer: request.referrer,
+			referrerPolicy: request.referrerPolicy,
+		});
 	}
 
 	#getResponseRequest(response: Response): Request {
@@ -1274,7 +1279,7 @@ export class Ky {
 	}
 
 	#wrapRequestWithUploadProgress(request: Request, originalBody?: BodyInit): Request {
-		if (!this.#options.onUploadProgress || !request.body || !supportsRequestStreams) {
+		if (!this.#options.onUploadProgress || !supportsRequestStreams || !request.body) {
 			return request;
 		}
 
