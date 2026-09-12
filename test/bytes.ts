@@ -22,7 +22,10 @@ test('.bytes() returns Uint8Array when supported', async t => {
 
 	const bytes = await ky(server.url).bytes();
 	t.true(bytes instanceof Uint8Array);
+	t.true(bytes.buffer instanceof ArrayBuffer);
 	t.deepEqual([...bytes], [0, 1, 2, 255]);
+	t.deepEqual(new Uint8Array(await new Blob([bytes]).arrayBuffer()), bytes);
+	t.deepEqual(new Uint8Array(await new Response(bytes).arrayBuffer()), bytes);
 });
 
 test('.bytes() throws on HTTP errors when supported', async t => {
