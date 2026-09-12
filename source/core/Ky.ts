@@ -246,6 +246,7 @@ export class Ky {
 					const errorToThrow: Error = httpError;
 					// eslint-disable-next-line no-await-in-loop
 					httpError.data = await ky.#getResponseData(currentResponse);
+					ky.#throwIfAbortedByUser();
 					ky.#throwIfTotalTimeoutExhausted();
 
 					if (responseFromHook) {

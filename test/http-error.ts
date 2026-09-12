@@ -14,6 +14,45 @@ function createFakeResponse({status, statusText}: {status?: number; statusText?:
 	return response as Response;
 }
 
+for (const useCustomReason of [false, true]) {
+	test(`aborting an HTTP error body preserves the abort reason (custom: ${useCustomReason})`, async t => {
+		const server = await createHttpTestServer(t);
+		const controller = new AbortController();
+		const reason = useCustomReason ? new Error('Canceled by the user') : undefined;
+		let hookError: Error | undefined;
+		let hookCallCount = 0;
+		let requestCount = 0;
+
+		server.get('/', (_request, response) => {
+			requestCount++;
+			response.status(500).type('application/json');
+			response.write('{"error":"');
+		});
+
+		const error = await t.throwsAsync(ky(server.url, {
+			signal: controller.signal,
+			retry: 0,
+			hooks: {
+				afterResponse: [() => {
+					setTimeout(() => {
+						controller.abort(reason);
+					}, 0);
+				}],
+				beforeError: [({error}) => {
+					hookError = error;
+					hookCallCount++;
+					return error;
+				}],
+			},
+		}));
+
+		t.is(error, controller.signal.reason);
+		t.is(hookError, controller.signal.reason);
+		t.is(hookCallCount, 1);
+		t.is(requestCount, 1);
+	});
+}
+
 test('HTTPError handles undefined response.statusText', t => {
 	const status = 500;
 	// @ts-expect-error missing options
