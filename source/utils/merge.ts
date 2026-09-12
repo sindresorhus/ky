@@ -135,10 +135,14 @@ export const cloneDeep = <T>(value: T, seen: WeakMap<Record<string, unknown> | u
 
 	const copy: Record<string, unknown> = {};
 	seen.set(value, copy);
-	for (const key of Object.keys(value)) {
+	for (const key of Reflect.ownKeys(value)) {
+		if (!Object.prototype.propertyIsEnumerable.call(value, key)) {
+			continue;
+		}
+
 		// Define instead of assign so a `__proto__` key becomes an own property rather than changing the prototype.
 		Object.defineProperty(copy, key, {
-			value: cloneDeep(value[key], seen),
+			value: cloneDeep((value as Record<PropertyKey, unknown>)[key], seen),
 			writable: true,
 			enumerable: true,
 			configurable: true,

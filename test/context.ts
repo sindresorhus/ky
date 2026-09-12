@@ -238,3 +238,63 @@ test('context is shallow merged', async t => {
 		},
 	}).json();
 });
+
+for (const withInitHook of [false, true]) {
+	test(`context preserves symbol-keyed metadata with init hook ${withInitHook}`, async t => {
+		const metadataKey = Symbol('metadata');
+		const context = {label: 'request', [metadataKey]: {traceId: 'trace-123'}};
+		let beforeRequestCalls = 0;
+		let initCalls = 0;
+		const response = await ky('https://example.com', {
+			context,
+			hooks: {
+				init: withInitHook
+					? [options => {
+						initCalls++;
+						t.deepEqual(options.context, context);
+					}]
+					: [],
+				beforeRequest: [({options}) => {
+					beforeRequestCalls++;
+					t.deepEqual(options.context, context);
+				}],
+			},
+			fetch: async () => new Response('ok'),
+		}).text();
+
+		t.is(response, 'ok');
+		t.is(initCalls, withInitHook ? 1 : 0);
+		t.is(beforeRequestCalls, 1);
+	});
+}
+
+test('init hook mutations to symbol-keyed context stay isolated between requests', async t => {
+	const metadataKey = Symbol('metadata');
+	const metadata = {attempt: 0};
+	const context = {[metadataKey]: metadata};
+	let initCalls = 0;
+	let beforeRequestCalls = 0;
+	const api = ky.create({
+		context,
+		hooks: {
+			init: [options => {
+				initCalls++;
+				const clonedMetadata = Reflect.get(options.context, metadataKey) as typeof metadata;
+				t.not(clonedMetadata, metadata);
+				t.deepEqual(clonedMetadata, {attempt: 0});
+				clonedMetadata.attempt++;
+			}],
+			beforeRequest: [({options}) => {
+				beforeRequestCalls++;
+				t.deepEqual(options.context, {[metadataKey]: {attempt: 1}});
+			}],
+		},
+		fetch: async () => new Response('ok'),
+	});
+
+	t.is(await api('https://example.com').text(), 'ok');
+	t.is(await api('https://example.com').text(), 'ok');
+	t.deepEqual(metadata, {attempt: 0});
+	t.is(initCalls, 2);
+	t.is(beforeRequestCalls, 2);
+});

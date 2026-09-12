@@ -1090,3 +1090,18 @@ test('`.extend()` callbacks receive plain object headers even when a `Headers` i
 
 	t.deepEqual(parentHeaders, {'x-rainbow': 'rainbow'});
 });
+
+for (const replaceHeaders of [false, true]) {
+	test(`clearing inherited headers with ${replaceHeaders ? 'replaceOption(undefined)' : 'undefined'} preserves Request input headers`, async t => {
+		const api = ky.create({
+			headers: {'x-default': 'parent'},
+			fetch: async request => new Response(JSON.stringify(Object.fromEntries(request.headers))),
+		});
+		// eslint-disable-next-line @typescript-eslint/no-confusing-void-expression -- replaceOption(undefined) returns a replacement marker at runtime.
+		const cleared = api.extend({headers: replaceHeaders ? replaceOption(undefined) : undefined});
+		const request = new Request('https://example.com', {headers: {'x-input': 'kept'}});
+
+		t.deepEqual(await cleared(request).json(), {'x-input': 'kept', accept: 'application/json'});
+		t.deepEqual(await api(request).json(), {'x-default': 'parent', 'x-input': 'kept', accept: 'application/json'});
+	});
+}
