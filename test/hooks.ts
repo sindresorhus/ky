@@ -64,6 +64,30 @@ const createResponseLike = (response: Response): any => ({
 
 const requestFixtureUrl = 'about:blank';
 
+test('beforeRequest can inspect cloned JSON without consuming the outgoing body', async t => {
+	const body = {name: 'Ada'};
+	let inspected = false;
+	const result = await ky.post('https://example.com', {
+		json: body,
+		hooks: {
+			beforeRequest: [async ({request}) => {
+				const clone = request.clone();
+				const nestedClone = clone.clone();
+				t.deepEqual(await clone.json<{name: string}>(), body);
+				t.deepEqual(await nestedClone.json<{name: string}>(), body);
+				t.false(request.bodyUsed);
+				inspected = true;
+			}],
+		},
+		async fetch(input) {
+			t.true(inspected);
+			return Response.json(await (input as Request).json());
+		},
+	}).json();
+
+	t.deepEqual(result, body);
+});
+
 const createStreamBody = (text: string) => new ReadableStream<Uint8Array>({
 	start(controller) {
 		controller.enqueue(new TextEncoder().encode(text));

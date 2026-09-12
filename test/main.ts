@@ -28,6 +28,20 @@ test('.json(undefined) parses JSON without schema validation', async t => {
 	}).json(undefined), {instanceOf: SyntaxError});
 });
 
+test('typed response clones can independently parse the same JSON body', async t => {
+	const response = await ky<{name: string}>('https://example.com', {
+		fetch: async () => Response.json({name: 'Ada'}),
+	});
+	const clone = response.clone();
+	const nestedClone = clone.clone();
+
+	t.false(response.bodyUsed);
+	t.deepEqual(await clone.json(), {name: 'Ada'});
+	t.false(response.bodyUsed);
+	t.deepEqual(await nestedClone.json(), {name: 'Ada'});
+	t.deepEqual(await response.json(), {name: 'Ada'});
+});
+
 type TestSchemaResult<Output> = {value: Output} | {issues: Array<{message: string}>};
 
 const createSchema = <Output>(
