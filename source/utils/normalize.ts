@@ -5,6 +5,14 @@ import type {HttpMethod, InternalOptions, RequestHttpMethod} from '../types/opti
 export const normalizeRequestMethod = (input: string): string =>
 	requestMethods.includes(input.toLowerCase() as RequestHttpMethod) ? input.toUpperCase() : input;
 
+const caseInsensitiveMethods = new Set<string>([...requestMethods, 'options', 'trace']);
+
+/**
+Normalizes common methods for retry matching while preserving case-sensitive custom methods.
+*/
+export const normalizeRetryMethod = (method: string): string =>
+	caseInsensitiveMethods.has(method.toLowerCase()) ? method.toLowerCase() : method;
+
 const retryMethods: HttpMethod[] = ['get', 'put', 'head', 'delete', 'options', 'trace', 'query'];
 
 const retryStatusCodes = [408, 413, 429, 500, 502, 503, 504];
@@ -76,7 +84,7 @@ export const normalizeRetryOptions = (retry: number | RetryOptions = {}): Intern
 	}
 
 	if (normalizedRetry.methods !== undefined) {
-		normalizedRetry.methods = normalizedRetry.methods.map(method => method.toLowerCase());
+		normalizedRetry.methods = normalizedRetry.methods.map(method => normalizeRetryMethod(method));
 	}
 
 	if (normalizedRetry.statusCodes !== undefined) {

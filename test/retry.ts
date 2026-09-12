@@ -1672,6 +1672,36 @@ test('does retry on 408 with methods provided as array', async t => {
 	t.is(requestCount, 4);
 });
 
+for (const [method, retryMethod, expectedAttempts] of [
+	['REPORT', 'report', 1],
+	['report', 'REPORT', 1],
+	['REPORT', 'REPORT', 2],
+	['report', 'report', 2],
+	['GET', 'get', 2],
+	['OPTIONS', 'options', 2],
+	['PATCH', 'patch', 2],
+] as const) {
+	test(`retry method matching respects ${method} with ${retryMethod}`, async t => {
+		let attempts = 0;
+
+		await t.throwsAsync(ky('https://example.com', {
+			method,
+			retry: {
+				limit: 1,
+				methods: [retryMethod],
+				delay: () => 0,
+			},
+			async fetch(request) {
+				attempts++;
+				t.is(request.method, method);
+				return new Response('failure', {status: 500});
+			},
+		}), {name: 'HTTPError'});
+
+		t.is(attempts, expectedAttempts);
+	});
+}
+
 test('does retry on 408 with methods provided as uppercase array', async t => {
 	let requestCount = 0;
 

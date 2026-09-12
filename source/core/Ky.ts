@@ -23,7 +23,7 @@ import {
 	deletedParametersSymbol,
 } from '../utils/merge.js';
 import type {RetryOptions} from '../types/retry.js';
-import {normalizeRequestMethod, normalizeRetryOptions} from '../utils/normalize.js';
+import {normalizeRequestMethod, normalizeRetryMethod, normalizeRetryOptions} from '../utils/normalize.js';
 import timeout from '../utils/timeout.js';
 import delay from '../utils/delay.js';
 import {type ObjectEntries} from '../utils/types.js';
@@ -569,7 +569,7 @@ export class Ky {
 		}
 
 		// Check if method is retriable for non-forced retries
-		if (!retry.methods.includes(this.request.method.toLowerCase())) {
+		if (!retry.methods.includes(normalizeRetryMethod(this.request.method))) {
 			throw error;
 		}
 
