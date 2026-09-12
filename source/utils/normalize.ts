@@ -34,13 +34,6 @@ const defaultRetryOptions: InternalRetryOptions = {
 	retryOnTimeout: false,
 };
 
-const getDefaultRetryOptions = (): InternalRetryOptions => ({
-	...defaultRetryOptions,
-	methods: [...defaultRetryOptions.methods],
-	statusCodes: [...defaultRetryOptions.statusCodes],
-	afterStatusCodes: [...defaultRetryOptions.afterStatusCodes],
-});
-
 /**
 Normalizes an omitted retry limit or validates a supplied one.
 */
@@ -58,46 +51,29 @@ const normalizeRetryLimit = (retryLimit: unknown): number => {
 
 export const normalizeRetryOptions = (retry: number | RetryOptions = {}): InternalRetryOptions => {
 	if (typeof retry === 'number') {
-		return {
-			...getDefaultRetryOptions(),
-			limit: normalizeRetryLimit(retry),
-		};
+		retry = {limit: retry};
 	}
 
 	if (retry === null || typeof retry !== 'object' || Array.isArray(retry)) {
 		throw new TypeError('`retry` must be a number or an object');
 	}
 
-	const normalizedRetry = Object.fromEntries(Object.entries(retry).filter(([, value]) => value !== undefined)) as Partial<InternalRetryOptions>;
-	const retryLimit = normalizeRetryLimit(normalizedRetry.limit);
-
-	if (normalizedRetry.methods !== undefined && !Array.isArray(normalizedRetry.methods)) {
-		throw new Error('retry.methods must be an array');
-	}
-
-	if (normalizedRetry.statusCodes !== undefined && !Array.isArray(normalizedRetry.statusCodes)) {
-		throw new Error('retry.statusCodes must be an array');
-	}
-
-	if (normalizedRetry.afterStatusCodes !== undefined && !Array.isArray(normalizedRetry.afterStatusCodes)) {
-		throw new Error('retry.afterStatusCodes must be an array');
-	}
-
-	if (normalizedRetry.methods !== undefined) {
-		normalizedRetry.methods = normalizedRetry.methods.map(method => normalizeRetryMethod(method));
-	}
-
-	if (normalizedRetry.statusCodes !== undefined) {
-		normalizedRetry.statusCodes = [...normalizedRetry.statusCodes];
-	}
-
-	if (normalizedRetry.afterStatusCodes !== undefined) {
-		normalizedRetry.afterStatusCodes = [...normalizedRetry.afterStatusCodes];
-	}
-
-	return {
-		...getDefaultRetryOptions(),
-		...normalizedRetry,
-		limit: retryLimit,
+	const normalizedRetry = {
+		...defaultRetryOptions,
+		...Object.fromEntries(Object.entries(retry).filter(([, value]) => value !== undefined)),
 	};
+	normalizedRetry.limit = normalizeRetryLimit(normalizedRetry.limit);
+
+	for (const key of ['methods', 'statusCodes', 'afterStatusCodes'] as const) {
+		if (!Array.isArray(normalizedRetry[key])) {
+			// eslint-disable-next-line unicorn/prefer-type-error -- Preserve the existing error type.
+			throw new Error(`retry.${key} must be an array`);
+		}
+	}
+
+	normalizedRetry.methods = normalizedRetry.methods.map(method => normalizeRetryMethod(method));
+	normalizedRetry.statusCodes = [...normalizedRetry.statusCodes];
+	normalizedRetry.afterStatusCodes = [...normalizedRetry.afterStatusCodes];
+
+	return normalizedRetry;
 };

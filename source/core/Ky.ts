@@ -200,7 +200,7 @@ export class Ky {
 				ky.#retryLimit = normalizeRetryOptions(ky.#options.retry).limit;
 			}
 
-			let response = beforeRequestResponse ?? await ky.#retry(async () => ky.#fetch());
+			let response = beforeRequestResponse ?? await ky.#retry();
 			let responseFromHook = beforeRequestResponse !== undefined
 				|| ky.#consumeReturnedResponseFromBeforeRetryHook();
 
@@ -221,7 +221,7 @@ export class Ky {
 						}
 
 						// eslint-disable-next-line no-await-in-loop
-						const retriedResponse: Response | void = await ky.#retryFromError(error, async () => ky.#fetch());
+						const retriedResponse: Response | void = await ky.#retryFromError(error);
 						if (retriedResponse === undefined) {
 							return retriedResponse;
 						}
@@ -244,18 +244,17 @@ export class Ky {
 					// normalized options snapshot. Replacement `Request` instances do not preserve the
 					// original `BodyInit`, so trying to make `options` mirror arbitrary requests would be lossy.
 					const httpError: HTTPError = new HTTPError(currentResponse, ky.#getResponseRequest(currentResponse), ky.#getNormalizedOptions());
-					const errorToThrow: Error = httpError;
 					// eslint-disable-next-line no-await-in-loop
 					httpError.data = await ky.#getResponseData(currentResponse);
 					ky.#throwIfAbortedByUser();
 					ky.#throwIfTotalTimeoutExhausted();
 
 					if (responseFromHook) {
-						throw errorToThrow;
+						throw httpError;
 					}
 
 					// eslint-disable-next-line no-await-in-loop
-					const retriedResponse: Response | void = await ky.#retryFromError(httpError, async () => ky.#fetch());
+					const retriedResponse: Response | void = await ky.#retryFromError(httpError);
 					if (retriedResponse === undefined) {
 						return retriedResponse;
 					}
@@ -371,7 +370,6 @@ export class Ky {
 	#abortController?: AbortController;
 	#retryCount = 0;
 	#retryLimit: number;
-	readonly #input: Input;
 	readonly #options: InternalOptions;
 	#originalRequest?: Request;
 	readonly #userProvidedAbortSignal?: AbortSignal;
@@ -384,18 +382,17 @@ export class Ky {
 
 	// eslint-disable-next-line complexity
 	constructor(input: Input, options: Options = {}) {
-		this.#input = input;
 		if (Object.hasOwn(options, 'prefixUrl')) {
 			throw new Error(prefixUrlRenamedErrorMessage);
 		}
 
 		this.#options = {
 			...options,
-			headers: mergeHeaders((this.#input as Request).headers, options.headers),
+			headers: mergeHeaders((input as Request).headers, options.headers),
 			hooks: mergeHooks({}, options.hooks),
-			method: normalizeRequestMethod(options.method ?? (this.#input as Request).method ?? 'GET'),
-			referrer: options.referrer ?? (this.#input as Request).referrer,
-			referrerPolicy: options.referrerPolicy ?? (this.#input as Request).referrerPolicy,
+			method: normalizeRequestMethod(options.method ?? (input as Request).method ?? 'GET'),
+			referrer: options.referrer ?? (input as Request).referrer,
+			referrerPolicy: options.referrerPolicy ?? (input as Request).referrerPolicy,
 			// eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing
 			prefix: String(options.prefix || ''),
 			retry: normalizeRetryOptions(options.retry),
@@ -407,32 +404,32 @@ export class Ky {
 		};
 		this.#retryLimit = this.#options.retry.limit;
 
-		if (typeof this.#input !== 'string' && !(this.#input instanceof URL || this.#input instanceof globalThis.Request)) {
+		if (typeof input !== 'string' && !(input instanceof URL || input instanceof globalThis.Request)) {
 			throw new TypeError('`input` must be a string, URL, or Request');
 		}
 
-		if (typeof this.#input === 'string') {
+		if (typeof input === 'string') {
 			if (this.#options.prefix) {
 				const normalizedPrefix = this.#options.prefix.replace(/\/+$/, '');
-				const normalizedInput = this.#input.replace(/^\/+/, '');
-				this.#input = `${normalizedPrefix}/${normalizedInput}`;
+				const normalizedInput = input.replace(/^\/+/, '');
+				input = `${normalizedPrefix}/${normalizedInput}`;
 			}
 
 			if (this.#options.baseUrl) {
-				const normalizedInput = normalizeInputForProtocolCheck(this.#input);
+				const normalizedInput = normalizeInputForProtocolCheck(input);
 
 				if (malformedHttpProtocolPattern.test(normalizedInput)) {
 					throw new TypeError('`input` url protocol must be followed by `//` when using `baseUrl`');
 				}
 
 				if (!isAbsoluteInput(normalizedInput)) {
-					this.#input = new URL(this.#input, (new Request(this.#options.baseUrl)).url);
+					input = new URL(input, (new Request(this.#options.baseUrl)).url);
 				}
 			}
 		}
 
 		if (supportsAbortController && supportsAbortSignal) {
-			this.#userProvidedAbortSignal = this.#options.signal ?? (this.#input as Request).signal;
+			this.#userProvidedAbortSignal = this.#options.signal ?? (input as Request).signal;
 			this.#abortController = new globalThis.AbortController();
 			this.#options.signal = this.#createManagedSignal();
 		}
@@ -455,14 +452,14 @@ export class Ky {
 		// To provide correct form boundary, Content-Type header should be deleted when creating Request from another Request with FormData/URLSearchParams body
 		// Only delete if user didn't explicitly provide a custom content-type
 		if (
-			this.#input instanceof globalThis.Request
+			input instanceof globalThis.Request
 			&& ((supportsFormData && this.#options.body instanceof globalThis.FormData) || this.#options.body instanceof URLSearchParams)
 			&& !userProvidedContentType
 		) {
 			this.#options.headers.delete('content-type');
 		}
 
-		this.request = new globalThis.Request(this.#input, this.#options as RequestInit);
+		this.request = new globalThis.Request(input, this.#options as RequestInit);
 
 		if (hasSearchParameters(this.#options.searchParams)) {
 			const url = new URL(this.request.url);
@@ -741,7 +738,7 @@ export class Ky {
 		};
 	}
 
-	#getBodyReadTimeout(): number | undefined {
+	#getEffectiveTimeout(): number | undefined {
 		const remainingTotal = this.#getRemainingTotalTimeout();
 		if (remainingTotal !== undefined) {
 			if (remainingTotal <= 0) {
@@ -761,7 +758,7 @@ export class Ky {
 	async #raceBodyRead(createBodyPromise: () => Promise<unknown>, response: Response): Promise<unknown> {
 		let timeoutMs: number | undefined;
 		try {
-			timeoutMs = this.#getBodyReadTimeout();
+			timeoutMs = this.#getEffectiveTimeout();
 		} catch (error: unknown) {
 			await this.#throwProcessedError(error);
 		}
@@ -1073,15 +1070,15 @@ export class Ky {
 		return response;
 	}
 
-	async #retry<T extends (...arguments_: any) => Promise<any>>(function_: T): Promise<ReturnType<T> | Response | void> {
+	async #retry(): Promise<Response | void> {
 		try {
-			return await function_();
+			return await this.#fetch();
 		} catch (error) {
-			return this.#retryFromError(error, function_);
+			return this.#retryFromError(error);
 		}
 	}
 
-	async #retryFromError<T extends (...arguments_: any) => Promise<any>>(error: unknown, function_: T): Promise<ReturnType<T> | Response | void> {
+	async #retryFromError(error: unknown): Promise<Response | void> {
 		this.#returnedResponseFromBeforeRetryHook = false;
 
 		const retryDelay = Math.min(await this.#calculateRetryDelay(error), maxSafeTimeout);
@@ -1166,7 +1163,7 @@ export class Ky {
 		this.#throwIfTotalTimeoutExhausted();
 
 		this.#retryCount++;
-		return this.#retry(function_);
+		return this.#retry();
 	}
 
 	#consumeReturnedResponseFromBeforeRetryHook(): boolean {
@@ -1191,16 +1188,7 @@ export class Ky {
 		}
 
 		try {
-			const remainingTotal = this.#getRemainingTotalTimeout();
-			if (remainingTotal !== undefined && remainingTotal <= 0) {
-				throw new TimeoutError(this.request);
-			}
-
-			const effectiveTimeout: number | undefined = this.#options.timeout === false
-				? remainingTotal
-				: (remainingTotal === undefined
-					? this.#options.timeout
-					: Math.min(this.#options.timeout, remainingTotal));
+			const effectiveTimeout = this.#getEffectiveTimeout();
 
 			// Called unbound so a native `window.fetch` is not invoked with the options object as `this`, which throws "Illegal invocation" in browsers.
 			const {fetch} = this.#options;

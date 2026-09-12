@@ -1,4 +1,4 @@
-import type {LiteralUnion, Required} from './common.js';
+import type {LiteralUnion} from './common.js';
 import type {Hooks, NormalizedHooks} from './hooks.js';
 import type {MutableRetryOptions, RetryOptions} from './retry.js';
 
@@ -476,11 +476,8 @@ type NormalizedRetryOptions = {
 	[Key in Exclude<keyof MutableRetryOptions, 'shouldRetry'>]-?: Key extends 'jitter' ? MutableRetryOptions[Key] : Exclude<MutableRetryOptions[Key], undefined>;
 } & Pick<MutableRetryOptions, 'shouldRetry'>;
 
-export type InternalOptions = Required<
-	Omit<Options, 'hooks' | 'retry' | 'context' | 'throwHttpErrors'>,
-	'fetch' | 'prefix' | 'timeout' | 'totalTimeout'
-> & {
-	headers: Required<Headers>;
+export type InternalOptions = Omit<Options, 'hooks' | 'retry' | 'context' | 'throwHttpErrors'> & {
+	headers: Headers;
 	hooks: NormalizedHooks;
 	retry: NormalizedRetryOptions;
 	fetch: NonNullable<Options['fetch']>;
