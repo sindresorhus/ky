@@ -332,6 +332,23 @@ test('HTTPError#data is text when no content-type header', async t => {
 	t.is(error?.data, 'plain error');
 });
 
+for (const contentType of ['application/json', 'application/problem+json']) {
+	test(`HTTPError#data decodes ${contentType} as UTF-8 regardless of charset`, async t => {
+		const body = {error: 'café 日本語 🌍'};
+		const error = await t.throwsAsync<HTTPError>(ky('https://example.com', {
+			retry: 0,
+			async fetch() {
+				return new Response(JSON.stringify(body), {
+					status: 400,
+					headers: {'content-type': `${contentType}; charset=iso-8859-1`},
+				});
+			},
+		}));
+
+		t.deepEqual(error?.data, body);
+	});
+}
+
 test('HTTPError#data decodes stream text using response charset when provided', async t => {
 	const customFetch: typeof fetch = async () => {
 		const body = new ReadableStream<Uint8Array>({

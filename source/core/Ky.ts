@@ -875,7 +875,9 @@ export class Ky {
 			return undefined;
 		}
 
-		const decoder = createTextDecoder(response.headers.get('content-type') ?? '');
+		const contentType = response.headers.get('content-type') ?? '';
+		// JSON uses UTF-8 regardless of the charset parameter (RFC 8259).
+		const decoder = this.#isJsonContentType(contentType) ? new TextDecoder() : createTextDecoder(contentType);
 		const chunks: string[] = [];
 		let totalBytes = 0;
 
