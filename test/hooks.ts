@@ -4147,6 +4147,40 @@ test('afterResponse hook wraps non-Error cause values in NonError', async t => {
 	t.deepEqual((observedCause as any).value, nonErrorValue);
 });
 
+for (const cause of [0, false, '', null]) {
+	test(`afterResponse hook preserves falsy retry cause ${JSON.stringify(cause)}`, async t => {
+		let requestCount = 0;
+		let observedCause: Error & {value?: unknown} | undefined;
+
+		const result = await ky('https://example.com', {
+			async fetch() {
+				requestCount++;
+				return new Response('success');
+			},
+			retry: {limit: 1},
+			hooks: {
+				afterResponse: [({retryCount}) => {
+					if (retryCount === 0) {
+						// JavaScript users can pass non-Error causes.
+						return ky.retry({delay: 0, cause: cause as any});
+					}
+				}],
+				beforeRetry: [({error}) => {
+					if (isForceRetryError(error)) {
+						observedCause = error.cause as typeof observedCause;
+					}
+				}],
+			},
+		}).text();
+
+		t.is(result, 'success');
+		t.is(requestCount, 2);
+		t.true(observedCause instanceof Error);
+		t.is(observedCause?.name, 'NonError');
+		t.is(observedCause?.value, cause);
+	});
+}
+
 test('afterResponse hook can retry on 401 status', async t => {
 	let requestCount = 0;
 

@@ -16,9 +16,9 @@ export class ForceRetryError extends KyError {
 	constructor(options?: ForceRetryOptions) {
 		// Runtime protection: wrap non-Error causes in NonError
 		// TypeScript type is Error for guidance, but JS users can pass anything
-		const cause = options?.cause
-			? (options.cause instanceof Error ? options.cause : new NonError(options.cause))
-			: undefined;
+		const cause = options?.cause === undefined
+			? undefined
+			: (options.cause instanceof Error ? options.cause : new NonError(options.cause));
 
 		super(
 			options?.code ? `Forced retry: ${options.code}` : 'Forced retry',

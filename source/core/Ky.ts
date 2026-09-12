@@ -1121,7 +1121,7 @@ export class Ky {
 				hookResult = await this.#raceWithTotalTimeout(async () => hook({
 					request: this.request,
 					options: this.#getNormalizedOptions(),
-					error: error as Error,
+					error: error instanceof Error ? error : new NonError(error),
 					retryCount: this.#retryCount + 1,
 				}));
 			} catch (hookError) {

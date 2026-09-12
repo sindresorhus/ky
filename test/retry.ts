@@ -9,6 +9,7 @@ import ky, {
 	isKyError,
 	isNetworkError,
 } from '../source/index.js';
+import {NonError} from '../source/errors/NonError.js';
 import {createHttpTestServer} from './helpers/create-http-test-server.js';
 import {parseRawBody} from './helpers/parse-body.js';
 import {withPerformance} from './helpers/with-performance.js';
@@ -3401,6 +3402,43 @@ test('shouldRetry can force retry of non-network errors', async t => {
 	// 1 initial + 2 retries
 	t.is(fetchCallCount, 3);
 });
+
+for (const thrownValue of [null, 'Temporary failure']) {
+	test(`beforeRetry wraps non-Error exceptions: ${JSON.stringify(thrownValue)}`, async t => {
+		let fetchCallCount = 0;
+		let beforeRetryCallCount = 0;
+
+		const result = await ky('https://example.com', {
+			retry: {
+				limit: 1,
+				delay: () => 0,
+				shouldRetry: () => true,
+			},
+			async fetch() {
+				fetchCallCount++;
+				if (fetchCallCount === 1) {
+					// Exercise JavaScript's ability to throw arbitrary values.
+					// eslint-disable-next-line @typescript-eslint/only-throw-error
+					throw thrownValue;
+				}
+
+				return new Response('ok');
+			},
+			hooks: {
+				beforeRetry: [({error}) => {
+					beforeRetryCallCount++;
+					t.true(error instanceof NonError);
+					t.is((error as NonError).value, thrownValue);
+					t.is(typeof error.message, 'string');
+				}],
+			},
+		}).text();
+
+		t.is(result, 'ok');
+		t.is(fetchCallCount, 2);
+		t.is(beforeRetryCallCount, 1);
+	});
+}
 
 test('NetworkError is retried by default', async t => {
 	let fetchCallCount = 0;
