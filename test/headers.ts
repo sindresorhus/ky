@@ -13,6 +13,22 @@ const echoHeaders: RequestHandler = (request, response) => {
 	response.end(JSON.stringify(request.headers));
 };
 
+test('frozen header pairs work directly and with inherited defaults', async t => {
+	const server = await createHttpTestServer(t);
+	server.get('/', echoHeaders);
+	const headers = Object.freeze([
+		Object.freeze(['X-Tag', 'one'] as const),
+		Object.freeze(['x-tag', 'two'] as const),
+		Object.freeze(['X-Value', 'updated'] as const),
+	]);
+	const expectedHeaders = {'x-tag': 'one, two', 'x-value': 'updated'};
+
+	t.like(await ky(server.url, {headers}).json(), expectedHeaders);
+	const parent = ky.create({headers: {'x-default': 'parent', 'x-value': 'original'}});
+	t.like(await parent.extend({headers})(server.url).json(), {...expectedHeaders, 'x-default': 'parent'});
+	t.like(await parent(server.url).json(), {'x-default': 'parent', 'x-value': 'original'});
+});
+
 test.serial('works with nullish headers even in old browsers', async t => {
 	// One `Headers` construction while merging headers, plus the two response assertions.
 	t.plan(3);

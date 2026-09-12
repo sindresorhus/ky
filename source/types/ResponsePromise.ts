@@ -44,7 +44,7 @@ export type ResponsePromise<T = unknown> = {
 		const result2 = await ky<Result>(…).json();
 		```
 		*/
-		<JsonType = T>(): Promise<JsonType>;
+		<JsonType = T>(schema?: undefined): Promise<JsonType>;
 
 		/**
 		Get the response body as JSON and validate it with a Standard Schema.

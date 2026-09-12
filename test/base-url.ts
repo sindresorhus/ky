@@ -2,6 +2,21 @@ import test from 'ava';
 import ky from '../source/index.js';
 import {createHttpTestServer} from './helpers/create-http-test-server.js';
 
+test('undefined clears an inherited baseUrl without changing the parent', async t => {
+	const parent = ky.create({
+		baseUrl: 'https://example.com/api/',
+		fetch: async request => new Response(request.url),
+	});
+	const child = parent.extend({baseUrl: undefined});
+
+	t.is(await parent('users').text(), 'https://example.com/api/users');
+	t.throws(() => {
+		void child('users');
+	}, {instanceOf: TypeError});
+	t.is(await child('https://example.org/users').text(), 'https://example.org/users');
+	t.is(await parent('users').text(), 'https://example.com/api/users');
+});
+
 test('baseUrl option', async t => {
 	const server = await createHttpTestServer();
 	const serverHost = new URL(server.url).host;

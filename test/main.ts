@@ -16,6 +16,18 @@ import {parseRawBody} from './helpers/parse-body.js';
 
 const fixture = 'fixture';
 
+test('.json(undefined) parses JSON without schema validation', async t => {
+	const request = ky.create({fetch: async () => Response.json({name: 'Ada'})});
+	t.deepEqual(await request('https://example.com').json(undefined), {name: 'Ada'});
+	t.deepEqual(await request('https://example.com', {
+		parseJson: text => ({...JSON.parse(text), parsed: true}),
+	}).json(undefined), {name: 'Ada', parsed: true});
+
+	await t.throwsAsync(ky('https://example.com', {
+		fetch: async () => new Response(''),
+	}).json(undefined), {instanceOf: SyntaxError});
+});
+
 type TestSchemaResult<Output> = {value: Output} | {issues: Array<{message: string}>};
 
 const createSchema = <Output>(
@@ -45,6 +57,32 @@ const createSchemaCallTracker = () => {
 		isSchemaCalled: () => isSchemaCalled,
 	};
 };
+
+test('extending with undefined containers clears inherited headers, hooks, and context', async t => {
+	let inheritedHookCalls = 0;
+	const instance = ky.create({
+		headers: {'x-default': 'parent'},
+		context: {label: 'parent'},
+		hooks: {
+			beforeRequest: [({options}) => {
+				inheritedHookCalls++;
+				t.deepEqual(options.context, {label: 'parent'});
+			}],
+		},
+		fetch: async request => new Response(request.headers.get('x-default') ?? 'none'),
+	});
+	const extended = instance.extend({headers: undefined, hooks: undefined, context: undefined});
+
+	t.is(await instance('https://example.com').text(), 'parent');
+	t.is(await extended('https://example.com', {
+		hooks: {
+			beforeRequest: [({options}) => {
+				t.deepEqual(options.context, {});
+			}],
+		},
+	}).text(), 'none');
+	t.is(inheritedHookCalls, 1);
+});
 
 test('ky()', async t => {
 	const server = await createHttpTestServer(t);
@@ -438,6 +476,25 @@ test('.json() with 204 response and empty body', async t => {
 	await t.throwsAsync(ky(server.url).json(), {
 		message: /Unexpected end of JSON input/,
 	});
+});
+
+test('extending with undefined JSON callbacks restores native JSON handling', async t => {
+	const server = await createHttpTestServer(t);
+	server.post('/', (request, response) => {
+		response.json(request.body);
+	});
+
+	const instance = ky.create({
+		parseJson() {
+			throw new Error('Inherited parseJson must not run');
+		},
+		stringifyJson() {
+			throw new Error('Inherited stringifyJson must not run');
+		},
+	}).extend({parseJson: undefined, stringifyJson: undefined});
+	const json = {message: 'hello', count: 2};
+
+	t.deepEqual(await instance.post(server.url, {json}).json(), json);
 });
 
 test('.json() with 204 response is overridden by parseJson', async t => {
@@ -886,6 +943,22 @@ test('.json(schema) propagates errors thrown by validate()', async t => {
 		message: 'validate exploded',
 	});
 });
+
+for (const timeoutOption of ['timeout', 'totalTimeout'] as const) {
+	test(`undefined resets inherited ${timeoutOption} without changing the parent`, async t => {
+		const server = await createHttpTestServer(t);
+		server.get('/', async (_request, response) => {
+			await delay(20);
+			response.end(fixture);
+		});
+		const parent = ky.create({[timeoutOption]: 0, retry: 0});
+		const child = parent.extend({[timeoutOption]: undefined});
+
+		await t.throwsAsync(parent(server.url), {instanceOf: TimeoutError});
+		t.is(await child(server.url).text(), fixture);
+		await t.throwsAsync(parent(server.url), {instanceOf: TimeoutError});
+	});
+}
 
 test('timeout option', async t => {
 	t.plan(2);
@@ -1403,6 +1476,46 @@ test('normalizing retry options does not mutate the caller retry object', async 
 	t.deepEqual(retry, {
 		methods: ['GET'],
 	});
+});
+
+test('frozen retry lists support retries without being mutated', async t => {
+	const methods = Object.freeze(['get'] as const);
+	const statusCodes = Object.freeze([503] as const);
+	const afterStatusCodes = Object.freeze([503] as const);
+	let attempts = 0;
+	const result = await ky('https://example.com', {
+		retry: {
+			methods,
+			statusCodes,
+			afterStatusCodes,
+			delay() {
+				throw new Error('The Retry-After header should determine the delay');
+			},
+		},
+		async fetch() {
+			attempts++;
+			return attempts === 1
+				? new Response('Unavailable', {status: 503, headers: {'Retry-After': '0'}})
+				: new Response('Success');
+		},
+	}).text();
+
+	t.is(result, 'Success');
+	t.is(attempts, 2);
+	t.deepEqual(methods, ['get']);
+	t.deepEqual(statusCodes, [503]);
+	t.deepEqual(afterStatusCodes, [503]);
+});
+
+test('readonly search parameter pairs work directly and with defaults', async t => {
+	const searchParameters = Object.freeze([['tag', 'one'], ['tag', 'two'], ['page', 2], ['active', true]] as const);
+	const instance = ky.create({
+		fetch: async request => new Response(new URL(request.url).search),
+	});
+
+	t.is(await instance('https://example.com', {searchParams: searchParameters}).text(), '?tag=one&tag=two&page=2&active=true');
+	t.is(await instance.extend({searchParams: {source: 'default'}})('https://example.com', {searchParams: searchParameters}).text(), '?source=default&tag=one&tag=two&page=2&active=true');
+	t.deepEqual(searchParameters, [['tag', 'one'], ['tag', 'two'], ['page', 2], ['active', true]]);
 });
 
 test('searchParams option', async t => {
@@ -2211,6 +2324,20 @@ test('throwHttpErrors:false does not suppress timeout errors', async t => {
 
 	t.is(requestCount, 1);
 });
+
+for (const throwHttpErrors of [false, () => false] as const) {
+	test(`extending with throwHttpErrors undefined resets an inherited ${typeof throwHttpErrors}`, async t => {
+		const instance = ky.create({
+			throwHttpErrors,
+			fetch: async () => new Response('missing', {status: 404}),
+		});
+		const extended = instance.extend({throwHttpErrors: undefined});
+
+		t.is(await instance('https://example.com').text(), 'missing');
+		const error = await t.throwsAsync<HTTPError>(extended('https://example.com'), {instanceOf: HTTPError});
+		t.is(error?.response.status, 404);
+	});
+}
 
 test('throwHttpErrors function - selective error handling', async t => {
 	const server = await createHttpTestServer(t);

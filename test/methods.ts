@@ -2,6 +2,39 @@ import test from 'ava';
 import ky from '../source/index.js';
 import {createHttpTestServer} from './helpers/create-http-test-server.js';
 
+test('undefined method restores the input default without changing the parent', async t => {
+	const url = 'https://example.com';
+	const parent = ky.create({
+		method: 'POST',
+		async fetch(request) {
+			return new Response(request.method);
+		},
+	});
+	const extended = parent.extend({method: undefined});
+
+	t.is(await parent(url, {method: undefined}).text(), 'GET');
+	t.is(await extended(url).text(), 'GET');
+	t.is(await extended(new Request(url, {method: 'PUT'})).text(), 'PUT');
+	t.is(await parent(url).text(), 'POST');
+});
+
+test('init hooks can reset the request method to the input default', async t => {
+	const api = ky.create({
+		method: 'POST',
+		hooks: {
+			init: [options => {
+				options.method = undefined;
+			}],
+		},
+		async fetch(request) {
+			return new Response(request.method);
+		},
+	});
+
+	t.is(await api('https://example.com').text(), 'GET');
+	t.is(await api(new Request('https://example.com', {method: 'PUT'})).text(), 'PUT');
+});
+
 test('common method is normalized', async t => {
 	const server = await createHttpTestServer(t);
 	server.all('/', (_request, response) => {

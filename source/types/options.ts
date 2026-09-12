@@ -1,13 +1,17 @@
 import type {LiteralUnion, Required} from './common.js';
 import type {Hooks, NormalizedHooks} from './hooks.js';
-import type {RetryOptions} from './retry.js';
+import type {MutableRetryOptions, RetryOptions} from './retry.js';
 
 // eslint-disable-next-line unicorn/prevent-abbreviations
 export type SearchParamsInit = string | string[][] | Record<string, string> | URLSearchParams | undefined;
 
 // `null` is intentionally not allowed in the object form even though the runtime sends it as the string `'null'` (like `URLSearchParams` does), so accidental nulls are caught by the type checker.
 // eslint-disable-next-line unicorn/prevent-abbreviations
-export type SearchParamsOption = SearchParamsInit | Record<string, string | number | boolean | undefined> | Array<Array<string | number | boolean>>;
+export type SearchParamsOption =
+	| Exclude<SearchParamsInit, string[][]>
+	| Record<string, string | number | boolean | undefined>
+	| Array<Array<string | number | boolean>>
+	| ReadonlyArray<ReadonlyArray<string | number | boolean>>;
 
 export type RequestHttpMethod = 'get' | 'post' | 'put' | 'patch' | 'head' | 'delete' | 'query';
 export type HttpMethod = LiteralUnion<RequestHttpMethod | 'options' | 'trace', string>;
@@ -32,7 +36,7 @@ export type Progress = {
 };
 
 // Not HeadersInit directly because @types/node doesn't export it
-export type KyHeadersInit = NonNullable<RequestInit['headers']> | Record<string, string | undefined>;
+export type KyHeadersInit = NonNullable<RequestInit['headers']> | Record<string, string | undefined> | ReadonlyArray<readonly [string, string]>;
 
 /**
 Custom Ky options
@@ -83,7 +87,7 @@ export type KyOptions = {
 	```
 	*/
 	// `options` is intentionally not included in the context to avoid exposing Ky internals through a parsing callback. `request`/`response` already provide the metadata needed for logging.
-	parseJson?: (text: string, context: {request: Request; response: Response}) => unknown;
+	parseJson?: ((text: string, context: {request: Request; response: Response}) => unknown) | undefined;
 
 	/**
 	User-defined JSON-stringifying function.
@@ -109,7 +113,7 @@ export type KyOptions = {
 	}).json();
 	```
 	*/
-	stringifyJson?: (data: unknown) => string;
+	stringifyJson?: ((data: unknown) => string) | undefined;
 
 	/**
 	Search parameters to include in the request URL. Setting this will merge with any existing search parameters in the input URL.
@@ -144,7 +148,7 @@ export type KyOptions = {
 	//=> 'https://example.com/users'
 	```
 	*/
-	baseUrl?: URL | string;
+	baseUrl?: URL | string | undefined;
 
 	/**
 	A prefix to prepend to the `input` before making the request (and before it is resolved against the `baseUrl`). It can be any valid path or URL, either relative or absolute. A trailing slash `/` is optional and will be added automatically, if needed, when it is joined with `input`. Only takes effect when `input` is a string.
@@ -170,7 +174,7 @@ export type KyOptions = {
 	//=> 'https://example.com/api/users'
 	```
 	*/
-	prefix?: URL | string;
+	prefix?: URL | string | undefined;
 
 	/**
 	Controls retry behavior. Each field is documented in the `RetryOptions` type.
@@ -200,7 +204,7 @@ export type KyOptions = {
 	}).json();
 	```
 	*/
-	retry?: RetryOptions | number;
+	retry?: RetryOptions | number | undefined;
 
 	/**
 	Per-attempt timeout in milliseconds for getting a response, applied independently to each retry. Ky shortcut methods also use this value as a separate timeout for reading the response body. Cannot be greater than 2147483647. See also `totalTimeout`.
@@ -209,7 +213,7 @@ export type KyOptions = {
 
 	@default 10000
 	*/
-	timeout?: number | false;
+	timeout?: number | false | undefined;
 
 	/**
 	Overall timeout in milliseconds for the entire operation, including retries and delays. Throws a `TimeoutError` if exceeded. Cannot be greater than 2147483647.
@@ -235,12 +239,12 @@ export type KyOptions = {
 	}).json();
 	```
 	*/
-	totalTimeout?: number | false;
+	totalTimeout?: number | false | undefined;
 
 	/**
 	Hooks allow modifications during the request lifecycle. Hook functions may be async and are run serially, unless otherwise noted.
 	*/
-	hooks?: Hooks;
+	hooks?: Hooks | undefined;
 
 	/**
 	Throw an `HTTPError` when, after following redirects, the response has a non-2xx status code. To also throw for redirects instead of following them, set the [`redirect`](https://developer.mozilla.org/en-US/docs/Web/API/WindowOrWorkerGlobalScope/fetch#Parameters) option to `'manual'`.
@@ -255,7 +259,7 @@ export type KyOptions = {
 
 	@default true
 	*/
-	throwHttpErrors?: boolean | ((status: number) => boolean);
+	throwHttpErrors?: boolean | ((status: number) => boolean) | undefined;
 
 	/**
 	Download progress event handler.
@@ -276,7 +280,7 @@ export type KyOptions = {
 	});
 	```
 	*/
-	onDownloadProgress?: (progress: Progress, chunk: Uint8Array) => void;
+	onDownloadProgress?: ((progress: Progress, chunk: Uint8Array) => void) | undefined;
 
 	/**
 	Upload progress event handler.
@@ -300,7 +304,7 @@ export type KyOptions = {
 	});
 	```
 	*/
-	onUploadProgress?: (progress: Progress, chunk: Uint8Array) => void;
+	onUploadProgress?: ((progress: Progress, chunk: Uint8Array) => void) | undefined;
 
 	/**
 	User-defined `fetch` function.
@@ -329,7 +333,7 @@ export type KyOptions = {
 	const json = await api('https://example.com').json();
 	```
 	*/
-	fetch?: (input: Input, init?: RequestInit) => Promise<Response>;
+	fetch?: ((input: Input, init?: RequestInit) => Promise<Response>) | undefined;
 
 	/**
 	User-defined data passed to hooks.
@@ -392,7 +396,7 @@ export type KyOptions = {
 
 	@default {}
 	*/
-	context?: Record<string, unknown>;
+	context?: Record<string, unknown> | undefined;
 };
 
 /**
@@ -402,16 +406,20 @@ This type is used for identifying and working with the known keys in KyOptions.
 */
 export type KyOptionsRegistry = {[K in keyof KyOptions]-?: true};
 
+type RequestOptions = {
+	[Key in Exclude<keyof RequestInit, 'headers' | 'signal' | 'method'>]?: RequestInit[Key] | undefined;
+};
+
 /**
 Options are the same as `window.fetch`, except for the KyOptions
 */
-export interface Options extends KyOptions, Omit<RequestInit, 'headers' | 'signal'> { // eslint-disable-line @typescript-eslint/consistent-type-definitions -- This must stay an interface so that it can be extended outside of Ky for use in `ky.create`.
+export interface Options extends KyOptions, RequestOptions { // eslint-disable-line @typescript-eslint/consistent-type-definitions -- This must stay an interface so that it can be extended outside of Ky for use in `ky.create`.
 	/**
 	HTTP method used to make the request.
 
 	Internally, the standard methods (`GET`, `POST`, `PUT`, `PATCH`, `HEAD`, `DELETE`, and `QUERY`) are uppercased in order to avoid server errors due to case sensitivity.
 	*/
-	method?: LiteralUnion<HttpMethod, string>;
+	method?: LiteralUnion<HttpMethod, string> | undefined;
 
 	/**
 	HTTP headers used to make the request.
@@ -448,7 +456,7 @@ export interface Options extends KyOptions, Omit<RequestInit, 'headers' | 'signa
 	//=> true
 	```
 	*/
-	headers?: KyHeadersInit;
+	headers?: KyHeadersInit | undefined;
 
 	/**
 	An `AbortSignal` to abort the request.
@@ -459,7 +467,14 @@ export interface Options extends KyOptions, Omit<RequestInit, 'headers' | 'signa
 	signal?: AbortSignal | null | undefined;
 }
 
-type NormalizedRetryOptions = Required<Omit<RetryOptions, 'shouldRetry'>> & Pick<RetryOptions, 'shouldRetry'>;
+export type InitOptions = Omit<Options, 'retry' | 'hooks'> & {
+	retry?: MutableRetryOptions | number | undefined;
+	hooks?: {[Key in keyof Hooks]?: NormalizedHooks[Key] | undefined} | undefined;
+};
+
+type NormalizedRetryOptions = {
+	[Key in Exclude<keyof MutableRetryOptions, 'shouldRetry'>]-?: Key extends 'jitter' ? MutableRetryOptions[Key] : Exclude<MutableRetryOptions[Key], undefined>;
+} & Pick<MutableRetryOptions, 'shouldRetry'>;
 
 export type InternalOptions = Required<
 	Omit<Options, 'hooks' | 'retry' | 'context' | 'throwHttpErrors'>,
@@ -468,7 +483,10 @@ export type InternalOptions = Required<
 	headers: Required<Headers>;
 	hooks: NormalizedHooks;
 	retry: NormalizedRetryOptions;
+	fetch: NonNullable<Options['fetch']>;
 	prefix: string;
+	timeout: number | false;
+	totalTimeout: number | false;
 	context: Record<string, unknown>;
 	throwHttpErrors: boolean | ((status: number) => boolean);
 };

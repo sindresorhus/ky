@@ -5,6 +5,23 @@ import {createHttpTestServer} from './helpers/create-http-test-server.js';
 
 const fixture = 'https://example.com/unicorn';
 
+test('undefined restores native fetch without changing the parent', async t => {
+	const server = await createHttpTestServer(t);
+	let requestCount = 0;
+	server.get('/', (_request, response) => {
+		requestCount++;
+		response.end('native fetch');
+	});
+	const parent = ky.create({fetch: async () => new Response('custom fetch')});
+	const child = parent.extend({fetch: undefined});
+
+	t.is(await parent(server.url).text(), 'custom fetch');
+	t.is(await child(server.url).text(), 'native fetch');
+	t.is(await parent(server.url, {fetch: undefined}).text(), 'native fetch');
+	t.is(await parent(server.url).text(), 'custom fetch');
+	t.is(requestCount, 2);
+});
+
 test('fetch option takes a custom fetch function', async t => {
 	t.plan(10);
 

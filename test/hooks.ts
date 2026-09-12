@@ -87,6 +87,88 @@ const createStreamFetch = ({
 	return response;
 };
 
+test('forced retry uses defaults for undefined options', async t => {
+	let requestCount = 0;
+	let delayCalls = 0;
+	let beforeRetryCalls = 0;
+	const url = 'https://example.com';
+	const response = await ky(url, {
+		retry: {
+			delay() {
+				delayCalls++;
+				return 0;
+			},
+		},
+		async fetch(request) {
+			requestCount++;
+			t.is(request.url, `${url}/`);
+			return new Response('Success');
+		},
+		hooks: {
+			afterResponse: [({retryCount}) => {
+				if (retryCount === 0) {
+					return ky.retry({
+						delay: undefined,
+						code: undefined,
+						cause: undefined,
+						request: undefined,
+					});
+				}
+			}],
+			beforeRetry: [({error}) => {
+				beforeRetryCalls++;
+				t.assert(isForceRetryError(error));
+				t.is(error.message, 'Forced retry');
+				t.is(error.customDelay, undefined);
+				t.is(error.code, undefined);
+				t.is(error.cause, undefined);
+				t.is(error.customRequest, undefined);
+			}],
+		},
+	}).text();
+
+	t.is(response, 'Success');
+	t.is(requestCount, 2);
+	t.is(delayCalls, 1);
+	t.is(beforeRetryCalls, 1);
+});
+
+test('frozen hook lists work through extension and retries', async t => {
+	const calls: string[] = [];
+	const hooks = {
+		init: Object.freeze([() => {
+			calls.push('init');
+		}]),
+		beforeRequest: Object.freeze([() => {
+			calls.push('beforeRequest');
+		}]),
+		beforeRetry: Object.freeze([() => {
+			calls.push('beforeRetry');
+		}]),
+		afterResponse: Object.freeze([() => {
+			calls.push('afterResponse');
+		}]),
+		beforeError: Object.freeze([({error}: {error: Error}) => {
+			calls.push('beforeError');
+			return error;
+		}]),
+	};
+	const instance = ky.create({
+		hooks,
+		retry: {limit: 1, delay: () => 0},
+		fetch: async () => new Response('Unavailable', {status: 503}),
+	}).extend({
+		hooks: {
+			beforeRequest: [() => {
+				calls.push('extended beforeRequest');
+			}],
+		},
+	});
+
+	await t.throwsAsync(instance('https://example.com'), {instanceOf: HTTPError});
+	t.deepEqual(calls, ['init', 'beforeRequest', 'extended beforeRequest', 'afterResponse', 'beforeRetry', 'afterResponse', 'beforeError']);
+});
+
 test('hooks can be async', async t => {
 	const server = await createHttpTestServer(t);
 	server.post('/', async (request, response) => {
@@ -5605,6 +5687,28 @@ test('init hook in-place mutations do not leak across requests', async t => {
 	await api.get('https://example.com', {fetch});
 
 	t.deepEqual(seenRequestIdentifiers, ['1', '2']);
+});
+
+test('init hooks can append numeric and boolean search parameter pairs', async t => {
+	const searchParameters = Object.freeze([Object.freeze(['tag', 'original'] as const)]);
+	const api = ky.create({
+		searchParams: searchParameters,
+		hooks: {
+			init: [options => {
+				if (Array.isArray(options.searchParams)) {
+					options.searchParams.push(['page', 2], ['active', true]);
+				} else {
+					t.fail('Expected search parameter pairs');
+				}
+			}],
+		},
+		fetch: async input => new Response((input as Request).url),
+	});
+
+	const expectedUrl = 'https://example.com/?tag=original&page=2&active=true';
+	t.is(await api('https://example.com').text(), expectedUrl);
+	t.is(await api('https://example.com').text(), expectedUrl);
+	t.deepEqual(searchParameters, [['tag', 'original']]);
 });
 
 test('init hook tuple searchParams mutations do not leak across requests', async t => {

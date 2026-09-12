@@ -12,7 +12,7 @@ export class NetworkError extends KyError {
 	override name = 'NetworkError' as const;
 	request: KyRequest;
 
-	constructor(request: Request, options?: {cause?: Error}) {
+	constructor(request: Request, options?: {cause?: Error | undefined}) {
 		super(`Request failed due to a network error: ${request.method} ${request.url}`, options);
 		this.request = request;
 	}

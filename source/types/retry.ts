@@ -1,5 +1,11 @@
 import type {HttpMethod} from './options.js';
 
+export type MutableRetryOptions = Omit<RetryOptions, 'methods' | 'statusCodes' | 'afterStatusCodes'> & {
+	methods?: HttpMethod[] | undefined;
+	statusCodes?: number[] | undefined;
+	afterStatusCodes?: number[] | undefined;
+};
+
 export type ShouldRetryState = {
 	/**
 	The error that caused the request to fail.
@@ -19,14 +25,14 @@ export type RetryOptions = {
 
 	@default 2
 	*/
-	limit?: number;
+	limit?: number | undefined;
 
 	/**
 	The HTTP methods allowed to retry.
 
 	@default ['get', 'put', 'head', 'delete', 'options', 'trace', 'query']
 	*/
-	methods?: HttpMethod[];
+	methods?: readonly HttpMethod[] | undefined;
 
 	/**
 	The HTTP status codes allowed to retry.
@@ -35,21 +41,21 @@ export type RetryOptions = {
 
 	@default [408, 413, 429, 500, 502, 503, 504]
 	*/
-	statusCodes?: number[];
+	statusCodes?: readonly number[] | undefined;
 
 	/**
 	The retriable HTTP status codes that should respect retry timing headers. These status codes must also be included in `statusCodes`.
 
 	@default [413, 429, 503]
 	*/
-	afterStatusCodes?: number[];
+	afterStatusCodes?: readonly number[] | undefined;
 
 	/**
 	If the retry delay from a retry timing header is greater than `maxRetryAfter`, Ky will use `maxRetryAfter`.
 
 	@default Infinity
 	*/
-	maxRetryAfter?: number;
+	maxRetryAfter?: number | undefined;
 
 	/**
 	The upper limit of the delay per retry in milliseconds.
@@ -65,14 +71,14 @@ export type RetryOptions = {
 
 	@default Infinity
 	*/
-	backoffLimit?: number;
+	backoffLimit?: number | undefined;
 
 	/**
 	A function to calculate the delay in milliseconds between retries given `attemptCount` (starts from 1).
 
 	@default attemptCount => 0.3 * (2 ** (attemptCount - 1)) * 1000
 	*/
-	delay?: (attemptCount: number) => number;
+	delay?: ((attemptCount: number) => number) | undefined;
 
 	/**
 	Add random jitter to retry delays to prevent thundering herd problems.
@@ -126,7 +132,7 @@ export type RetryOptions = {
 	}).json();
 	```
 	*/
-	retryOnTimeout?: boolean;
+	retryOnTimeout?: boolean | undefined;
 
 	/**
 	A function to determine whether a retry should be attempted.
@@ -174,5 +180,5 @@ export type RetryOptions = {
 	}).json();
 	```
 	*/
-	shouldRetry?: (state: ShouldRetryState) => boolean | void | Promise<boolean | void>;
+	shouldRetry?: ((state: ShouldRetryState) => boolean | void | Promise<boolean | void>) | undefined;
 };

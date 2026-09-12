@@ -1,6 +1,6 @@
 import {type stop, type RetryMarker} from '../core/constants.js';
 import type {KyRequest, KyResponse} from '../index.js';
-import type {NormalizedOptions, Options} from './options.js';
+import type {InitOptions, NormalizedOptions} from './options.js';
 
 /**
 This hook enables you to modify the options before they are used to construct the request. The hook function receives the mutable options object and can modify it in place. You could, for example, modify `searchParams`, `headers`, or `json` here. The `headers` option is always a plain object with lowercase names, where a header removed with `undefined` keeps an `undefined` value.
@@ -25,7 +25,7 @@ const response = await api.get('https://example.com/api/users');
 // URL: https://example.com/api/users?apiKey=123
 ```
 */
-export type InitHook = (options: Options) => void;
+export type InitHook = (options: InitOptions) => void;
 
 export type BeforeRequestState = {
 	request: KyRequest;
@@ -113,7 +113,7 @@ export type Hooks = {
 
 	@default []
 	*/
-	init?: InitHook[] | undefined;
+	init?: readonly InitHook[] | undefined;
 
 	/**
 	This hook enables you to modify the request right before it is sent. Ky will make no further changes to the request after this. The hook function receives a state object with the normalized request, options, and retry count. You could, for example, modify `request.headers` here.
@@ -164,7 +164,7 @@ export type Hooks = {
 
 	@default []
 	*/
-	beforeRequest?: BeforeRequestHook[] | undefined;
+	beforeRequest?: readonly BeforeRequestHook[] | undefined;
 
 	/**
 	This hook enables you to modify the request right before retry. Ky will make no further changes to the request after this. The hook function receives a state object with the normalized request, options, an error instance, and retry count. You could, for example, modify `request.headers` here.
@@ -246,7 +246,7 @@ export type Hooks = {
 
 	@default []
 	*/
-	beforeRetry?: BeforeRetryHook[] | undefined;
+	beforeRetry?: readonly BeforeRetryHook[] | undefined;
 
 	/**
 	This hook enables you to modify any error right before it is thrown. The hook function receives a state object with the current request, the normalized Ky options, the error, and retry count, and should return an `Error` instance.
@@ -288,7 +288,7 @@ export type Hooks = {
 	});
 	```
 	*/
-	beforeError?: BeforeErrorHook[] | undefined;
+	beforeError?: readonly BeforeErrorHook[] | undefined;
 
 	/**
 	This hook enables you to read and optionally modify the response. The hook function receives a state object with the normalized request, options, a clone of the response, and retry count. The return value of the hook function will be used by Ky as the response object if it's an instance of [`Response`](https://developer.mozilla.org/en-US/docs/Web/API/Response).
@@ -361,10 +361,10 @@ export type Hooks = {
 	});
 	```
 	*/
-	afterResponse?: AfterResponseHook[] | undefined;
+	afterResponse?: readonly AfterResponseHook[] | undefined;
 };
 
 /**
 Hooks after normalization: every hook type is present as an array.
 */
-export type NormalizedHooks = {[Key in keyof Hooks]-?: NonNullable<Hooks[Key]>};
+export type NormalizedHooks = {[Key in keyof Hooks]-?: Array<NonNullable<Hooks[Key]>[number]>};

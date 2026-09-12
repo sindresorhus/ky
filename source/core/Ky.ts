@@ -6,6 +6,7 @@ import {SchemaValidationError} from '../errors/SchemaValidationError.js';
 import {TimeoutError} from '../errors/TimeoutError.js';
 import type {
 	Input,
+	InitOptions,
 	InternalOptions,
 	NormalizedOptions,
 	Options,
@@ -123,7 +124,7 @@ const cloneSearchParametersForInitHook = (searchParameters: SearchParamsOption |
 };
 
 // Shallow-clone mutable option properties so init hook mutations don't leak across requests.
-function cloneInitHookOptions(options: Options): Options {
+function cloneInitHookOptions(options: Options): InitOptions {
 	const clonedOptions: Options = {
 		...options,
 		// Deep-clone so init-hook mutations to nested values do not leak across requests, matching the nested `retry` cloning below. Non-plain values (functions, class instances) are kept by reference.
@@ -139,7 +140,7 @@ function cloneInitHookOptions(options: Options): Options {
 		clonedOptions.retry = cloneRetryOptions(options.retry);
 	}
 
-	return clonedOptions;
+	return clonedOptions as InitOptions;
 }
 
 const validateJsonWithSchema = async (jsonValue: unknown, schema: StandardSchemaV1): Promise<unknown> => {
@@ -178,7 +179,7 @@ export class Ky {
 		const initHookOptions = initHooks.length > 0 ? cloneInitHookOptions(options) : options;
 
 		for (const hook of initHooks) {
-			hook(initHookOptions);
+			hook(initHookOptions as InitOptions);
 		}
 
 		const ky = new Ky(input, initHookOptions);

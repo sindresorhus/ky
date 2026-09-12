@@ -72,7 +72,7 @@ export type ForceRetryOptions = {
 
 	**Note:** Custom delays bypass jitter and `backoffLimit`. This is intentional, as custom delays often come from server responses (e.g., `Retry-After` headers) and should be respected exactly as specified.
 	*/
-	delay?: number;
+	delay?: number | undefined;
 
 	/**
 	Error code for the retry.
@@ -85,7 +85,7 @@ export type ForceRetryOptions = {
 	// Resulting error message: 'Forced retry: RATE_LIMIT'
 	```
 	*/
-	code?: string;
+	code?: string | undefined;
 
 	/**
 	Original error that caused the retry.
@@ -105,7 +105,7 @@ export type ForceRetryOptions = {
 	}
 	```
 	*/
-	cause?: Error;
+	cause?: Error | undefined;
 
 	/**
 	Custom request to use for the retry.
@@ -140,7 +140,7 @@ export type ForceRetryOptions = {
 	});
 	```
 	*/
-	request?: Request;
+	request?: Request | undefined;
 };
 
 /**

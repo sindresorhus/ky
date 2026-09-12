@@ -186,6 +186,82 @@ const createSingleRetryHeaderServer = async (t: ExecutionContext, headers: Recor
 	};
 };
 
+test('undefined resets inherited retry fields without changing the parent', async t => {
+	const inheritedRetry = {
+		limit: 5,
+		methods: ['post'] as const,
+		statusCodes: [418],
+		afterStatusCodes: [418],
+		maxRetryAfter: 10,
+		backoffLimit: 10,
+		retryOnTimeout: true,
+	};
+	const parent = ky.create({
+		retry: inheritedRetry,
+		fetch: async () => new Response(fixture),
+	});
+	const child = parent.extend({
+		retry: {
+			limit: undefined,
+			methods: undefined,
+			statusCodes: undefined,
+			afterStatusCodes: undefined,
+			maxRetryAfter: undefined,
+			backoffLimit: undefined,
+			retryOnTimeout: undefined,
+		},
+	});
+
+	t.is(await child('https://example.com', {
+		hooks: {
+			beforeRequest: [({options}) => {
+				t.like(options.retry, {
+					limit: 2,
+					methods: ['get', 'put', 'head', 'delete', 'options', 'trace', 'query'],
+					statusCodes: [408, 413, 429, 500, 502, 503, 504],
+					afterStatusCodes: [413, 429, 503],
+					maxRetryAfter: Number.POSITIVE_INFINITY,
+					backoffLimit: Number.POSITIVE_INFINITY,
+					retryOnTimeout: false,
+				});
+			}],
+		},
+	}).text(), fixture);
+	t.is(await parent('https://example.com', {
+		hooks: {
+			beforeRequest: [({options}) => {
+				t.like(options.retry, inheritedRetry);
+			}],
+		},
+	}).text(), fixture);
+});
+
+test('undefined resets an inherited retry delay without changing the parent', async t => {
+	const server = await createHttpTestServer(t);
+	let requestCount = 0;
+	server.get('/', (_request, response) => {
+		requestCount++;
+		response.status(requestCount % 2 === 1 ? 503 : 200).end(fixture);
+	});
+	let customDelayCalls = 0;
+	const parent = ky.create({
+		retry: {
+			backoffLimit: 0,
+			delay() {
+				customDelayCalls++;
+				return 0;
+			},
+		},
+	});
+	const child = parent.extend({retry: {delay: undefined}});
+
+	t.is(await child(server.url).text(), fixture);
+	t.is(customDelayCalls, 0);
+	t.is(await parent(server.url).text(), fixture);
+	t.is(customDelayCalls, 1);
+	t.is(requestCount, 4);
+});
+
 test('network error', async t => {
 	let requestCount = 0;
 
@@ -2072,6 +2148,49 @@ test('validates retry array mutations before sending the request', async t => {
 
 	t.is(requestCount, 0);
 });
+
+test('extending with shouldRetry undefined restores default retry behavior', async t => {
+	let requestCount = 0;
+	let shouldRetryCallCount = 0;
+	const instance = ky.create({
+		retry: {
+			limit: 1,
+			delay: () => 0,
+			shouldRetry() {
+				shouldRetryCallCount++;
+				return false;
+			},
+		},
+		async fetch() {
+			requestCount++;
+			return new Response('ok', {status: requestCount === 1 ? 500 : 200});
+		},
+	}).extend({retry: {shouldRetry: undefined}});
+
+	t.is(await instance('https://example.com').text(), 'ok');
+	t.is(requestCount, 2);
+	t.is(shouldRetryCallCount, 0);
+});
+
+for (const retry of [0, {limit: 0, methods: ['post'], statusCodes: [418]}]) {
+	test(`extending with retry undefined resets an inherited ${typeof retry}`, async t => {
+		let requestCount = 0;
+		const instance = ky.create({
+			retry,
+			async fetch() {
+				requestCount++;
+				return new Response('ok', {status: requestCount === 3 ? 200 : 500});
+			},
+		});
+		const extended = instance.extend({retry: undefined});
+
+		await t.throwsAsync(instance('https://example.com'), {name: 'HTTPError'});
+		t.is(requestCount, 1);
+		requestCount = 0;
+		t.is(await extended('https://example.com').text(), 'ok');
+		t.is(requestCount, 3);
+	});
+}
 
 test('retry options ignore undefined overrides and keep defaults', async t => {
 	let requestCount = 0;

@@ -68,7 +68,7 @@ export const normalizeRetryOptions = (retry: number | RetryOptions = {}): Intern
 		throw new TypeError('`retry` must be a number or an object');
 	}
 
-	const normalizedRetry = Object.fromEntries(Object.entries(retry).filter(([, value]) => value !== undefined)) as RetryOptions;
+	const normalizedRetry = Object.fromEntries(Object.entries(retry).filter(([, value]) => value !== undefined)) as Partial<InternalRetryOptions>;
 	const retryLimit = normalizeRetryLimit(normalizedRetry.limit);
 
 	if (normalizedRetry.methods !== undefined && !Array.isArray(normalizedRetry.methods)) {

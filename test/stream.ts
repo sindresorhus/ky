@@ -4,6 +4,24 @@ import {createLargeBlob} from './helpers/create-large-file.js';
 import {createHttpTestServer} from './helpers/create-http-test-server.js';
 import {parseRawBody, parseJsonBody} from './helpers/parse-body.js';
 
+test('extending with undefined progress callbacks disables inherited tracking', async t => {
+	const server = await createHttpTestServer(t, {bodyParser: false});
+	server.post('/', async (request, response) => {
+		response.end(await parseRawBody(request));
+	});
+
+	const instance = ky.create({
+		onUploadProgress() {
+			throw new Error('Inherited onUploadProgress must not run');
+		},
+		onDownloadProgress() {
+			throw new Error('Inherited onDownloadProgress must not run');
+		},
+	}).extend({onUploadProgress: undefined, onDownloadProgress: undefined});
+
+	t.is(await instance.post(server.url, {body: 'payload'}).text(), 'payload');
+});
+
 test('empty request body completes upload progress', async t => {
 	const server = await createHttpTestServer(t, {bodyParser: false});
 	server.post('/', async (request, response) => {
