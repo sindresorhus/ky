@@ -789,7 +789,7 @@ export class Ky {
 					await this.#throwProcessedError(new NetworkError(this.#getResponseRequest(response), {cause: error as Error}));
 				}
 
-				throw error;
+				await this.#throwProcessedError(error);
 			}
 
 			result = timedOutResponseData;

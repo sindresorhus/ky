@@ -181,3 +181,56 @@ test('disabling HTTP errors allows consuming a binary error response without JSO
 	t.deepEqual(Buffer.from(buffer), binary);
 	t.is(parserCalls, 0);
 });
+
+test('formData parsing errors pass through beforeError exactly once without retrying', async t => {
+	const server = await createHttpTestServer(t);
+	let requests = 0;
+	server.get('/', (_request, response) => {
+		requests++;
+		response.set('content-type', 'application/json').end('{}');
+	});
+	const replacement = new Error('Unexpected response format');
+	let hookCalls = 0;
+
+	await t.throwsAsync(ky(server.url, {
+		hooks: {
+			beforeError: [({error, request, retryCount}) => {
+				hookCalls++;
+				t.true(error instanceof TypeError);
+				t.is(request.url, `${server.url}/`);
+				t.is(retryCount, 0);
+				return replacement;
+			}],
+		},
+	}).formData(), {is: replacement});
+	t.is(hookCalls, 1);
+	t.is(requests, 1);
+});
+
+test('beforeError failures while handling body-reader errors propagate without running hooks again', async t => {
+	const readError = new Error('Response body could not be read');
+	const hookError = new Error('Error handler failed');
+	let fetchCalls = 0;
+	let hookCalls = 0;
+
+	await t.throwsAsync(ky('https://example.com', {
+		async fetch() {
+			fetchCalls++;
+			return new Response(new ReadableStream({
+				start(controller) {
+					controller.error(readError);
+				},
+			}));
+		},
+		hooks: {
+			beforeError: [({error}) => {
+				hookCalls++;
+				t.is(error, readError);
+				throw hookError;
+			}],
+		},
+	}).text(), {is: hookError});
+
+	t.is(fetchCalls, 1);
+	t.is(hookCalls, 1);
+});
