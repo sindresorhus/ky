@@ -347,7 +347,7 @@ const deepMergeInternal = <T>(isRoot: boolean, ...sources: Array<Partial<T> | un
 					}
 				}
 
-				if (!isReplace && isMergeable(returnValue[key]) && isMergeable(value)) {
+				if (!isReplace && isMergeable(returnValue[key]) && isMergeable(value) && Array.isArray(returnValue[key]) === Array.isArray(value)) {
 					value = deepMergeInternal<unknown>(false, returnValue[key], value);
 				}
 

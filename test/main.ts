@@ -2322,6 +2322,29 @@ test('ky.create() with default json does not add context to merged json body', a
 	t.false('context' in result);
 });
 
+for (const [original, replacement] of [
+	[['old'], {value: 'new'}],
+	[{value: 'old'}, ['new']],
+] as const) {
+	for (const nested of [false, true]) {
+		test(`json merging replaces ${Array.isArray(original) ? 'arrays with objects' : 'objects with arrays'}${nested ? ' in nested properties' : ''}`, async t => {
+			const server = await createHttpTestServer(t);
+			server.post('/', (request, response) => {
+				response.json(request.body);
+			});
+
+			const api = ky.create({
+				json: nested ? {payload: original, preserved: true} : original,
+			});
+			const result = await api.post(server.url, {
+				json: nested ? {payload: replacement} : replacement,
+			}).json();
+
+			t.deepEqual(result, nested ? {payload: replacement, preserved: true} : replacement);
+		});
+	}
+}
+
 const extendHooksMacro = test.macro<[{useFunction: boolean}]>(async (t, {useFunction}) => {
 	const server = await createHttpTestServer(t);
 	server.get('/', (_request, response) => {
