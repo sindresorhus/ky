@@ -371,8 +371,10 @@ export class Ky {
 	#retryCount = 0;
 	#retryLimit: number;
 	readonly #options: InternalOptions;
+	// Keep the input Request alive because Node.js stops forwarding its signal when the Request is garbage-collected.
+	readonly #requestInput: Request | undefined;
 	#originalRequest?: Request;
-	readonly #userProvidedAbortSignal?: AbortSignal;
+	readonly #userProvidedAbortSignal: AbortSignal | undefined;
 	readonly #beforeRetryHookErrors = new WeakSet<Error>();
 	#cachedNormalizedOptions: NormalizedOptions | undefined;
 	readonly #startTime: number | undefined;
@@ -408,6 +410,8 @@ export class Ky {
 			throw new TypeError('`input` must be a string, URL, or Request');
 		}
 
+		this.#requestInput = input instanceof globalThis.Request ? input : undefined;
+
 		if (typeof input === 'string') {
 			if (this.#options.prefix) {
 				const normalizedPrefix = this.#options.prefix.replace(/\/+$/, '');
@@ -429,7 +433,7 @@ export class Ky {
 		}
 
 		if (supportsAbortController && supportsAbortSignal) {
-			this.#userProvidedAbortSignal = this.#options.signal ?? (input as Request).signal;
+			this.#userProvidedAbortSignal = this.#options.signal ?? this.#requestInput?.signal;
 			this.#abortController = new globalThis.AbortController();
 			this.#options.signal = this.#createManagedSignal();
 		}
