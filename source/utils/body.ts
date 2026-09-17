@@ -4,6 +4,8 @@ import {ResponseSizeError} from '../errors/ResponseSizeError.js';
 
 const encoder = new TextEncoder();
 const responseSizeErrors = new WeakMap<ReadableStream, () => ResponseSizeError | undefined>();
+// The `Response` constructor rejects a body for these statuses, but some browsers (for example, Chromium and WebKit) still expose an empty body stream on such responses, so they must not be wrapped.
+const nullBodyStatuses = new Set([101, 103, 204, 205, 304]);
 
 // eslint-disable-next-line @typescript-eslint/no-restricted-types
 export const getBodySize = (body?: BodyInit | null): number => {
@@ -72,7 +74,7 @@ const withProgress = (stream: ReadableStream<Uint8Array>, totalBytes: number, on
 		flush() {
 			const finalChunk = previousChunk ?? new Uint8Array();
 			transferredBytes += finalChunk.byteLength;
-			onProgress?.({percent: 1, totalBytes: Math.max(totalBytes, transferredBytes), transferredBytes}, finalChunk);
+			onProgress?.({percent: 1, totalBytes: transferredBytes, transferredBytes}, finalChunk);
 		},
 	}));
 };
@@ -130,7 +132,7 @@ const copyResponseMetadata = (response: Response, originalResponse: Response, ge
 };
 
 export const limitResponseSize = (response: Response, request: Request, maxResponseSize: number): Response => {
-	if (!response.body || maxResponseSize === Number.POSITIVE_INFINITY) {
+	if (!response.body || nullBodyStatuses.has(response.status) || maxResponseSize === Number.POSITIVE_INFINITY) {
 		return response;
 	}
 
@@ -153,12 +155,12 @@ export const limitResponseSize = (response: Response, request: Request, maxRespo
 };
 
 export const streamResponse = (response: Response, onDownloadProgress: Options['onDownloadProgress']) => {
-	if (!response.body) {
+	if (!response.body || nullBodyStatuses.has(response.status)) {
 		return response;
 	}
 
 	const totalBytes = Math.max(0, Number(response.headers.get('content-length')) || 0);
-	const body = response.status === 204 ? null : withProgress(response.body, totalBytes, onDownloadProgress);
+	const body = withProgress(response.body, totalBytes, onDownloadProgress);
 
 	return copyResponseMetadata(new Response(body, response), response);
 };

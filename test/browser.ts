@@ -86,6 +86,31 @@ defaultBrowsersTest('maxResponseSize limits response bytes', async (t, page) => 
 	t.deepEqual(result, {text: '🦄', errorName: 'ResponseSizeError', hookErrorName: 'ResponseSizeError'});
 });
 
+defaultBrowsersTest('maxResponseSize passes through a 204 response', async (t, page) => {
+	server.get('/', (_request, response) => {
+		response.end('meow');
+	});
+
+	server.get('/empty', (_request, response) => {
+		response.status(204).header('X-ky-Header', 'ky').end();
+	});
+
+	await page.goto(server.url);
+	await addKyScriptToPage(page);
+
+	// Chromium exposes a body stream on 204 responses even though the `Response` constructor rejects a body for that status.
+	const result = await page.evaluate(async (url: string) => {
+		const response = await globalThis.ky(`${url}/empty`, {maxResponseSize: 1024});
+		return {
+			status: response.status,
+			header: response.headers.get('X-ky-Header'),
+			text: await response.text(),
+		};
+	}, server.url);
+
+	t.deepEqual(result, {status: 204, header: 'ky', text: ''});
+});
+
 defaultBrowsersTest('maxResponseSize preserves errors in native body methods and progress wrappers', async (t, page) => {
 	server.get('/', (_request, response) => {
 		response.end('ok');

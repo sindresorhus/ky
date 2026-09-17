@@ -122,7 +122,7 @@ export type KyOptions = {
 
 	When passing an object, setting a value to `undefined` deletes the parameter, including from the input URL, even when a later option layer adds the parameter again. `null` values are preserved and converted to the string `'null'`.
 
-	When `input` is a [`Request`](https://developer.mozilla.org/en-US/docs/Web/API/Request) with a body, the body is sent as a stream, which requires [request stream support](https://caniuse.com/wf-fetch-request-streams) and HTTP/2 for HTTPS connections (in Chromium-based browsers). In environments without request stream support, when `keepalive` is true, or when the effective mode is `'no-cors'`, the inherited body is dropped. A compatible body passed explicitly with the `body` option is still used.
+	When `input` is a [`Request`](https://developer.mozilla.org/en-US/docs/Web/API/Request) with a body, the body is sent as a stream, which requires [request stream support](https://caniuse.com/wf-fetch-request-streams) and, in Chromium-based browsers, an HTTP/2 or HTTP/3 connection (streaming uploads over HTTP/1.1 fail with a network error, even over plain HTTP). In environments without request stream support, when `keepalive` is true, or when the effective mode is `'no-cors'`, the inherited body is dropped. A compatible body passed explicitly with the `body` option is still used.
 	*/
 	searchParams?: SearchParamsOption;
 
@@ -305,7 +305,7 @@ export type KyOptions = {
 	/**
 	Upload progress event handler.
 
-	Note: Requires [request stream support](https://caniuse.com/wf-fetch-request-streams) and HTTP/2 for HTTPS connections (in Chromium-based browsers). This handler is silently ignored in unsupported environments and for requests with `keepalive: true` or `mode: 'no-cors'`, since they cannot use streaming request bodies.
+	Note: Requires [request stream support](https://caniuse.com/wf-fetch-request-streams) and, in Chromium-based browsers, an HTTP/2 or HTTP/3 connection (streaming uploads over HTTP/1.1 fail with a network error, even over plain HTTP). This handler is silently ignored in unsupported environments and for requests with `keepalive: true` or `mode: 'no-cors'`, since they cannot use streaming request bodies.
 
 	@param progress - Object containing upload progress information.
 	@param chunk - Data that was sent. When an empty request body stream completes, the callback receives an empty chunk.

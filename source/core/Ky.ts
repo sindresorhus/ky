@@ -592,7 +592,8 @@ export class Ky {
 		let shouldRetryOverride = false;
 		const {shouldRetry} = retry;
 		if (shouldRetry !== undefined) {
-			const result = await this.#raceWithTotalTimeout(async () => shouldRetry({error: errorObject, retryCount: this.#retryCount + 1}));
+			const result = await this.#raceWithTotalTimeout(async () => shouldRetry({error: errorObject, retryCount: this.#retryCount + 1}), this.#userProvidedAbortSignal);
+			this.#throwIfAbortedByUser();
 			if (result === timedOutOperation) {
 				throw new TimeoutError(this.request);
 			}
@@ -825,27 +826,46 @@ export class Ky {
 		return result;
 	}
 
-	async #raceWithTotalTimeout<T>(operation: () => Promise<T>): Promise<T | typeof timedOutOperation> {
-		const remainingTotal = this.#getRemainingTotalTimeout();
-		if (remainingTotal === undefined) {
-			// eslint-disable-next-line no-return-await, @typescript-eslint/return-await -- Awaiting here preserves the caller's async stack when the operation fails.
-			return await operation();
-		}
+	async #raceWithTotalTimeout<T>(operation: () => Promise<T>, abortSignal?: AbortSignal): Promise<T | typeof timedOutOperation> {
+		abortSignal?.throwIfAborted();
 
-		if (remainingTotal <= 0) {
+		const remainingTotal = this.#getRemainingTotalTimeout();
+		if (remainingTotal !== undefined && remainingTotal <= 0) {
 			this.#abortController?.abort();
 			return timedOutOperation;
 		}
 
 		let timeoutId: ReturnType<typeof setTimeout> | undefined;
+		let abortListener: (() => void) | undefined;
 		try {
+			const abortPromise = new Promise<never>((_resolve, reject) => {
+				if (!abortSignal) {
+					return;
+				}
+
+				abortListener = () => {
+					// eslint-disable-next-line @typescript-eslint/prefer-promise-reject-errors -- AbortSignal reasons can be any value and must be preserved exactly.
+					reject(abortSignal.reason);
+				};
+
+				abortSignal.addEventListener('abort', abortListener, {once: true});
+
+				if (abortSignal.aborted) {
+					abortListener();
+				}
+			});
+			const operationPromise = operation();
+
+			if (remainingTotal === undefined) {
+				return await Promise.race([operationPromise, abortPromise]);
+			}
+
 			const timeoutPromise = new Promise<typeof timedOutOperation>(resolve => {
 				timeoutId = setTimeout(() => {
 					resolve(timedOutOperation);
 				}, remainingTotal);
 			});
-			const operationPromise = operation();
-			const result = await Promise.race([operationPromise, timeoutPromise]);
+			const result = await Promise.race([operationPromise, timeoutPromise, abortPromise]);
 			const remainingAfterOperation = this.#getRemainingTotalTimeout();
 			const didTimeOut = result === timedOutOperation || (remainingAfterOperation !== undefined && remainingAfterOperation <= 0);
 			if (didTimeOut) {
@@ -864,6 +884,8 @@ export class Ky {
 
 			return result;
 		} catch (error: unknown) {
+			abortSignal?.throwIfAborted();
+
 			const remainingAfterOperation = this.#getRemainingTotalTimeout();
 			if (remainingAfterOperation !== undefined && remainingAfterOperation <= 0) {
 				this.#abortController?.abort();
@@ -873,6 +895,9 @@ export class Ky {
 			throw error;
 		} finally {
 			clearTimeout(timeoutId);
+			if (abortListener) {
+				abortSignal?.removeEventListener('abort', abortListener);
+			}
 		}
 	}
 
@@ -1105,6 +1130,7 @@ export class Ky {
 	}
 
 	async #retryFromError(error: unknown): Promise<Response | void> {
+		this.#throwIfAbortedByUser();
 		this.#returnedResponseFromBeforeRetryHook = false;
 
 		const retryDelay = Math.min(await this.#calculateRetryDelay(error), maxSafeTimeout);

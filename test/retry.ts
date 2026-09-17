@@ -4474,3 +4474,34 @@ test('replacing the whole retry option also resolves nested list replacements', 
 	t.is(await api.post('https://example.com').text(), 'ok');
 	t.is(fetchCalls, 2);
 });
+
+test('cancellation interrupts a pending shouldRetry decision', async t => {
+	const controller = new AbortController();
+	const reason = new Error('cancelled');
+	const decisionStarted = Promise.withResolvers<void>();
+	let attempts = 0;
+	const pending = ky('https://example.com', {
+		signal: controller.signal,
+		retry: {
+			limit: 1,
+			async shouldRetry() {
+				decisionStarted.resolve();
+				return Promise.withResolvers<boolean>().promise;
+			},
+		},
+		async fetch() {
+			attempts++;
+			throw new TypeError('fetch failed');
+		},
+	});
+
+	await decisionStarted.promise;
+	controller.abort(reason);
+	const result = await Promise.race([
+		pending.catch((error: unknown) => error),
+		delay(1000),
+	]);
+
+	t.is(result, reason);
+	t.is(attempts, 1);
+});
