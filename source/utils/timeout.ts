@@ -14,10 +14,13 @@ export default async function timeout(
 	options: TimeoutOptions,
 ): Promise<Response> {
 	let timeoutId: ReturnType<typeof setTimeout> | undefined;
+	let timedOut = false;
 
 	try {
 		return await new Promise((resolve, reject) => {
 			timeoutId = setTimeout(() => {
+				timedOut = true;
+
 				if (abortController) {
 					abortController.abort();
 				}
@@ -28,7 +31,15 @@ export default async function timeout(
 			// Called unbound so a native `window.fetch` is not invoked with `options` as `this`, which throws "Illegal invocation" in browsers.
 			// A synchronous throw rejects the promise, and `finally` still clears the timer so it cannot abort a later retry attempt.
 			const {fetch} = options;
-			fetch(request, init).then(resolve).catch(reject);
+			fetch(request, init).then(response => {
+				// A response arriving after the timeout already won is discarded, so its unused body is cancelled. Fire-and-forget: cancellation failures are ignored and never delay the rejection.
+				if (timedOut) {
+					void response.body?.cancel().catch(() => undefined);
+					return;
+				}
+
+				resolve(response);
+			}).catch(reject);
 		});
 	} finally {
 		clearTimeout(timeoutId);

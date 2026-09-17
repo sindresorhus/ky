@@ -294,17 +294,23 @@ export class Ky {
 		};
 
 		const result = (async () => {
+			let response: Response | undefined;
 			try {
-				return await function_();
+				response = (await function_()) ?? undefined;
+				return response;
 			} catch (error: unknown) {
-				await ky.#throwProcessedError(error);
+				return await ky.#throwProcessedError(error);
 			} finally {
 				const originalRequest = ky.#originalRequest;
 
 				// Ignore cancellation errors from already-locked or already-consumed streams.
-				ky.#cancelBody(originalRequest?.body ?? undefined);
+				// A custom fetch or hook can return the request body as its response body; ownership then belongs to the caller.
+				if (originalRequest?.body !== response?.body) {
+					ky.#cancelBody(originalRequest?.body ?? undefined);
+				}
+
 				// Only cancel the current request body if it's distinct from the original (i.e. it was cloned for retries).
-				if (ky.request !== originalRequest) {
+				if (ky.request !== originalRequest && ky.request.body !== response?.body) {
 					ky.#cancelBody(ky.request.body ?? undefined);
 				}
 			}
@@ -791,7 +797,10 @@ export class Ky {
 				? await bodyPromise
 				: await Promise.race([bodyPromise, timeoutPromise]);
 		} catch (error: unknown) {
-			this.#throwIfAbortedByUser();
+			if (this.#userProvidedAbortSignal?.aborted) {
+				await this.#throwProcessedError(this.#userProvidedAbortSignal.reason);
+			}
+
 			if (this.#getRemainingTotalTimeout() !== 0) {
 				// A connection dropped while streaming the body surfaces as a raw runtime `TypeError`. Wrap it like fetch-phase network errors so it is recognizable and runs `beforeError` hooks.
 				// This only happens on the awaited path, so a body that fails after the timeout already won does not run the hooks again.
@@ -1190,6 +1199,11 @@ export class Ky {
 	}
 
 	async #fetch(): Promise<Response> {
+		// A previous attempt can return without consuming its upload. Release that unused branch before replacing the request reference.
+		if (this.#originalRequest && this.#originalRequest.body !== this.request.body) {
+			this.#cancelBody(this.#originalRequest.body ?? undefined);
+		}
+
 		const nonRequestOptions = findUnknownOptions(this.#options);
 		this.#retryLimit = normalizeRetryOptions(this.#options.retry).limit;
 		// Reattach the managed signal because Node.js can garbage-collect the abort controller used by Request.clone().
@@ -1231,7 +1245,7 @@ export class Ky {
 			}
 
 			if (isRawNetworkError(error)) {
-				throw new NetworkError(this.request, {cause: error as Error});
+				throw new NetworkError(request, {cause: error as Error});
 			}
 
 			throw error;
@@ -1280,6 +1294,10 @@ export class Ky {
 	}
 
 	#assignRequest(request: Request): void {
+		if (this.request.body !== request.body) {
+			this.#cancelBody(this.request.body ?? undefined);
+		}
+
 		this.#cachedNormalizedOptions = undefined;
 		this.request = request;
 	}

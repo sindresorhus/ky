@@ -45,6 +45,67 @@ test('undefined restores native fetch without changing the parent', async t => {
 	t.is(requestCount, 2);
 });
 
+for (const retry of [0, 2]) {
+	test(`custom fetch can return the request body as a response with retry ${retry}`, async t => {
+		const text = await ky.post(fixture, {
+			retry,
+			body: 'echo-payload',
+			fetch: async request => new Response(request.body),
+		}).text();
+
+		t.is(text, 'echo-payload');
+	});
+}
+
+for (const wrapper of ['download progress', 'size limit', 'afterResponse clone'] as const) {
+	test(`shared request body remains readable through ${wrapper}`, async t => {
+		const text = await ky.post(fixture, {
+			retry: 0,
+			body: 'echo-payload',
+			onDownloadProgress: wrapper === 'download progress' ? () => undefined : undefined,
+			maxResponseSize: wrapper === 'size limit' ? 100 : undefined,
+			hooks: {
+				afterResponse: wrapper === 'afterResponse clone' ? [({response}) => response] : [],
+			},
+			fetch: async request => new Response(request.body),
+		}).text();
+
+		t.is(text, 'echo-payload');
+	});
+}
+
+test('beforeRequest can return a response that shares the outgoing request body', async t => {
+	const text = await ky.post(fixture, {
+		body: 'cached-body',
+		hooks: {
+			beforeRequest: [({request}) => new Response(request.body)],
+		},
+		async fetch() {
+			t.fail('A hook-provided response must skip fetch');
+			return new Response();
+		},
+	}).text();
+
+	t.is(text, 'cached-body');
+});
+
+test('the caller can cancel a response sharing a streaming request body', async t => {
+	let cancellations = 0;
+	const response = await ky.post(fixture, {
+		retry: 0,
+		body: new ReadableStream({
+			cancel() {
+				cancellations++;
+			},
+		}),
+		fetch: async request => new Response(request.body),
+	});
+
+	t.is(cancellations, 0);
+	await response.body!.cancel();
+	t.is(cancellations, 1);
+});
+
 test('fetch option takes a custom fetch function', async t => {
 	t.plan(10);
 
@@ -359,6 +420,151 @@ test.serial('vendor-specific options like `next` are passed to fetch even when R
 			delete (Request.prototype as any).next;
 		}
 	}
+});
+
+for (const totalTimeout of [false, 1000] as const) {
+	test(`a response returned after fetch timeout has its unused body cancelled with totalTimeout ${totalTimeout}`, async t => {
+		let resolveFetch!: (response: Response) => void;
+		const fetchPromise = new Promise<Response>(resolve => {
+			resolveFetch = resolve;
+		});
+		let cancelled = false;
+		const response = new Response(new ReadableStream({
+			cancel() {
+				cancelled = true;
+			},
+		}));
+		t.teardown(async () => {
+			await response.body?.cancel();
+		});
+
+		let fetchStarted = false;
+		await t.throwsAsync(ky(fixture, {
+			timeout: totalTimeout === false ? 20 : false,
+			totalTimeout,
+			retry: 0,
+			async fetch() {
+				fetchStarted = true;
+				return fetchPromise;
+			},
+		}), {name: 'TimeoutError'});
+
+		t.true(fetchStarted);
+		resolveFetch(response);
+		await delay(0);
+		t.true(cancelled);
+	});
+}
+
+for (const cancellation of ['rejects', 'never settles'] as const) {
+	test(`late response cleanup does not change the timeout when cancellation ${cancellation}`, async t => {
+		let resolveFetch!: (response: Response) => void;
+		const fetchPromise = new Promise<Response>(resolve => {
+			resolveFetch = resolve;
+		});
+		let cancellations = 0;
+		const response = new Response(new ReadableStream({
+			async cancel() {
+				cancellations++;
+				if (cancellation === 'rejects') {
+					throw new Error('cancellation failed');
+				}
+
+				await new Promise(() => {
+					// Simulate an underlying stream that never finishes cancellation.
+				});
+			},
+		}));
+		const errors: Error[] = [];
+		const error = await t.throwsAsync(ky(fixture, {
+			timeout: 20,
+			retry: 0,
+			fetch: async () => fetchPromise,
+			hooks: {
+				beforeError: [({error}) => {
+					errors.push(error);
+					return error;
+				}],
+			},
+		}), {name: 'TimeoutError'});
+
+		resolveFetch(response);
+		await delay(0);
+		t.is(cancellations, 1);
+		t.deepEqual(errors, [error]);
+	});
+}
+
+test('a late response from a timed-out attempt does not cancel the active retry', async t => {
+	const firstFetch = Promise.withResolvers<Response>();
+	const cancellation = Promise.withResolvers<void>();
+	let attempts = 0;
+	let cancellations = 0;
+	let retryHookCalls = 0;
+	const discardedResponse = new Response(new ReadableStream({
+		cancel() {
+			cancellations++;
+			cancellation.resolve();
+		},
+	}));
+	t.teardown(() => {
+		void discardedResponse.body?.cancel().catch(() => undefined);
+	});
+
+	const result = await ky(fixture, {
+		timeout: 500,
+		retry: {limit: 1, retryOnTimeout: true, delay: () => 0},
+		hooks: {
+			beforeRetry: [({error, retryCount}) => {
+				retryHookCalls++;
+				t.is(error.name, 'TimeoutError');
+				t.is(retryCount, 1);
+			}],
+			beforeError: [({error}) => {
+				t.fail('A successful retry must not run beforeError');
+				return error;
+			}],
+		},
+		async fetch(request) {
+			attempts++;
+			if (attempts === 1) {
+				return firstFetch.promise;
+			}
+
+			firstFetch.resolve(discardedResponse);
+			await cancellation.promise;
+			t.is(cancellations, 1);
+			t.false(request.signal.aborted);
+			return new Response('retry succeeded');
+		},
+	}).text();
+
+	t.is(result, 'retry succeeded');
+	t.is(attempts, 2);
+	t.is(retryHookCalls, 1);
+	t.is(cancellations, 1);
+});
+
+test('a response returned before fetch timeout remains readable', async t => {
+	let cancelled = false;
+	const response = await ky(fixture, {
+		timeout: 1000,
+		retry: 0,
+		async fetch() {
+			return new Response(new ReadableStream({
+				start(controller) {
+					controller.enqueue(new TextEncoder().encode('response'));
+					controller.close();
+				},
+				cancel() {
+					cancelled = true;
+				},
+			}));
+		},
+	});
+
+	t.is(await response.text(), 'response');
+	t.false(cancelled);
 });
 
 test('a synchronously throwing fetch rejects with that error', async t => {

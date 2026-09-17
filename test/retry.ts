@@ -4137,8 +4137,89 @@ test('a user abort during a body read does not run beforeError hooks with a Netw
 	}).text();
 	abortController.abort();
 
-	await t.throwsAsync(bodyPromise, {name: 'AbortError'});
+	const error = await t.throwsAsync(bodyPromise, {name: 'AbortError'});
+	t.deepEqual(hookErrors, [error]);
 	t.false(hookErrors.some(error => isNetworkError(error)));
+});
+
+test('beforeError receives a user abort during a shortcut body read', async t => {
+	const abortController = new AbortController();
+	const reason = new Error('cancelled');
+	const hookErrors: Error[] = [];
+
+	const responsePromise = ky('https://example.com', {
+		retry: 0,
+		signal: abortController.signal,
+		async fetch(request) {
+			return new Response(new ReadableStream({
+				start(controller) {
+					request.signal.addEventListener('abort', () => {
+						controller.error(request.signal.reason);
+					}, {once: true});
+				},
+			}));
+		},
+		hooks: {
+			beforeError: [({error}) => {
+				hookErrors.push(error);
+				return error;
+			}],
+		},
+	});
+
+	await responsePromise;
+	const bodyPromise = responsePromise.text();
+	abortController.abort(reason);
+
+	await t.throwsAsync(bodyPromise, {is: reason});
+	t.deepEqual(hookErrors, [reason]);
+});
+
+test('beforeError can replace an abort error during a shortcut body read', async t => {
+	const abortController = new AbortController();
+	const replacement = new Error('request cancelled');
+	const hookErrors: Error[] = [];
+	const responsePromise = ky('https://example.com', {
+		retry: 0,
+		signal: abortController.signal,
+		fetch: createAbortDuringBodyFetch(),
+		hooks: {
+			beforeError: [({error}) => {
+				hookErrors.push(error);
+				return replacement;
+			}],
+		},
+	});
+
+	await responsePromise;
+	const bodyPromise = responsePromise.json();
+	abortController.abort();
+
+	await t.throwsAsync(bodyPromise, {is: replacement});
+	t.deepEqual(hookErrors, [abortController.signal.reason]);
+});
+
+test('non-Error abort reasons bypass beforeError during shortcut body reads', async t => {
+	const abortController = new AbortController();
+	const reason = 'cancelled';
+	const responsePromise = ky('https://example.com', {
+		retry: 0,
+		timeout: false,
+		signal: abortController.signal,
+		fetch: createAbortDuringBodyFetch(),
+		hooks: {
+			beforeError: [() => {
+				t.fail('Non-Error abort reasons must not run beforeError');
+				return new Error('should not run');
+			}],
+		},
+	});
+
+	await responsePromise;
+	const bodyPromise = responsePromise.text();
+	abortController.abort(reason);
+
+	t.is(await bodyPromise.catch((error: unknown) => error), reason);
 });
 
 test('an abort through a Request input during a body read is not wrapped in NetworkError', async t => {
