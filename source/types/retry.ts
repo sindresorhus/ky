@@ -44,7 +44,7 @@ export type RetryOptions = {
 	statusCodes?: readonly number[] | undefined;
 
 	/**
-	The retriable HTTP status codes that should respect retry timing headers. These status codes must also be included in `statusCodes`.
+	The retriable HTTP status codes that should respect retry timing headers. These status codes must also be included in `statusCodes`, unless `shouldRetry` returns `true`.
 
 	@default [413, 429, 503]
 	*/
@@ -147,6 +147,8 @@ export type RetryOptions = {
 	- `true` to force a retry (bypasses `retryOnTimeout`, status code checks, and other validations)
 	- `false` to prevent a retry (no retry will occur)
 	- `undefined` (or nothing) to use the default retry logic (`retryOnTimeout`, status codes, network errors). Unrecognized error types are not retried.
+
+	Returning `true` overrides retry eligibility, not timing. For HTTP errors with a status in `afterStatusCodes`, retry timing headers and `maxRetryAfter` still apply, without jitter. Otherwise, Ky uses the configured backoff delay.
 
 	@default undefined
 

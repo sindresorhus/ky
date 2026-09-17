@@ -280,7 +280,7 @@ Network errors (e.g., DNS failures, connection refused, offline) are automatical
 
 `413 Payload Too Large` is only retried when the response includes a retry timing header.
 
-When the response status is contained in both `statusCodes` and `afterStatusCodes`, Ky uses retry timing headers to choose the retry delay. [`Retry-After`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Retry-After) may provide a delay in seconds or an HTTP-date. If `Retry-After` is missing, Ky falls back to rate-limit timing headers (`RateLimit-Reset`, `X-RateLimit-Retry-After`, `X-RateLimit-Reset`, and `X-Rate-Limit-Reset`). Numeric `Retry-After` and `X-RateLimit-Retry-After` values are interpreted as delay seconds. Numeric `RateLimit-Reset`, `X-RateLimit-Reset`, and `X-Rate-Limit-Reset` values may also be interpreted as current-era Unix timestamps. If the status code is not in `afterStatusCodes`, retry timing headers will be ignored.
+When the response status is contained in `afterStatusCodes` and the retry is allowed by `statusCodes` or `shouldRetry`, Ky uses retry timing headers to choose the retry delay. [`Retry-After`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Retry-After) may provide a delay in seconds or an HTTP-date. If `Retry-After` is missing, Ky falls back to rate-limit timing headers (`RateLimit-Reset`, `X-RateLimit-Retry-After`, `X-RateLimit-Reset`, and `X-Rate-Limit-Reset`). Numeric `Retry-After` and `X-RateLimit-Retry-After` values are interpreted as delay seconds. Numeric `RateLimit-Reset`, `X-RateLimit-Reset`, and `X-Rate-Limit-Reset` values may also be interpreted as current-era Unix timestamps. If the status code is not in `afterStatusCodes`, retry timing headers will be ignored.
 
 If the retry delay from a retry timing header is greater than `maxRetryAfter`, Ky will use `maxRetryAfter`.
 
@@ -306,6 +306,8 @@ The function receives a state object with the error and retry count (starts at 1
 - `true` to force a retry (bypasses `retryOnTimeout`, status code checks, and other default validations)
 - `false` to prevent a retry (no retry will occur)
 - `undefined` (or nothing) to use the default retry logic (`retryOnTimeout`, status codes, network errors). Unrecognized error types are not retried.
+
+Returning `true` overrides retry eligibility, not timing. For HTTP errors with a status in `afterStatusCodes`, retry timing headers and `maxRetryAfter` still apply, without jitter. Otherwise, Ky uses the configured backoff delay.
 
 **General example**
 

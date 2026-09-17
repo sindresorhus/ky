@@ -583,6 +583,7 @@ export class Ky {
 			throw error;
 		}
 
+		let shouldRetryOverride = false;
 		const {shouldRetry} = retry;
 		if (shouldRetry !== undefined) {
 			const result = await this.#raceWithTotalTimeout(async () => shouldRetry({error: errorObject, retryCount: this.#retryCount + 1}));
@@ -595,14 +596,12 @@ export class Ky {
 				throw error;
 			}
 
-			if (result === true) {
-				return this.#calculateDelay(retry);
-			}
+			shouldRetryOverride = result === true;
 		}
 
 		// Default timeout behavior
 		if (isTimeoutError(error)) {
-			if (!retry.retryOnTimeout) {
+			if (!shouldRetryOverride && !retry.retryOnTimeout) {
 				throw error;
 			}
 
@@ -610,7 +609,7 @@ export class Ky {
 		}
 
 		if (isHTTPError(error)) {
-			if (!retry.statusCodes.includes(error.response.status)) {
+			if (!shouldRetryOverride && !retry.statusCodes.includes(error.response.status)) {
 				throw error;
 			}
 
@@ -626,7 +625,7 @@ export class Ky {
 				return Math.min(retry.maxRetryAfter, after);
 			}
 
-			if (error.response.status === 413) {
+			if (!shouldRetryOverride && error.response.status === 413) {
 				throw error;
 			}
 
@@ -634,7 +633,7 @@ export class Ky {
 		}
 
 		// Only retry known retriable error types. Unknown errors (e.g., programming bugs) are not retried.
-		if (!isNetworkError(error)) {
+		if (!shouldRetryOverride && !isNetworkError(error)) {
 			throw error;
 		}
 

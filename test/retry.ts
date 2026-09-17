@@ -8,6 +8,7 @@ import ky, {
 	TimeoutError,
 	isKyError,
 	isNetworkError,
+	type RetryOptions,
 } from '../source/index.js';
 import {NonError} from '../source/errors/NonError.js';
 import {createHttpTestServer} from './helpers/create-http-test-server.js';
@@ -402,6 +403,104 @@ test('respect Retry-After: 0 and retry immediately', async t => {
 
 	t.is(requestCount, 5);
 });
+
+test.serial('shouldRetry true preserves Retry-After timing', async t => {
+	let requestCount = 0;
+	await withCapturedTimeouts(async scheduledDelays => {
+		const result = await ky('https://example.com', {
+			timeout: false,
+			retry: {
+				limit: 1,
+				shouldRetry: () => true,
+				delay: () => 0,
+			},
+			async fetch() {
+				requestCount++;
+				return requestCount === 1
+					? new Response('', {status: 429, headers: {'Retry-After': '2000'}})
+					: new Response(fixture);
+			},
+		}).text();
+
+		t.is(result, fixture);
+		t.true(scheduledDelays.includes(2_000_000));
+	});
+	t.is(requestCount, 2);
+});
+
+// RFC 9110 §10.2.3 separates the server's requested waiting time from the decision to retry.
+// https://www.rfc-editor.org/rfc/rfc9110.html#section-10.2.3
+for (const scenario of [
+	{title: 'HTTP-date', headers: {'Retry-After': 'Wed, 01 Jan 2031 01:00:00 GMT'}, expected: 3_600_000},
+	{title: 'zero delay', headers: {'Retry-After': '0'}, expected: 0},
+	{title: 'past date', headers: {'Retry-After': 'Tue, 31 Dec 2030 23:00:00 GMT'}, expected: 0},
+	{title: 'RateLimit-Reset seconds', headers: {'RateLimit-Reset': '2000'}, expected: 2_000_000},
+	{title: 'X-RateLimit-Retry-After seconds', headers: {'X-RateLimit-Retry-After': '2000'}, expected: 2_000_000},
+	{title: 'X-RateLimit-Reset timestamp', headers: {'X-RateLimit-Reset': '1924995600'}, expected: 3_600_000},
+	{title: 'X-Rate-Limit-Reset timestamp', headers: {'X-Rate-Limit-Reset': '1924995600'}, expected: 3_600_000},
+	{title: 'Retry-After precedence', headers: {'Retry-After': '2000', 'RateLimit-Reset': '3000'}, expected: 2_000_000},
+	{
+		title: 'maxRetryAfter cap', headers: {'Retry-After': '3000'}, retry: {maxRetryAfter: 2_000_000}, expected: 2_000_000,
+	},
+	{
+		title: 'malformed header fallback', headers: {'Retry-After': 'invalid'}, expected: 7, backoff: true,
+	},
+	{
+		title: 'missing header fallback', headers: {}, expected: 7, backoff: true,
+	},
+	{
+		title: 'excluded afterStatusCodes', headers: {'Retry-After': '2000'}, retry: {afterStatusCodes: []}, expected: 7, backoff: true,
+	},
+	{
+		title: 'statusCodes override', headers: {'Retry-After': '2000'}, retry: {statusCodes: []}, expected: 2_000_000,
+	},
+	{
+		title: '413 without a header', status: 413, headers: {}, expected: 7, backoff: true,
+	},
+] satisfies Array<{title: string; headers: Record<string, string>; status?: number; retry?: RetryOptions; expected: number; backoff?: boolean}>) {
+	test.serial(`shouldRetry true preserves timing rules: ${scenario.title}`, async t => {
+		const originalNow = Date.now;
+		Date.now = () => Date.parse('2031-01-01T00:00:00Z');
+		t.teardown(() => {
+			Date.now = originalNow;
+		});
+
+		let requestCount = 0;
+		let backoffCalls = 0;
+		let jitterCalls = 0;
+		await withCapturedTimeouts(async scheduledDelays => {
+			const result = await ky('https://example.com', {
+				timeout: false,
+				retry: {
+					limit: 1,
+					shouldRetry: async () => true,
+					delay() {
+						backoffCalls++;
+						return 10;
+					},
+					jitter() {
+						jitterCalls++;
+						return 7;
+					},
+					...scenario.retry,
+				},
+				async fetch() {
+					requestCount++;
+					return requestCount === 1
+						? new Response('', {status: scenario.status ?? 429, headers: scenario.headers})
+						: new Response(fixture);
+				},
+			}).text();
+
+			t.is(result, fixture);
+			// Error-data consumption also schedules a 10-second timeout.
+			t.deepEqual(scheduledDelays.filter(milliseconds => milliseconds !== 10_000), [scenario.expected]);
+		});
+		t.is(requestCount, 2);
+		t.is(backoffCalls, scenario.backoff ? 1 : 0);
+		t.is(jitterCalls, scenario.backoff ? 1 : 0);
+	});
+}
 
 test.serial('Retry-After number is treated as delay seconds, not timestamp', async t => {
 	const retryServer = await createSingleRetryHeaderServer(t, {
