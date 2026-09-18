@@ -450,3 +450,31 @@ test('returns a streaming response before completion and forwards caller cancell
 	await reader.cancel('No more data needed');
 	t.is(await cancellation.promise, 'No more data needed');
 });
+
+// Chromium and WebKit expose an empty body stream on responses whose status forbids a body, even though the `Response` constructor rejects such a body.
+for (const status of [101, 103, 204, 205, 304]) {
+	test(`passes through a browser-style empty body stream with status ${status}`, async t => {
+		let progressCallCount = 0;
+		const response = await ky(url, {
+			maxResponseSize: 1,
+			throwHttpErrors: false,
+			onDownloadProgress() {
+				progressCallCount++;
+			},
+			async fetch() {
+				const emptyResponse = new Response(new ReadableStream({
+					start(controller) {
+						controller.close();
+					},
+				}), {headers: {'x-ky-header': 'ky'}});
+				Object.defineProperty(emptyResponse, 'status', {value: status});
+				return emptyResponse;
+			},
+		});
+
+		t.is(response.status, status);
+		t.is(response.headers.get('x-ky-header'), 'ky');
+		t.is(await response.text(), '');
+		t.is(progressCallCount, 0);
+	});
+}

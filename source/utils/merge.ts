@@ -325,12 +325,12 @@ const deepMergeInternal = <T>(isRoot: boolean, ...sources: Array<Partial<T> | un
 					if (value === undefined || value === null) {
 						// Explicit undefined or null removes searchParams
 						searchParameters = undefined;
+					} else if (isReplace || searchParameters === undefined) {
+						// First or replacement source: shallow-clone to preserve type (string/object/URLSearchParams/tuples) without sharing the caller's object
+						searchParameters = Array.isArray(value) ? value.map(parameter => cloneShallow(parameter)) : cloneShallow(value);
 					} else {
-						// First or replacement source: shallow-clone to preserve type (string/object/URLSearchParams) without sharing the caller's object
 						// Subsequent sources: merge and convert to URLSearchParams
-						searchParameters = isReplace || searchParameters === undefined
-							? (Array.isArray(value) ? value.map(parameter => cloneShallow(parameter)) : cloneShallow(value))
-							: appendSearchParameters(searchParameters, value);
+						searchParameters = appendSearchParameters(searchParameters, value);
 					}
 
 					continue;

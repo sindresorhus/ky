@@ -1405,15 +1405,16 @@ test('beforeRetry hook respects totalTimeout budget', async t => {
 	t.is(fetchCallCount, 1);
 });
 
-test('totalTimeout bounds a never-ending beforeRetry hook', async t => {
-	let markHookStarted: () => void;
+test.serial('totalTimeout bounds a never-ending beforeRetry hook', async t => {
+	const originalPerformanceNow = globalThis.performance.now;
+	// Keep the budget available until the hook starts, regardless of machine load. The timeout timer still runs normally.
+	globalThis.performance.now = () => 0;
+	t.teardown(() => {
+		globalThis.performance.now = originalPerformanceNow;
+	});
+
+	let beforeRetryCallCount = 0;
 	let beforeErrorCallCount = 0;
-	const hookStarted = new Promise<void>(resolve => {
-		markHookStarted = resolve;
-	});
-	const neverSettlingPromise = new Promise<never>(() => {
-		void 0;
-	});
 
 	const request = ky('https://example.com', {
 		fetch: async () => new Response('error', {status: 500}),
@@ -1425,8 +1426,10 @@ test('totalTimeout bounds a never-ending beforeRetry hook', async t => {
 		hooks: {
 			beforeRetry: [
 				async () => {
-					markHookStarted();
-					await neverSettlingPromise;
+					beforeRetryCallCount++;
+					await new Promise<never>(() => {
+						void 0;
+					});
 				},
 			],
 			beforeError: [
@@ -1438,14 +1441,13 @@ test('totalTimeout bounds a never-ending beforeRetry hook', async t => {
 		},
 	}).text();
 
-	await hookStarted;
-
 	const result = await Promise.race([
 		request.catch((error: unknown) => error),
 		delay(2000).then(() => 'still pending'),
 	]);
 
 	t.true(result instanceof TimeoutError);
+	t.is(beforeRetryCallCount, 1);
 	t.is(beforeErrorCallCount, 1);
 });
 
@@ -6557,3 +6559,90 @@ test('init hook header added in place is visible to beforeRequest hooks', async 
 
 	await api('https://example.com');
 });
+
+test('beforeRequest can return a Request with a streaming body', async t => {
+	const encoder = new TextEncoder();
+	const result = await ky.post('https://example.com', {
+		body: 'unused',
+		retry: 0,
+		hooks: {
+			beforeRequest: [({request}) => new Request(request, {
+				// @ts-expect-error - RequestInit types do not include duplex.
+				duplex: 'half',
+				body: new ReadableStream<Uint8Array>({
+					start(controller) {
+						controller.enqueue(encoder.encode('streamed 🦄'));
+						controller.close();
+					},
+				}),
+			})],
+		},
+		async fetch(request) {
+			return new Response(await request.text());
+		},
+	}).text();
+
+	t.is(result, 'streamed 🦄');
+});
+
+for (const hook of ['beforeRequest', 'beforeRetry'] as const) {
+	test(`${hook} preserves an inherited body when replacing only headers`, async t => {
+		let attempts = 0;
+		const result = await ky.put('https://example.com', {
+			body: 'original-payload',
+			retry: {limit: 1, delay: () => 0},
+			hooks: {
+				[hook]: [({request}: {request: Request}) => new Request(request, {headers: {'x-replaced': 'yes'}})],
+			},
+			async fetch(request) {
+				attempts++;
+				if (hook === 'beforeRetry' && attempts === 1) {
+					return new Response('', {status: 503});
+				}
+
+				t.is(request.headers.get('x-replaced'), 'yes');
+				return new Response(await request.text());
+			},
+		}).text();
+
+		t.is(result, 'original-payload');
+	});
+}
+
+for (const hook of ['beforeRequest', 'beforeRetry'] as const) {
+	test(`${hook} releases the unused body when replacing the request`, async t => {
+		let cancellations = 0;
+		let attempts = 0;
+		let replacedRequest: Request | undefined;
+		const body = new ReadableStream({
+			cancel() {
+				cancellations++;
+			},
+		});
+		t.teardown(() => {
+			void replacedRequest?.body?.cancel().catch(() => undefined);
+		});
+		const replacement = ({request}: {request: Request}) => {
+			replacedRequest = request;
+			return new Request(request.url, {method: 'PUT', body: 'replacement'});
+		};
+
+		const result = await ky.put('https://example.com', {
+			body,
+			retry: {limit: 1, delay: () => 0},
+			hooks: {[hook]: [replacement]},
+			async fetch(request) {
+				attempts++;
+				if (hook === 'beforeRetry' && attempts === 1) {
+					return new Response('', {status: 503});
+				}
+
+				return new Response(await request.text());
+			},
+		}).text();
+
+		await delay(0);
+		t.is(result, 'replacement');
+		t.is(cancellations, 1);
+	});
+}

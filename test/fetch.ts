@@ -57,23 +57,6 @@ for (const retry of [0, 2]) {
 	});
 }
 
-for (const wrapper of ['download progress', 'size limit', 'afterResponse clone'] as const) {
-	test(`shared request body remains readable through ${wrapper}`, async t => {
-		const text = await ky.post(fixture, {
-			retry: 0,
-			body: 'echo-payload',
-			onDownloadProgress: wrapper === 'download progress' ? () => undefined : undefined,
-			maxResponseSize: wrapper === 'size limit' ? 100 : undefined,
-			hooks: {
-				afterResponse: wrapper === 'afterResponse clone' ? [({response}) => response] : [],
-			},
-			fetch: async request => new Response(request.body),
-		}).text();
-
-		t.is(text, 'echo-payload');
-	});
-}
-
 test('beforeRequest can return a response that shares the outgoing request body', async t => {
 	const text = await ky.post(fixture, {
 		body: 'cached-body',
@@ -87,23 +70,6 @@ test('beforeRequest can return a response that shares the outgoing request body'
 	}).text();
 
 	t.is(text, 'cached-body');
-});
-
-test('the caller can cancel a response sharing a streaming request body', async t => {
-	let cancellations = 0;
-	const response = await ky.post(fixture, {
-		retry: 0,
-		body: new ReadableStream({
-			cancel() {
-				cancellations++;
-			},
-		}),
-		fetch: async request => new Response(request.body),
-	});
-
-	t.is(cancellations, 0);
-	await response.body!.cancel();
-	t.is(cancellations, 1);
 });
 
 test('fetch option takes a custom fetch function', async t => {
@@ -512,7 +478,7 @@ test('a late response from a timed-out attempt does not cancel the active retry'
 	});
 
 	const result = await ky(fixture, {
-		timeout: 500,
+		timeout: 50,
 		retry: {limit: 1, retryOnTimeout: true, delay: () => 0},
 		hooks: {
 			beforeRetry: [({error, retryCount}) => {

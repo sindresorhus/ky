@@ -24,7 +24,10 @@ export const supportsRequestStreams = (() => {
 		}
 	}
 
-	return duplexAccessed && !hasContentType;
+	// Bun and Deno support streaming request bodies but never read the `duplex` option, which the check relies on to tell streaming support apart from WebKit, where the `Request` constructor accepts a stream body that `fetch()` then rejects.
+	const isBunOrDeno = 'Bun' in globalThis || 'Deno' in globalThis;
+
+	return (duplexAccessed || isBunOrDeno) && !hasContentType;
 })();
 
 export const supportsAbortController = typeof globalThis.AbortController === 'function';

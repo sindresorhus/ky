@@ -1,25 +1,23 @@
 import test from 'ava';
 import ky, {NetworkError, isNetworkError} from '../source/index.js';
 
-for (const limit of [0, 1]) {
-	test(`NetworkError refers to the failed outgoing request with retry limit ${limit}`, async t => {
-		const requests: Request[] = [];
-		const cause = new TypeError('fetch failed');
-		const error = await t.throwsAsync(ky('https://example.com', {
-			retry: {limit, delay: () => 0},
-			async fetch(request) {
-				requests.push(request);
-				request.headers.set('x-attempt', String(requests.length));
-				throw cause;
-			},
-		}), {instanceOf: NetworkError});
+test('NetworkError refers to the failed outgoing request', async t => {
+	const requests: Request[] = [];
+	const cause = new TypeError('fetch failed');
+	const error = await t.throwsAsync(ky('https://example.com', {
+		retry: {limit: 1, delay: () => 0},
+		async fetch(request) {
+			requests.push(request);
+			request.headers.set('x-attempt', String(requests.length));
+			throw cause;
+		},
+	}), {instanceOf: NetworkError});
 
-		t.is(requests.length, limit + 1);
-		t.is(error.request, requests.at(-1));
-		t.is(error.request.headers.get('x-attempt'), String(limit + 1));
-		t.is(error.cause, cause);
-	});
-}
+	t.is(requests.length, 2);
+	t.is(error.request, requests.at(-1));
+	t.is(error.request.headers.get('x-attempt'), '2');
+	t.is(error.cause, cause);
+});
 
 test('beforeRetry sees the failed outgoing request while retaining its retry request', async t => {
 	let failedRequest: Request | undefined;

@@ -1137,3 +1137,46 @@ test('POST FormData with 10MB file upload progress', async t => {
 		'Last update should have transferred all bytes',
 	);
 });
+
+test('completed download progress uses actual bytes rather than an overestimated content length', async t => {
+	const progressEvents: Progress[] = [];
+	const text = await ky('https://example.com', {
+		fetch: async () => new Response('ok', {headers: {'content-length': '1024'}}),
+		onDownloadProgress(progress) {
+			progressEvents.push(progress);
+		},
+	}).text();
+
+	t.is(text, 'ok');
+	t.deepEqual(progressEvents.at(-1), {
+		percent: 1,
+		transferredBytes: 2,
+		totalBytes: 2,
+	});
+});
+
+test('completed upload progress uses the actual size of a replaced body', async t => {
+	const progressEvents: Progress[] = [];
+	const originalBody = 'x'.repeat(1024);
+	const replacementBody = 'ok';
+	const text = await ky.post('https://example.com', {
+		body: originalBody,
+		retry: 0,
+		hooks: {
+			beforeRequest: [({request}) => new Request(request, {body: replacementBody})],
+		},
+		async fetch(request) {
+			return new Response(await request.text());
+		},
+		onUploadProgress(progress) {
+			progressEvents.push(progress);
+		},
+	}).text();
+
+	t.is(text, replacementBody);
+	t.deepEqual(progressEvents.at(-1), {
+		percent: 1,
+		transferredBytes: 2,
+		totalBytes: 2,
+	});
+});

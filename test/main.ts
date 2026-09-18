@@ -1250,7 +1250,14 @@ for (const method of ['text', 'arrayBuffer', 'json'] as const) {
 	});
 }
 
-test('beforeError hook receives totalTimeout exhausted before a shortcut body read starts', async t => {
+test.serial('beforeError hook receives totalTimeout exhausted before a shortcut body read starts', async t => {
+	const originalPerformanceNow = globalThis.performance.now;
+	let currentTime = 0;
+	globalThis.performance.now = () => currentTime;
+	t.teardown(() => {
+		globalThis.performance.now = originalPerformanceNow;
+	});
+
 	let didReadBody = false;
 	let hookError: Error | undefined;
 
@@ -1280,7 +1287,7 @@ test('beforeError hook receives totalTimeout exhausted before a shortcut body re
 	});
 
 	await response;
-	await delay(300);
+	currentTime = 300;
 
 	await t.throwsAsync(response.text(), {
 		instanceOf: TimeoutError,
@@ -1378,10 +1385,17 @@ test('beforeError hook receives successful response body TimeoutError', async t 
 	t.true(hookError instanceof TimeoutError);
 });
 
-test('totalTimeout bounds hanging parseJson on successful response shortcut', async t => {
+test.serial('totalTimeout bounds hanging parseJson on successful response shortcut', async t => {
+	t.timeout(5000);
+	const originalPerformanceNow = globalThis.performance.now;
+	// Keep the budget available until parsing starts; the timeout timer still runs normally.
+	globalThis.performance.now = () => 0;
+	t.teardown(() => {
+		globalThis.performance.now = originalPerformanceNow;
+	});
+
 	let parseJsonCalled = false;
 	let hookError: Error | undefined;
-	const start = Date.now();
 	await t.throwsAsync(ky('https://example.com', {
 		fetch: async () => new Response('{"value":1}', {
 			headers: {'content-type': 'application/json'},
@@ -1408,17 +1422,23 @@ test('totalTimeout bounds hanging parseJson on successful response shortcut', as
 
 	t.true(parseJsonCalled);
 	t.true(hookError instanceof TimeoutError);
-	t.true(Date.now() - start < 2000);
 });
 
-test('totalTimeout bounds hanging schema validation on successful response shortcut', async t => {
+test.serial('totalTimeout bounds hanging schema validation on successful response shortcut', async t => {
+	t.timeout(5000);
+	const originalPerformanceNow = globalThis.performance.now;
+	// Keep the budget available until validation starts; the timeout timer still runs normally.
+	globalThis.performance.now = () => 0;
+	t.teardown(() => {
+		globalThis.performance.now = originalPerformanceNow;
+	});
+
 	let schemaValidationCalled = false;
 	const schema = createSchema(async () => new Promise<never>(() => {
 		schemaValidationCalled = true;
 		// Intentionally never settles
 	}));
 
-	const start = Date.now();
 	await t.throwsAsync(ky('https://example.com', {
 		fetch: async () => new Response('{"value":1}', {
 			headers: {'content-type': 'application/json'},
@@ -1430,7 +1450,6 @@ test('totalTimeout bounds hanging schema validation on successful response short
 	});
 
 	t.true(schemaValidationCalled);
-	t.true(Date.now() - start < 2000);
 });
 
 test.serial('timeout false does not apply a successful response body timeout', async t => {
@@ -3945,3 +3964,56 @@ test('stringifyJson option with request.json()', async t => {
 		json,
 	});
 });
+
+for (const form of ['object', 'URLSearchParams', 'tuples'] as const) {
+	test(`replacement search parameters copy caller-owned ${form} values`, async t => {
+		const searchParameters = form === 'object'
+			? {tenant: 'original'}
+			: (form === 'URLSearchParams' ? new URLSearchParams({tenant: 'original'}) : [['tenant', 'original']]);
+		const parent = ky.create({
+			searchParams: {removed: 'parent'},
+			fetch: async request => new Response(request.url),
+		});
+		const child = parent.extend({searchParams: replaceOption(searchParameters)});
+
+		if (searchParameters instanceof URLSearchParams) {
+			searchParameters.set('tenant', 'changed');
+		} else if (Array.isArray(searchParameters)) {
+			searchParameters[0]![1] = 'changed';
+		} else {
+			searchParameters.tenant = 'changed';
+		}
+
+		t.is(await child('https://example.com').text(), 'https://example.com/?tenant=original');
+		t.is(await parent('https://example.com').text(), 'https://example.com/?removed=parent');
+	});
+}
+
+test('creating an instance copies tuple search parameters without changing their values', async t => {
+	const searchParameters = [['tag', 'first'], ['tag', 'second'], ['page', 2], ['active', false]];
+	const instance = ky.create({
+		searchParams: searchParameters,
+		fetch: async request => new Response(request.url),
+	});
+	searchParameters[0]![1] = 'changed';
+	searchParameters.push(['extra', 'value']);
+
+	t.is(await instance('https://example.com').text(), 'https://example.com/?tag=first&tag=second&page=2&active=false');
+});
+
+test('extend callback can edit frozen tuple defaults without changing the parent', async t => {
+	const parent = ky.create({
+		searchParams: Object.freeze([Object.freeze(['key', 'value'] as const)]),
+		fetch: async request => new Response(request.url),
+	});
+	parent.extend(defaults => {
+		if (Array.isArray(defaults.searchParams)) {
+			defaults.searchParams[0]![0] = 'changed';
+		}
+
+		return {};
+	});
+
+	t.is(await parent('https://example.com').text(), 'https://example.com/?key=value');
+});
+

@@ -178,6 +178,8 @@ export const streamRequest = (request: Request, onUploadProgress: Options['onUpl
 		// @ts-expect-error - Types are outdated.
 		duplex: 'half',
 		body: withProgress(request.body, totalBytes, onUploadProgress),
+		// Bun drops the content type derived from a `FormData` body when the body is replaced, unless the headers are passed explicitly.
+		headers: request.headers,
 		referrer: request.referrer,
 		referrerPolicy: request.referrerPolicy,
 	});

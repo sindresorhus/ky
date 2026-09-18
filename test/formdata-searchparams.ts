@@ -109,3 +109,35 @@ test('retries with FormData in afterResponse hook maintains correct boundary', a
 	t.is(requestCount, 2, 'Should make 2 requests');
 	t.true(result.success, 'Content-type boundary should match body boundary on retry');
 });
+
+// Fetch §5.2 requires the multipart payload and its Content-Type header to share one boundary.
+test('replacing a Request input body keeps the multipart boundary consistent', async t => {
+	const server = await createHttpTestServer(t);
+
+	let headerBoundary: string | undefined;
+	let bodyBoundary: string | undefined;
+	server.post('/', (request, response) => {
+		headerBoundary = /boundary=([^;]+)/.exec(request.headers['content-type'] ?? '')?.[1];
+
+		let body = '';
+		request.on('data', chunk => {
+			body += chunk.toString(); // eslint-disable-line @typescript-eslint/restrict-plus-operands
+		});
+
+		request.on('end', () => {
+			bodyBoundary = /^--([^\r\n]+)/.exec(body)?.[1];
+			response.end();
+		});
+	});
+
+	const request = new Request(server.url, {method: 'POST', body: 'original'});
+	const replacement = new FormData();
+	replacement.append('field', 'value');
+
+	await ky(request, {
+		body: replacement,
+		searchParams: {a: '1'},
+	});
+
+	t.is(headerBoundary, bodyBoundary, 'Header boundary must match the body boundary');
+});
