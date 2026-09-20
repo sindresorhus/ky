@@ -15,7 +15,12 @@ import type {
 } from '../types/options.js';
 import {type ResponsePromise} from '../types/ResponsePromise.js';
 import type {StandardSchemaV1} from '../types/standard-schema.js';
-import {limitResponseSize, streamRequest, streamResponse} from '../utils/body.js';
+import {
+	getProgressCallbackError,
+	limitResponseSize,
+	streamRequest,
+	streamResponse,
+} from '../utils/body.js';
 import {
 	cloneShallow,
 	cloneDeep,
@@ -803,6 +808,12 @@ export class Ky {
 			}
 
 			if (this.#getRemainingTotalTimeout() !== 0) {
+				// A throwing progress callback errors the response stream, which a browser may report as a raw `TypeError` that would otherwise be mistaken for a dropped connection. Surface the callback error instead.
+				const progressCallbackError = getProgressCallbackError(response.body ?? undefined);
+				if (progressCallbackError !== undefined) {
+					await this.#throwProcessedError(progressCallbackError);
+				}
+
 				// A connection dropped while streaming the body surfaces as a raw runtime `TypeError`. Wrap it like fetch-phase network errors so it is recognizable and runs `beforeError` hooks.
 				// This only happens on the awaited path, so a body that fails after the timeout already won does not run the hooks again.
 				if (isRawNetworkError(error)) {
@@ -1268,6 +1279,13 @@ export class Ky {
 			if (this.#getRemainingTotalTimeout() === 0) {
 				this.#abortController?.abort();
 				throw new TimeoutError(request);
+			}
+
+			// The upload progress wrapper errors the request body stream when its callback throws, which the runtime reports as a network failure. Surface the callback error instead.
+			const progressCallbackError = getProgressCallbackError(this.#originalRequest?.body ?? undefined);
+			if (progressCallbackError !== undefined) {
+				// eslint-disable-next-line @typescript-eslint/only-throw-error -- The callback can throw any value, and non-Error throws are propagated as-is elsewhere.
+				throw progressCallbackError;
 			}
 
 			if (isRawNetworkError(error)) {

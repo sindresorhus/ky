@@ -51,6 +51,41 @@ test.afterEach(async () => {
 	await server.close();
 });
 
+browserTest('cloning a response preserves download progress callback errors', [chromium], async (t, page) => {
+	server.get('/', (_request, response) => {
+		response.end('body');
+	});
+
+	await page.goto(server.url);
+	await addKyScriptToPage(page);
+
+	const result = await page.evaluate(async (url: string) => {
+		const callbackError = new Error('download progress failed');
+		const pending = globalThis.ky(url, {
+			retry: 0,
+			onDownloadProgress() {
+				throw callbackError;
+			},
+		});
+		const response = await pending;
+		const clone = response.clone();
+		void clone.body?.cancel().catch(() => undefined);
+
+		try {
+			await pending.text();
+			return {sameError: false, errorName: 'none', message: 'none'};
+		} catch (error) {
+			return {
+				sameError: error === callbackError,
+				errorName: (error as Error).name,
+				message: (error as Error).message,
+			};
+		}
+	}, server.url);
+
+	t.deepEqual(result, {sameError: true, errorName: 'Error', message: 'download progress failed'});
+});
+
 defaultBrowsersTest('maxResponseSize limits response bytes', async (t, page) => {
 	server.get('/', (_request, response) => {
 		response.end('🦄');
