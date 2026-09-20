@@ -107,17 +107,10 @@ test('mixed-case standard method is uppercased', async t => {
 	t.is(await ky(server.url, {method: 'Delete'}).text(), 'DELETE');
 });
 
-test.failing('custom method remains identical', async t => {
-	const server = await createHttpTestServer(t);
-	server.all('/', (_request, response) => {
-		response.end();
-	});
-
-	t.plan(1);
-
+// A custom method is passed through with its casing intact. It is asserted on the outgoing request, because an HTTP server may reject an unknown method before the application sees it.
+test('custom method remains identical', async t => {
 	await t.notThrowsAsync(
-		// TODO: Is it correct for this to throw 400 status code?
-		ky(server.url, {
+		ky('https://example.com', {
 			method: 'report',
 			hooks: {
 				beforeRequest: [
@@ -125,6 +118,10 @@ test.failing('custom method remains identical', async t => {
 						t.is(options.method, 'report');
 					},
 				],
+			},
+			async fetch(request) {
+				t.is(request.method, 'report');
+				return new Response();
 			},
 		}),
 	);

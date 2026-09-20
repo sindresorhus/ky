@@ -80,7 +80,9 @@ const withProgress = (stream: ReadableStream<Uint8Array>, totalBytes: number, on
 					percent = 1 - Number.EPSILON;
 				}
 
-				report({percent, totalBytes: Math.max(totalBytes, transferredBytes), transferredBytes}, previousChunk);
+				// An unknown total stays `0`, matching the `percent` computed from the same estimate and the documented progress shape.
+				const reportedTotalBytes = totalBytes === 0 ? 0 : Math.max(totalBytes, transferredBytes);
+				report({percent, totalBytes: reportedTotalBytes, transferredBytes}, previousChunk);
 			}
 
 			previousChunk = currentChunk;

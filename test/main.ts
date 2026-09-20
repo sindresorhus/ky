@@ -1956,6 +1956,24 @@ test('searchParams drops an inherited Request input body in no-cors mode', async
 	});
 });
 
+// An inherited `Request` body is only dropped because the request is rebuilt with the updated URL, so a `searchParams` value that leaves the URL unchanged must not rebuild the request.
+for (const searchParameters of ['?', {missing: undefined}] as const) {
+	test(`searchParams ${JSON.stringify(searchParameters)} that leaves the URL unchanged preserves an inherited Request input body`, async t => {
+		const request = new Request('https://example.com/?foo=1', {method: 'POST', body: fixture});
+
+		await ky(request, {
+			searchParams: searchParameters,
+			keepalive: true,
+			async fetch(request) {
+				t.is(request.url, 'https://example.com/?foo=1');
+				t.true(request.keepalive);
+				t.is(await request.text(), fixture);
+				return new Response();
+			},
+		});
+	});
+}
+
 test('searchParams preserves keepalive inherited from a Request input', async t => {
 	const request = new Request('https://example.com', {method: 'POST', body: fixture, keepalive: true});
 

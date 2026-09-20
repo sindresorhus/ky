@@ -1278,3 +1278,49 @@ test('a throwing download progress callback propagates its own error', async t =
 	t.is(error, callbackError);
 	t.false(isNetworkError(error));
 });
+
+// `Progress.totalBytes` is documented to be `0` when the total size cannot be determined, and it must agree with the `percent` it is reported with, which is computed from the same estimate.
+test('download progress reports an unknown total as 0', async t => {
+	const progressEvents: Progress[] = [];
+	const text = await ky('https://example.com', {
+		retry: 0,
+		fetch: async () => new Response(new ReadableStream<Uint8Array>({
+			start(controller) {
+				controller.enqueue(new TextEncoder().encode('ab'));
+				controller.enqueue(new TextEncoder().encode('cd'));
+				controller.close();
+			},
+		}), {headers: {'content-type': 'text/plain'}}),
+		onDownloadProgress(progress) {
+			progressEvents.push(progress);
+		},
+	}).text();
+
+	t.is(text, 'abcd');
+	t.deepEqual(progressEvents.at(0), {percent: 0, transferredBytes: 2, totalBytes: 0});
+	t.deepEqual(progressEvents.at(-1), {percent: 1, transferredBytes: 4, totalBytes: 4});
+});
+
+test('download progress keeps reporting the estimate when it is smaller than the bytes transferred', async t => {
+	const progressEvents: Progress[] = [];
+	await ky('https://example.com', {
+		retry: 0,
+		fetch: async () => new Response(new ReadableStream<Uint8Array>({
+			start(controller) {
+				controller.enqueue(new TextEncoder().encode('ab'));
+				controller.enqueue(new TextEncoder().encode('cd'));
+				controller.close();
+			},
+		}), {headers: {'content-type': 'text/plain', 'content-length': '2'}}),
+		onDownloadProgress(progress) {
+			progressEvents.push(progress);
+		},
+	}).text();
+
+	t.deepEqual(progressEvents.at(0), {
+		// The size estimate is exceeded, so `percent` is capped just below 1 instead of reporting completion.
+		percent: 1 - Number.EPSILON,
+		transferredBytes: 2,
+		totalBytes: 2,
+	});
+});

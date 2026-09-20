@@ -304,21 +304,19 @@ test('buffer as `options.body` sets `content-length` header', async t => {
 	t.is(Number(headers['content-length']), buffer.length);
 });
 
-test.failing('removes undefined value headers', async t => {
-	const server = await createHttpTestServer(t);
-	server.get('/', echoHeaders);
-
-	const headers = await ky
-		.get(server.url, {
-			headers: {
-				'user-agent': undefined,
-				unicorn: 'unicorn',
-			},
-		})
-		.json<IncomingHttpHeaders>();
-
-	t.is(headers['user-agent'], 'undefined');
-	t.is(headers['unicorn'], 'unicorn');
+// A header set to `undefined` is removed from the request Ky sends. It is asserted on the outgoing request, because a runtime default header, such as Undici's `user-agent`, is added again by `fetch` and so cannot be removed.
+test('removes undefined value headers', async t => {
+	await ky.get('https://example.com', {
+		headers: {
+			'user-agent': undefined,
+			unicorn: 'unicorn',
+		},
+		async fetch(request) {
+			t.false(request.headers.has('user-agent'));
+			t.is(request.headers.get('unicorn'), 'unicorn');
+			return new Response();
+		},
+	});
 });
 
 test('non-existent headers set to undefined are omitted', async t => {

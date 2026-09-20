@@ -521,32 +521,36 @@ export class Ky {
 			}
 
 			// Recreate request with the updated URL. We already have all options in this.#options, including duplex.
-			// Request options are read back from the current request so values inherited from a `Request` input (like `credentials`) survive, while explicit options already won when that request was built.
-			// A `Request` input's body is only available as a stream, so keeping it requires request stream support.
-			const {
-				body: inheritedBody,
-				cache,
-				credentials,
-				integrity,
-				keepalive,
-				mode,
-				redirect,
-				referrer,
-				referrerPolicy,
-			} = this.request;
-			const canUseInheritedBody = supportsRequestStreams && !keepalive && mode !== 'no-cors';
-			this.request = new globalThis.Request(url, {
-				...this.#options,
-				cache,
-				credentials,
-				integrity,
-				keepalive,
-				mode,
-				redirect,
-				referrer,
-				referrerPolicy,
-				body: this.#options.body ?? (canUseInheritedBody ? inheritedBody : undefined),
-			} as RequestInit);
+			// Rebuilding is also what drops an inherited `Request` body, so it is skipped when the search parameters leave the URL unchanged.
+			if (url.href !== this.request.url) {
+				// Request options are read back from the current request so values inherited from a `Request` input (like `credentials`) survive, while explicit options already won when that request was built.
+				// A `Request` input's body is only available as a stream, so keeping it requires request stream support.
+				const {
+					body: inheritedBody,
+					cache,
+					credentials,
+					integrity,
+					keepalive,
+					mode,
+					redirect,
+					referrer,
+					referrerPolicy,
+				} = this.request;
+				const canUseInheritedBody = supportsRequestStreams && !keepalive && mode !== 'no-cors';
+
+				this.request = new globalThis.Request(url, {
+					...this.#options,
+					cache,
+					credentials,
+					integrity,
+					keepalive,
+					mode,
+					redirect,
+					referrer,
+					referrerPolicy,
+					body: this.#options.body ?? (canUseInheritedBody ? inheritedBody : undefined),
+				} as RequestInit);
+			}
 		}
 
 		if (this.#options.onUploadProgress && typeof this.#options.onUploadProgress !== 'function') {
