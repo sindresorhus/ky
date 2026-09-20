@@ -51,41 +51,6 @@ test.afterEach(async () => {
 	await server.close();
 });
 
-browserTest('cloning a response preserves download progress callback errors', [chromium], async (t, page) => {
-	server.get('/', (_request, response) => {
-		response.end('body');
-	});
-
-	await page.goto(server.url);
-	await addKyScriptToPage(page);
-
-	const result = await page.evaluate(async (url: string) => {
-		const callbackError = new Error('download progress failed');
-		const pending = globalThis.ky(url, {
-			retry: 0,
-			onDownloadProgress() {
-				throw callbackError;
-			},
-		});
-		const response = await pending;
-		const clone = response.clone();
-		void clone.body?.cancel().catch(() => undefined);
-
-		try {
-			await pending.text();
-			return {sameError: false, errorName: 'none', message: 'none'};
-		} catch (error) {
-			return {
-				sameError: error === callbackError,
-				errorName: (error as Error).name,
-				message: (error as Error).message,
-			};
-		}
-	}, server.url);
-
-	t.deepEqual(result, {sameError: true, errorName: 'Error', message: 'download progress failed'});
-});
-
 defaultBrowsersTest('maxResponseSize limits response bytes', async (t, page) => {
 	server.get('/', (_request, response) => {
 		response.end('🦄');
@@ -144,6 +109,97 @@ defaultBrowsersTest('maxResponseSize passes through a 204 response', async (t, p
 	}, server.url);
 
 	t.deepEqual(result, {status: 204, header: 'ky', text: ''});
+});
+
+// A throwing progress callback is a user error. Chromium reports the failed response stream as a generic `TypeError`, so the callback error must survive that instead of becoming a `NetworkError` or a `TypeError`.
+browserTest('a throwing download progress callback propagates its own error', [chromium, webkit], async (t, page) => {
+	server.get('/', (_request, response) => {
+		response.end('body');
+	});
+
+	await page.goto(server.url);
+	await addKyScriptToPage(page);
+
+	const result = await page.evaluate(async (url: string) => {
+		try {
+			await globalThis.ky(url, {
+				retry: 0,
+				onDownloadProgress() {
+					throw new Error('download progress failed');
+				},
+			}).text();
+			return {errorName: 'none', message: 'none'};
+		} catch (error) {
+			return {errorName: (error as Error).name, message: (error as Error).message};
+		}
+	}, server.url);
+
+	t.deepEqual(result, {errorName: 'Error', message: 'download progress failed'});
+});
+
+browserTest('cloning a response preserves download progress callback errors', [chromium], async (t, page) => {
+	server.get('/', (_request, response) => {
+		response.end('body');
+	});
+
+	await page.goto(server.url);
+	await addKyScriptToPage(page);
+
+	const result = await page.evaluate(async (url: string) => {
+		const callbackError = new Error('download progress failed');
+		const pending = globalThis.ky(url, {
+			retry: 0,
+			onDownloadProgress() {
+				throw callbackError;
+			},
+		});
+		const response = await pending;
+		const clone = response.clone();
+		void clone.body?.cancel().catch(() => undefined);
+
+		try {
+			await pending.text();
+			return {sameError: false, errorName: 'none', message: 'none'};
+		} catch (error) {
+			return {
+				sameError: error === callbackError,
+				errorName: (error as Error).name,
+				message: (error as Error).message,
+			};
+		}
+	}, server.url);
+
+	t.deepEqual(result, {sameError: true, errorName: 'Error', message: 'download progress failed'});
+});
+
+// WebKit exposes a body for `205 Reset Content`, which the Fetch spec lists as a null body status. Ky cannot wrap such a response, because the `Response` constructor rejects a body for those statuses, so `maxResponseSize` and `onDownloadProgress` do not apply to it.
+browserTest('maxResponseSize does not apply to a 205 response body in WebKit', [webkit], async (t, page) => {
+	server.get('/', (_request, response) => {
+		response.end('ok');
+	});
+
+	server.get('/reset', (_request, response) => {
+		response.writeHead(205, {'content-type': 'text/plain', 'content-length': '4'});
+		response.end('abcd');
+	});
+
+	await page.goto(server.url);
+	await addKyScriptToPage(page);
+
+	const result = await page.evaluate(async (url: string) => {
+		let progressCalls = 0;
+		const response = await globalThis.ky(url, {
+			maxResponseSize: 1,
+			retry: 0,
+			onDownloadProgress() {
+				progressCalls++;
+			},
+		});
+
+		return {status: response.status, text: await response.text(), progressCalls};
+	}, `${server.url}/reset`);
+
+	t.deepEqual(result, {status: 205, text: 'abcd', progressCalls: 0});
 });
 
 defaultBrowsersTest('maxResponseSize preserves errors in native body methods and progress wrappers', async (t, page) => {

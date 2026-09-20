@@ -7,7 +7,7 @@ const responseSizeErrors = new WeakMap<ReadableStream, () => ResponseSizeError |
 // Errors thrown by a progress callback, keyed by the stream the callback reports on.
 // A throwing progress callback is a user error, but the runtime reports the resulting stream failure as a network error, so Ky needs the original error to surface it as-is.
 const progressCallbackErrors = new WeakMap<ReadableStream, () => unknown>();
-// The `Response` constructor rejects a body for these statuses, but some browsers (for example, Chromium and WebKit) still expose an empty body stream on such responses, so they must not be wrapped.
+// The `Response` constructor rejects a body for these statuses, but some browsers (for example, Chromium and WebKit) still expose a body stream on such responses, so they must not be wrapped. A runtime that exposes a non-empty body for one of them, such as WebKit for 205, is therefore left unlimited and without progress events.
 const nullBodyStatuses = new Set([101, 103, 204, 205, 304]);
 
 // eslint-disable-next-line @typescript-eslint/no-restricted-types

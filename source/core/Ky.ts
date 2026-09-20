@@ -386,6 +386,7 @@ export class Ky {
 	// Keep the input Request alive because Node.js stops forwarding its signal when the Request is garbage-collected.
 	readonly #requestInput: Request | undefined;
 	#originalRequest?: Request;
+	#requestBodyCanBeCancelled = false;
 	readonly #userProvidedAbortSignal: AbortSignal | undefined;
 	readonly #beforeRetryHookErrors = new WeakSet<Error>();
 	#cachedNormalizedOptions: NormalizedOptions | undefined;
@@ -482,6 +483,7 @@ export class Ky {
 		}
 
 		this.request = new globalThis.Request(input, this.#options as RequestInit);
+		this.#requestBodyCanBeCancelled = typeof globalThis.ReadableStream === 'function' && this.#options.body instanceof globalThis.ReadableStream;
 
 		if (hasSearchParameters(this.#options.searchParams)) {
 			const url = new URL(this.request.url);
@@ -1173,7 +1175,7 @@ export class Ky {
 		if (this.#abortController?.signal.aborted) {
 			this.#abortController = new globalThis.AbortController();
 			this.#options.signal = this.#createManagedSignal();
-			this.#assignRequest(this.#withManagedSignal(this.request));
+			this.#assignRequest(this.#withManagedSignal(this.request), this.#requestBodyCanBeCancelled);
 		}
 
 		// Apply custom request from forced retry before beforeRetry hooks
@@ -1257,6 +1259,7 @@ export class Ky {
 		this.#originalRequest = request;
 		if (retryRequest) {
 			this.request = retryRequest;
+			this.#requestBodyCanBeCancelled = true;
 		}
 
 		try {
@@ -1341,13 +1344,15 @@ export class Ky {
 		return this.#cachedNormalizedOptions;
 	}
 
-	#assignRequest(request: Request): void {
-		if (this.request.body !== request.body) {
+	#assignRequest(request: Request, requestBodyCanBeCancelled = false): void {
+		// Runtime-derived bodies such as `FormData` may still be serialized after a hook constructs a replacement Request, so only caller-provided streams and Ky's own prepared retry clones are safe to cancel here.
+		if (this.#requestBodyCanBeCancelled && this.request.body !== request.body) {
 			this.#cancelBody(this.request.body ?? undefined);
 		}
 
 		this.#cachedNormalizedOptions = undefined;
 		this.request = request;
+		this.#requestBodyCanBeCancelled = requestBodyCanBeCancelled;
 	}
 
 	// A replacement `Request` from a hook or `ky.retry({request})` carries its own signal, so re-attach Ky's managed signal to keep timeouts and user aborts working. Request-like objects are used as-is since the `Request` constructor cannot copy them, so they keep whatever signal they carry, even on a retry after a timeout.

@@ -86,6 +86,7 @@ const withoutProgressCallbacks: Options = {onDownloadProgress: undefined, onUplo
 expectTypeOf(withoutProgressCallbacks.onDownloadProgress).toMatchTypeOf<Options['onDownloadProgress']>();
 expectTypeOf(withoutProgressCallbacks.onUploadProgress).toMatchTypeOf<Options['onUploadProgress']>();
 expectTypeOf(withoutHooks.hooks?.beforeRequest).toEqualTypeOf<readonly BeforeRequestHook[] | undefined>();
+// `null` is accepted for `RequestInit` compatibility, so a `RequestInit` can be forwarded to Ky.
 // eslint-disable-next-line @typescript-eslint/no-restricted-types
 expectTypeOf(withoutSignal.signal).toEqualTypeOf<AbortSignal | null | undefined>();
 

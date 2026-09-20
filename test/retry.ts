@@ -2295,6 +2295,33 @@ test.serial('respect maximum backoffLimit', async t => {
 	t.is(requestCount, 5);
 });
 
+// `backoffLimit` bounds the delay computed from `retry.delay`, not a delay that the server asked for. That delay is bounded by `maxRetryAfter` instead.
+test.serial('backoffLimit does not bound a retry timing delay', async t => {
+	const retryAfterDelay = 2_000_000;
+	let requestCount = 0;
+
+	await withCapturedTimeouts(async scheduledDelays => {
+		t.is(await ky('https://example.com', {
+			timeout: false,
+			async fetch() {
+				requestCount++;
+				return requestCount === 1
+					? new Response(null, {status: 429, headers: {'Retry-After': '2000'}})
+					: new Response(fixture);
+			},
+			retry: {
+				limit: 1,
+				backoffLimit: 50,
+			},
+		}).text(), fixture);
+
+		t.true(scheduledDelays.includes(retryAfterDelay));
+		t.false(scheduledDelays.includes(50));
+	});
+
+	t.is(requestCount, 2);
+});
+
 test.serial('backoffLimit: undefined treats as no limit (Infinity)', async t => {
 	const retryCount = 4;
 	let requestCount = 0;
@@ -4713,4 +4740,54 @@ test('a retry after a network error resends the complete streaming request body'
 
 	t.is(result, 'ok');
 	t.deepEqual(bodies, ['retried 🦄', 'retried 🦄']);
+});
+
+// The retry delay only listens to the caller's signal, so aborting during it stops the retry and reports the reason.
+test('a user abort during the retry delay throws the abort reason', async t => {
+	const controller = new AbortController();
+	const {promise: delayStarted, resolve: markDelayStarted} = Promise.withResolvers();
+	let attempts = 0;
+	const pending = ky('https://example.com', {
+		signal: controller.signal,
+		retry: {
+			limit: 3,
+			delay() {
+				markDelayStarted();
+				return 10_000;
+			},
+		},
+		async fetch() {
+			attempts++;
+			throw new TypeError('fetch failed');
+		},
+	}).text();
+
+	await delayStarted;
+	// `retry.delay` runs just before the wait starts, so let the wait begin before aborting.
+	await delay(10);
+	controller.abort(new Error('Cancelled during the delay'));
+
+	const error = await t.throwsAsync(pending);
+	t.is(error.message, 'Cancelled during the delay');
+	t.is(attempts, 1);
+});
+
+// `beforeError` hooks run after an error is produced, so they are not bounded by `totalTimeout`.
+test('totalTimeout does not bound a beforeError hook', async t => {
+	const error = await t.throwsAsync(ky('https://example.com', {
+		totalTimeout: 50,
+		timeout: false,
+		retry: 0,
+		hooks: {
+			beforeError: [async ({error}) => {
+				await delay(200);
+				return new Error(`rewritten: ${error.name}`);
+			}],
+		},
+		async fetch() {
+			throw new TypeError('fetch failed');
+		},
+	}));
+
+	t.is(error.message, 'rewritten: NetworkError');
 });

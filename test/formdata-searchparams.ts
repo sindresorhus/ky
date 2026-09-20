@@ -141,3 +141,45 @@ test('replacing a Request input body keeps the multipart boundary consistent', a
 
 	t.is(headerBoundary, bodyBoundary, 'Header boundary must match the body boundary');
 });
+
+// A hook can replace the request body, as in the "Modifying FormData in hooks" example. The body of the replaced request must not be cancelled, because the runtime may still read it to serialize the replacement body.
+test('a hook can replace a FormData body', async t => {
+	const server = await createHttpTestServer(t);
+
+	let headerBoundary: string | undefined;
+	let body = '';
+	server.post('/', (request, response) => {
+		headerBoundary = /boundary=([^;]+)/.exec(request.headers['content-type'] ?? '')?.[1];
+
+		request.on('data', chunk => {
+			body += chunk.toString(); // eslint-disable-line @typescript-eslint/restrict-plus-operands
+		});
+
+		request.on('end', () => {
+			response.end();
+		});
+	});
+
+	const formData = new FormData();
+	formData.append('Food', 'fries');
+
+	await ky.post(server.url, {
+		body: formData,
+		hooks: {
+			beforeRequest: [({request}) => {
+				const replacement = new FormData();
+				for (const [key, value] of formData) {
+					replacement.set(key.toLowerCase(), value);
+				}
+
+				request.headers.delete('content-type');
+				return new Request(request, {body: replacement});
+			}],
+		},
+	});
+
+	t.truthy(headerBoundary);
+	t.is(`--${headerBoundary}`, body.slice(0, headerBoundary.length + 2), 'Header boundary must match the body boundary');
+	t.true(body.includes('name="food"'), 'The replacement fields must be sent');
+	t.false(body.includes('name="Food"'), 'The replaced fields must not be sent');
+});

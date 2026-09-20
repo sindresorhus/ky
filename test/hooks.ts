@@ -6646,3 +6646,45 @@ for (const hook of ['beforeRequest', 'beforeRetry'] as const) {
 		t.is(cancellations, 1);
 	});
 }
+
+test('beforeRetry releases a streaming body returned by beforeRequest when replacing the request', async t => {
+	let cancellations = 0;
+	let attempts = 0;
+	let abandonedRequest: Request | undefined;
+	const body = new ReadableStream({
+		cancel() {
+			cancellations++;
+		},
+	});
+	t.teardown(() => {
+		void abandonedRequest?.body?.cancel().catch(() => undefined);
+	});
+
+	const result = await ky.put('https://example.com', {
+		body: 'original',
+		retry: {limit: 1, delay: () => 0},
+		hooks: {
+			beforeRequest: [({request}) => new Request(request.url, {
+				method: 'PUT',
+				// @ts-expect-error - RequestInit types do not include duplex.
+				duplex: 'half',
+				body,
+			})],
+			beforeRetry: [({request}) => {
+				abandonedRequest = request;
+				return new Request(request.url, {method: 'PUT', body: 'replacement'});
+			}],
+		},
+		async fetch(request) {
+			attempts++;
+			return attempts === 1
+				? new Response('', {status: 503})
+				: new Response(await request.text());
+		},
+	}).text();
+
+	await delay(0);
+	t.is(result, 'replacement');
+	t.is(attempts, 2);
+	t.is(cancellations, 1);
+});

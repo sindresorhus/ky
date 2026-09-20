@@ -1,4 +1,4 @@
-import test from 'ava';
+import test, {type ExecutionContext} from 'ava';
 import ky, {isNetworkError, type Progress} from '../source/index.js';
 import {createLargeBlob} from './helpers/create-large-file.js';
 import {createHttpTestServer} from './helpers/create-http-test-server.js';
@@ -1181,17 +1181,22 @@ test('completed upload progress uses the actual size of a replaced body', async 
 	});
 });
 
-// A throwing progress callback is a user-space error, so it must surface as that error rather than as a
-// network failure. Upload progress runs inside the request body stream, where the runtime reports any stream
-// error as a `TypeError: fetch failed` that Ky would otherwise classify as a `NetworkError`.
-test('a throwing upload progress callback propagates its own error', async t => {
-	const server = await createHttpTestServer(t, {bodyParser: false});
+// The upload progress tests below share a server that records how many requests reached it.
+const createUploadProgressTestServer = async (t: ExecutionContext) => {
 	let requestCount = 0;
+	const server = await createHttpTestServer(t, {bodyParser: false});
 	server.post('/', async (request, response) => {
 		requestCount++;
 		await parseRawBody(request);
 		response.end('ok');
 	});
+
+	return {server, getRequestCount: () => requestCount};
+};
+
+// A throwing progress callback is a user-space error, so it must surface as that error rather than as a network failure. Upload progress runs inside the request body stream, where the runtime reports any stream error as a `TypeError: fetch failed` that Ky would otherwise classify as a `NetworkError`.
+test('a throwing upload progress callback propagates its own error', async t => {
+	const {server, getRequestCount} = await createUploadProgressTestServer(t);
 
 	const callbackError = new Error('upload progress failed');
 	const error = await t.throwsAsync(ky.post(server.url, {
@@ -1206,16 +1211,12 @@ test('a throwing upload progress callback propagates its own error', async t => 
 	t.is(error.name, 'Error');
 	t.is(error.message, 'upload progress failed');
 	t.false(isNetworkError(error));
-	t.is(requestCount, 0);
+	t.is(getRequestCount(), 0);
 });
 
 test('a throwing upload progress callback is not retried as a network error', async t => {
-	const server = await createHttpTestServer(t, {bodyParser: false});
+	const {server} = await createUploadProgressTestServer(t);
 	let beforeRetryCalls = 0;
-	server.post('/', async (request, response) => {
-		await parseRawBody(request);
-		response.end('ok');
-	});
 
 	// A `NetworkError` would be retried for this method, which would re-send the body of a failed callback.
 	const error = await t.throwsAsync(ky.post(server.url, {
@@ -1236,11 +1237,7 @@ test('a throwing upload progress callback is not retried as a network error', as
 });
 
 test('a throwing upload progress callback is visible to beforeError hooks', async t => {
-	const server = await createHttpTestServer(t, {bodyParser: false});
-	server.post('/', async (request, response) => {
-		await parseRawBody(request);
-		response.end('ok');
-	});
+	const {server} = await createUploadProgressTestServer(t);
 
 	const seen: string[] = [];
 	const error = await t.throwsAsync(ky.post(server.url, {

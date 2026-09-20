@@ -122,7 +122,7 @@ export type KyOptions = {
 
 	When passing an object, setting a value to `undefined` deletes the parameter, including from the input URL, even when a later option layer adds the parameter again. `null` values are preserved and converted to the string `'null'`.
 
-	When `input` is a [`Request`](https://developer.mozilla.org/en-US/docs/Web/API/Request) with a body, the body is sent as a stream, which requires [request stream support](https://caniuse.com/wf-fetch-request-streams) and, in Chromium-based browsers, an HTTP/2 or HTTP/3 connection (streaming uploads over HTTP/1.1 fail with a network error, even over plain HTTP). In environments without request stream support, when `keepalive` is true, or when the effective mode is `'no-cors'`, the inherited body is dropped. A compatible body passed explicitly with the `body` option is still used.
+	When `input` is a [`Request`](https://developer.mozilla.org/en-US/docs/Web/API/Request) with a body, the body is sent as a stream, which requires [request stream support](https://caniuse.com/wf-fetch-request-streams) and, in Chromium-based browsers, an HTTP/2 or HTTP/3 connection (streaming uploads over HTTP/1.1 fail with a network error, even over plain HTTP). The inherited body is dropped when the search parameters change the URL and the request has to be rebuilt in an environment that cannot reuse it, which is the case without request stream support, when `keepalive` is true, or when the effective mode is `'no-cors'`. A search parameter value that leaves the URL unchanged does not rebuild the request, so the body is kept. A compatible body passed explicitly with the `body` option is still used.
 	*/
 	searchParams?: SearchParamsOption;
 
@@ -185,9 +185,9 @@ export type KyOptions = {
 
 	Network errors (e.g., DNS failures, connection refused, offline) are automatically retried for retriable methods. Only errors recognized as network errors are retried; other errors (e.g., programming bugs) are thrown immediately. Use `shouldRetry` to customize this behavior.
 
-	`413 Payload Too Large` is only retried when the response includes a retry timing header.
+	`413 Payload Too Large` is only retried when the response includes a retry timing header, unless `shouldRetry` returns `true`.
 
-	When the response status is contained in both `statusCodes` and `afterStatusCodes`, Ky uses retry timing headers to choose the retry delay. [`Retry-After`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Retry-After) may provide a delay in seconds or an HTTP-date. If `Retry-After` is missing, Ky falls back to rate-limit timing headers (`RateLimit-Reset`, `X-RateLimit-Retry-After`, `X-RateLimit-Reset`, and `X-Rate-Limit-Reset`). Numeric `Retry-After` and `X-RateLimit-Retry-After` values are interpreted as delay seconds. Numeric `RateLimit-Reset`, `X-RateLimit-Reset`, and `X-Rate-Limit-Reset` values may also be interpreted as current-era Unix timestamps. If the status code is not in `afterStatusCodes`, retry timing headers will be ignored.
+	When the response status is contained in `afterStatusCodes` and the retry is allowed by `statusCodes` or `shouldRetry`, Ky uses retry timing headers to choose the retry delay. [`Retry-After`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Retry-After) may provide a delay in seconds or an HTTP-date. If `Retry-After` is missing, Ky falls back to rate-limit timing headers (`RateLimit-Reset`, `X-RateLimit-Retry-After`, `X-RateLimit-Reset`, and `X-Rate-Limit-Reset`). Numeric `Retry-After` and `X-RateLimit-Retry-After` values are interpreted as delay seconds. Numeric `RateLimit-Reset`, `X-RateLimit-Reset`, and `X-Rate-Limit-Reset` values may also be interpreted as current-era Unix timestamps. If the status code is not in `afterStatusCodes`, retry timing headers will be ignored.
 
 	If the retry delay from a retry timing header is greater than `maxRetryAfter`, Ky will use `maxRetryAfter`.
 
@@ -248,6 +248,8 @@ export type KyOptions = {
 
 	With `await ky(url)`, the response can resolve before the limit is exceeded; the body read will reject instead. This limits body bytes, not total memory usage. Parsing, buffering, and concurrent requests can use additional memory.
 
+	Responses with a [null body status](https://fetch.spec.whatwg.org/#null-body-status), such as `204` and `205`, are never wrapped, because the `Response` constructor rejects a body for those statuses. A runtime that still exposes a body for such a status, such as WebKit for `205`, is therefore not limited.
+
 	@default Infinity
 
 	@example
@@ -286,6 +288,10 @@ export type KyOptions = {
 
 	@param progress - Object containing download progress information.
 	@param chunk - Data that was received. When an empty response body stream completes, the callback receives an empty chunk.
+
+	Responses with a [null body status](https://fetch.spec.whatwg.org/#null-body-status) are not streamed, so no progress events are emitted for them.
+
+	When the callback throws, the error is reported by Ky's body method shortcuts. A response read directly with `response.text()` or `response.json()` may instead report the runtime's own stream error, such as Chromium's generic `TypeError`.
 
 	@example
 	```
@@ -482,6 +488,8 @@ export interface Options extends KyOptions, RequestOptions { // eslint-disable-l
 	An `AbortSignal` to abort the request.
 
 	When extending an instance, signals are combined. Use `replaceOption(signal)` to replace inherited signals, or `signal: undefined` to remove them.
+
+	`null` is accepted for `RequestInit` compatibility and is treated like an absent signal, so it does not remove an inherited signal.
 	*/
 	// eslint-disable-next-line @typescript-eslint/no-restricted-types
 	signal?: AbortSignal | null | undefined;

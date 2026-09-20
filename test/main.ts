@@ -4035,3 +4035,27 @@ test('extend callback can edit frozen tuple defaults without changing the parent
 	t.is(await parent('https://example.com').text(), 'https://example.com/?key=value');
 });
 
+// Only `undefined` and `replaceOption()` remove an inherited signal. `null` is accepted for `RequestInit` compatibility and means "no signal given", so it keeps the inherited signal instead of clearing it.
+test('a null signal is treated like an absent one', async t => {
+	const controller = new AbortController();
+	const api = ky.create({signal: controller.signal});
+	controller.abort();
+
+	await t.throwsAsync(api('https://example.com', {
+		signal: null,
+		async fetch(request) {
+			// The inherited signal is still attached, so the request the runtime receives is already aborted.
+			request.signal.throwIfAborted();
+			return new Response();
+		},
+	}), {name: 'AbortError'});
+
+	// `undefined` removes the inherited signal, so the request the runtime receives is not aborted by it.
+	await t.notThrowsAsync(api('https://example.com', {
+		signal: undefined,
+		async fetch(request) {
+			t.false(request.signal.aborted);
+			return new Response();
+		},
+	}));
+});

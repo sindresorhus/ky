@@ -37,7 +37,7 @@ export type RetryOptions = {
 	/**
 	The HTTP status codes allowed to retry.
 
-	`413 Payload Too Large` is only retried when the response includes a retry timing header.
+	`413 Payload Too Large` is only retried when the response includes a retry timing header, unless `shouldRetry` returns `true`.
 
 	@default [408, 413, 429, 500, 502, 503, 504]
 	*/
@@ -58,8 +58,9 @@ export type RetryOptions = {
 	maxRetryAfter?: number | undefined;
 
 	/**
-	The upper limit of the delay per retry in milliseconds.
+	The upper limit of the delay per retry in milliseconds, for the delay calculated by `retry.delay`.
 	To clamp the delay, set `backoffLimit` to 1000, for example.
+	A delay from a retry timing header is not subject to this limit; use `maxRetryAfter` to bound it.
 
 	By default, the delay is calculated in the following way:
 
