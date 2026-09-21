@@ -8,6 +8,7 @@ import type {
 	Input,
 	InitOptions,
 	InternalOptions,
+	KyHeadersInit,
 	NormalizedOptions,
 	Options,
 	SearchParamsInit,
@@ -25,6 +26,7 @@ import {
 	cloneShallow,
 	cloneDeep,
 	mergeHeaders,
+	mergeHeaderContainers,
 	mergeHooks,
 	deletedParametersSymbol,
 } from '../utils/merge.js';
@@ -132,16 +134,37 @@ const cloneSearchParametersForInitHook = (searchParameters: SearchParamsOption |
 
 // Shallow-clone mutable option properties so init hook mutations don't leak across requests.
 function cloneInitHookOptions(options: Options): InitOptions {
+	let headers = mergeHeaderContainers({}, options.headers ?? {});
+	let context = cloneDeep(options.context) ?? {};
 	const clonedOptions: Options = {
 		...options,
 		// Deep-clone so init-hook mutations to nested values do not leak across requests, matching the nested `retry` cloning below. Non-plain values (functions, class instances) are kept by reference.
 		json: cloneDeep(options.json),
-		// `context` is documented to always be an object in every hook, including `init`.
-		context: cloneDeep(options.context) ?? {},
-		// `headers` is documented to always be a plain object in `init` hooks, so hooks can add headers in place even when none were provided.
-		headers: cloneShallow(options.headers) ?? {},
 		searchParams: cloneSearchParametersForInitHook(options.searchParams),
 	};
+
+	Object.defineProperties(clonedOptions, {
+		headers: {
+			enumerable: true,
+			configurable: true,
+			get() {
+				return headers;
+			},
+			set(value: KyHeadersInit | undefined) {
+				headers = mergeHeaderContainers({}, value ?? {});
+			},
+		},
+		context: {
+			enumerable: true,
+			configurable: true,
+			get() {
+				return context;
+			},
+			set(value: Record<string, unknown> | undefined) {
+				context = value ?? {};
+			},
+		},
+	});
 
 	if (options.retry !== undefined) {
 		clonedOptions.retry = cloneRetryOptions(options.retry);

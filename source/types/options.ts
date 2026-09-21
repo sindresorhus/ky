@@ -495,7 +495,11 @@ export interface Options extends KyOptions, RequestOptions { // eslint-disable-l
 	signal?: AbortSignal | null | undefined;
 }
 
-export type InitOptions = Omit<Options, 'retry' | 'hooks'> & {
+export type InitOptions = Omit<Options, 'retry' | 'hooks' | 'headers' | 'context'> & {
+	get headers(): Record<string, string | undefined>;
+	set headers(value: KyHeadersInit | undefined);
+	get context(): Record<string, unknown>;
+	set context(value: Record<string, unknown> | undefined);
 	retry?: MutableRetryOptions | number | undefined;
 	hooks?: {[Key in keyof Hooks]?: NormalizedHooks[Key] | undefined} | undefined;
 };

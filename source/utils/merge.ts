@@ -181,7 +181,7 @@ const toHeaderObject = (source: KyHeadersInit): Record<string, string | undefine
 	return result;
 };
 
-const mergeHeaderContainers = (source1: KyHeadersInit, source2: KyHeadersInit): Record<string, string | undefined> =>
+export const mergeHeaderContainers = (source1: KyHeadersInit, source2: KyHeadersInit): Record<string, string | undefined> =>
 	mergeHeaderObjects(toHeaderObject(source1), toHeaderObject(source2));
 
 function newHookValue<K extends keyof Hooks>(original: Hooks, incoming: Hooks, property: K): NormalizedHooks[K] {

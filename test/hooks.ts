@@ -5615,6 +5615,26 @@ test('multiple init hooks on the same call see each other\'s mutations', async t
 	});
 });
 
+test('init hook replacements stay normalized for later init hooks', async t => {
+	await ky.get('https://example.com', {
+		fetch: async () => new Response('ok'),
+		hooks: {
+			init: [
+				options => {
+					options.headers = new Headers({'X-Test': 'value'});
+					options.context = undefined;
+				},
+				options => {
+					t.deepEqual(options.headers, {'x-test': 'value'});
+					t.deepEqual(options.context, {});
+					options.headers['x-added'] = 'added';
+					options.context.added = true;
+				},
+			],
+		},
+	});
+});
+
 test('init hook sees per-request options merged with defaults', async t => {
 	t.plan(2);
 
