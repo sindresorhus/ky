@@ -6924,3 +6924,102 @@ test('`ky.stop` still resolves the plain request with `undefined`', async t => {
 		},
 	}), undefined);
 });
+
+// The defensive copy only ran on the values the options object started with. A hook that assigned one of its own
+// objects got that same object back for every later hook and every later request, so a mutation in a second hook
+// wrote straight through to the object the first hook owned.
+test('an `init` hook that assigns `json` hands later hooks a copy', async t => {
+	const bodies: string[] = [];
+	const ownBody = {list: [1, 2]};
+	const instance = ky.create({
+		method: 'POST',
+		json: {list: [1, 2]},
+		retry: 0,
+		hooks: {
+			init: [
+				options => {
+					options.json = ownBody;
+				},
+				options => {
+					(options.json as typeof ownBody).list.push(99);
+				},
+			],
+		},
+		async fetch(request) {
+			bodies.push(await request.clone().text());
+			return new Response('ok');
+		},
+	});
+
+	await instance('https://example.com').text();
+	await instance('https://example.com').text();
+
+	t.deepEqual(bodies, ['{"list":[1,2,99]}', '{"list":[1,2,99]}']);
+	t.deepEqual(ownBody, {list: [1, 2]});
+});
+
+test('an `init` hook that assigns `searchParams` or `context` hands later hooks a copy', async t => {
+	const urls: string[] = [];
+	const contexts: string[] = [];
+	const ownSearchParameters = {page: 1};
+	const ownContext = {token: 'first'};
+
+	const instance = ky.create({
+		retry: 0,
+		hooks: {
+			init: [
+				options => {
+					options.searchParams = ownSearchParameters;
+					options.context = ownContext;
+				},
+				options => {
+					(options.searchParams as typeof ownSearchParameters).page = 2;
+					(options.context as typeof ownContext).token = 'second';
+				},
+			],
+			beforeRequest: [({options}) => {
+				contexts.push(JSON.stringify(options.context));
+			}],
+		},
+		async fetch(request) {
+			urls.push(request.url);
+			return new Response('ok');
+		},
+	});
+
+	await instance('https://example.com').text();
+	await instance('https://example.com').text();
+
+	t.deepEqual(urls, ['https://example.com/?page=2', 'https://example.com/?page=2']);
+	t.deepEqual(contexts, ['{"token":"second"}', '{"token":"second"}']);
+	t.deepEqual(ownSearchParameters, {page: 1});
+	t.deepEqual(ownContext, {token: 'first'});
+});
+
+test('an `init` hook that assigns `retry` hands later hooks a copy', async t => {
+	const attemptCounts: number[] = [];
+	const ownRetry = {limit: 0, delay: () => 0};
+
+	const instance = ky.create({
+		hooks: {
+			init: [
+				options => {
+					options.retry = ownRetry;
+				},
+				options => {
+					(options.retry as typeof ownRetry).limit = 1;
+				},
+			],
+		},
+		async fetch() {
+			attemptCounts.push(1);
+			return new Response('server error', {status: 500});
+		},
+	});
+
+	await t.throwsAsync(instance('https://example.com').text());
+	await t.throwsAsync(instance('https://example.com').text());
+
+	t.deepEqual(attemptCounts, [1, 1, 1, 1]);
+	t.deepEqual(ownRetry, {limit: 0, delay: ownRetry.delay});
+});

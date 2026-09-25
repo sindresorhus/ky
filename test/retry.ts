@@ -4885,3 +4885,44 @@ test('a negative `retry.delay` result is rejected', async t => {
 		message: '`retry.delay` must return a non-negative number or `Infinity`',
 	});
 });
+
+// Array-shaped retry options were only checked for being arrays, so a mistyped entry silently disabled retrying
+// with no indication of why.
+test('rejects non-string `retry.methods` entries and non-number status code entries', t => {
+	for (const [key, value] of [
+		['methods', ['GET', 5]],
+		['statusCodes', ['429']],
+		['statusCodes', [429.5]],
+		['statusCodes', [null]],
+		['afterStatusCodes', ['503']],
+		['afterStatusCodes', [Number.NaN]],
+	] as Array<[string, unknown]>) {
+		const retry: Record<string, unknown> = {[key]: value};
+
+		t.throws(() => {
+			void ky('https://example.com', {retry: retry as never});
+		}, {
+			instanceOf: TypeError,
+			message: `\`retry.${key}\` must only contain ${key === 'methods' ? 'strings' : 'numbers'}`,
+		}, `${key}: ${JSON.stringify(value)}`);
+	}
+});
+
+test('a rejected retry list entry is reported before the request is sent', t => {
+	let requestCount = 0;
+	const retry: Record<string, unknown> = {statusCodes: ['500']};
+
+	t.throws(() => {
+		void ky('https://example.com', {
+			async fetch() {
+				requestCount++;
+				return new Response(null, {status: 500});
+			},
+			retry: retry as never,
+		});
+	}, {
+		instanceOf: TypeError,
+		message: '`retry.statusCodes` must only contain numbers',
+	});
+	t.is(requestCount, 0);
+});

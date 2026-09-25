@@ -289,6 +289,8 @@ export type KyOptions = {
 	@param progress - Object containing download progress information.
 	@param chunk - Data that was received. When an empty response body stream completes, the callback receives an empty chunk.
 
+	`content-length` is only used as the total for a response that is not content-coded, since it counts encoded bytes while the progress stream counts the bytes after decompression. A compressed response therefore reports `totalBytes: 0` until it completes, which means the percentage cannot be calculated while downloading.
+
 	Responses with a [null body status](https://fetch.spec.whatwg.org/#null-body-status) are not streamed, so no progress events are emitted for them.
 
 	When the callback throws, the error is reported by Ky's body method shortcuts. A response read directly with `response.text()` or `response.json()` may instead report the runtime's own stream error, such as Chromium's generic `TypeError`.

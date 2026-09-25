@@ -4199,8 +4199,6 @@ test('invalid JSON in .json() does not run beforeError hooks', async t => {
 	}).json());
 });
 
-// `hasSearchParameters()` reached `Object.keys()` on `null`, so clearing the option from an `init` hook crashed
-// with an internal error instead of simply leaving the URL alone.
 test('an `init` hook can clear `searchParams`', async t => {
 	const server = await createHttpTestServer(t);
 	server.get('/', (request, response) => {
@@ -4210,15 +4208,57 @@ test('an `init` hook can clear `searchParams`', async t => {
 	t.is(await ky(server.url, {
 		searchParams: {a: '1'}, hooks: {
 			init: [options => {
-				options.searchParams = null as never;
+				options.searchParams = undefined;
 			}],
 		},
 	}).text(), '/');
-	t.is(await ky(server.url, {
+});
+
+// `hasSearchParameters()` reached `Object.keys()` on `null`, so an `init` hook that assigned `null` crashed with an internal error. `null` is not accepted anywhere in Ky, so the error names the option instead.
+test('an `init` hook that sets `searchParams` to `null` gets an error naming the option', t => {
+	t.throws(() => {
+		void ky('https://example.com', {
+			searchParams: {a: '1'},
+			hooks: {
+				init: [options => {
+					options.searchParams = null as never;
+				}],
+			},
+		});
+	}, {
+		instanceOf: TypeError,
+		message: 'The `searchParams` option must not be `null`. Use `undefined` to clear it.',
+	});
+});
+
+// The top-level context is merged shallowly, so a nested value arrived from the caller by reference and mutating
+// it after `ky.create()` silently changed what every later request carried. The per-request deep copy happens too
+// late to help. `searchParams` is already copied at this point.
+test('mutating a caller-owned `context` object after creating an instance does not change it', async t => {
+	const bodies: string[] = [];
+	const contexts: string[] = [];
+	const json = {nested: {value: 1}};
+	const context = {nested: {value: 1}};
+
+	const instance = ky.create({
+		method: 'POST',
+		json,
+		context,
+		async fetch(request) {
+			bodies.push(await request.clone().text());
+			return new Response('ok');
+		},
 		hooks: {
-			init: [options => {
-				options.searchParams = null as never;
+			beforeRequest: [({options}) => {
+				contexts.push(JSON.stringify(options.context));
 			}],
 		},
-	}).text(), '/');
+	});
+
+	context.nested.value = 2;
+
+	await instance('https://example.com').text();
+
+	t.is(contexts[0], '{"nested":{"value":1}}');
+	t.deepEqual(context, {nested: {value: 2}});
 });

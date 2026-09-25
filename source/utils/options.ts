@@ -29,9 +29,13 @@ export const findUnknownOptions = (
 };
 
 export const hasSearchParameters = (search: SearchParamsOption): boolean => {
-	// `null` is handled like an absent value by option merging, but an `init` hook can still assign it directly.
-	if (search === undefined || search === null) {
+	if (search === undefined) {
 		return false;
+	}
+
+	// Option merging turns `null` into an absent value, but an `init` hook assigns straight onto the options object. `null` is not accepted, so report it instead of treating it as absent.
+	if (search === null) {
+		throw new TypeError('The `searchParams` option must not be `null`. Use `undefined` to clear it.');
 	}
 
 	// The `typeof array` still gives "object", so we need different checking for array.

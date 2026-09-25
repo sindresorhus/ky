@@ -307,14 +307,15 @@ const deepMergeInternal = <T>(isRoot: boolean, ...sources: Array<Partial<T> | un
 						throw new TypeError('The `context` option must be an object');
 					}
 
-					// Shallow merge: always create a new object to prevent mutation bugs
+					// Shallow merge: top-level keys are replaced, but each layer is deep-copied so nested values are
+					// never shared with the caller's object.
 					returnValue = {
 						...returnValue,
 						context: (value === undefined || value === null)
 							? {}
 							: (isReplace
-								? {...value}
-								: {...returnValue.context, ...value}),
+								? cloneDeep(value)
+								: {...returnValue.context, ...cloneDeep(value as Record<string, unknown>)}),
 					};
 					continue;
 				}

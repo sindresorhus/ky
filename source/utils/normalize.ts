@@ -71,8 +71,18 @@ export const normalizeRetryOptions = (retry: number | RetryOptions = {}): Intern
 		}
 	}
 
-	// Both limits are passed to `Math.min()`, so a non-number silently turns every delay into `NaN`, which
-	// `setTimeout()` clamps to 1ms. That defeats the whole point of the limits.
+	// A mistyped entry only ever fails to match, so `statusCodes: ['429']` quietly disabled retrying instead of reporting the typo.
+	for (const [key, isValid] of [
+		['methods', (value: unknown) => typeof value === 'string'],
+		['statusCodes', (value: unknown) => Number.isInteger(value)],
+		['afterStatusCodes', (value: unknown) => Number.isInteger(value)],
+	] as const) {
+		if (normalizedRetry[key].some(value => !isValid(value))) {
+			throw new TypeError(`\`retry.${key}\` must only contain ${key === 'methods' ? 'strings' : 'numbers'}`);
+		}
+	}
+
+	// Both limits are passed to `Math.min()`, so a non-number silently turns every delay into `NaN`, which `setTimeout()` clamps to 1ms. That defeats the whole point of the limits.
 	for (const key of ['maxRetryAfter', 'backoffLimit'] as const) {
 		const value = normalizedRetry[key];
 		if (typeof value !== 'number' || Number.isNaN(value) || value < 0) {

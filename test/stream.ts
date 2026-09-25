@@ -1321,3 +1321,53 @@ test('download progress keeps reporting the estimate when it is smaller than the
 		totalBytes: 2,
 	});
 });
+
+// `content-length` is the size of the encoded body on the wire, while the progress stream counts the bytes after decompression. Trusting it made every event report 100% for a compressed response, so a progress bar was useless for exactly the responses that are large enough to need one.
+test('download progress does not trust content-length for a compressed response', async t => {
+	const progressEvents: Progress[] = [];
+	const text = await ky('https://example.com', {
+		async fetch() {
+			const body = new ReadableStream<Uint8Array>({
+				start(controller) {
+					for (let index = 0; index < 8; index++) {
+						controller.enqueue(new Uint8Array(1024));
+					}
+
+					controller.close();
+				},
+			});
+
+			return new Response(body, {headers: {'content-length': '64', 'content-encoding': 'gzip'}});
+		},
+		onDownloadProgress(progress) {
+			progressEvents.push(progress);
+		},
+	}).text();
+
+	t.is(text.length, 8192);
+	t.true(progressEvents.length > 1);
+	// The encoded size is not a usable total, so it is reported as unknown instead of pinning every event to ~100%.
+	for (const event of progressEvents.slice(0, -1)) {
+		t.is(event.percent, 0);
+		t.is(event.totalBytes, 0);
+	}
+
+	t.deepEqual(progressEvents.at(-1), {
+		percent: 1,
+		transferredBytes: 8192,
+		totalBytes: 8192,
+	});
+});
+
+test('download progress still uses content-length for an uncompressed response', async t => {
+	const progressEvents: Progress[] = [];
+	const text = await ky('https://example.com', {
+		fetch: async () => new Response('x'.repeat(64), {headers: {'content-length': '64'}}),
+		onDownloadProgress(progress) {
+			progressEvents.push(progress);
+		},
+	}).text();
+
+	t.is(text.length, 64);
+	t.is(progressEvents.at(-1)?.totalBytes, 64);
+});

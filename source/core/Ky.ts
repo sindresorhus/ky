@@ -149,15 +149,17 @@ const cloneSearchParametersForInitHook = (searchParameters: SearchParamsOption |
 };
 
 // Shallow-clone mutable option properties so init hook mutations don't leak across requests.
+// Every one of them also copies on assignment, so a hook that replaces the value with an object of its own cannot
+// accumulate mutations on that object across requests. Non-plain values (functions, class instances) are kept by
+// reference, matching how option merging treats them as whole values.
 function cloneInitHookOptions(options: Options): InitOptions {
 	let headers = mergeHeaderContainers({}, options.headers ?? {});
 	let context = cloneDeep(options.context) ?? {};
-	const clonedOptions: Options = {
-		...options,
-		// Deep-clone so init-hook mutations to nested values do not leak across requests, matching the nested `retry` cloning below. Non-plain values (functions, class instances) are kept by reference.
-		json: cloneDeep(options.json),
-		searchParams: cloneSearchParametersForInitHook(options.searchParams),
-	};
+	let json = cloneDeep(options.json);
+	let searchParameters = cloneSearchParametersForInitHook(options.searchParams);
+	let retry = options.retry === undefined ? undefined : cloneRetryOptions(options.retry);
+
+	const clonedOptions: Options = {...options};
 
 	Object.defineProperties(clonedOptions, {
 		headers: {
@@ -177,14 +179,40 @@ function cloneInitHookOptions(options: Options): InitOptions {
 				return context;
 			},
 			set(value: Record<string, unknown> | undefined) {
-				context = value ?? {};
+				context = cloneDeep(value) ?? {};
+			},
+		},
+		json: {
+			enumerable: true,
+			configurable: true,
+			get() {
+				return json;
+			},
+			set(value: unknown) {
+				json = cloneDeep(value);
+			},
+		},
+		searchParams: {
+			enumerable: true,
+			configurable: true,
+			get() {
+				return searchParameters;
+			},
+			set(value: SearchParamsOption | undefined) {
+				searchParameters = cloneSearchParametersForInitHook(value);
+			},
+		},
+		retry: {
+			enumerable: true,
+			configurable: true,
+			get() {
+				return retry;
+			},
+			set(value: Options['retry']) {
+				retry = value === undefined ? undefined : cloneRetryOptions(value);
 			},
 		},
 	});
-
-	if (options.retry !== undefined) {
-		clonedOptions.retry = cloneRetryOptions(options.retry);
-	}
 
 	return clonedOptions as InitOptions;
 }

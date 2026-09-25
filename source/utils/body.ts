@@ -195,7 +195,11 @@ export const streamResponse = (response: Response, onDownloadProgress: Options['
 		return response;
 	}
 
-	const totalBytes = Math.max(0, Number(response.headers.get('content-length')) || 0);
+	// `content-length` counts encoded bytes on the wire, while the progress stream counts the bytes after
+	// decompression. Using it for a content-coded response would report a total below what actually arrives, so
+	// every event would sit at ~100%. The total is then unknown, which `Progress` already models with `0`.
+	const isContentCoded = response.headers.get('content-encoding') !== null;
+	const totalBytes = isContentCoded ? 0 : Math.max(0, Number(response.headers.get('content-length')) || 0);
 	const body = withProgress(response.body, totalBytes, onDownloadProgress);
 
 	return copyResponseMetadata(new Response(body, response), response);
