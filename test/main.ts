@@ -4198,3 +4198,19 @@ test('invalid JSON in .json() does not run beforeError hooks', async t => {
 		},
 	}).json());
 });
+
+// `hasSearchParameters()` reached `Object.keys()` on `null`, so clearing the option from an `init` hook crashed
+// with an internal error instead of simply leaving the URL alone.
+test('an `init` hook can clear `searchParams`', async t => {
+	const server = await createHttpTestServer(t);
+	server.get('/', (request, response) => {
+		response.end(request.url);
+	});
+
+	t.is(await ky(server.url, {searchParams: {a: '1'}, hooks: {init: [options => {
+		options.searchParams = null as never;
+	}]}}).text(), '/');
+	t.is(await ky(server.url, {hooks: {init: [options => {
+		options.searchParams = null as never;
+	}]}}).text(), '/');
+});

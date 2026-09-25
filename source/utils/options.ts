@@ -29,7 +29,8 @@ export const findUnknownOptions = (
 };
 
 export const hasSearchParameters = (search: SearchParamsOption): boolean => {
-	if (search === undefined) {
+	// `null` is handled like an absent value by option merging, but an `init` hook can still assign it directly.
+	if (search === undefined || search === null) {
 		return false;
 	}
 
