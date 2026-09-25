@@ -80,6 +80,22 @@ const createTextDecoder = (contentType: string): TextDecoder => {
 
 const invalidSchemaMessage = 'The `schema` argument must follow the Standard Schema specification';
 
+// Both timeout options are milliseconds or `false`. A non-finite or negative value used to reach `setTimeout()`,
+// which silently clamps it to ~1ms, or to be ignored entirely when `totalTimeout` was not a number.
+const validateTimeoutOption = (value: unknown, name: 'timeout' | 'totalTimeout'): void => {
+	if (value === false) {
+		return;
+	}
+
+	if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) {
+		throw new TypeError(`The \`${name}\` option must be a non-negative number or \`false\``);
+	}
+
+	if (value > maxSafeTimeout) {
+		throw new RangeError(`The \`${name}\` option cannot be greater than ${maxSafeTimeout}`);
+	}
+};
+
 const cloneRetryOptions = (retry: RetryOptions | number): RetryOptions | number => {
 	if (retry === null || typeof retry !== 'object' || Array.isArray(retry)) {
 		return retry as RetryOptions | number;
@@ -215,13 +231,8 @@ export class Ky {
 		const ky = new Ky(input, initHookOptions);
 
 		const function_ = async (): Promise<Response | void> => {
-			if (typeof ky.#options.timeout === 'number' && ky.#options.timeout > maxSafeTimeout) {
-				throw new RangeError(`The \`timeout\` option cannot be greater than ${maxSafeTimeout}`);
-			}
-
-			if (typeof ky.#options.totalTimeout === 'number' && ky.#options.totalTimeout > maxSafeTimeout) {
-				throw new RangeError(`The \`totalTimeout\` option cannot be greater than ${maxSafeTimeout}`);
-			}
+			validateTimeoutOption(ky.#options.totalTimeout, 'totalTimeout');
+			validateTimeoutOption(ky.#options.timeout, 'timeout');
 
 			// Delay the fetch so that body method shortcuts can set the Accept header
 			await Promise.resolve();
