@@ -71,6 +71,26 @@ export const normalizeRetryOptions = (retry: number | RetryOptions = {}): Intern
 		}
 	}
 
+	// Both limits are passed to `Math.min()`, so a non-number silently turns every delay into `NaN`, which
+	// `setTimeout()` clamps to 1ms. That defeats the whole point of the limits.
+	for (const key of ['maxRetryAfter', 'backoffLimit'] as const) {
+		const value = normalizedRetry[key];
+		if (typeof value !== 'number' || Number.isNaN(value) || value < 0) {
+			throw new TypeError(`\`retry.${key}\` must be a non-negative number or \`Infinity\``);
+		}
+	}
+
+	// These run while deciding what to do with the original failure, so an invalid shape would replace the `HTTPError`/`NetworkError` that caused the retry with a `TypeError` from deep inside Ky.
+	for (const key of ['delay', 'shouldRetry'] as const) {
+		if (normalizedRetry[key] !== undefined && typeof normalizedRetry[key] !== 'function') {
+			throw new TypeError(`\`retry.${key}\` must be a function`);
+		}
+	}
+
+	if (normalizedRetry.jitter !== undefined && typeof normalizedRetry.jitter !== 'boolean' && typeof normalizedRetry.jitter !== 'function') {
+		throw new TypeError('`retry.jitter` must be a boolean or a function');
+	}
+
 	normalizedRetry.methods = normalizedRetry.methods.map(method => normalizeRetryMethod(method));
 	normalizedRetry.statusCodes = [...normalizedRetry.statusCodes];
 	normalizedRetry.afterStatusCodes = [...normalizedRetry.afterStatusCodes];

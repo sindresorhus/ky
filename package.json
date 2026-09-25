@@ -71,6 +71,9 @@
 		"xo": "^1.2.3"
 	},
 	"xo": {
+		"ignores": [
+			"Stuff/**"
+		],
 		"rules": {
 			"unicorn/filename-case": "off",
 			"@typescript-eslint/ban-ts-comment": "off",

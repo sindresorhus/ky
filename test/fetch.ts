@@ -890,3 +890,24 @@ test('the fetch option inherited through ky.create() and ky.extend() is called w
 	t.is(await api(fixture).text(), 'ok');
 	t.deepEqual(thisValues, [undefined]);
 });
+
+// A vendor extension named after an `Object.prototype` member was silently dropped, because the lookup went through the prototype chain of the option registries.
+test('unknown options named after Object.prototype members are passed to fetch', async t => {
+	t.plan(4);
+
+	const customFetch: typeof fetch = async (request, init) => {
+		t.is(init.constructor, 'fetch-constructor');
+		t.is(init.toString, 'fetch-to-string');
+		t.is(init.valueOf, 'fetch-value-of');
+		t.is(init.hasOwnProperty, 'fetch-has-own-property');
+		return new Response(request.url);
+	};
+
+	await ky(fixture, {
+		constructor: 'fetch-constructor',
+		toString: 'fetch-to-string',
+		valueOf: 'fetch-value-of',
+		hasOwnProperty: 'fetch-has-own-property',
+		fetch: customFetch,
+	} as never).text();
+});

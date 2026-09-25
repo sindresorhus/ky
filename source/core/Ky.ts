@@ -613,6 +613,13 @@ export class Ky {
 	#calculateDelay(retry: InternalOptions['retry']): number {
 		const retryDelay = retry.delay(this.#retryCount + 1);
 
+		// A `retry.delay` that does not return a usable number would turn every delay into `NaN`, which
+		// `setTimeout()` clamps to 1ms, silently disabling the configured backoff. The `jitter` function form
+		// already guards its own result, so the input is checked here for every jitter form.
+		if (typeof retryDelay !== 'number' || Number.isNaN(retryDelay) || retryDelay < 0) {
+			throw new TypeError('`retry.delay` must return a non-negative number or `Infinity`');
+		}
+
 		let jitteredDelay = retryDelay;
 		if (retry.jitter === true) {
 			jitteredDelay = Math.random() * retryDelay;

@@ -18,7 +18,9 @@ export const findUnknownOptions = (
 		// patch `Request.prototype` with fetch-only extensions. For example, Next.js adds `next`, and the
 		// old `key in request` heuristic dropped it unless Ky kept a special-case allowlist.
 		// Passing all non-standard keys makes that allowlist unnecessary and preserves future fetch extensions too.
-		if (!(key in requestOptionsRegistry) && !(key in kyOptionKeys)) {
+		// The registries are plain objects, so `Object.hasOwn()` is required: `in` would also match
+		// `Object.prototype` members such as `constructor` and `toString`, silently dropping those options.
+		if (!Object.hasOwn(requestOptionsRegistry, key) && !Object.hasOwn(kyOptionKeys, key)) {
 			unknownOptions[key] = options[key];
 		}
 	}

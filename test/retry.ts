@@ -4791,3 +4791,97 @@ test('totalTimeout does not bound a beforeError hook', async t => {
 
 	t.is(error.message, 'rewritten: NetworkError');
 });
+
+// Both limits feed `Math.min()`, so a non-number turns the retry delay into `NaN`, which `setTimeout()` clamps to
+// 1ms. A `Retry-After: 1` header would then be retried almost immediately, which is the thundering herd those
+// options exist to prevent.
+test('rejects non-numeric or negative `maxRetryAfter` and `backoffLimit`', t => {
+	for (const key of ['maxRetryAfter', 'backoffLimit'] as const) {
+		for (const value of ['1000', Number.NaN, -1, {}, null] as unknown[]) {
+			// `null` is nullish, so it selects the default instead of being rejected.
+			if (value === null) {
+				continue;
+			}
+
+			const retry: Record<string, unknown> = {[key]: value};
+
+			t.throws(() => {
+				void ky('https://example.com', {retry: retry as never});
+			}, {
+				instanceOf: TypeError,
+				message: `\`retry.${key}\` must be a non-negative number or \`Infinity\``,
+			}, `${key}: ${JSON.stringify(value)}`);
+		}
+	}
+});
+
+// Validating up front means the misconfiguration is reported before the request is sent, instead of replacing the
+// `HTTPError` with a `TypeError` from deep inside the retry delay calculation.
+test('a rejected retry limit is reported before the request is sent', t => {
+	for (const key of ['maxRetryAfter', 'backoffLimit'] as const) {
+		let requestCount = 0;
+		const retry: Record<string, unknown> = {[key]: 'soon'};
+
+		t.throws(() => {
+			void ky('https://example.com', {
+				async fetch() {
+					requestCount++;
+					return new Response(null, {status: 500});
+				},
+				retry: retry as never,
+			});
+		}, {
+			instanceOf: TypeError,
+			message: `\`retry.${key}\` must be a non-negative number or \`Infinity\``,
+		}, key);
+
+		t.is(requestCount, 0, key);
+	}
+});
+
+// A non-function `delay`/`shouldRetry` used to be called blindly, so the resulting `TypeError` replaced the
+// `HTTPError` that actually caused the retry. Validate the shapes up front instead.
+test('rejects non-function `retry.delay`, `retry.shouldRetry` and `retry.jitter`', t => {
+	for (const [key, value] of [
+		['delay', 1000],
+		['shouldRetry', true],
+		['jitter', 'yes'],
+		['jitter', 1],
+	] as Array<[string, unknown]>) {
+		const retry: Record<string, unknown> = {[key]: value};
+
+		t.throws(() => {
+			void ky('https://example.com', {retry: retry as never});
+		}, {
+			instanceOf: TypeError,
+			message: `\`retry.${key}\` must be ${key === 'jitter' ? 'a boolean or a function' : 'a function'}`,
+		}, `${key}: ${JSON.stringify(value)}`);
+	}
+});
+
+test('a non-finite `retry.delay` result is rejected for every jitter form', async t => {
+	for (const jitter of [undefined, true, () => 1] as unknown[]) {
+		// eslint-disable-next-line no-await-in-loop
+		await t.throwsAsync(ky('https://example.com', {
+			async fetch() {
+				return new Response(null, {status: 500});
+			},
+			retry: {limit: 1, delay: () => Number.NaN, jitter: jitter as never},
+		}).text(), {
+			instanceOf: TypeError,
+			message: '`retry.delay` must return a non-negative number or `Infinity`',
+		}, `jitter: ${String(jitter)}`);
+	}
+});
+
+test('a negative `retry.delay` result is rejected', async t => {
+	await t.throwsAsync(ky('https://example.com', {
+		async fetch() {
+			return new Response(null, {status: 500});
+		},
+		retry: {limit: 1, delay: () => -1},
+	}).text(), {
+		instanceOf: TypeError,
+		message: '`retry.delay` must return a non-negative number or `Infinity`',
+	});
+});

@@ -7,7 +7,7 @@ const okFetch = async () => new Response('ok');
 // straight to `setTimeout()`, which clamps it to ~1ms, or was silently ignored, so the request never got the
 // timeout the caller asked for. `null` is left out: it is nullish, so it selects the default.
 test('rejects non-numeric and negative `timeout` values', async t => {
-	for (const timeout of ['1000', Number.NaN, -1, -0.5, {}]) {
+	for (const timeout of ['1000', Number.NaN, -1, -0.5, {}] as unknown[]) {
 		// eslint-disable-next-line no-await-in-loop
 		await t.throwsAsync(
 			ky('https://example.com', {timeout: timeout as never, fetch: okFetch}).text(),
@@ -15,13 +15,13 @@ test('rejects non-numeric and negative `timeout` values', async t => {
 				name: 'TypeError',
 				message: 'The `timeout` option must be a non-negative number or `false`',
 			},
-			`timeout: ${String(timeout)}`,
+			`timeout: ${JSON.stringify(timeout)}`,
 		);
 	}
 });
 
 test('rejects non-numeric and negative `totalTimeout` values', async t => {
-	for (const totalTimeout of ['1000', Number.NaN, -1, -0.5, {}]) {
+	for (const totalTimeout of ['1000', Number.NaN, -1, -0.5, {}] as unknown[]) {
 		// eslint-disable-next-line no-await-in-loop
 		await t.throwsAsync(
 			ky('https://example.com', {totalTimeout: totalTimeout as never, fetch: okFetch}).text(),
@@ -29,7 +29,7 @@ test('rejects non-numeric and negative `totalTimeout` values', async t => {
 				name: 'TypeError',
 				message: 'The `totalTimeout` option must be a non-negative number or `false`',
 			},
-			`totalTimeout: ${String(totalTimeout)}`,
+			`totalTimeout: ${JSON.stringify(totalTimeout)}`,
 		);
 	}
 });
@@ -47,14 +47,14 @@ test('rejects `timeout` and `totalTimeout` above the maximum safe value', async 
 				instanceOf: RangeError,
 				message: `The \`${option}\` option cannot be greater than 2147483647`,
 			},
-			option,
+			`option: ${option}`,
 		);
 	}
 });
 
-test('accepts `false`, `0` and finite non-negative numbers for the timeout options', async t => {
+test('accepts `false`, `0` and non-negative numbers for the timeout options', async t => {
 	t.is(await ky('https://example.com', {timeout: false, totalTimeout: false, fetch: okFetch}).text(), 'ok');
-	t.is(await ky('https://example.com', {timeout: 0, fetch: async () => new Response('a'), totalTimeout: 5_000}).text(), 'a');
+	t.is(await ky('https://example.com', {timeout: 0, totalTimeout: 5000, fetch: async () => new Response('a')}).text(), 'a');
 });
 
 test('rejects invalid timeout values set from an `init` hook', async t => {
