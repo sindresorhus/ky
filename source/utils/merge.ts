@@ -133,7 +133,8 @@ export const cloneDeep = <T>(value: T, seen: WeakMap<Record<string, unknown> | u
 		return copy as T;
 	}
 
-	const copy: Record<string, unknown> = {};
+	// Preserve a null prototype, which callers use to avoid inheriting from `Object.prototype`.
+	const copy: Record<string, unknown> = Object.getPrototypeOf(value) === null ? Object.create(null) : {};
 	seen.set(value, copy);
 	for (const key of Reflect.ownKeys(value)) {
 		if (!Object.prototype.propertyIsEnumerable.call(value, key)) {

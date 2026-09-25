@@ -688,3 +688,72 @@ test('never-ending error response body is bounded and retry proceeds', async t =
 	// The body read is bounded by the per-attempt timeout, so the retry proceeds within a reasonable time
 	t.true(Date.now() - start < 3000);
 });
+
+for (const [contentType, expected] of [
+	['application/json', {value: 1}],
+	['application/json; charset=utf-8', {value: 1}],
+	['application/problem+json', {value: 1}],
+	['application/vnd.api+json', {value: 1}],
+	['application/ld+json', {value: 1}],
+	['text/json', {value: 1}],
+	['application/merge-patch+json', {value: 1}],
+	['text/plain', '{"value":1}'],
+	['application/jsonx', '{"value":1}'],
+	['application/notjson', '{"value":1}'],
+	['application/octet-stream', '{"value":1}'],
+	['json', '{"value":1}'],
+	['/json', {value: 1}],
+	['a/json', {value: 1}],
+	['a.json', '{"value":1}'],
+	['a+json', '{"value":1}'],
+	['a-json', '{"value":1}'],
+	['a/b.json', {value: 1}],
+] as const) {
+	test(`error data for a ${contentType} content type`, async t => {
+		const error = (await t.throwsAsync(ky('https://example.com', {
+			retry: {limit: 0},
+			async fetch() {
+				return new Response('{"value":1}', {status: 500, headers: {'content-type': contentType}});
+			},
+		}), {instanceOf: HTTPError}))!;
+
+		t.deepEqual(error.data, expected);
+	});
+}
+
+test('a hostile content type does not stall the error data path', async t => {
+	// The content type is attacker-controlled. A backtracking matcher here would block the event loop for minutes on this input.
+	const hostileContentType = `text/${'/'.repeat(200_000)}`;
+	const start = Date.now();
+
+	const error = (await t.throwsAsync(ky('https://example.com', {
+		retry: {limit: 0},
+		async fetch() {
+			return new Response('{}', {status: 500, headers: {'content-type': hostileContentType}});
+		},
+	}), {instanceOf: HTTPError}))!;
+
+	const elapsed = Date.now() - start;
+	// The old matcher needs about 90 seconds on this input, so the bound is not close to the real cost.
+	t.true(elapsed < 2000, `error data took ${elapsed}ms, expected under 2000ms`);
+	t.is(error.data, '{}');
+});
+
+test('TimeoutError from the error data path reports the request that was sent', async t => {
+	let sentRequest: Request | undefined;
+
+	const error = (await t.throwsAsync(ky('https://example.com/?x=1', {
+		retry: {limit: 1, delay: () => 0},
+		totalTimeout: 300,
+		async fetch(request) {
+			sentRequest = request;
+			return new Response(new ReadableStream({
+				start(streamController) {
+					streamController.enqueue(new TextEncoder().encode('{"partial":'));
+				},
+			}), {status: 500, headers: {'content-type': 'application/json'}});
+		},
+	}), {instanceOf: TimeoutError}))!;
+
+	t.is(error.request, sentRequest);
+});

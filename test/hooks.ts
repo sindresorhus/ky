@@ -6708,3 +6708,144 @@ test('beforeRetry releases a streaming body returned by beforeRequest when repla
 	t.is(attempts, 2);
 	t.is(cancellations, 1);
 });
+
+test('aborting while a beforeRequest hook runs rejects with the abort reason', async t => {
+	const abortController = new AbortController();
+	const reason = new Error('cancelled-during-beforeRequest');
+	const {promise: hookStarted, resolve: markHookStarted} = Promise.withResolvers();
+
+	const promise = ky('https://example.com', {
+		signal: abortController.signal,
+		hooks: {
+			beforeRequest: [async () => {
+				markHookStarted();
+				await delay(500);
+				// Returning a Response skips the fetch entirely, so nothing else would observe the signal.
+				return new Response('ok');
+			}],
+		},
+	}).text();
+
+	await hookStarted;
+	abortController.abort(reason);
+
+	t.is(await t.throwsAsync(promise), reason);
+});
+
+test('aborting while an afterResponse hook runs rejects with the abort reason', async t => {
+	const server = await createHttpTestServer(t);
+	server.get('/', (_request, response) => {
+		response.send('ok');
+	});
+
+	const abortController = new AbortController();
+	const reason = new Error('cancelled-during-afterResponse');
+	const {promise: hookStarted, resolve: markHookStarted} = Promise.withResolvers();
+
+	const promise = ky(server.url, {
+		signal: abortController.signal,
+		hooks: {
+			afterResponse: [async () => {
+				markHookStarted();
+				await delay(500);
+			}],
+		},
+	});
+
+	await hookStarted;
+	abortController.abort(reason);
+
+	t.is(await t.throwsAsync(promise), reason);
+});
+
+test('aborting while a beforeRetry hook runs does not start another attempt', async t => {
+	const abortController = new AbortController();
+	const reason = new Error('cancelled-during-beforeRetry');
+	const {promise: hookStarted, resolve: markHookStarted} = Promise.withResolvers();
+	let attempts = 0;
+
+	const promise = ky('https://example.com', {
+		signal: abortController.signal,
+		retry: {limit: 1, delay: () => 0},
+		hooks: {
+			beforeRetry: [async () => {
+				markHookStarted();
+				await delay(500);
+			}],
+		},
+		async fetch() {
+			attempts++;
+			return new Response('failure', {status: 500});
+		},
+	});
+
+	await hookStarted;
+	abortController.abort(reason);
+
+	t.is(await t.throwsAsync(promise), reason);
+	// Without the abort reaching the hook, the retry runs and wastes a request.
+	t.is(attempts, 1);
+});
+
+test('a never-settling beforeRetry hook does not outlive a user abort', async t => {
+	const abortController = new AbortController();
+	const reason = new Error('cancelled-during-beforeRetry');
+	const neverSettling = new Promise<never>(() => {
+		void 0;
+	});
+	const {promise: hookStarted, resolve: markHookStarted} = Promise.withResolvers();
+
+	const promise = ky('https://example.com', {
+		signal: abortController.signal,
+		retry: {limit: 1, delay: () => 0},
+		hooks: {
+			beforeRetry: [async () => {
+				markHookStarted();
+				return neverSettling;
+			}],
+		},
+		async fetch() {
+			return new Response('failure', {status: 500});
+		},
+	});
+
+	await hookStarted;
+	abortController.abort(reason);
+
+	// Bound the wait so a regression fails the test instead of hanging the suite.
+	const outcome = await Promise.race([
+		promise,
+		delay(1000).then(() => 'still pending' as const),
+	]).catch((error: unknown) => error);
+
+	t.is(outcome, reason);
+});
+
+test('a non-Error abort reason while a beforeRequest hook runs is preserved', async t => {
+	const abortController = new AbortController();
+	const reason = {code: 'CUSTOM'};
+	const {promise: hookStarted, resolve: markHookStarted} = Promise.withResolvers();
+
+	const promise = ky('https://example.com', {
+		signal: abortController.signal,
+		hooks: {
+			beforeRequest: [async () => {
+				markHookStarted();
+				await delay(500);
+				return new Response('ok');
+			}],
+		},
+	}).text();
+
+	await hookStarted;
+	abortController.abort(reason);
+
+	let thrown: unknown;
+	try {
+		await promise;
+	} catch (error: unknown) {
+		thrown = error;
+	}
+
+	t.is(thrown, reason);
+});

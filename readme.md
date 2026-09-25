@@ -468,6 +468,8 @@ This hook enables you to modify the options before they are used to construct th
 
 Unlike other hooks, `init` hooks are synchronous. Any error thrown will propagate synchronously and will not be caught by `beforeError` hooks.
 
+The `body` option is the exception: it is passed through by reference, so mutating a `FormData` or `URLSearchParams` body in place changes your own object and repeats on every request from the same instance. Replace `options.body` with a new instance instead, the way the [`beforeRequest`](#hooksbeforerequest) workflow does.
+
 A common use case is to add a search parameter to every request:
 
 ```js
@@ -908,6 +910,8 @@ Use cases:
 - Pass serverless environment bindings (e.g., Cloudflare Workers)
 
 **Note:** Context is shallow merged. Top-level properties are merged, but nested objects are replaced. Only enumerable properties are copied.
+
+**Note:** Each request gets its own deep copy of the context, so a hook that mutates a nested plain object or array cannot write back to the instance defaults or to the object you passed in. Non-plain values such as class instances are shared by reference. A hook that caches data in the context, for example with `options.context.token ??= await getToken()`, therefore recomputes it once per request rather than once per instance.
 
 ```js
 import ky from 'ky';

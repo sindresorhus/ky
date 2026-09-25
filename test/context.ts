@@ -298,3 +298,80 @@ test('init hook mutations to symbol-keyed context stay isolated between requests
 	t.is(initCalls, 2);
 	t.is(beforeRequestCalls, 2);
 });
+
+test('hook mutation of a nested context value does not leak into the instance defaults', async t => {
+	const context = {nested: {count: 0}};
+	const observed: number[] = [];
+
+	const api = ky.create({
+		context,
+		retry: {limit: 0},
+		hooks: {
+			beforeRequest: [({options}) => {
+				observed.push(options.context.nested.count);
+				options.context.nested.count++;
+			}],
+		},
+		fetch: async () => new Response('ok'),
+	});
+
+	await api('https://example.com/1').text();
+	await api('https://example.com/2').text();
+	await api('https://example.com/3').text();
+
+	t.deepEqual(observed, [0, 0, 0]);
+	t.deepEqual(context, {nested: {count: 0}});
+});
+
+test('hooks in one request still share a single context object', async t => {
+	const seen: unknown[] = [];
+	const api = ky.create({
+		retry: {limit: 0},
+		hooks: {
+			beforeRequest: [
+				({options}) => {
+					options.context.shared = 'set-in-beforeRequest';
+					seen.push(options.context);
+				},
+				// Replacing the request resets the normalized options cache, so the shared context must survive it.
+				({request}) => new Request(request),
+			],
+			afterResponse: [({options}) => {
+				seen.push(options.context);
+			}],
+		},
+		fetch: async () => new Response('ok'),
+	});
+
+	await api('https://example.com').text();
+
+	t.is(seen.length, 2);
+	t.is(seen[0], seen[1]);
+	t.deepEqual(seen[1], {shared: 'set-in-beforeRequest'});
+});
+
+test('a nested null-prototype context value keeps its prototype', async t => {
+	const bag = Object.create(null) as Record<string, unknown>;
+	bag.count = 1;
+
+	let seen: Record<string, unknown> | undefined;
+	const api = ky.create({
+		context: {bag},
+		hooks: {
+			beforeRequest: [({options}) => {
+				seen = options.context.bag as Record<string, unknown>;
+			}],
+		},
+		fetch: async () => new Response('ok'),
+	});
+
+	await api('https://example.com').text();
+
+	t.is(Object.getPrototypeOf(seen!), null);
+	// A null-prototype object has no inherited members.
+	t.is(seen!.toString, undefined);
+	t.is(seen!.count, 1);
+	// The clone is a copy, so mutating it does not touch the caller's object.
+	seen!['count'] = 99;
+	t.is(bag.count, 1);
+});

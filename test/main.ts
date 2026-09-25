@@ -4059,3 +4059,142 @@ test('a null signal is treated like an absent one', async t => {
 		},
 	}));
 });
+
+test('aborting while parseJson runs rejects with the abort reason', async t => {
+	const server = await createHttpTestServer(t);
+	server.get('/', (_request, response) => {
+		response.json({value: 1});
+	});
+
+	const abortController = new AbortController();
+	const reason = new Error('cancelled-during-parseJson');
+	const {promise: parseStarted, resolve: markParseStarted} = Promise.withResolvers();
+
+	const promise = ky(server.url, {
+		signal: abortController.signal,
+		async parseJson(text) {
+			markParseStarted();
+			await delay(500);
+			return JSON.parse(text);
+		},
+	}).json();
+
+	await parseStarted;
+	abortController.abort(reason);
+
+	t.is(await t.throwsAsync(promise), reason);
+});
+
+test('aborting while schema validation runs rejects with the abort reason', async t => {
+	const server = await createHttpTestServer(t);
+	server.get('/', (_request, response) => {
+		response.json({value: 1});
+	});
+
+	const abortController = new AbortController();
+	const reason = new Error('cancelled-during-validation');
+	const {promise: validateStarted, resolve: markValidateStarted} = Promise.withResolvers();
+
+	const promise = ky(server.url, {signal: abortController.signal}).json({
+		'~standard': {
+			version: 1,
+			async validate(value: unknown) {
+				markValidateStarted();
+				await delay(500);
+				return {value};
+			},
+		},
+	});
+
+	await validateStarted;
+
+	abortController.abort(reason);
+
+	t.is(await t.throwsAsync(promise), reason);
+});
+
+test('an Error abort reason during parseJson reaches beforeError hooks', async t => {
+	const server = await createHttpTestServer(t);
+	server.get('/', (_request, response) => {
+		response.json({value: 1});
+	});
+
+	const abortController = new AbortController();
+	const reason = new Error('cancelled-during-parseJson');
+	const {promise: parseStarted, resolve: markParseStarted} = Promise.withResolvers();
+	const hookErrors: Error[] = [];
+
+	const promise = ky(server.url, {
+		signal: abortController.signal,
+		hooks: {
+			beforeError: [({error}) => {
+				hookErrors.push(error);
+				return error;
+			}],
+		},
+		async parseJson(text) {
+			markParseStarted();
+			await delay(500);
+			return JSON.parse(text);
+		},
+	}).json();
+
+	await parseStarted;
+	abortController.abort(reason);
+
+	t.is(await t.throwsAsync(promise), reason);
+	t.deepEqual(hookErrors, [reason]);
+});
+
+test('a non-Error abort reason during parseJson bypasses beforeError hooks', async t => {
+	const server = await createHttpTestServer(t);
+	server.get('/', (_request, response) => {
+		response.json({value: 1});
+	});
+
+	const abortController = new AbortController();
+	const reason = 'cancelled';
+	const {promise: parseStarted, resolve: markParseStarted} = Promise.withResolvers();
+
+	const promise = ky(server.url, {
+		signal: abortController.signal,
+		hooks: {
+			beforeError: [() => {
+				t.fail('Non-Error abort reasons must not run beforeError');
+				return new Error('should not run');
+			}],
+		},
+		async parseJson(text) {
+			markParseStarted();
+			await delay(500);
+			return JSON.parse(text);
+		},
+	}).json();
+
+	await parseStarted;
+	abortController.abort(reason);
+
+	// A non-Error reason is not something `t.throwsAsync` can assert on, so catch it directly.
+	let thrown: unknown;
+	try {
+		await promise;
+	} catch (error: unknown) {
+		thrown = error;
+	}
+
+	t.is(thrown, reason);
+});
+
+test('invalid JSON in .json() does not run beforeError hooks', async t => {
+	await t.throwsAsync(ky('https://example.com', {
+		hooks: {
+			beforeError: [() => {
+				t.fail('A parse failure is not a lifecycle error');
+				return new Error('should not run');
+			}],
+		},
+		async fetch() {
+			return new Response('not json', {headers: {'content-type': 'application/json'}});
+		},
+	}).json());
+});

@@ -365,20 +365,31 @@ export class Ky {
 
 				const text = await ky.#raceBodyRead(async () => response.text(), response) as string;
 				const request = ky.#getResponseRequest(response);
-				const parsedResult = await ky.#raceWithTotalTimeout(async () => {
-					const jsonValue = initHookOptions.parseJson
-						? await initHookOptions.parseJson(text, {request, response})
-						: (text === '' && schema !== undefined
-							? undefined
-							: JSON.parse(text));
+				// This implementation is shared by every body method, so its return type has to satisfy all of them. The parsed value is whatever `parseJson` or `JSON.parse` produced, which is `any` at this boundary.
+				let parsedResult: any;
+				try {
+					parsedResult = await ky.#raceWithTotalTimeout(async () => {
+						const jsonValue = initHookOptions.parseJson
+							? await initHookOptions.parseJson(text, {request, response})
+							: (text === '' && schema !== undefined
+								? undefined
+								: JSON.parse(text));
 
-					if (schema === undefined) {
-						return jsonValue;
+						if (schema === undefined) {
+							return jsonValue;
+						}
+
+						// eslint-disable-next-line no-return-await, @typescript-eslint/return-await -- Awaiting here preserves the caller's async stack when schema validation fails.
+						return await validateJsonWithSchema(jsonValue, schema);
+					}, ky.#userProvidedAbortSignal);
+				} catch (error: unknown) {
+					// A cancellation is part of the request lifecycle, so it reaches `beforeError` like every other abort. Other failures, such as invalid JSON, stay as they are.
+					if (ky.#userProvidedAbortSignal?.aborted) {
+						await ky.#throwProcessedError(ky.#userProvidedAbortSignal.reason);
 					}
 
-					// eslint-disable-next-line no-return-await, @typescript-eslint/return-await -- Awaiting here preserves the caller's async stack when schema validation fails.
-					return await validateJsonWithSchema(jsonValue, schema);
-				});
+					throw error;
+				}
 
 				if (parsedResult === timedOutOperation) {
 					await ky.#throwProcessedError(new TimeoutError(request));
@@ -440,7 +451,8 @@ export class Ky {
 			totalTimeout: options.totalTimeout ?? false,
 			maxResponseSize,
 			fetch: options.fetch ?? globalThis.fetch.bind(globalThis),
-			context: options.context ?? {},
+			// Deep-cloned so a hook mutating a nested plain object or array cannot write back to the instance defaults or the caller's object. Non-plain values such as class instances are kept by reference, matching how `json` and the shallow `context` merge treat them.
+			context: cloneDeep(options.context) ?? {},
 		};
 		this.#retryLimit = this.#options.retry.limit;
 
@@ -734,16 +746,19 @@ export class Ky {
 	}
 
 	async #getResponseData(response: Response): Promise<unknown> {
+		// `request` is the request that actually produced this response, which is not `this.request` once a retry clone has been prepared.
+		const request = this.#getResponseRequest(response);
+
 		// Even with request timeouts disabled, bound error-body reads so retries and error propagation
 		// cannot be stalled indefinitely by never-ending response streams.
-		const readTimeout = this.#getErrorDataTimeout();
+		const readTimeout = this.#getErrorDataTimeout(request);
 		const text = await this.#readResponseText(response, readTimeout.milliseconds);
 		if (text === timedOutResponseData) {
 			if (readTimeout.fromTotalTimeout) {
-				throw new TimeoutError(this.request);
+				throw new TimeoutError(request);
 			}
 
-			this.#throwIfTotalTimeoutExhausted();
+			this.#throwIfTotalTimeoutExhausted(request);
 			return undefined;
 		}
 
@@ -755,21 +770,21 @@ export class Ky {
 			return text;
 		}
 
-		const parseTimeout = this.#getErrorDataTimeout();
-		const data = await this.#parseJson(text, response, parseTimeout.milliseconds, this.#getResponseRequest(response));
+		const parseTimeout = this.#getErrorDataTimeout(request);
+		const data = await this.#parseJson(text, response, parseTimeout.milliseconds, request);
 		if (data === timedOutResponseData) {
 			if (parseTimeout.fromTotalTimeout) {
-				throw new TimeoutError(this.request);
+				throw new TimeoutError(request);
 			}
 
-			this.#throwIfTotalTimeoutExhausted();
+			this.#throwIfTotalTimeoutExhausted(request);
 			return undefined;
 		}
 
 		return data;
 	}
 
-	#getErrorDataTimeout(): ErrorDataTimeout {
+	#getErrorDataTimeout(request: Request = this.request): ErrorDataTimeout {
 		const errorDataTimeout = this.#options.timeout === false ? 10_000 : this.#options.timeout;
 		const remainingTotal = this.#getRemainingTotalTimeout();
 		if (remainingTotal === undefined) {
@@ -780,7 +795,7 @@ export class Ky {
 		}
 
 		if (remainingTotal <= 0) {
-			throw new TimeoutError(this.request);
+			throw new TimeoutError(request);
 		}
 
 		return {
@@ -943,8 +958,24 @@ export class Ky {
 
 	#isJsonContentType(contentType: string): boolean {
 		// Match JSON subtypes like `json`, `problem+json`, and `vnd.api+json`.
+		// Written out rather than matched with a pattern like `/\/(?:.*[.+-])?json$/`, which backtracks quadratically on a `Content-Type` full of slashes. The header comes from the server, so this must stay linear.
 		const mimeType = (contentType.split(';', 1)[0] ?? '').trim().toLowerCase();
-		return /\/(?:.*[.+-])?json$/.test(mimeType);
+
+		if (!mimeType.endsWith('json')) {
+			return false;
+		}
+
+		const separator = mimeType.at(-5);
+		if (separator === '/') {
+			return true;
+		}
+
+		if (separator !== '.' && separator !== '+' && separator !== '-') {
+			return false;
+		}
+
+		// The separator is not the slash, so any slash in the type comes before it.
+		return mimeType.includes('/');
 	}
 
 	async #readResponseText(response: Response, timeoutMs: number): Promise<string | typeof timedOutResponseData | undefined> {
@@ -1066,10 +1097,10 @@ export class Ky {
 			: this.#abortController!.signal;
 	}
 
-	#throwIfTotalTimeoutExhausted(): void {
+	#throwIfTotalTimeoutExhausted(request: Request = this.request): void {
 		const remaining = this.#getRemainingTotalTimeout();
 		if (remaining !== undefined && remaining <= 0) {
-			throw new TimeoutError(this.request);
+			throw new TimeoutError(request);
 		}
 	}
 
@@ -1080,7 +1111,7 @@ export class Ky {
 				request: this.request,
 				options: this.#getNormalizedOptions(),
 				retryCount: 0,
-			}));
+			}), this.#userProvidedAbortSignal);
 
 			if (result === timedOutOperation) {
 				throw new TimeoutError(this.request);
@@ -1112,7 +1143,7 @@ export class Ky {
 					options: this.#getNormalizedOptions(),
 					response: hookResponse,
 					retryCount: this.#retryCount,
-				}));
+				}), this.#userProvidedAbortSignal);
 
 				if (modifiedResponse === timedOutOperation) {
 					throw new TimeoutError(this.request);
@@ -1219,7 +1250,7 @@ export class Ky {
 					options: this.#getNormalizedOptions(),
 					error: error instanceof Error ? error : new NonError(error),
 					retryCount: this.#retryCount + 1,
-				}));
+				}), this.#userProvidedAbortSignal);
 			} catch (hookError) {
 				// Preserve the original request error path (`throw error`) so beforeError hooks can still run.
 				if (hookError instanceof Error && hookError !== error) {
