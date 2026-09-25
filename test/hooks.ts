@@ -6898,3 +6898,29 @@ test('onUploadProgress works with a Request-like object returned from beforeRequ
 	// Progress is best effort: the body is read by the runtime, not wrapped by Ky.
 	t.deepEqual(events, []);
 });
+
+// `ky.stop` resolves the request with `undefined`, which is documented as incompatible with body method
+// shortcuts. The shortcut used to crash while masking the real reason with an internal TypeError that named
+// Ky's own internals instead of the returned symbol.
+for (const type of ['json', 'text', 'arrayBuffer', 'blob', 'formData', 'bytes'] as const) {
+	test(`the \`${type}\` shortcut reports that \`ky.stop\` left no response`, async t => {
+		await t.throwsAsync(ky(requestFixtureUrl, {
+			fetch: async () => new Response('server error', {status: 500}),
+			hooks: {
+				beforeRetry: [() => ky.stop],
+			},
+		})[type](), {
+			name: 'TypeError',
+			message: 'The request resolved without a response. Returning `ky.stop` from a `beforeRetry` hook is not compatible with body method shortcuts. Throw from the hook instead.',
+		});
+	});
+}
+
+test('`ky.stop` still resolves the plain request with `undefined`', async t => {
+	t.is(await ky(requestFixtureUrl, {
+		fetch: async () => new Response('server error', {status: 500}),
+		hooks: {
+			beforeRetry: [() => ky.stop],
+		},
+	}), undefined);
+});

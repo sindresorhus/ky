@@ -370,6 +370,12 @@ export class Ky {
 
 				const response = await result;
 
+				// `ky.stop` from a `beforeRetry` hook resolves the request with no response at all. Reading a body
+				// method would otherwise crash deep inside Ky with a TypeError that names Ky internals.
+				if (response === undefined) {
+					throw new TypeError('The request resolved without a response. Returning `ky.stop` from a `beforeRetry` hook is not compatible with body method shortcuts. Throw from the hook instead.');
+				}
+
 				if (type !== 'json') {
 					return ky.#raceBodyRead(async () => response[type](), response);
 				}

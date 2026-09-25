@@ -4,7 +4,7 @@ import {Ky} from './core/Ky.js';
 import {requestMethods, stop, retry} from './core/constants.js';
 import type {KyInstance} from './types/ky.js';
 import type {Input, Options} from './types/options.js';
-import {validateAndMerge} from './utils/merge.js';
+import {cloneDeep, validateAndMerge} from './utils/merge.js';
 import {type Mutable} from './utils/types.js';
 
 const createInstance = (defaults?: Partial<Options>): KyInstance => {
@@ -19,8 +19,8 @@ const createInstance = (defaults?: Partial<Options>): KyInstance => {
 	ky.create = (newDefaults?: Partial<Options>) => createInstance(validateAndMerge(newDefaults));
 	ky.extend = (newDefaults?: Partial<Options> | ((parentDefaults: Partial<Options>) => Partial<Options>)) => {
 		if (typeof newDefaults === 'function') {
-			// Pass a copy so mutations inside the callback cannot leak into this instance's defaults. The copy is shallow for nested values in unmerged options like `retry` or `json`, so replace those instead of mutating them in place.
-			newDefaults = newDefaults(validateAndMerge(defaults));
+			// Pass a deep copy so mutations inside the callback cannot leak into this instance's defaults. Deep, because options like `context` are merged shallowly, so a nested value would still point at the parent's object.
+			newDefaults = newDefaults(validateAndMerge(cloneDeep(defaults)));
 		}
 
 		return createInstance(validateAndMerge(defaults, newDefaults));

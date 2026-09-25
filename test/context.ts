@@ -375,3 +375,33 @@ test('a nested null-prototype context value keeps its prototype', async t => {
 	seen!['count'] = 99;
 	t.is(bag.count, 1);
 });
+
+// `extend(fn)` is documented as passing a copy so mutations inside the callback cannot leak into the parent instance's defaults. The copy was shallow, so a nested value still pointed at the parent's object.
+test('mutating nested context inside an `extend` callback does not change the parent instance', async t => {
+	const contexts: Array<Record<string, unknown>> = [];
+	const record = async (instance: typeof parent) => {
+		await instance('https://example.com', {
+			fetch: async () => new Response('ok'),
+			hooks: {
+				beforeRequest: [({options}) => {
+					contexts.push(options.context);
+				}],
+			},
+		}).text();
+	};
+
+	const parent = ky.create({context: {session: {token: 'parent'}, top: 'parent'}});
+	await record(parent);
+
+	parent.extend((options: any) => {
+		options.context.session.token = 'child';
+		return {};
+	});
+
+	await record(parent);
+
+	t.deepEqual(contexts, [
+		{session: {token: 'parent'}, top: 'parent'},
+		{session: {token: 'parent'}, top: 'parent'},
+	]);
+});
