@@ -6849,3 +6849,52 @@ test('a non-Error abort reason while a beforeRequest hook runs is preserved', as
 
 	t.is(thrown, reason);
 });
+
+// `streamRequest()` copies the request through the `Request` constructor, which stringifies a Request-like object as a URL and throws. Ky already passes Request-like objects through as-is elsewhere, so progress reporting must not be the thing that breaks them.
+test('onUploadProgress works with a Request-like object returned from beforeRequest', async t => {
+	const requestLikeWithBody = (request: Request): any => ({
+		get body() {
+			return request.body;
+		},
+		get headers() {
+			return request.headers;
+		},
+		get method() {
+			return request.method;
+		},
+		get signal() {
+			return request.signal;
+		},
+		get url() {
+			return request.url;
+		},
+		[Symbol.toStringTag]: 'Request',
+		clone() {
+			return requestLikeWithBody(request.clone());
+		},
+	});
+
+	const events: number[] = [];
+	const responseText = await ky(requestFixtureUrl, {
+		method: 'POST',
+		body: 'hello',
+		async fetch(request) {
+			t.is((request as Request).url, requestFixtureUrl);
+			t.is((request as Request).headers.get('x-tagged-request'), 'yes');
+			t.is(await new Response((request as any).body).text(), 'hello');
+			return new Response('ok');
+		},
+		onUploadProgress(progress) {
+			events.push(progress.transferredBytes);
+		},
+		hooks: {
+			beforeRequest: [
+				({request}) => requestLikeWithBody(withHeader(request, 'x-tagged-request', 'yes')),
+			],
+		},
+	}).text();
+
+	t.is(responseText, 'ok');
+	// Progress is best effort: the body is read by the runtime, not wrapped by Ky.
+	t.deepEqual(events, []);
+});

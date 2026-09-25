@@ -4207,10 +4207,18 @@ test('an `init` hook can clear `searchParams`', async t => {
 		response.end(request.url);
 	});
 
-	t.is(await ky(server.url, {searchParams: {a: '1'}, hooks: {init: [options => {
-		options.searchParams = null as never;
-	}]}}).text(), '/');
-	t.is(await ky(server.url, {hooks: {init: [options => {
-		options.searchParams = null as never;
-	}]}}).text(), '/');
+	t.is(await ky(server.url, {
+		searchParams: {a: '1'}, hooks: {
+			init: [options => {
+				options.searchParams = null as never;
+			}],
+		},
+	}).text(), '/');
+	t.is(await ky(server.url, {
+		hooks: {
+			init: [options => {
+				options.searchParams = null as never;
+			}],
+		},
+	}).text(), '/');
 });

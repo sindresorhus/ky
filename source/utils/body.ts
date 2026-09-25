@@ -203,7 +203,8 @@ export const streamResponse = (response: Response, onDownloadProgress: Options['
 
 // eslint-disable-next-line @typescript-eslint/no-restricted-types
 export const streamRequest = (request: Request, onUploadProgress: Options['onUploadProgress'], originalBody?: BodyInit | null) => {
-	if (!request.body || request.keepalive || request.mode === 'no-cors') {
+	// A Request-like object from a hook is used as-is, because the `Request` constructor cannot copy it. It would stringify the object as a URL here, so progress reporting is skipped for it.
+	if (!request.body || request.keepalive || request.mode === 'no-cors' || !(request instanceof globalThis.Request)) {
 		return request;
 	}
 

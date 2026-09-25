@@ -38,7 +38,7 @@ import {type ObjectEntries} from '../utils/types.js';
 import {findUnknownOptions, hasSearchParameters} from '../utils/options.js';
 import isRawNetworkError from '../utils/is-network-error.js';
 import {
-	isHTTPError, isNetworkError, isTimeoutError, isResponseSizeError,
+	isHTTPError, isNetworkError, isTimeoutError, isResponseSizeError, isForceRetryError,
 } from '../utils/type-guards.js';
 import {
 	calculateRetryTimingDelay,
@@ -257,7 +257,7 @@ export class Ky {
 						// eslint-disable-next-line no-await-in-loop
 						response = await ky.#runAfterResponseHooks(response);
 					} catch (error) {
-						if (!(error instanceof ForceRetryError)) {
+						if (!isForceRetryError(error)) {
 							throw error;
 						}
 
@@ -644,7 +644,7 @@ export class Ky {
 		const errorObject = error instanceof Error ? error : new NonError(error);
 
 		// Handle forced retry from afterResponse hook - skip method check and shouldRetry
-		if (errorObject instanceof ForceRetryError) {
+		if (isForceRetryError(errorObject)) {
 			return errorObject.customDelay ?? this.#calculateDelay(retry);
 		}
 
@@ -679,7 +679,8 @@ export class Ky {
 			return this.#calculateDelay(retry);
 		}
 
-		if (isHTTPError(error)) {
+		// The `isHTTPError()` brand only checks `name`, so a cross-realm error may not carry a `response`.
+		if (isHTTPError(error) && error.response) {
 			if (!shouldRetryOverride && !retry.statusCodes.includes(error.response.status)) {
 				throw error;
 			}
@@ -1252,7 +1253,7 @@ export class Ky {
 
 		// Apply custom request from forced retry before beforeRetry hooks
 		// Ensure the custom request has the correct managed signal for timeouts and user aborts
-		if (error instanceof ForceRetryError && error.customRequest) {
+		if (isForceRetryError(error) && error.customRequest) {
 			// Replacement Requests are authoritative by design. Do not rewrite headers here,
 			// even for cross-origin retries. Callers using `ky.retry({request})` explicitly
 			// opted into the exact Request they constructed.
