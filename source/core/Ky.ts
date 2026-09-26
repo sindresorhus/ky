@@ -472,6 +472,9 @@ export class Ky {
 	#requestBodyCanBeCancelled = false;
 	readonly #userProvidedAbortSignal: AbortSignal | undefined;
 	readonly #beforeRetryHookErrors = new WeakSet<Error>();
+	// Errors thrown by a user callback that runs while the request is in flight. Retrying would re-send the body and
+	// run the callback again, so they are never retriable, whatever `shouldRetry` says.
+	readonly #inFlightCallbackErrors = new WeakSet<Error>();
 	#cachedNormalizedOptions: NormalizedOptions | undefined;
 	readonly #startTime: number | undefined;
 	#returnedResponseFromBeforeRetryHook = false;
@@ -673,6 +676,10 @@ export class Ky {
 	}
 
 	async #calculateRetryDelay(error: unknown) {
+		if (isError(error) && this.#inFlightCallbackErrors.has(error)) {
+			throw error;
+		}
+
 		const retry = normalizeRetryOptions(this.#options.retry);
 		if (this.#retryCount >= Math.min(retry.limit, this.#retryLimit)) {
 			throw error;
@@ -1415,6 +1422,10 @@ export class Ky {
 			// The upload progress wrapper errors the request body stream when its callback throws, which the runtime reports as a network failure. Surface the callback error instead.
 			const progressCallbackError = getProgressCallbackError(this.#originalRequest?.body ?? undefined);
 			if (progressCallbackError !== undefined) {
+				if (isError(progressCallbackError)) {
+					this.#inFlightCallbackErrors.add(progressCallbackError);
+				}
+
 				// eslint-disable-next-line @typescript-eslint/only-throw-error -- The callback can throw any value, and non-Error throws are propagated as-is elsewhere.
 				throw progressCallbackError;
 			}

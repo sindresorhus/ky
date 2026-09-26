@@ -1407,3 +1407,124 @@ for (const [label, headers] of [
 		t.is(progressEvents[0]?.percent, 0.125);
 	});
 }
+
+// A `ReadableStream` body measures 0, so the upload estimate stayed 0 and the percentage never moved, even when the request itself declared a `content-length`. The download path already falls back to that header.
+test('upload progress uses a declared content-length when the body size is unknown', async t => {
+	const progressEvents: Progress[] = [];
+	let body = '';
+
+	await ky.post('https://example.com', {
+		body: new ReadableStream<Uint8Array>({
+			start(controller) {
+				controller.enqueue(new TextEncoder().encode('a'.repeat(1024)));
+				controller.enqueue(new TextEncoder().encode('a'.repeat(1024)));
+				controller.close();
+			},
+		}),
+		headers: {'content-length': '2048'},
+		retry: 0,
+		async fetch(request) {
+			body = await request.clone().text();
+			return new Response('ok');
+		},
+		onUploadProgress(progress) {
+			progressEvents.push(progress);
+		},
+	}).text();
+
+	t.is(body.length, 2048);
+	t.deepEqual(progressEvents.at(-1), {percent: 1, totalBytes: 2048, transferredBytes: 2048});
+	t.is(progressEvents[0]?.totalBytes, 2048);
+	t.true(progressEvents[0]!.percent > 0, 'the first event should not sit at 0%');
+});
+
+test('upload progress still prefers the body it can measure', async t => {
+	const progressEvents: Progress[] = [];
+
+	await ky.post('https://example.com', {
+		body: 'x'.repeat(10),
+		headers: {'content-length': '2048'},
+		retry: 0,
+		async fetch(request) {
+			await request.text();
+			return new Response('ok');
+		},
+		onUploadProgress(progress) {
+			progressEvents.push(progress);
+		},
+	}).text();
+
+	t.is(progressEvents.at(-1)?.totalBytes, 10);
+});
+
+// A HEAD response has no body even on a normal status, so the `!response.body` guard returned early and the
+// callback never fired. The readme only carves out null body *statuses*.
+for (const [label, headers] of [
+	['a declared length', {'content-length': '1000'}],
+	['no declared length', {}],
+] as Array<[string, Record<string, string>]>) {
+	test(`download progress completes for a HEAD response with ${label}`, async t => {
+		const progressEvents: Progress[] = [];
+
+		const response = await ky('https://example.com', {
+			method: 'HEAD',
+			async fetch() {
+				return new Response(null, {status: 200, headers});
+			},
+			onDownloadProgress(progress, chunk) {
+				progressEvents.push(progress);
+				t.is(chunk.byteLength, 0);
+			},
+		});
+
+		t.is(response.status, 200);
+		t.is(progressEvents.length, 1);
+		const expectedTotal = Number(headers['content-length'] ?? 0);
+		t.deepEqual(progressEvents[0], {percent: 1, totalBytes: expectedTotal, transferredBytes: expectedTotal});
+	});
+}
+
+test('download progress stays silent for a null body status', async t => {
+	let calls = 0;
+	const response = await ky('https://example.com', {
+		async fetch() {
+			return new Response(null, {status: 204});
+		},
+		onDownloadProgress() {
+			calls++;
+		},
+	});
+
+	t.is(response.status, 204);
+	t.is(calls, 0);
+});
+
+// A throwing progress callback is a user-space error, but `#fetch()` rethrows it as a plain `Error`, so a `shouldRetry` that returns `true` for everything re-sent the body and ran the callback again.
+test('a throwing upload progress callback is not retried even when `shouldRetry` returns true', async t => {
+	const {server, getRequestCount} = await createUploadProgressTestServer(t);
+	let callbackCalls = 0;
+	let beforeRetryCalls = 0;
+
+	await t.throwsAsync(ky.post(server.url, {
+		body: 'x'.repeat(1024),
+		retry: {
+			limit: 3,
+			methods: ['post'],
+			delay: () => 0,
+			shouldRetry: () => true,
+		},
+		hooks: {
+			beforeRetry: [() => {
+				beforeRetryCalls++;
+			}],
+		},
+		onUploadProgress() {
+			callbackCalls++;
+			throw new Error('upload progress failed');
+		},
+	}).text(), {message: 'upload progress failed'});
+
+	t.is(getRequestCount(), 0);
+	t.is(callbackCalls, 1);
+	t.is(beforeRetryCalls, 0);
+});
