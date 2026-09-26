@@ -10,9 +10,7 @@ test('undefined clears an inherited baseUrl without changing the parent', async 
 	const child = parent.extend({baseUrl: undefined});
 
 	t.is(await parent('users').text(), 'https://example.com/api/users');
-	t.throws(() => {
-		void child('users');
-	}, {instanceOf: TypeError});
+	await t.throwsAsync(child('users'), {instanceOf: TypeError});
 	t.is(await child('https://example.org/users').text(), 'https://example.org/users');
 	t.is(await parent('users').text(), 'https://example.com/api/users');
 });
@@ -101,21 +99,17 @@ test('baseUrl rejects slashless HTTP URLs', async t => {
 	];
 
 	for (const input of inputs) {
-		t.throws(
-			() => {
-				void ky(input, {
-					baseUrl: 'https://trusted.test/api/',
-					fetch,
-					headers: {
-						authorization: 'Bearer secret',
-					},
-				});
+		// eslint-disable-next-line no-await-in-loop
+		await t.throwsAsync(ky(input, {
+			baseUrl: 'https://trusted.test/api/',
+			fetch,
+			headers: {
+				authorization: 'Bearer secret',
 			},
-			{
-				instanceOf: TypeError,
-				message: '`input` url protocol must be followed by `//` when using `baseUrl`',
-			},
-		);
+		}), {
+			instanceOf: TypeError,
+			message: '`input` url protocol must be followed by `//` when using `baseUrl`',
+		});
 	}
 
 	let absoluteUrl: string | undefined;

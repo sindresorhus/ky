@@ -273,8 +273,7 @@ defaultBrowsersTest('baseUrl option', async (t: ExecutionContext, page: Page) =>
 
 	const results = await page.evaluate(async (url: string) => Promise.all([
 		globalThis.ky(`${url}/api/unicorn`).text(),
-		// @ts-expect-error unsupported {baseUrl: null} type
-		globalThis.ky(`${url}/api/unicorn`, {baseUrl: null}).text(),
+		globalThis.ky(`${url}/api/unicorn`, {baseUrl: undefined}).text(),
 		globalThis.ky('api/unicorn', {baseUrl: url}).text(),
 		globalThis.ky('unicorn', {baseUrl: `${url}/api`}).text(),
 		globalThis.ky('/unicorn', {baseUrl: `${url}/api`}).text(),
@@ -299,8 +298,7 @@ defaultBrowsersTest('prefix option', async (t: ExecutionContext, page: Page) => 
 
 	const results = await page.evaluate(async (url: string) => Promise.all([
 		globalThis.ky(`${url}/api/unicorn`).text(),
-		// @ts-expect-error unsupported {prefix: null} type
-		globalThis.ky(`${url}/api/unicorn`, {prefix: null}).text(),
+		globalThis.ky(`${url}/api/unicorn`, {prefix: undefined}).text(),
 		globalThis.ky('api/unicorn', {prefix: url}).text(),
 		globalThis.ky('unicorn', {prefix: `${url}/api`}).text(),
 		globalThis.ky('/unicorn', {prefix: `${url}/api`}).text(),

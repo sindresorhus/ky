@@ -10,6 +10,10 @@ const progressCallbackErrors = new WeakMap<ReadableStream, () => unknown>();
 // The `Response` constructor rejects a body for these statuses, but some browsers (for example, Chromium and WebKit) still expose a body stream on such responses, so they must not be wrapped. A runtime that exposes a non-empty body for one of them, such as WebKit for 205, is therefore left unlimited and without progress events.
 const nullBodyStatuses = new Set([101, 103, 204, 205, 304]);
 
+// A multipart body sends every line break in a field name or string value as CRLF, and escapes line breaks and quotes in a field name or filename.
+const normalizeLineBreaks = (value: string): string => value.replaceAll(/\r\n|\r|\n/g, '\r\n');
+const escapeFormDataName = (name: string): string => name.replaceAll('\n', '%0A').replaceAll('\r', '%0D').replaceAll('"', '%22');
+
 // eslint-disable-next-line @typescript-eslint/no-restricted-types
 export const getBodySize = (body?: BodyInit | null): number => {
 	if (!body) {
@@ -17,18 +21,28 @@ export const getBodySize = (body?: BodyInit | null): number => {
 	}
 
 	if (body instanceof FormData) {
-		// This is an approximation, as FormData size calculation is not straightforward
+		// This is an approximation, as FormData size calculation is not straightforward. The boundary length is a stand-in for the runtime's own, and every other byte is counted so the estimate errs high (except slightly in Bun, see `usualFormBoundarySize`): an estimate below the real size makes `percent` reach its ceiling part way through the upload.
 		let size = 0;
 
 		for (const [key, value] of body) {
-			size += usualFormBoundarySize;
-			size += encoder.encode(`Content-Disposition: form-data; name="${key}"`).byteLength;
+			size += usualFormBoundarySize + 4; // `--<boundary>\r\n`
+			size += encoder.encode(`Content-Disposition: form-data; name="${escapeFormDataName(normalizeLineBreaks(key))}"`).byteLength;
+
+			if (value instanceof Blob) {
+				// Most runtimes turn an appended `Blob` into a `File` named `blob`, but Bun keeps a `Blob` with an `undefined` name and sends an empty filename.
+				size += encoder.encode(`; filename="${escapeFormDataName((value as Partial<File>).name ?? '')}"`).byteLength;
+				size += encoder.encode(`\r\nContent-Type: ${value.type || 'application/octet-stream'}`).byteLength;
+			}
+
+			size += 4; // The CRLF that ends the headers, plus the blank line.
 			size += typeof value === 'string'
-				? encoder.encode(value).byteLength
+				? encoder.encode(normalizeLineBreaks(value)).byteLength
 				: value.size;
+			size += 2; // The CRLF that ends the part.
 		}
 
-		return size;
+		// The closing `--<boundary>--\r\n`. An empty `FormData` still sends it, but reports `0`, the documented total for an empty transfer.
+		return size === 0 ? 0 : size + usualFormBoundarySize + 6;
 	}
 
 	if (body instanceof Blob) {

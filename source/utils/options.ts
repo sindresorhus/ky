@@ -18,10 +18,15 @@ export const findUnknownOptions = (
 		// patch `Request.prototype` with fetch-only extensions. For example, Next.js adds `next`, and the
 		// old `key in request` heuristic dropped it unless Ky kept a special-case allowlist.
 		// Passing all non-standard keys makes that allowlist unnecessary and preserves future fetch extensions too.
-		// The registries are plain objects, so `Object.hasOwn()` is required: `in` would also match
-		// `Object.prototype` members such as `constructor` and `toString`, silently dropping those options.
+		// The registries are plain objects, so `Object.hasOwn()` is required: `in` would also match `Object.prototype` members such as `constructor` and `toString`, silently dropping those options.
 		if (!Object.hasOwn(requestOptionsRegistry, key) && !Object.hasOwn(kyOptionKeys, key)) {
-			unknownOptions[key] = options[key];
+			// Defined instead of assigned, so a `__proto__` key becomes an own property of the init object rather than replacing its prototype, which would both drop the option and give `fetch()` an object that inherits from caller data.
+			Object.defineProperty(unknownOptions, key, {
+				value: options[key],
+				writable: true,
+				enumerable: true,
+				configurable: true,
+			});
 		}
 	}
 
@@ -33,7 +38,7 @@ export const hasSearchParameters = (search: SearchParamsOption): boolean => {
 		return false;
 	}
 
-	// Option merging turns `null` into an absent value, but an `init` hook assigns straight onto the options object. `null` is not accepted, so report it instead of treating it as absent.
+	// Option merging already rejects `null`, but an `init` hook assigns straight onto the options object.
 	if (search === null) {
 		throw new TypeError('The `searchParams` option must not be `null`. Use `undefined` to clear it.');
 	}

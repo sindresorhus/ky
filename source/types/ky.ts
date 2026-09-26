@@ -6,6 +6,8 @@ export type KyInstance = {
 	/**
 	Fetch the given `url`.
 
+	Invalid options, an invalid `input`, and an error thrown by an `init` hook reject the returned promise instead of throwing, the same way `fetch()` reports them. They are not passed to `beforeError` hooks, because no request was made.
+
 	@param url - `Request` object, `URL` object, or URL string.
 	@returns A promise with `Body` method added.
 

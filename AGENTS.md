@@ -1,3 +1,3 @@
 # Conventions
 
-- Prefer `undefined` for absent values. Do not add special handling for `null`.
+- `null` is not an accepted value anywhere in this project. Options, hook lists, arguments and hook state all use `undefined` to mean absent, and passing `null` is a mistake that should be reported as one rather than quietly treated as `undefined`. Do not add `null`-tolerant branches, do not widen a type to include `null`, and do not default a `null` parameter to another value. When a caller can plausibly write `null`, the fix is a clear error that names the option, not a fallback. The one exception is the `signal` option, which accepts `null` for `RequestInit` compatibility and treats it as absent.

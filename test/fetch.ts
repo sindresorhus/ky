@@ -1,6 +1,6 @@
 import {setTimeout as delay} from 'node:timers/promises';
 import test from 'ava';
-import ky, {HTTPError, NetworkError} from '../source/index.js';
+import ky, {NetworkError} from '../source/index.js';
 import {createHttpTestServer} from './helpers/create-http-test-server.js';
 
 const fixture = 'https://example.com/unicorn';
@@ -912,10 +912,36 @@ test('unknown options named after Object.prototype members are passed to fetch',
 	} as never).text();
 });
 
-// A custom `fetch` is allowed to resolve with anything, and Ky's own comments say a non-native Response only
-// continues if it passes `isResponseInstance()`. Recording the value in a `WeakMap` first made that unreachable for
-// a primitive, and reported a message that named a `WeakMap` instead of the option that was wrong.
-test('a custom fetch that resolves with a non-Response does not crash on a WeakMap key', async t => {
+// The init object was built with a plain assignment, so a `__proto__` key hit the inherited setter instead of becoming an own property. The extension was dropped and `fetch()` received an object whose prototype was caller data.
+test('a `__proto__` fetch extension is forwarded as an own property', async t => {
+	let init: unknown;
+
+	await ky(fixture, {
+		...JSON.parse('{"__proto__": {"marker": 1}, "priority": "low"}'),
+		async fetch(request, options) {
+			init = options;
+			return new Response(request.url);
+		},
+	} as never).text();
+
+	t.is(Object.getPrototypeOf(init), Object.prototype);
+	t.deepEqual(Object.getOwnPropertyDescriptor(init, '__proto__')?.value, {marker: 1});
+	t.is((init as {priority: unknown}).priority, 'low');
+});
+
+// `undefined` would otherwise look like `ky.stop`, and any other value failed later with an error that did not name the cause.
+test('a custom fetch that resolves with a value that is not a Response is reported', async t => {
+	for (const value of [undefined, null, 'ok', 42, {}] as unknown[]) {
+		// eslint-disable-next-line no-await-in-loop
+		await t.throwsAsync(ky(fixture, {retry: 0, fetch: async () => value as Response}), {
+			instanceOf: TypeError,
+			message: 'The `fetch` option must resolve with a `Response`',
+		}, `value: ${String(value)}`);
+	}
+});
+
+// A Response from another realm or a Response-like object with the `Response` brand is accepted as-is.
+test('a custom fetch can resolve with a branded Response-like object', async t => {
 	const responseLike = {
 		status: 200,
 		ok: true,
@@ -930,21 +956,5 @@ test('a custom fetch that resolves with a non-Response does not crash on a WeakM
 		[Symbol.toStringTag]: 'Response',
 	};
 
-	// A nullish result is normalized to `undefined`, the same as a hook that stopped the flow.
-	for (const value of [undefined, null]) {
-		// eslint-disable-next-line no-await-in-loop
-		t.is(await ky(fixture, {retry: 0, fetch: async () => value as Response}), undefined);
-	}
-
 	t.is(await ky(fixture, {retry: 0, fetch: async () => responseLike as unknown as Response}), responseLike);
-});
-
-test('a custom fetch that resolves with a value that is not a response produces an HTTPError', async t => {
-	for (const value of ['ok', 42, {}] as unknown[]) {
-		// eslint-disable-next-line no-await-in-loop
-		await t.throwsAsync(ky(fixture, {retry: 0, fetch: async () => value as Response}).text(), {
-			instanceOf: HTTPError,
-			message: /an unknown error/,
-		}, `value: ${String(value)}`);
-	}
 });

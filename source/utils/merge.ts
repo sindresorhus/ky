@@ -307,11 +307,17 @@ const appendSearchParameters = (target: any, source: any): URLSearchParams => {
 			}
 		} else if (isObject(input)) {
 			for (const [key, value] of Object.entries(input)) {
-				if (value === undefined) {
+				// A `replaceOption()` wrapper is unwrapped here, because this branch stringifies every value, so a wrapper that reached it would land in the URL as `[object Object]`. A wrapped value replaces the inherited values of its key instead of being added to them.
+				const {isReplace, value: entry} = getReplaceState(value);
+				if (entry === undefined) {
 					result.delete(key);
 					deleted.add(key);
 				} else {
-					result.append(key, String(value));
+					if (isReplace) {
+						result.delete(key);
+					}
+
+					result.append(key, String(entry));
 				}
 			}
 		} else {
@@ -362,23 +368,28 @@ const deepMergeInternal = <T>(isRoot: boolean, ...sources: Array<Partial<T> | un
 					continue;
 				}
 
+				// Option merging would otherwise let a `null` silently replace the inherited headers.
+				if (isRoot && key === 'headers' && value === null) {
+					throw new TypeError('The `headers` option must not be `null`. Use `undefined` to clear it.');
+				}
+
 				// Special handling for context - shallow merge only.
 				// Scoped to the root options level so it never rewrites nested user data that
 				// happens to contain a `context` key (e.g. a `json` request body).
 				if (isRoot && key === 'context') {
-					if (value !== undefined && value !== null && (!isObject(value) || Array.isArray(value))) {
+					// `null` is not accepted, so it is reported here rather than treated as absent.
+					if (value !== undefined && (!isObject(value) || Array.isArray(value))) {
 						throw new TypeError('The `context` option must be an object');
 					}
 
-					// Shallow merge: top-level keys are replaced, but each layer is deep-copied so nested values are
-					// never shared with the caller's object.
+					// Shallow merge: always create a new object to prevent mutation bugs
 					returnValue = {
 						...returnValue,
-						context: (value === undefined || value === null)
+						context: value === undefined
 							? {}
 							: (isReplace
-								? {...cloneDeep(value as Record<string, unknown>)}
-								: {...returnValue.context, ...cloneDeep(value as Record<string, unknown>)}),
+								? {...value}
+								: {...returnValue.context, ...value}),
 					};
 					continue;
 				}
@@ -387,8 +398,12 @@ const deepMergeInternal = <T>(isRoot: boolean, ...sources: Array<Partial<T> | un
 				// Scoped to the root options level so it never rewrites nested user data that
 				// happens to contain a `searchParams` key (e.g. a `json` request body).
 				if (isRoot && key === 'searchParams') {
-					if (value === undefined || value === null) {
-						// Explicit undefined or null removes searchParams
+					if (value === null) {
+						throw new TypeError('The `searchParams` option must not be `null`. Use `undefined` to clear it.');
+					}
+
+					if (value === undefined) {
+						// Explicit undefined removes searchParams
 						searchParameters = undefined;
 					} else if (isReplace || searchParameters === undefined) {
 						// First or replacement source: shallow-clone to preserve type (string/object/URLSearchParams/tuples) without sharing the caller's object
@@ -408,6 +423,11 @@ const deepMergeInternal = <T>(isRoot: boolean, ...sources: Array<Partial<T> | un
 				// (e.g. `ky.create({retry: {methods: ['post']}}).extend({retry: 3})`).
 				// Scoped to the root options level so it never rewrites nested user data that
 				// happens to contain a `retry` key (e.g. a `json` request body).
+				// Checked here as well as when the request is built, because a later layer would otherwise replace an invalid value, `null` included, before anything reports it.
+				if (isRoot && key === 'retry' && value !== undefined && typeof value !== 'number' && (!isObject(value) || Array.isArray(value))) {
+					throw new TypeError('`retry` must be a number or an object');
+				}
+
 				if (isRoot && key === 'retry' && !isReplace) {
 					if (isObject(value) && typeof returnValue[key] === 'number') {
 						returnValue = {...returnValue, [key]: {limit: returnValue[key]}};
@@ -428,7 +448,8 @@ const deepMergeInternal = <T>(isRoot: boolean, ...sources: Array<Partial<T> | un
 
 			// Scoped to the root options level so it never rewrites nested user data that
 			// happens to contain a `hooks` key (e.g. a `json` request body).
-			if (isRoot && isObject((source as any).hooks)) {
+			// Every value but `undefined` goes through `mergeHooks`, which rejects a bad shape, `null` included, so a later layer cannot hide it.
+			if (isRoot && (source as any).hooks !== undefined) {
 				const {value: hookValue, isReplace} = getReplaceState((source as any).hooks);
 				hooks = isReplace
 					? mergeHooks({}, hookValue)

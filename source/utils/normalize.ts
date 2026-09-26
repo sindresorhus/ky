@@ -101,6 +101,10 @@ export const normalizeRetryOptions = (retry: number | RetryOptions = {}): Intern
 		throw new TypeError('`retry.jitter` must be a boolean or a function');
 	}
 
+	if (typeof normalizedRetry.retryOnTimeout !== 'boolean') {
+		throw new TypeError('`retry.retryOnTimeout` must be a boolean');
+	}
+
 	normalizedRetry.methods = normalizedRetry.methods.map(method => normalizeRetryMethod(method));
 	normalizedRetry.statusCodes = [...normalizedRetry.statusCodes];
 	normalizedRetry.afterStatusCodes = [...normalizedRetry.afterStatusCodes];

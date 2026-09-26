@@ -299,17 +299,14 @@ test('init hook mutations to symbol-keyed context stay isolated between requests
 	t.is(beforeRequestCalls, 2);
 });
 
-test('hook mutation of a nested context value does not leak into the instance defaults', async t => {
-	const context = {nested: {count: 0}};
-	const observed: number[] = [];
-
+// Context is merged shallowly, so a nested object is shared by every request from the instance, which lets hooks keep state such as a cache in it. An `init` hook gets a deep copy, so this does not hold for an instance with one.
+test('a nested context object is shared across requests', async t => {
+	const context = {cache: {count: 0}};
 	const api = ky.create({
 		context,
-		retry: {limit: 0},
 		hooks: {
 			beforeRequest: [({options}) => {
-				observed.push(options.context.nested.count);
-				options.context.nested.count++;
+				(options.context.cache as typeof context.cache).count++;
 			}],
 		},
 		fetch: async () => new Response('ok'),
@@ -317,10 +314,8 @@ test('hook mutation of a nested context value does not leak into the instance de
 
 	await api('https://example.com/1').text();
 	await api('https://example.com/2').text();
-	await api('https://example.com/3').text();
 
-	t.deepEqual(observed, [0, 0, 0]);
-	t.deepEqual(context, {nested: {count: 0}});
+	t.is(context.cache.count, 2);
 });
 
 test('hooks in one request still share a single context object', async t => {
@@ -350,7 +345,8 @@ test('hooks in one request still share a single context object', async t => {
 	t.deepEqual(seen[1], {shared: 'set-in-beforeRequest'});
 });
 
-test('a nested null-prototype context value keeps its prototype', async t => {
+// `init` hooks get a deep copy of the context, which must keep a null prototype.
+test('a nested null-prototype context value keeps its prototype in an `init` hook', async t => {
 	const bag = Object.create(null) as Record<string, unknown>;
 	bag.count = 1;
 
@@ -358,8 +354,8 @@ test('a nested null-prototype context value keeps its prototype', async t => {
 	const api = ky.create({
 		context: {bag},
 		hooks: {
-			beforeRequest: [({options}) => {
-				seen = options.context.bag as Record<string, unknown>;
+			init: [options => {
+				seen = options.context!.bag as Record<string, unknown>;
 			}],
 		},
 		fetch: async () => new Response('ok'),

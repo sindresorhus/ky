@@ -1026,37 +1026,34 @@ test('respect number of retries', async t => {
 	t.is(requestCount, 4);
 });
 
-test('rejects invalid retry limits', t => {
+test('rejects invalid retry limits', async t => {
 	for (const limit of [Number.NaN, Number.POSITIVE_INFINITY, -1, 1.5]) {
-		t.throws(() => {
-			void ky('https://example.com', {
-				retry: {
-					limit,
-				},
-			});
-		}, {
+		// eslint-disable-next-line no-await-in-loop
+		await t.throwsAsync(ky('https://example.com', {
+			retry: {
+				limit,
+			},
+		}), {
 			instanceOf: TypeError,
 			message: '`retry.limit` must be a finite, non-negative integer',
 		});
 
-		t.throws(() => {
-			void ky('https://example.com', {retry: limit});
-		}, {
+		// eslint-disable-next-line no-await-in-loop
+		await t.throwsAsync(ky('https://example.com', {retry: limit}), {
 			instanceOf: TypeError,
 			message: '`retry.limit` must be a finite, non-negative integer',
 		});
 	}
 });
 
-test('rejects non-number retry limits', t => {
+test('rejects non-number retry limits', async t => {
 	for (const limit of ['NaN', true, null]) {
-		t.throws(() => {
-			void ky('https://example.com', {
-				retry: {
-					limit: limit as never,
-				},
-			});
-		}, {
+		// eslint-disable-next-line no-await-in-loop
+		await t.throwsAsync(ky('https://example.com', {
+			retry: {
+				limit: limit as never,
+			},
+		}), {
 			instanceOf: TypeError,
 			message: '`retry.limit` must be a finite, non-negative integer',
 		});
@@ -1184,23 +1181,21 @@ test('uses the normalized retry limit when cloning request bodies', async t => {
 	t.is(requestCount, 3);
 });
 
-test('rejects invalid retry option values', t => {
+test('rejects invalid retry option values', async t => {
 	for (const retry of [true, 'NaN', []]) {
-		t.throws(() => {
-			void ky('https://example.com', {retry: retry as never});
-		}, {
+		// eslint-disable-next-line no-await-in-loop
+		await t.throwsAsync(ky('https://example.com', {retry: retry as never}), {
 			instanceOf: TypeError,
 			message: '`retry` must be a number or an object',
 		});
 
-		t.throws(() => {
-			void ky('https://example.com', {
-				retry: retry as never,
-				hooks: {
-					init: [() => undefined],
-				},
-			});
-		}, {
+		// eslint-disable-next-line no-await-in-loop
+		await t.throwsAsync(ky('https://example.com', {
+			retry: retry as never,
+			hooks: {
+				init: [() => undefined],
+			},
+		}), {
 			instanceOf: TypeError,
 			message: '`retry` must be a number or an object',
 		});
@@ -1573,12 +1568,10 @@ test('retry - init hook sees a numeric `retry` merged into the object defaults',
 	t.deepEqual(initRetry, {methods: ['post'], limit: 3});
 });
 
-test('retry - invalid numeric `retry` extending an object still throws', t => {
+test('retry - invalid numeric `retry` extending an object still throws', async t => {
 	const client = ky.create({retry: {methods: ['post']}}).extend({retry: -1});
 
-	t.throws(() => {
-		void client.post('https://example.com');
-	}, {
+	await t.throwsAsync(client.post('https://example.com'), {
 		instanceOf: TypeError,
 		message: '`retry.limit` must be a finite, non-negative integer',
 	});
@@ -1994,79 +1987,67 @@ test('streaming body POST retries and succeeds when retry.limit is above 0', asy
 test('throws when retry.methods is not an array', async t => {
 	const server = await createHttpTestServer(t);
 
-	t.throws(() => {
-		void ky(server.url, {
-			retry: {
-				// @ts-expect-error
-				methods: 'get',
-			},
-		});
-	});
+	await t.throwsAsync(ky(server.url, {
+		retry: {
+			// @ts-expect-error
+			methods: 'get',
+		},
+	}), {message: 'retry.methods must be an array'});
 
-	t.throws(() => {
-		void ky(server.url, {
-			retry: {
-				// @ts-expect-error
-				methods: 'get',
-			},
-			hooks: {
-				init: [() => undefined],
-			},
-		});
-	});
+	await t.throwsAsync(ky(server.url, {
+		retry: {
+			// @ts-expect-error
+			methods: 'get',
+		},
+		hooks: {
+			init: [() => undefined],
+		},
+	}), {message: 'retry.methods must be an array'});
 });
 
 test('throws when retry.statusCodes is not an array', async t => {
 	const server = await createHttpTestServer(t);
 
-	t.throws(() => {
-		void ky(server.url, {
-			retry: {
-				// @ts-expect-error
-				statusCodes: 403,
-			},
-		});
-	});
+	await t.throwsAsync(ky(server.url, {
+		retry: {
+			// @ts-expect-error
+			statusCodes: 403,
+		},
+	}), {message: 'retry.statusCodes must be an array'});
 
-	t.throws(() => {
-		void ky(server.url, {
-			retry: {
-				// @ts-expect-error
-				statusCodes: 403,
-			},
-			hooks: {
-				init: [() => undefined],
-			},
-		});
-	});
+	await t.throwsAsync(ky(server.url, {
+		retry: {
+			// @ts-expect-error
+			statusCodes: 403,
+		},
+		hooks: {
+			init: [() => undefined],
+		},
+	}), {message: 'retry.statusCodes must be an array'});
 });
 
 test('throws when retry.afterStatusCodes is not an array', async t => {
 	const server = await createHttpTestServer(t);
 
-	t.throws(() => {
-		void ky(server.url, {
-			retry: {
-				// @ts-expect-error
-				afterStatusCodes: 503,
-			},
-		});
-	});
+	await t.throwsAsync(ky(server.url, {
+		retry: {
+			// @ts-expect-error
+			afterStatusCodes: 503,
+		},
+	}), {message: 'retry.afterStatusCodes must be an array'});
 
-	t.throws(() => {
-		void ky(server.url, {
-			retry: {
-				// @ts-expect-error
-				afterStatusCodes: 503,
-			},
-			hooks: {
-				init: [() => undefined],
-			},
-		});
-	});
+	await t.throwsAsync(ky(server.url, {
+		retry: {
+			// @ts-expect-error
+			afterStatusCodes: 503,
+		},
+		hooks: {
+			init: [() => undefined],
+		},
+	}), {message: 'retry.afterStatusCodes must be an array'});
 });
 
-test('throws when retry array options are falsy non-arrays', t => {
+test('throws when retry array options are falsy non-arrays', async t => {
 	for (const [key, value] of [
 		['methods', 0],
 		['statusCodes', false],
@@ -2074,20 +2055,18 @@ test('throws when retry array options are falsy non-arrays', t => {
 	] as const) {
 		const retry = {[key]: value};
 
-		t.throws(() => {
-			void ky('https://example.com', {
-				retry: retry as never,
-			});
-		});
+		// eslint-disable-next-line no-await-in-loop
+		await t.throwsAsync(ky('https://example.com', {
+			retry: retry as never,
+		}), {message: `retry.${key} must be an array`});
 
-		t.throws(() => {
-			void ky('https://example.com', {
-				retry: retry as never,
-				hooks: {
-					init: [() => undefined],
-				},
-			});
-		});
+		// eslint-disable-next-line no-await-in-loop
+		await t.throwsAsync(ky('https://example.com', {
+			retry: retry as never,
+			hooks: {
+				init: [() => undefined],
+			},
+		}), {message: `retry.${key} must be an array`});
 	}
 });
 
@@ -3425,15 +3404,12 @@ test('totalTimeout: 0 throws immediately', async t => {
 });
 
 test('totalTimeout exceeding maxSafeTimeout throws RangeError', async t => {
-	await t.throwsAsync(
-		ky('https://example.com', {
-			fetch: async () => new Response('ok'),
-			totalTimeout: 2_147_483_648,
-		}).text(),
-		{
-			instanceOf: RangeError,
-		},
-	);
+	await t.throwsAsync(ky('https://example.com', {
+		fetch: async () => new Response('ok'),
+		totalTimeout: 2_147_483_648,
+	}), {
+		instanceOf: RangeError,
+	});
 });
 
 test('totalTimeout expires mid-delay between retries', async t => {
@@ -4794,10 +4770,8 @@ test('totalTimeout does not bound a beforeError hook', async t => {
 	t.is(error.message, 'rewritten: NetworkError');
 });
 
-// Both limits feed `Math.min()`, so a non-number turns the retry delay into `NaN`, which `setTimeout()` clamps to
-// 1ms. A `Retry-After: 1` header would then be retried almost immediately, which is the thundering herd those
-// options exist to prevent.
-test('rejects non-numeric or negative `maxRetryAfter` and `backoffLimit`', t => {
+// Both limits feed `Math.min()`, so a non-number turns the retry delay into `NaN`, which `setTimeout()` clamps to 1ms. A `Retry-After: 1` header would then be retried almost immediately, which is the thundering herd those options exist to prevent.
+test('rejects non-numeric or negative `maxRetryAfter` and `backoffLimit`', async t => {
 	for (const key of ['maxRetryAfter', 'backoffLimit'] as const) {
 		for (const value of ['1000', Number.NaN, -1, {}, null] as unknown[]) {
 			// `null` is nullish, so it selects the default instead of being rejected.
@@ -4807,9 +4781,8 @@ test('rejects non-numeric or negative `maxRetryAfter` and `backoffLimit`', t => 
 
 			const retry: Record<string, unknown> = {[key]: value};
 
-			t.throws(() => {
-				void ky('https://example.com', {retry: retry as never});
-			}, {
+			// eslint-disable-next-line no-await-in-loop
+			await t.throwsAsync(ky('https://example.com', {retry: retry as never}), {
 				instanceOf: TypeError,
 				message: `\`retry.${key}\` must be a non-negative number or \`Infinity\``,
 			}, `${key}: ${JSON.stringify(value)}`);
@@ -4817,22 +4790,20 @@ test('rejects non-numeric or negative `maxRetryAfter` and `backoffLimit`', t => 
 	}
 });
 
-// Validating up front means the misconfiguration is reported before the request is sent, instead of replacing the
-// `HTTPError` with a `TypeError` from deep inside the retry delay calculation.
-test('a rejected retry limit is reported before the request is sent', t => {
+// Validating up front means the misconfiguration is reported before the request is sent, instead of replacing the `HTTPError` with a `TypeError` from deep inside the retry delay calculation.
+test('a rejected retry limit is reported before the request is sent', async t => {
 	for (const key of ['maxRetryAfter', 'backoffLimit'] as const) {
 		let requestCount = 0;
 		const retry: Record<string, unknown> = {[key]: 'soon'};
 
-		t.throws(() => {
-			void ky('https://example.com', {
-				async fetch() {
-					requestCount++;
-					return new Response(null, {status: 500});
-				},
-				retry: retry as never,
-			});
-		}, {
+		// eslint-disable-next-line no-await-in-loop
+		await t.throwsAsync(ky('https://example.com', {
+			async fetch() {
+				requestCount++;
+				return new Response(null, {status: 500});
+			},
+			retry: retry as never,
+		}), {
 			instanceOf: TypeError,
 			message: `\`retry.${key}\` must be a non-negative number or \`Infinity\``,
 		}, key);
@@ -4841,9 +4812,8 @@ test('a rejected retry limit is reported before the request is sent', t => {
 	}
 });
 
-// A non-function `delay`/`shouldRetry` used to be called blindly, so the resulting `TypeError` replaced the
-// `HTTPError` that actually caused the retry. Validate the shapes up front instead.
-test('rejects non-function `retry.delay`, `retry.shouldRetry` and `retry.jitter`', t => {
+// A non-function `delay`/`shouldRetry` used to be called blindly, so the resulting `TypeError` replaced the `HTTPError` that actually caused the retry. Validate the shapes up front instead.
+test('rejects non-function `retry.delay`, `retry.shouldRetry` and `retry.jitter`', async t => {
 	for (const [key, value] of [
 		['delay', 1000],
 		['shouldRetry', true],
@@ -4852,9 +4822,8 @@ test('rejects non-function `retry.delay`, `retry.shouldRetry` and `retry.jitter`
 	] as Array<[string, unknown]>) {
 		const retry: Record<string, unknown> = {[key]: value};
 
-		t.throws(() => {
-			void ky('https://example.com', {retry: retry as never});
-		}, {
+		// eslint-disable-next-line no-await-in-loop
+		await t.throwsAsync(ky('https://example.com', {retry: retry as never}), {
 			instanceOf: TypeError,
 			message: `\`retry.${key}\` must be ${key === 'jitter' ? 'a boolean or a function' : 'a function'}`,
 		}, `${key}: ${JSON.stringify(value)}`);
@@ -4888,9 +4857,8 @@ test('a negative `retry.delay` result is rejected', async t => {
 	});
 });
 
-// Array-shaped retry options were only checked for being arrays, so a mistyped entry silently disabled retrying
-// with no indication of why.
-test('rejects non-string `retry.methods` entries and non-number status code entries', t => {
+// Array-shaped retry options were only checked for being arrays, so a mistyped entry silently disabled retrying with no indication of why.
+test('rejects non-string `retry.methods` entries and non-number status code entries', async t => {
 	for (const [key, value] of [
 		['methods', ['GET', 5]],
 		['statusCodes', ['429']],
@@ -4901,28 +4869,25 @@ test('rejects non-string `retry.methods` entries and non-number status code entr
 	] as Array<[string, unknown]>) {
 		const retry: Record<string, unknown> = {[key]: value};
 
-		t.throws(() => {
-			void ky('https://example.com', {retry: retry as never});
-		}, {
+		// eslint-disable-next-line no-await-in-loop
+		await t.throwsAsync(ky('https://example.com', {retry: retry as never}), {
 			instanceOf: TypeError,
 			message: `\`retry.${key}\` must only contain ${key === 'methods' ? 'strings' : 'numbers'}`,
 		}, `${key}: ${JSON.stringify(value)}`);
 	}
 });
 
-test('a rejected retry list entry is reported before the request is sent', t => {
+test('a rejected retry list entry is reported before the request is sent', async t => {
 	let requestCount = 0;
 	const retry: Record<string, unknown> = {statusCodes: ['500']};
 
-	t.throws(() => {
-		void ky('https://example.com', {
-			async fetch() {
-				requestCount++;
-				return new Response(null, {status: 500});
-			},
-			retry: retry as never,
-		});
-	}, {
+	await t.throwsAsync(ky('https://example.com', {
+		async fetch() {
+			requestCount++;
+			return new Response(null, {status: 500});
+		},
+		retry: retry as never,
+	}), {
 		instanceOf: TypeError,
 		message: '`retry.statusCodes` must only contain numbers',
 	});

@@ -1,19 +1,46 @@
 /*! MIT License © Sindre Sorhus */
 
 import {Ky} from './core/Ky.js';
-import {requestMethods, stop, retry} from './core/constants.js';
+import {
+	requestMethods,
+	responseTypes,
+	stop,
+	retry,
+} from './core/constants.js';
 import type {KyInstance} from './types/ky.js';
 import type {Input, Options} from './types/options.js';
+import type {ResponsePromise} from './types/ResponsePromise.js';
 import {cloneDeep, validateAndMerge} from './utils/merge.js';
 import {type Mutable} from './utils/types.js';
 
+// Errors while setting up the request, such as invalid options or a throwing `init` hook, reject the returned promise instead of throwing, the same way `fetch()` reports them, so callers only have one error channel to handle.
+const createRequest = (input: Input, getOptions: () => Options): ResponsePromise => {
+	try {
+		return Ky.create(input, getOptions());
+	} catch (error: unknown) {
+		// eslint-disable-next-line @typescript-eslint/prefer-promise-reject-errors -- A hook can throw any value, and it must be preserved exactly.
+		const result = Promise.reject(error) as ResponsePromise;
+		for (const type of Object.keys(responseTypes) as Array<keyof typeof responseTypes>) {
+			// Matches `Ky.create()`, which only exposes `.bytes()` when the environment implements it.
+			if (type === 'bytes' && typeof (globalThis.Response?.prototype as unknown as {bytes?: unknown})?.bytes !== 'function') {
+				continue;
+			}
+
+			// Returning the same promise marks it as handled, so a body method call does not also report an unhandled rejection.
+			result[type] = async () => result as never;
+		}
+
+		return result;
+	}
+};
+
 const createInstance = (defaults?: Partial<Options>): KyInstance => {
 	// eslint-disable-next-line @typescript-eslint/promise-function-async
-	const ky: Partial<Mutable<KyInstance>> = (input: Input, options?: Options) => Ky.create(input, validateAndMerge(defaults, options));
+	const ky: Partial<Mutable<KyInstance>> = (input: Input, options?: Options) => createRequest(input, () => validateAndMerge(defaults, options));
 
 	for (const method of requestMethods) {
 		// eslint-disable-next-line @typescript-eslint/promise-function-async
-		ky[method] = (input: Input, options?: Options) => Ky.create(input, validateAndMerge(defaults, options, {method}));
+		ky[method] = (input: Input, options?: Options) => createRequest(input, () => validateAndMerge(defaults, options, {method}));
 	}
 
 	ky.create = (newDefaults?: Partial<Options>) => createInstance(validateAndMerge(newDefaults));

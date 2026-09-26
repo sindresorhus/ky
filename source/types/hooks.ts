@@ -3,11 +3,11 @@ import type {KyRequest, KyResponse} from '../index.js';
 import type {InitOptions, NormalizedOptions} from './options.js';
 
 /**
-This hook enables you to modify the options before they are used to construct the request. The hook function receives the mutable options object and can modify it in place. You could, for example, modify `searchParams`, `headers`, or `json` here. The `headers` option is always a plain object with lowercase names, where a header removed with `undefined` keeps an `undefined` value.
+This hook enables you to modify the options before they are used to construct the request. The hook function receives the mutable options object and can modify it in place. You could, for example, modify `searchParams`, `headers`, or `json` here. The `headers` option starts as a plain object with lowercase names, where a header removed with `undefined` keeps an `undefined` value.
 
-The `body` option is the exception: it is passed through by reference, so mutating a `FormData` or `URLSearchParams` body in place changes your own object and repeats on every request from the same instance. Replace `options.body` with a new instance instead, the way the `beforeRequest` workflow does.
+Ky gives the hook its own copies of `headers`, `context`, `json`, `searchParams` and `retry`, so changing them in place only affects the current request. The `context` copy is deep, so when an instance has an `init` hook, nested `context` values are not shared across requests. The `body` option is not copied, so mutating a `FormData` or `URLSearchParams` body in place changes your own object and repeats on every request from the same instance. Assign a new instance instead, as shown in [Modifying FormData in hooks](https://github.com/sindresorhus/ky#modifying-formdata-in-hooks). A value that a hook assigns is used as is, so assign a new object rather than one that you change later.
 
-Unlike other hooks, `init` hooks are synchronous. Any error thrown will propagate synchronously and will not be caught by `beforeError` hooks.
+Unlike other hooks, `init` hooks are synchronous. An error thrown by one rejects the returned promise and is not passed to `beforeError` hooks.
 
 @example
 ```
@@ -89,11 +89,11 @@ export type AfterResponseHook = (state: AfterResponseState) => Response | RetryM
 
 export type Hooks = {
 	/**
-	This hook enables you to modify the options before they are used to construct the request. The hook function receives the mutable options object and can modify it in place. You could, for example, modify `searchParams`, `headers`, or `json` here. The `headers` option is always a plain object with lowercase names, where a header removed with `undefined` keeps an `undefined` value.
+	This hook enables you to modify the options before they are used to construct the request. The hook function receives the mutable options object and can modify it in place. You could, for example, modify `searchParams`, `headers`, or `json` here. The `headers` option starts as a plain object with lowercase names, where a header removed with `undefined` keeps an `undefined` value.
 
-	Unlike other hooks, `init` hooks are synchronous. Any error thrown will propagate synchronously and will not be caught by `beforeError` hooks.
+	Ky gives the hook its own copies of `headers`, `context`, `json`, `searchParams` and `retry`, so changing them in place only affects the current request. The `context` copy is deep, so when an instance has an `init` hook, nested `context` values are not shared across requests. The `body` option is not copied, so mutating a `FormData` or `URLSearchParams` body in place changes your own object and repeats on every request from the same instance. Assign a new instance instead, as shown in [Modifying FormData in hooks](https://github.com/sindresorhus/ky#modifying-formdata-in-hooks). A value that a hook assigns is used as is, so assign a new object rather than one that you change later.
 
-	The `body` option is passed through by reference, so mutating a `FormData` or `URLSearchParams` body in place changes your own object and repeats on every request from the same instance. Replace `options.body` with a new instance instead, the way the `beforeRequest` workflow does.
+	Unlike other hooks, `init` hooks are synchronous. An error thrown by one rejects the returned promise and is not passed to `beforeError` hooks.
 
 	A common use case is to add a search parameter to every request:
 

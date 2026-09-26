@@ -1,5 +1,7 @@
 import test from 'ava';
+import ky from '../source/index.js';
 import {getBodySize} from '../source/utils/body.js';
+import {createHttpTestServer} from './helpers/create-http-test-server.js';
 
 test('returns 0 for undefined', t => {
 	t.is(getBodySize(undefined), 0);

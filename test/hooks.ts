@@ -16,8 +16,7 @@ import {createHttpTestServer} from './helpers/create-http-test-server.js';
 
 // Kept in sync with `missingResponseMessage` in source/core/Ky.ts.
 const noResponseMessage = 'The request resolved without a response, so there is no body to read.'
-	+ ' Returning `ky.stop` from a `beforeRetry` hook, or a custom `fetch` that resolves with nothing, both do that.'
-	+ ' Throw from the hook instead of returning `ky.stop`.';
+	+ ' This happens when a `beforeRetry` hook returns `ky.stop`. Throw from the hook instead of returning `ky.stop`.';
 
 const withHeader = (request: Request, name: string, value: string) => {
 	const headers = new Headers(request.headers);
@@ -5540,21 +5539,16 @@ test('init hook can modify retry', async t => {
 	t.is(fetchCount, 1);
 });
 
-test('init hook that throws propagates synchronously', t => {
-	t.throws(
-		() => {
-			void ky.get('https://example.com', {
-				hooks: {
-					init: [
-						() => {
-							throw new Error('init failed');
-						},
-					],
+test('init hook that throws rejects the returned promise', async t => {
+	await t.throwsAsync(ky.get('https://example.com', {
+		hooks: {
+			init: [
+				() => {
+					throw new Error('init failed');
 				},
-			});
+			],
 		},
-		{message: 'init failed'},
-	);
+	}), {message: 'init failed'});
 });
 
 test('init hook works with ky.create()', async t => {
@@ -5622,26 +5616,6 @@ test('multiple init hooks on the same call see each other\'s mutations', async t
 	});
 });
 
-test('init hook replacements stay normalized for later init hooks', async t => {
-	await ky.get('https://example.com', {
-		fetch: async () => new Response('ok'),
-		hooks: {
-			init: [
-				options => {
-					options.headers = new Headers({'X-Test': 'value'});
-					options.context = undefined;
-				},
-				options => {
-					t.deepEqual(options.headers, {'x-test': 'value'});
-					t.deepEqual(options.context, {});
-					options.headers['x-added'] = 'added';
-					options.context.added = true;
-				},
-			],
-		},
-	});
-});
-
 test('init hook sees per-request options merged with defaults', async t => {
 	t.plan(2);
 
@@ -5664,29 +5638,24 @@ test('init hook sees per-request options merged with defaults', async t => {
 	});
 });
 
-test('init hook error is not caught by beforeError hooks', t => {
+test('init hook error is not caught by beforeError hooks', async t => {
 	let beforeErrorCalled = false;
 
-	t.throws(
-		() => {
-			void ky.get('https://example.com', {
-				hooks: {
-					init: [
-						() => {
-							throw new Error('init boom');
-						},
-					],
-					beforeError: [
-						({error}) => {
-							beforeErrorCalled = true;
-							return error;
-						},
-					],
+	await t.throwsAsync(ky.get('https://example.com', {
+		hooks: {
+			init: [
+				() => {
+					throw new Error('init boom');
 				},
-			});
+			],
+			beforeError: [
+				({error}) => {
+					beforeErrorCalled = true;
+					return error;
+				},
+			],
 		},
-		{message: 'init boom'},
-	);
+	}), {message: 'init boom'});
 
 	t.false(beforeErrorCalled);
 });
@@ -6930,107 +6899,7 @@ test('`ky.stop` still resolves the plain request with `undefined`', async t => {
 	}), undefined);
 });
 
-// The defensive copy only ran on the values the options object started with. A hook that assigned one of its own
-// objects got that same object back for every later hook and every later request, so a mutation in a second hook
-// wrote straight through to the object the first hook owned.
-test('an `init` hook that assigns `json` hands later hooks a copy', async t => {
-	const bodies: string[] = [];
-	const ownBody = {list: [1, 2]};
-	const instance = ky.create({
-		method: 'POST',
-		json: {list: [1, 2]},
-		retry: 0,
-		hooks: {
-			init: [
-				options => {
-					options.json = ownBody;
-				},
-				options => {
-					(options.json as typeof ownBody).list.push(99);
-				},
-			],
-		},
-		async fetch(request) {
-			bodies.push(await request.clone().text());
-			return new Response('ok');
-		},
-	});
-
-	await instance('https://example.com').text();
-	await instance('https://example.com').text();
-
-	t.deepEqual(bodies, ['{"list":[1,2,99]}', '{"list":[1,2,99]}']);
-	t.deepEqual(ownBody, {list: [1, 2]});
-});
-
-test('an `init` hook that assigns `searchParams` or `context` hands later hooks a copy', async t => {
-	const urls: string[] = [];
-	const contexts: string[] = [];
-	const ownSearchParameters = {page: 1};
-	const ownContext = {token: 'first'};
-
-	const instance = ky.create({
-		retry: 0,
-		hooks: {
-			init: [
-				options => {
-					options.searchParams = ownSearchParameters;
-					options.context = ownContext;
-				},
-				options => {
-					(options.searchParams as typeof ownSearchParameters).page = 2;
-					(options.context as typeof ownContext).token = 'second';
-				},
-			],
-			beforeRequest: [({options}) => {
-				contexts.push(JSON.stringify(options.context));
-			}],
-		},
-		async fetch(request) {
-			urls.push(request.url);
-			return new Response('ok');
-		},
-	});
-
-	await instance('https://example.com').text();
-	await instance('https://example.com').text();
-
-	t.deepEqual(urls, ['https://example.com/?page=2', 'https://example.com/?page=2']);
-	t.deepEqual(contexts, ['{"token":"second"}', '{"token":"second"}']);
-	t.deepEqual(ownSearchParameters, {page: 1});
-	t.deepEqual(ownContext, {token: 'first'});
-});
-
-test('an `init` hook that assigns `retry` hands later hooks a copy', async t => {
-	const attemptCounts: number[] = [];
-	const ownRetry = {limit: 0, delay: () => 0};
-
-	const instance = ky.create({
-		hooks: {
-			init: [
-				options => {
-					options.retry = ownRetry;
-				},
-				options => {
-					(options.retry as typeof ownRetry).limit = 1;
-				},
-			],
-		},
-		async fetch() {
-			attemptCounts.push(1);
-			return new Response('server error', {status: 500});
-		},
-	});
-
-	await t.throwsAsync(instance('https://example.com').text());
-	await t.throwsAsync(instance('https://example.com').text());
-
-	t.deepEqual(attemptCounts, [1, 1, 1, 1]);
-	t.deepEqual(ownRetry, {limit: 0, delay: ownRetry.delay});
-});
-
-// `afterResponse` hooks deliberately receive the clone `#fetch()` prepared for a possible retry, whose body is
-// still unread, so a hook that forces a retry can copy an unconsumed request from it.
+// `afterResponse` hooks deliberately receive the clone `#fetch()` prepared for a possible retry, whose body is still unread, so a hook that forces a retry can copy an unconsumed request from it.
 test('an `afterResponse` hook can copy the unconsumed request it is given', async t => {
 	const bodies: string[] = [];
 	let attempts = 0;
@@ -7279,10 +7148,8 @@ test('a request that did start still releases its upload body', async t => {
 	t.pass();
 });
 
-// `newHookValue` merged with `deepMerge`, which ignores sources that are neither arrays nor objects, so a single
-// function, a string or a `null` was dropped without a word and the hook simply never ran. `null` is reported like any
-// other bad shape, since `undefined` is how a hook list is cleared.
-test('rejects a hook list that is not an array', t => {
+// `newHookValue` merged with `deepMerge`, which ignores sources that are neither arrays nor objects, so a single function, a string or a `null` was dropped without a word and the hook simply never ran. `null` is reported like any other bad shape, since `undefined` is how a hook list is cleared.
+test('rejects a hook list that is not an array', async t => {
 	for (const [key, value] of [
 		['init', () => undefined],
 		['beforeRequest', 'not a function'],
@@ -7296,27 +7163,25 @@ test('rejects a hook list that is not an array', t => {
 	] as Array<[string, unknown]>) {
 		const hooks: Record<string, unknown> = {[key]: value};
 
-		t.throws(() => {
-			void ky('https://example.com', {hooks: hooks as never});
-		}, {
+		// eslint-disable-next-line no-await-in-loop
+		await t.throwsAsync(ky('https://example.com', {hooks: hooks as never}), {
 			instanceOf: TypeError,
-			message: `\`hooks.${key}\` must be an array`,
+			message: `\`hooks.${key}\` must be an array of functions`,
 		}, `${key}: ${JSON.stringify(value)}`);
 	}
 });
 
-test('rejects `replaceOption()` around a non-array hook list', t => {
+test('rejects `replaceOption()` around a non-array hook list', async t => {
 	for (const value of [() => undefined, 42, {}] as unknown[]) {
-		t.throws(() => {
-			void ky('https://example.com', {hooks: {beforeRetry: replaceOption(value as never)}});
-		}, {
+		// eslint-disable-next-line no-await-in-loop
+		await t.throwsAsync(ky('https://example.com', {hooks: {beforeRetry: replaceOption(value as never)}}), {
 			instanceOf: TypeError,
-			message: '`hooks.beforeRetry` must be an array',
+			message: '`hooks.beforeRetry` must be an array of functions',
 		});
 	}
 });
 
-test('a single-function hook is reported instead of silently dropped', t => {
+test('a single-function hook is reported instead of silently dropped', async t => {
 	let ran = 0;
 	const hooks = {
 		beforeRequest: (() => {
@@ -7324,42 +7189,31 @@ test('a single-function hook is reported instead of silently dropped', t => {
 		}) as never,
 	};
 
-	const error = t.throws(() => {
-		void ky('https://example.com', {
-			retry: 0,
-			hooks,
-			fetch: async () => new Response('ok'),
-		});
-	});
+	const error = await t.throwsAsync(ky('https://example.com', {
+		retry: 0,
+		hooks,
+		fetch: async () => new Response('ok'),
+	}));
 
-	t.is(error?.message, '`hooks.beforeRequest` must be an array');
+	t.is(error?.message, '`hooks.beforeRequest` must be an array of functions');
 	t.is(ran, 0);
 });
 
-test('`hooks` that is not an object reports a clear error', t => {
+test('`hooks` that is not an object reports a clear error', async t => {
 	for (const hooks of ['none', 42, true, []] as unknown[]) {
-		t.throws(() => {
-			void ky('https://example.com', {hooks: hooks as never});
-		}, {
+		// eslint-disable-next-line no-await-in-loop
+		await t.throwsAsync(ky('https://example.com', {hooks: hooks as never}), {
 			instanceOf: TypeError,
 			message: 'The `hooks` option must be an object',
 		}, `hooks: ${JSON.stringify(hooks)}`);
 	}
 });
 
-// `hooks: null` used to reach `Object.hasOwn(null, ...)` and report an internal error. It is reported like any other
-// bad shape instead, since `undefined` is how the option is omitted.
-test('`hooks: null` reports a clear error', t => {
-	for (const hooks of [null, undefined, 'none', 42, true, []] as unknown[]) {
-		if (hooks === undefined) {
-			// The one shape that selects the default, through the parameter default.
-			t.pass();
-			continue;
-		}
-
-		t.throws(() => {
-			void ky('https://example.com', {hooks: hooks as never});
-		}, {
+// `hooks: null` used to reach `Object.hasOwn(null, ...)` and report an internal error. It is reported like any other bad shape instead, since `undefined` is how the option is omitted.
+test('`hooks: null` reports a clear error', async t => {
+	for (const hooks of [null, 'none', 42, true, []] as unknown[]) {
+		// eslint-disable-next-line no-await-in-loop
+		await t.throwsAsync(ky('https://example.com', {hooks: hooks as never}), {
 			instanceOf: TypeError,
 			message: 'The `hooks` option must be an object',
 		}, `hooks: ${JSON.stringify(hooks)}`);
@@ -7368,7 +7222,7 @@ test('`hooks: null` reports a clear error', t => {
 
 test('an explicit `undefined` hook list clears the parent hooks', async t => {
 	const cleared: string[] = [];
-	const undefinedHookList = {hooks: {beforeRequest: undefined}} as Options;
+	const undefinedHookList: Options = {hooks: {beforeRequest: undefined}};
 	const instance = ky.create({
 		hooks: {
 			beforeRequest: [() => {

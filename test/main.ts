@@ -203,40 +203,28 @@ test('POST JSON', async t => {
 	t.deepEqual(responseJson, json);
 });
 
-test('cannot use `body` option with GET or HEAD method', t => {
-	t.throws(
-		() => {
-			void ky.get('https://example.com', {body: 'foobar'});
-		},
+test('cannot use `body` option with GET or HEAD method', async t => {
+	await t.throwsAsync(ky.get('https://example.com', {body: 'foobar'}),
 		{
 			message: 'Request with GET/HEAD method cannot have body.',
 		},
 	);
 
-	t.throws(
-		() => {
-			void ky.head('https://example.com', {body: 'foobar'});
-		},
+	await t.throwsAsync(ky.head('https://example.com', {body: 'foobar'}),
 		{
 			message: 'Request with GET/HEAD method cannot have body.',
 		},
 	);
 });
 
-test('cannot use `json` option with GET or HEAD method', t => {
-	t.throws(
-		() => {
-			void ky.get('https://example.com', {json: {}});
-		},
+test('cannot use `json` option with GET or HEAD method', async t => {
+	await t.throwsAsync(ky.get('https://example.com', {json: {}}),
 		{
 			message: 'Request with GET/HEAD method cannot have body.',
 		},
 	);
 
-	t.throws(
-		() => {
-			void ky.head('https://example.com', {json: {}});
-		},
+	await t.throwsAsync(ky.head('https://example.com', {json: {}}),
 		{
 			message: 'Request with GET/HEAD method cannot have body.',
 		},
@@ -1018,7 +1006,7 @@ test('invalid timeout option', async t => {
 		response.end(fixture);
 	});
 
-	await t.throwsAsync(ky(server.url, {timeout: 21_474_836_470}).text(), {
+	await t.throwsAsync(ky(server.url, {timeout: 21_474_836_470}), {
 		instanceOf: RangeError,
 		message: 'The `timeout` option cannot be greater than 2147483647',
 	});
@@ -3560,16 +3548,11 @@ test('supports Request instance as input', async t => {
 	t.is(await ky(inputRequest).text(), inputRequest.method);
 });
 
-test('throws when input is not a string, URL, or Request', t => {
-	t.throws(
-		() => {
-			// @ts-expect-error
-			void ky.get(0);
-		},
-		{
-			message: '`input` must be a string, URL, or Request',
-		},
-	);
+test('throws when input is not a string, URL, or Request', async t => {
+	// @ts-expect-error
+	await t.throwsAsync(ky.get(0), {
+		message: '`input` must be a string, URL, or Request',
+	});
 });
 
 test('options override Request instance method', async t => {
@@ -4223,61 +4206,79 @@ test('an `init` hook can clear `searchParams`', async t => {
 	}).text(), '/');
 });
 
-// `hasSearchParameters()` reached `Object.keys()` on `null`, so an `init` hook that assigned `null` crashed with an internal error. `null` is not accepted anywhere in Ky, so the error names the option instead.
-test('an `init` hook that sets `searchParams` to `null` gets an error naming the option', t => {
-	t.throws(() => {
-		void ky('https://example.com', {
-			searchParams: {a: '1'},
+// Merging let a `null` silently replace the inherited headers.
+test('`headers: null` gets an error naming the option', async t => {
+	const api = ky.create({headers: {a: '1'}});
+
+	t.throws(() => api.extend({headers: null as never}), {
+		instanceOf: TypeError,
+		message: 'The `headers` option must not be `null`. Use `undefined` to clear it.',
+	});
+	await t.throwsAsync(ky('https://example.com', {headers: null as never}), {
+		instanceOf: TypeError,
+		message: 'The `headers` option must not be `null`. Use `undefined` to clear it.',
+	});
+});
+
+// Merging treated a `null` `context` or `searchParams` as absent, and an `init` hook could assign `null` to `headers` or `context`.
+test('`null` for `context`, `searchParams` or `headers` gets an error naming the option', async t => {
+	const contextError = {instanceOf: TypeError, message: 'The `context` option must be an object'};
+	const searchParametersError = {instanceOf: TypeError, message: 'The `searchParams` option must not be `null`. Use `undefined` to clear it.'};
+	const headersError = {instanceOf: TypeError, message: 'The `headers` option must not be `null`. Use `undefined` to clear it.'};
+
+	await t.throwsAsync(ky('https://example.com', {context: null as never}), contextError);
+	await t.throwsAsync(ky('https://example.com', {searchParams: null as never}), searchParametersError);
+
+	for (const [key, expectation] of [['context', contextError], ['headers', headersError]] as const) {
+		// eslint-disable-next-line no-await-in-loop
+		await t.throwsAsync(ky('https://example.com', {
 			hooks: {
 				init: [options => {
-					options.searchParams = null as never;
+					(options as Record<string, unknown>)[key] = null;
 				}],
 			},
-		});
-	}, {
+		}), expectation, `init hook: ${key}`);
+	}
+});
+
+// A `null` `method`, `prefix` or `baseUrl` fell through to the default, so the request went out as a `GET` or without the prefix.
+test('`null` for `method`, `prefix` or `baseUrl` gets an error naming the option', async t => {
+	for (const key of ['method', 'prefix', 'baseUrl'] as const) {
+		const expectation = {instanceOf: TypeError, message: `The \`${key}\` option must not be \`null\`. Use \`undefined\` to clear it.`};
+
+		// eslint-disable-next-line no-await-in-loop
+		await t.throwsAsync(ky('https://example.com', {[key]: null as never}), expectation, `option: ${key}`);
+
+		// eslint-disable-next-line no-await-in-loop
+		await t.throwsAsync(ky('https://example.com', {
+			hooks: {
+				init: [options => {
+					(options as Record<string, unknown>)[key] = null;
+				}],
+			},
+		}), expectation, `init hook: ${key}`);
+	}
+});
+
+// `hasSearchParameters()` reached `Object.keys()` on `null`, so an `init` hook that assigned `null` crashed with an internal error. `null` is not accepted anywhere in Ky, so the error names the option instead.
+test('an `init` hook that sets `searchParams` to `null` gets an error naming the option', async t => {
+	await t.throwsAsync(ky('https://example.com', {
+		searchParams: {a: '1'},
+		hooks: {
+			init: [options => {
+				options.searchParams = null as never;
+			}],
+		},
+	}), {
 		instanceOf: TypeError,
 		message: 'The `searchParams` option must not be `null`. Use `undefined` to clear it.',
 	});
 });
 
-// The top-level context is merged shallowly, so a nested value arrived from the caller by reference and mutating
-// it after `ky.create()` silently changed what every later request carried. The per-request deep copy happens too
-// late to help. `searchParams` is already copied at this point.
-test('mutating a caller-owned `context` object after creating an instance does not change it', async t => {
-	const bodies: string[] = [];
-	const contexts: string[] = [];
-	const json = {nested: {value: 1}};
-	const context = {nested: {value: 1}};
-
-	const instance = ky.create({
-		method: 'POST',
-		json,
-		context,
-		async fetch(request) {
-			bodies.push(await request.clone().text());
-			return new Response('ok');
-		},
-		hooks: {
-			beforeRequest: [({options}) => {
-				contexts.push(JSON.stringify(options.context));
-			}],
-		},
-	});
-
-	context.nested.value = 2;
-
-	await instance('https://example.com').text();
-
-	t.is(contexts[0], '{"nested":{"value":1}}');
-	t.deepEqual(context, {nested: {value: 2}});
-});
-
-// `#fetch()` replaces `ky.request` with the clone prepared for a possible retry, so a shortcut called after the
-// request was dispatched advertised its media type on that clone, which is only sent if a retry happens, instead of
-// on the attempt that produced the response the caller reads.
-test('a body shortcut called after dispatch does not advertise its media type on the retry', async t => {
+// A shortcut called after dispatch cannot change the attempt that is already in flight, so it advertises its media type on the retry. The request that was already sent must stay as it was, or `error.request` would report a header that never went over the wire.
+test('a body shortcut called after dispatch advertises its media type only on later attempts', async t => {
+	const requests: Request[] = [];
 	const accepts: string[] = [];
-	let attempts = 0;
 	let markBeforeRetry: () => void;
 	let releaseBeforeRetry: () => void;
 
@@ -4292,9 +4293,9 @@ test('a body shortcut called after dispatch does not advertise its media type on
 	const promise = ky('https://example.com', {
 		retry: {limit: 1, delay: () => 0},
 		async fetch(request) {
-			attempts++;
+			requests.push(request as Request);
 			accepts.push(request.headers.get('accept') ?? 'none');
-			return attempts === 1 ? new Response('{"ok":true}', {status: 500}) : new Response('{"ok":true}');
+			return requests.length === 1 ? new Response('{"ok":true}', {status: 500}) : new Response('{"ok":true}');
 		},
 		hooks: {
 			beforeRetry: [async () => {
@@ -4310,6 +4311,37 @@ test('a body shortcut called after dispatch does not advertise its media type on
 	releaseBeforeRetry!();
 	t.is(JSON.stringify(await jsonPromise), '{"ok":true}');
 
-	t.is(attempts, 2);
-	t.deepEqual(accepts, ['none', 'none']);
+	t.deepEqual(accepts, ['none', 'application/json']);
+	t.is(requests[0]!.headers.get('accept'), null);
+});
+
+test('a body shortcut called after dispatch does not change the sent request when retries are disabled', async t => {
+	const requests: Request[] = [];
+	let markFetchStarted: () => void;
+	let releaseFetch: () => void;
+
+	const fetchStarted = new Promise<void>(resolve => {
+		markFetchStarted = resolve;
+	});
+	const fetchGate = new Promise<void>(resolve => {
+		releaseFetch = resolve;
+	});
+
+	const promise = ky('https://example.com', {
+		retry: 0,
+		async fetch(request) {
+			requests.push(request as Request);
+			markFetchStarted!();
+			await fetchGate;
+			return new Response('{"ok":true}');
+		},
+	});
+
+	await fetchStarted;
+	const jsonPromise = promise.json();
+	releaseFetch!();
+	t.is(JSON.stringify(await jsonPromise), '{"ok":true}');
+
+	t.is(requests.length, 1);
+	t.is(requests[0]!.headers.get('accept'), null);
 });

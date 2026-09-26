@@ -98,6 +98,8 @@ Returns a [`Response` object](https://developer.mozilla.org/en-US/docs/Web/API/R
 
 Available body shortcuts: `.json()`, `.text()`, `.formData()`, `.arrayBuffer()`, `.blob()`, and `.bytes()`. The `.bytes()` shortcut is only present when the runtime supports `Response.prototype.bytes()`.
 
+Invalid options, an invalid `input`, and an error thrown by an `init` hook reject the returned promise instead of throwing, the same way `fetch()` reports them. They are not passed to `beforeError` hooks, because no request was made.
+
 ```js
 import ky from 'ky';
 
@@ -402,7 +404,7 @@ const json = await ky('https://example.com', {
 Type: `number | false`\
 Default: `10000`
 
-Per-attempt timeout in milliseconds for getting a response, applied independently to each retry. Ky shortcut methods also use this value as a separate timeout for reading the response body. Must be a non-negative number no greater than 2147483647, or `false`; anything else throws a `TypeError`. See also [`totalTimeout`](#totaltimeout).
+Per-attempt timeout in milliseconds for getting a response, applied independently to each retry. Ky shortcut methods also use this value as a separate timeout for reading the response body. Must be a non-negative number or `false`, or a `TypeError` is thrown. A value greater than 2147483647, `Infinity` included, throws a `RangeError`. See also [`totalTimeout`](#totaltimeout).
 
 If set to `false`, there will be no per-attempt timeout.
 
@@ -413,7 +415,7 @@ If the signal you passed in is aborted while a body method is reading, or just a
 Type: `number | false`\
 Default: `false`
 
-Overall timeout in milliseconds for the entire operation, including retries and delays. Throws a `TimeoutError` if exceeded. Must be a non-negative number no greater than 2147483647, or `false`; anything else throws a `TypeError`.
+Overall timeout in milliseconds for the entire operation, including retries and delays. Throws a `TimeoutError` if exceeded. Must be a non-negative number or `false`, or a `TypeError` is thrown. A value greater than 2147483647, `Infinity` included, throws a `RangeError`.
 
 `beforeError` hooks run after an error is produced and are not bounded by `totalTimeout`.
 
@@ -478,11 +480,11 @@ Each hook must be an array of functions. A single function, a string, or any oth
 Type: `Function[]`\
 Default: `[]`
 
-This hook enables you to modify the options before they are used to construct the request. The hook function receives the mutable options object and can modify it in place. You could, for example, modify `searchParams`, `headers`, or `json` here. The `headers` option is always a plain object with lowercase names, where a header removed with `undefined` keeps an `undefined` value.
+This hook enables you to modify the options before they are used to construct the request. The hook function receives the mutable options object and can modify it in place. You could, for example, modify `searchParams`, `headers`, or `json` here. The `headers` option starts as a plain object with lowercase names, where a header removed with `undefined` keeps an `undefined` value.
 
-Unlike other hooks, `init` hooks are synchronous. Any error thrown will propagate synchronously and will not be caught by `beforeError` hooks.
+Ky gives the hook its own copies of `headers`, `context`, `json`, `searchParams` and `retry`, so changing them in place only affects the current request. The `context` copy is deep, so when an instance has an `init` hook, nested `context` values are not shared across requests. The `body` option is not copied, so mutating a `FormData` or `URLSearchParams` body in place changes your own object and repeats on every request from the same instance. Assign a new instance instead, as shown in [Modifying FormData in hooks](#modifying-formdata-in-hooks). A value that a hook assigns is used as is, so assign a new object rather than one that you change later.
 
-The `body` option is the exception: it is passed through by reference, so mutating a `FormData` or `URLSearchParams` body in place changes your own object and repeats on every request from the same instance. Replace `options.body` with a new instance instead, the way the [`beforeRequest`](#hooksbeforerequest) workflow does.
+Unlike other hooks, `init` hooks are synchronous. An error thrown by one rejects the returned promise and is not passed to `beforeError` hooks.
 
 A common use case is to add a search parameter to every request:
 
@@ -890,7 +892,7 @@ Type: `Function`\
 Default: `fetch`
 
 User-defined `fetch` function.
-Has to be fully compatible with the [Fetch API](https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API) standard.
+Has to be fully compatible with the [Fetch API](https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API) standard. It must resolve with a `Response`, or a `TypeError` is thrown.
 
 Use-cases:
 1. Use the `fetch` wrapper function provided by some frameworks that use server-side rendering (SSR).
@@ -928,8 +930,6 @@ Use cases:
 - Pass serverless environment bindings (e.g., Cloudflare Workers)
 
 **Note:** Context is shallow merged. Top-level properties are merged, but nested objects are replaced. Only enumerable properties are copied.
-
-**Note:** Each request gets its own deep copy of the context, so a hook that mutates a nested plain object or array cannot write back to the instance defaults or to the object you passed in. Non-plain values such as class instances are shared by reference. A hook that caches data in the context, for example with `options.context.token ??= await getToken()`, therefore recomputes it once per request rather than once per instance.
 
 ```js
 import ky from 'ky';

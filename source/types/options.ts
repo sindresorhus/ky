@@ -207,16 +207,18 @@ export type KyOptions = {
 	retry?: RetryOptions | number | undefined;
 
 	/**
-	Per-attempt timeout in milliseconds for getting a response, applied independently to each retry. Ky shortcut methods also use this value as a separate timeout for reading the response body. Cannot be greater than 2147483647. See also `totalTimeout`.
+	Per-attempt timeout in milliseconds for getting a response, applied independently to each retry. Ky shortcut methods also use this value as a separate timeout for reading the response body. Must be a non-negative number or `false`, or a `TypeError` is thrown. A value greater than 2147483647, `Infinity` included, throws a `RangeError`. See also `totalTimeout`.
 
 	If set to `false`, there will be no per-attempt timeout.
+
+	If the signal you passed in is aborted while a body method is reading, or just after the read finished, the body method rejects with the abort reason rather than resolving with the bytes that already arrived.
 
 	@default 10000
 	*/
 	timeout?: number | false | undefined;
 
 	/**
-	Overall timeout in milliseconds for the entire operation, including retries and delays. Throws a `TimeoutError` if exceeded. Cannot be greater than 2147483647.
+	Overall timeout in milliseconds for the entire operation, including retries and delays. Throws a `TimeoutError` if exceeded. Must be a non-negative number or `false`, or a `TypeError` is thrown. A value greater than 2147483647, `Infinity` included, throws a `RangeError`.
 
 	`beforeError` hooks run after an error is produced and are not bounded by `totalTimeout`.
 
@@ -340,7 +342,7 @@ export type KyOptions = {
 
 	/**
 	User-defined `fetch` function.
-	Has to be fully compatible with the [Fetch API](https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API) standard.
+	Has to be fully compatible with the [Fetch API](https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API) standard. It must resolve with a `Response`, or a `TypeError` is thrown.
 
 	Use-cases:
 	1. Use the `fetch` wrapper function provided by some frameworks that use server-side rendering (SSR).
@@ -379,8 +381,6 @@ export type KyOptions = {
 	- Pass serverless environment bindings (e.g., Cloudflare Workers)
 
 	**Note:** Context is shallow merged. Top-level properties are merged, but nested objects are replaced. Only enumerable properties are copied.
-
-	**Note:** Each request gets its own deep copy of the context, so a hook that mutates a nested plain object or array cannot write back to the instance defaults or to the object you passed in. Non-plain values such as class instances are shared by reference. A hook that caches data in the context, for example with `options.context.token ??= await getToken()`, therefore recomputes it once per request rather than once per instance.
 
 	@example
 	```
@@ -503,11 +503,7 @@ export interface Options extends KyOptions, RequestOptions { // eslint-disable-l
 	signal?: AbortSignal | null | undefined;
 }
 
-export type InitOptions = Omit<Options, 'retry' | 'hooks' | 'headers' | 'context'> & {
-	get headers(): Record<string, string | undefined>;
-	set headers(value: KyHeadersInit | undefined);
-	get context(): Record<string, unknown>;
-	set context(value: Record<string, unknown> | undefined);
+export type InitOptions = Omit<Options, 'retry' | 'hooks'> & {
 	retry?: MutableRetryOptions | number | undefined;
 	hooks?: {[Key in keyof Hooks]?: NormalizedHooks[Key] | undefined} | undefined;
 };
