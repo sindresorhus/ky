@@ -568,3 +568,32 @@ test('response headers stay immutable without the wrapping options', async t => 
 		response.headers.set('x-injected', '1');
 	}, {instanceOf: TypeError});
 });
+
+// Decoration assigns to the response, so a frozen one throws. The caller then gets the error and never receives
+// the response, which left its body with nobody able to release it.
+test('a response that cannot be decorated releases its body', async t => {
+	let cancelled = false;
+	const body = new ReadableStream<Uint8Array>({
+		start(controller) {
+			controller.enqueue(new TextEncoder().encode('{"a":1}'));
+		},
+		cancel() {
+			cancelled = true;
+		},
+	});
+
+	const error = await t.throwsAsync(ky(url, {
+		retry: 0,
+		parseJson: (text: string) => JSON.parse(text),
+		fetch: async () => Object.freeze(new Response(body, {headers: {'content-type': 'application/json'}})),
+	}).json(), {
+		name: 'TypeError',
+		message: /not extensible/,
+	});
+
+	t.is(error?.name, 'TypeError');
+	await new Promise(resolve => {
+		setTimeout(resolve, 10);
+	});
+	t.true(cancelled, 'the response body must be released');
+});

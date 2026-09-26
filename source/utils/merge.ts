@@ -3,11 +3,13 @@ import type {Hooks, NormalizedHooks} from '../types/hooks.js';
 import {supportsAbortSignal} from '../core/constants.js';
 import {isObject} from './is.js';
 
-const replaceSymbol: unique symbol = Symbol('replaceOption');
+// Registered globally so that a wrapper created by a second copy of Ky, which happens with a duplicated dependency, is still recognised.
+const replaceSymbol: unique symbol = Symbol.for('ky.replaceOption');
 
 type ReplaceMarked<T> = {
 	[replaceSymbol]: true;
 	value: T;
+	toJSON: () => T;
 };
 
 type ReplaceState<T> = {
@@ -29,6 +31,8 @@ const getReplaceState = <T>(value: T): ReplaceState<T> =>
 /**
 Wraps a value so that `ky.extend()` will replace the parent value instead of merging with it. Works with hooks, headers, search parameters, context, and any other deep-merged option.
 
+Inside the `json` option, which holds your own data, use it only where it replaces an inherited value. Ky does not look for it anywhere else there. The `context` option is merged shallowly, so only a wrapper around the whole `context` is supported.
+
 By default, `.extend()` deep-merges options with the parent instance: hooks get appended, headers get merged, and search parameters get accumulated. Use `replaceOption` when you want to fully replace a merged property instead.
 
 @example
@@ -47,7 +51,12 @@ const extended = base.extend({
 ```
 */
 export const replaceOption = <T>(value: T): T => {
-	const markedValue: ReplaceMarked<T> = {[replaceSymbol]: true, value};
+	const markedValue: ReplaceMarked<T> = {
+		[replaceSymbol]: true,
+		value,
+		// The leftover pass below skips `json`, so a wrapper there with nothing to replace is unwrapped when the body is serialized.
+		toJSON: () => value,
+	};
 	return markedValue as unknown as T;
 };
 
@@ -249,11 +258,10 @@ const resolveObjectMarkers = (value: Record<string, unknown>, resolveItem: (item
 	return resolved;
 };
 
-// `replaceOption()` can wrap a value at any depth of a deep-merged option, but a wrapper is only unwrapped where a
-// merge actually runs, so a wrapper on a key with no parent value kept its `{value}` envelope. This resolves the
-// leftovers in one pass, copying only the branches that actually contained a wrapper so every other value keeps its
-// identity. `seen` only holds the values on the current path, so a cyclic option cannot recurse forever while a
-// value shared by two branches is still resolved in both.
+// `json` and `context` are user data, which can be large, so they are not walked on every request.
+const userDataOptions = new Set(['json', 'context']);
+
+// `replaceOption()` can wrap a value at any depth of a deep-merged option, but a wrapper is only unwrapped where a merge actually runs, so a wrapper on a key with no parent value kept its `{value}` envelope. This resolves the leftovers in one pass, copying only the branches that actually contained a wrapper so every other value keeps its identity. `seen` only holds the values on the current path, so a cyclic option cannot recurse forever while a value shared by two branches is still resolved in both.
 const resolveReplaceMarkers = (value: unknown, seen: Set<Record<string, unknown> | unknown[]>): unknown => {
 	if (!isMergeable(value) || seen.has(value)) {
 		return value;
@@ -458,7 +466,15 @@ const deepMergeInternal = <T>(isRoot: boolean, ...sources: Array<Partial<T> | un
 		}
 	}
 
-	return isRoot ? resolveReplaceMarkers(returnValue, new Set()) as T : returnValue;
+	if (isRoot) {
+		for (const [key, value] of Object.entries(returnValue)) {
+			if (!userDataOptions.has(key)) {
+				returnValue[key] = resolveReplaceMarkers(value, new Set());
+			}
+		}
+	}
+
+	return returnValue;
 };
 
 export const deepMerge = <T>(...sources: Array<Partial<T> | undefined>): T =>

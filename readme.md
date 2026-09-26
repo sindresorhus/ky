@@ -1386,6 +1386,8 @@ try {
 
 Wraps a value so that [`ky.extend()`](#kyextenddefaultoptions) will replace the parent value instead of merging with it. Works with hooks, headers, search parameters, context, and any other deep-merged option.
 
+Inside the `json` option, which holds your own data, use it only where it replaces an inherited value. Ky does not look for it anywhere else there. The `context` option is merged shallowly, so only a wrapper around the whole `context` is supported.
+
 ```js
 import ky, {replaceOption} from 'ky';
 

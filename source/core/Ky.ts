@@ -322,11 +322,7 @@ export class Ky {
 				const currentResponse: Response = response;
 
 				// Opaque responses (`response.type === 'opaque'`) from `no-cors` requests always have `status: 0` and `ok: false`, but this is not a failure - the actual status is hidden by the browser.
-				if (!currentResponse.ok && currentResponse.type !== 'opaque' && (
-					typeof ky.#options.throwHttpErrors === 'function'
-						? ky.#options.throwHttpErrors(currentResponse.status)
-						: ky.#options.throwHttpErrors
-				)) {
+				if (!currentResponse.ok && currentResponse.type !== 'opaque' && ky.#shouldThrowHttpErrors(currentResponse)) {
 					// `request` must reflect the request that actually failed, but `options` stays as Ky's
 					// normalized options snapshot. Replacement `Request` instances do not preserve the
 					// original `BodyInit`, so trying to make `options` mirror arbitrary requests would be lossy.
@@ -785,14 +781,21 @@ export class Ky {
 		this.#decoratedResponses.add(response);
 		const request = this.#getResponseRequest(response);
 
-		response.json = async () => {
-			const text = await response.text();
-			return this.#options.parseJson!(text, {request, response});
-		};
+		try {
+			response.json = async () => {
+				const text = await response.text();
+				return this.#options.parseJson!(text, {request, response});
+			};
 
-		// `clone()` returns a fresh `Response` that would otherwise fall back to the native `json()`.
-		const nativeClone = response.clone.bind(response);
-		response.clone = () => this.#decorateResponse(this.#setResponseRequest(nativeClone(), request));
+			// `clone()` returns a fresh `Response` that would otherwise fall back to the native `json()`.
+			const nativeClone = response.clone.bind(response);
+			response.clone = () => this.#decorateResponse(this.#setResponseRequest(nativeClone(), request));
+		} catch (error: unknown) {
+			// A frozen response cannot be decorated, so the caller never receives it and nothing else can release its
+			// body. Report the real problem and let go of the connection.
+			this.#cancelResponseBody(response);
+			throw error;
+		}
 
 		return response;
 	}
@@ -986,6 +989,7 @@ export class Ky {
 
 		let timeoutId: ReturnType<typeof setTimeout> | undefined;
 		let abortListener: (() => void) | undefined;
+		let operationPromise: Promise<T> | undefined;
 		try {
 			const abortPromise = new Promise<never>((_resolve, reject) => {
 				if (!abortSignal) {
@@ -1003,7 +1007,7 @@ export class Ky {
 					abortListener();
 				}
 			});
-			const operationPromise = operation();
+			operationPromise = operation();
 
 			if (remainingTotal === undefined) {
 				return await Promise.race([operationPromise, abortPromise]);
@@ -1033,7 +1037,17 @@ export class Ky {
 
 			return result;
 		} catch (error: unknown) {
-			abortSignal?.throwIfAborted();
+			if (abortSignal?.aborted) {
+				// The abort won the race, so whatever the operation eventually returns is discarded. Release its body, the
+				// same way the timeout path below does for a value it never consumed.
+				if (operationPromise) {
+					void operationPromise.then(value => {
+						this.#cancelReturnedBody(value);
+					}).catch(() => undefined);
+				}
+
+				abortSignal.throwIfAborted();
+			}
 
 			const remainingAfterOperation = this.#getRemainingTotalTimeout();
 			if (remainingAfterOperation !== undefined && remainingAfterOperation <= 0) {
@@ -1189,6 +1203,18 @@ export class Ky {
 		return this.#userProvidedAbortSignal
 			? AbortSignal.any([this.#userProvidedAbortSignal, this.#abortController!.signal])
 			: this.#abortController!.signal;
+	}
+
+	// A `throwHttpErrors` predicate that throws used to escape from the `if` condition, before the body was read or
+	// released, leaving the caller with an error and no handle on the response to release it with.
+	#shouldThrowHttpErrors(response: Response): boolean {
+		const {throwHttpErrors} = this.#options;
+		try {
+			return typeof throwHttpErrors === 'function' ? throwHttpErrors(response.status) : throwHttpErrors;
+		} catch (error: unknown) {
+			this.#cancelResponseBody(response);
+			throw error;
+		}
 	}
 
 	// `#fetch()` replaces `this.request` with the clone it prepares for a possible retry, so anything reporting the

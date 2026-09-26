@@ -4960,10 +4960,9 @@ test.serial('a past `RateLimit-Reset` epoch retries immediately', async t => {
 	t.is(requestCount, 3);
 });
 
-// `replaceOption()` is documented to work with any deep-merged option, but a wrapper was only unwrapped where a
-// merge actually ran, so a nested wrapper with no parent value leaked its `{value}` envelope into the result.
+// `replaceOption()` is documented to work with any deep-merged option, but a wrapper was only unwrapped where a merge actually ran, so a nested wrapper with no parent value leaked its `{value}` envelope into the result.
 test('`replaceOption` resolves nested wrappers with and without a parent value', t => {
-	t.deepEqual(validateAndMerge({json: {filters: replaceOption({tags: ['a']})}}).json, {filters: {tags: ['a']}});
+	t.deepEqual(validateAndMerge({custom: {filters: replaceOption({tags: ['a']})}}).custom, {filters: {tags: ['a']}});
 	t.deepEqual(validateAndMerge({json: {filters: {tags: ['old']}}}, {json: {filters: replaceOption({tags: ['a']})}}).json, {filters: {tags: ['a']}});
 	t.deepEqual(validateAndMerge({json: {a: {b: 1}}}, {json: {a: {c: replaceOption({d: 1})}}}).json, {a: {b: 1, c: {d: 1}}});
 	t.deepEqual(validateAndMerge({list: [replaceOption({a: 1})]}).list, [{a: 1}]);
@@ -4984,13 +4983,53 @@ test('`replaceOption` resolution handles a cyclic option', t => {
 	const custom: {self?: unknown} = {};
 	custom.self = custom;
 
-	const merged = validateAndMerge({custom, json: {filters: replaceOption({tags: ['a']})}});
+	const merged = validateAndMerge({custom, other: {filters: replaceOption({tags: ['a']})}});
 	t.is(merged.custom, custom);
-	t.deepEqual(merged.json, {filters: {tags: ['a']}});
+	t.deepEqual(merged.other, {filters: {tags: ['a']}});
 });
 
-// `.json()` routed the parse through `#raceWithTotalTimeout()`, whose first statement is `throwIfAborted()`, so it
-// rejected a cancelled request while the other five shortcuts resolved with the bytes that had already arrived.
+// `json` is not walked for leftover wrappers, because it can be large and the pass would run on every request. A wrapper there with nothing to replace still sends its value.
+test('`replaceOption` in `json` with no parent value sends its value', async t => {
+	const body = await ky.post('https://example.com', {
+		json: {filters: replaceOption({tags: ['a']})},
+		fetch: async request => new Response(await request.text()),
+	}).text();
+
+	t.is(body, '{"filters":{"tags":["a"]}}');
+});
+
+test('`replaceOption` does not make every request walk the `json` body', async t => {
+	// A walk that only starts once `replaceOption()` has been used would otherwise depend on test order.
+	replaceOption({});
+
+	const json = new Proxy({}, {
+		ownKeys() {
+			throw new Error('The `json` body was walked');
+		},
+	});
+
+	t.is(await ky.post('https://example.com', {
+		json,
+		stringifyJson: () => '{}',
+		fetch: async request => new Response(await request.text()),
+	}).text(), '{}');
+});
+
+test('`replaceOption` from another copy of Ky is recognised', async t => {
+	const replaceOptionFromOtherCopy = <T>(value: T): T => {
+		const marker: Record<symbol | string, unknown> = {[Symbol.for('ky.replaceOption')]: true, value};
+		return marker as T;
+	};
+
+	const api = ky.create({headers: {a: '1'}}).extend({
+		headers: replaceOptionFromOtherCopy({b: '2'}),
+		fetch: async request => new Response(JSON.stringify([...request.headers])),
+	});
+
+	t.deepEqual(await api('https://example.com').json(), [['accept', 'application/json'], ['b', '2']]);
+});
+
+// `.json()` routed the parse through `#raceWithTotalTimeout()`, whose first statement is `throwIfAborted()`, so it rejected a cancelled request while the other five shortcuts resolved with the bytes that had already arrived.
 for (const type of ['text', 'arrayBuffer', 'blob', 'bytes'] as const) {
 	test.serial(`a user abort during a \`${type}\` body read throws the abort reason`, async t => {
 		const controller = new AbortController();
@@ -5068,23 +5107,22 @@ test('a falsy `ky.retry({code})` still appears in the ForceRetryError message', 
 	t.is(new ForceRetryError({code: 'RATE_LIMIT'}).message, 'Forced retry: RATE_LIMIT');
 });
 
-// The replace-marker pass only held the values on the current path, so a value shared by two branches was resolved
-// in the first and skipped in the second, which kept its `{value}` envelope. A genuine cycle is still left alone.
+// The replace-marker pass only held the values on the current path, so a value shared by two branches was resolved in the first and skipped in the second, which kept its `{value}` envelope. A genuine cycle is still left alone.
 test('`replaceOption` resolves a shared value in every branch that uses it', t => {
 	const shared = {tags: replaceOption(['a'])};
-	const merged = validateAndMerge({json: {first: shared, second: shared, list: [shared]}});
+	const merged = validateAndMerge({custom: {first: shared, second: shared, list: [shared]}});
 
-	t.deepEqual(merged.json, {first: {tags: ['a']}, second: {tags: ['a']}, list: [{tags: ['a']}]});
+	t.deepEqual(merged.custom, {first: {tags: ['a']}, second: {tags: ['a']}, list: [{tags: ['a']}]});
 });
 
 test('`replaceOption` leaves a cyclic option intact', t => {
 	const cyclic: Record<string, unknown> = {a: 1};
 	cyclic.self = cyclic;
 
-	const merged = validateAndMerge({custom: cyclic, json: {filters: replaceOption({tags: ['a']})}});
+	const merged = validateAndMerge({custom: cyclic, other: {filters: replaceOption({tags: ['a']})}});
 
 	t.is(merged.custom, cyclic);
-	t.deepEqual(merged.json, {filters: {tags: ['a']}});
+	t.deepEqual(merged.other, {filters: {tags: ['a']}});
 });
 
 test('`replaceOption` on a context keeps it a plain object', t => {
@@ -5106,7 +5144,7 @@ test('a TimeoutError names the request that was actually sent', async t => {
 	const error = await t.throwsAsync(ky.post('https://example.com', {
 		body: 'payload',
 		retry: {limit: 2, delay: () => 5000, methods: ['post']},
-		totalTimeout: 30,
+		totalTimeout: 300,
 		async fetch(request) {
 			attempts++;
 			sentRequest = request;
@@ -5124,8 +5162,8 @@ test('a TimeoutError raised while retrying names the request that was actually s
 	let attempts = 0;
 
 	const error = await t.throwsAsync(ky.get('https://example.com', {
-		retry: {limit: 10, delay: () => 30},
-		totalTimeout: 250,
+		retry: {limit: 20, delay: () => 30},
+		totalTimeout: 300,
 		async fetch(request) {
 			attempts++;
 			sentRequests.push(request);

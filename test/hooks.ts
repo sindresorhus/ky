@@ -7129,8 +7129,56 @@ test('a `beforeError` hook receives the request that failed during a body read',
 	t.is(hookRequests[0], sent);
 });
 
-// The cleanup in the request pipeline cancelled the current request body even when fetch was never called, so a
-// caller-owned upload stream was destroyed by a configuration error or a hook that threw before the request started.
+// The `totalTimeout` path releases the value a hook eventually returns once the timer wins, but the abort path did not, so a hook that lost the race leaked the body of the Response or Request it was about to return.
+for (const [label, makeHookResult] of [
+	['Response', (stream: ReadableStream<Uint8Array>) => new Response(stream)],
+	['Request', (stream: ReadableStream<Uint8Array>) => new Request('https://example.com', {
+		method: 'POST',
+		body: stream,
+		// @ts-expect-error - Types are outdated.
+		duplex: 'half',
+	})],
+] as Array<[string, (stream: ReadableStream<Uint8Array>) => unknown]>) {
+	test(`an abort that beats a hook releases the ${label} it was about to return`, async t => {
+		const controller = new AbortController();
+		let cancelled = false;
+		let releaseHook: () => void;
+		const gate = new Promise<void>(resolve => {
+			releaseHook = resolve;
+		});
+
+		const promise = ky('https://example.com', {
+			signal: controller.signal,
+			retry: 0,
+			fetch: async () => new Response('ok'),
+			hooks: {
+				// The hook only returns its value once the request has already been rejected, so the race is decided by the abort rather than by how two timers happen to interleave.
+				beforeRequest: [async () => {
+					await gate;
+
+					// Nothing has read this body, so only a cancel releases it.
+					return makeHookResult(new ReadableStream<Uint8Array>({
+						cancel() {
+							cancelled = true;
+						},
+					}));
+				}],
+			},
+		});
+
+		const settled = promise.catch(() => 'rejected' as const);
+		setTimeout(() => {
+			controller.abort();
+		}, 0);
+
+		t.is(await settled, 'rejected');
+		releaseHook!();
+		await delay(50);
+		t.true(cancelled, `the ${label} body must be released`);
+	});
+}
+
+// The cleanup in the request pipeline cancelled the current request body even when fetch was never called, so a caller-owned upload stream was destroyed by a configuration error or a hook that threw before the request started.
 test('a request that never started leaves the caller-owned body alone', async t => {
 	const failedFetches: boolean[] = [];
 	const cancelledBodies: boolean[] = [];

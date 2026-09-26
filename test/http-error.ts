@@ -757,3 +757,50 @@ test('TimeoutError from the error data path reports the request that was sent', 
 
 	t.is(error.request, sentRequest);
 });
+
+// A `throwHttpErrors` predicate ran inside the `if` condition, so a throw from it escaped before the body was read
+// or released, leaving the caller with an error and no handle on the response to release it with.
+test('a `throwHttpErrors` predicate that throws releases the response body', async t => {
+	let cancelled = false;
+	const body = new ReadableStream<Uint8Array>({
+		start(controller) {
+			controller.enqueue(new TextEncoder().encode('server error'));
+		},
+		cancel() {
+			cancelled = true;
+		},
+	});
+
+	const error = await t.throwsAsync(ky('https://example.com', {
+		retry: 0,
+		throwHttpErrors() {
+			throw new Error('policy engine exploded');
+		},
+		fetch: async () => new Response(body, {status: 500}),
+	}).text(), {message: 'policy engine exploded'});
+
+	t.is(error?.message, 'policy engine exploded');
+	await new Promise(resolve => {
+		setTimeout(resolve, 10);
+	});
+	t.true(cancelled, 'the response body must be released');
+});
+
+test('a `throwHttpErrors` predicate that throws is still seen by `beforeError`', async t => {
+	const seen: string[] = [];
+
+	await t.throwsAsync(ky('https://example.com', {
+		retry: 0,
+		throwHttpErrors() {
+			throw new Error('policy engine exploded');
+		},
+		fetch: async () => new Response('server error', {status: 500}),
+		hooks: {
+			beforeError: [({error}) => {
+				seen.push(error.message);
+			}],
+		},
+	}).text(), {message: 'policy engine exploded'});
+
+	t.deepEqual(seen, ['policy engine exploded']);
+});
