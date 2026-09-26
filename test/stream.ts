@@ -1519,3 +1519,27 @@ test('a throwing upload progress callback is not retried even when `shouldRetry`
 	t.is(callbackCalls, 1);
 	t.is(beforeRetryCalls, 0);
 });
+
+// The marker only accepted `Error` values, so a callback that threw a string was still retried even though a callback that threw an `Error` was not. A `Ky` instance lives for one request, so a strong `Set` is safe.
+test('a non-Error throw from an upload progress callback is not retried either', async t => {
+	const {server, getRequestCount} = await createUploadProgressTestServer(t);
+	let callbackCalls = 0;
+
+	try {
+		await ky.post(server.url, {
+			body: 'x'.repeat(1024),
+			retry: {limit: 3, methods: ['post'], delay: () => 0, shouldRetry: () => true},
+			onUploadProgress() {
+				callbackCalls++;
+				// eslint-disable-next-line @typescript-eslint/only-throw-error
+				throw 'upload progress failed';
+			},
+		}).text();
+		t.fail('should have thrown');
+	} catch (error) {
+		t.is(error, 'upload progress failed');
+	}
+
+	t.is(getRequestCount(), 0);
+	t.is(callbackCalls, 1);
+});
