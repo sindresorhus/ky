@@ -14,6 +14,11 @@ import ky, {
 import {type Options, type NormalizedOptions} from '../source/types/options.js';
 import {createHttpTestServer} from './helpers/create-http-test-server.js';
 
+// Kept in sync with `missingResponseMessage` in source/core/Ky.ts.
+const noResponseMessage = 'The request resolved without a response, so there is no body to read.'
+	+ ' Returning `ky.stop` from a `beforeRetry` hook, or a custom `fetch` that resolves with nothing, both do that.'
+	+ ' Throw from the hook instead of returning `ky.stop`.';
+
 const withHeader = (request: Request, name: string, value: string) => {
 	const headers = new Headers(request.headers);
 	headers.set(name, value);
@@ -6913,7 +6918,7 @@ for (const type of ['json', 'text', 'arrayBuffer', 'blob', 'formData', 'bytes'] 
 			},
 		})[type](), {
 			name: 'TypeError',
-			message: 'The request resolved without a response. Returning `ky.stop` from a `beforeRetry` hook is not compatible with body method shortcuts. Throw from the hook instead.',
+			message: noResponseMessage,
 		});
 	});
 }

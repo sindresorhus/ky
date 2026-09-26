@@ -57,7 +57,7 @@ export const responseTypes = {
 // The maximum value of a 32bit int (see issue #117)
 export const maxSafeTimeout = 2_147_483_647;
 
-// Size in bytes of a typical form boundary (e.g., '------WebKitFormBoundaryaxpyiPgbbPti10Rw'), used to help estimate upload size
+// Size in bytes of a typical form boundary (e.g., '------WebKitFormBoundaryaxpyiPgbbPti10Rw'), used to help estimate upload size. Bun's boundary is 54 bytes, so there the estimate runs 14 bytes per part low, which is negligible next to any real upload, and the final event always reports the real total.
 export const usualFormBoundarySize = 40;
 
 /**
@@ -174,6 +174,8 @@ export const isRetryMarker = (value: unknown): value is RetryMarker =>
 Force a retry from an `afterResponse` hook.
 
 This allows you to retry a request based on the response content, even if the response has a successful status code. The retry will respect the `retry.limit` option and skip the `shouldRetry` check. The forced retry is observable in `beforeRetry` hooks, where the error will be a `ForceRetryError`.
+
+A marker returned by a second copy of Ky, which happens with a duplicated dependency, is still recognised, the same way the Ky error guards accept branded errors.
 
 @param options - Optional configuration for the retry.
 

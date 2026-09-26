@@ -293,7 +293,7 @@ export type KyOptions = {
 
 	`content-length` is only used as the total for a response that is not content-coded, since it counts encoded bytes while the progress stream counts the bytes after decompression. A compressed response therefore reports `totalBytes: 0` until it completes, which means the percentage cannot be calculated while downloading.
 
-	Responses with no body at all are not streamed, so no progress events are emitted for them. That covers a [null body status](https://fetch.spec.whatwg.org/#null-body-status) such as `204`, and a `HEAD` request, which has no body even on an ordinary status. A response whose body an `afterResponse` hook already read, or locked with a reader, is passed through unchanged, so it reports no progress either.
+	Responses with no body at all are not streamed, so no progress events are emitted for them. That covers a [null body status](https://fetch.spec.whatwg.org/#null-body-status) such as `204`, and a `HEAD` response in runtimes that give it no body, such as browsers, Node.js and Deno. Bun gives a `HEAD` response an empty body, so it reports one final event with `transferredBytes: 0`. A response whose body an `afterResponse` hook already read, or locked with a reader, is passed through unchanged, so it reports no progress either.
 
 	When the callback throws, the error is reported by Ky's body method shortcuts. A response read directly with `response.text()` or `response.json()` may instead report the runtime's own stream error, such as Chromium's generic `TypeError`.
 
@@ -448,24 +448,6 @@ type RequestOptions = {
 Options are the same as `window.fetch`, except for the KyOptions
 */
 export interface Options extends KyOptions, RequestOptions { // eslint-disable-line @typescript-eslint/consistent-type-definitions -- This must stay an interface so that it can be extended outside of Ky for use in `ky.create`.
-	/**
-	HTTP method used to make the request.
-
-	Ky forwards every option it does not recognize straight to `fetch()`, so fetch-only extensions are supported even
-	when the ambient `RequestInit` type does not declare them. The two documented below are declared here for that
-	reason; any other extension is accepted at runtime and needs a type assertion.
-	*/
-
-	/**
-	An undici `Agent` or `Dispatcher`, forwarded to `fetch()` as-is.
-	*/
-	dispatcher?: unknown;
-
-	/**
-	A framework-specific fetch extension, such as Next.js's `next`, forwarded to `fetch()` as-is.
-	*/
-	next?: unknown;
-
 	/**
 	HTTP method used to make the request.
 

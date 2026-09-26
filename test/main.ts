@@ -2582,6 +2582,15 @@ test('ky.create() with default json does not add context to merged json body', a
 	t.false('context' in result);
 });
 
+test('json merging resolves nested replacement markers without a parent property', async t => {
+	const api = ky.create({
+		fetch: async request => new Response(await request.text()),
+	});
+	const extended = api.extend({json: {items: replaceOption(['new'])}});
+
+	t.deepEqual(await extended.post('https://example.com').json(), {items: ['new']});
+});
+
 for (const [original, replacement] of [
 	[['old'], {value: 'new'}],
 	[{value: 'old'}, ['new']],

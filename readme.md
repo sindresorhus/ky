@@ -402,16 +402,18 @@ const json = await ky('https://example.com', {
 Type: `number | false`\
 Default: `10000`
 
-Per-attempt timeout in milliseconds for getting a response, applied independently to each retry. Ky shortcut methods also use this value as a separate timeout for reading the response body. Cannot be greater than 2147483647. See also [`totalTimeout`](#totaltimeout).
+Per-attempt timeout in milliseconds for getting a response, applied independently to each retry. Ky shortcut methods also use this value as a separate timeout for reading the response body. Must be a non-negative number no greater than 2147483647, or `false`; anything else throws a `TypeError`. See also [`totalTimeout`](#totaltimeout).
 
 If set to `false`, there will be no per-attempt timeout.
+
+If the signal you passed in is aborted while a body method is reading, or just after the read finished, the body method rejects with the abort reason rather than resolving with the bytes that already arrived.
 
 ##### totalTimeout
 
 Type: `number | false`\
 Default: `false`
 
-Overall timeout in milliseconds for the entire operation, including retries and delays. Throws a `TimeoutError` if exceeded. Cannot be greater than 2147483647.
+Overall timeout in milliseconds for the entire operation, including retries and delays. Throws a `TimeoutError` if exceeded. Must be a non-negative number no greater than 2147483647, or `false`; anything else throws a `TypeError`.
 
 `beforeError` hooks run after an error is produced and are not bounded by `totalTimeout`.
 
@@ -452,12 +454,24 @@ const data = await ky('https://example.com/data', {
 }).json();
 ```
 
+##### dispatcher
+
+An [undici](https://github.com/nodejs/undici) `Agent` or `Dispatcher`, forwarded to `fetch()` as-is. Ky does not use it, it just passes it through.
+
+##### next
+
+A framework-specific fetch extension, such as [Next.js's `next`](https://nextjs.org/docs/app/api-reference/functions/next#options), forwarded to `fetch()` as-is.
+
+Ky forwards every option it does not recognize to `fetch()`. The type of such an option comes from the global `RequestInit` type, which `@types/node` extends with `dispatcher` and Next.js extends with `next`. An extension that your environment does not declare needs a type assertion.
+
 ##### hooks
 
 Type: `object<string, Function[]>`\
 Default: `{init: [], beforeRequest: [], beforeRetry: [], beforeError: [], afterResponse: []}`
 
 Hooks allow modifications during the request lifecycle. Hook functions may be async and are run serially, unless otherwise noted.
+
+Each hook must be an array of functions. A single function, a string, or any other value throws a `TypeError` rather than being silently dropped, and a nullish value means absent, so it clears the hooks it would have replaced.
 
 ###### hooks.init
 
@@ -764,7 +778,7 @@ The function receives these arguments:
 
 `content-length` is only used as the total for a response that is not content-coded, since it counts encoded bytes while the progress stream counts the bytes after decompression. A compressed response therefore reports `totalBytes: 0` until it completes, so the percentage cannot be calculated while downloading.
 
-Responses with no body at all are not streamed, so no progress events are emitted for them. That covers a [null body status](https://fetch.spec.whatwg.org/#null-body-status) such as `204`, and a `HEAD` request, which has no body even on an ordinary status. A response whose body an `afterResponse` hook already read, or locked with a reader, is passed through unchanged, so it reports no progress either.
+Responses with no body at all are not streamed, so no progress events are emitted for them. That covers a [null body status](https://fetch.spec.whatwg.org/#null-body-status) such as `204`, and a `HEAD` response in runtimes that give it no body, such as browsers, Node.js and Deno. Bun gives a `HEAD` response an empty body, so it reports one final event with `transferredBytes: 0`. A response whose body an `afterResponse` hook already read, or locked with a reader, is passed through unchanged, so it reports no progress either.
 
 When the callback throws, the error is reported by Ky's body method shortcuts. A response read directly with `response.text()` or `response.json()` may instead report the runtime's own stream error, such as Chromium's generic `TypeError`.
 
@@ -1097,8 +1111,7 @@ const response = await ky.post('https://example.com', {
 	}
 });
 
-// Using `.text()` or other body methods is not supported.
-const text = await ky('https://example.com', options).text();
+// Using `.text()` or other body methods is not supported, because there is no response to parse.
 ```
 
 ### ky.retry(options?)
@@ -1106,6 +1119,8 @@ const text = await ky('https://example.com', options).text();
 Force a retry from an `afterResponse` hook.
 
 This allows you to retry a request based on the response content, even if the response has a successful status code. The retry will respect the `retry.limit` option and skip the `shouldRetry` check. The forced retry is observable in `beforeRetry` hooks, where the error will be a `ForceRetryError`.
+
+A marker returned by a second copy of Ky, which happens with a duplicated dependency, is still recognised, the same way the Ky error guards accept branded errors.
 
 #### options
 
@@ -1118,6 +1133,8 @@ Type: `number`
 Custom delay in milliseconds before retrying. If not provided, uses the default retry delay calculation based on `retry.delay` configuration.
 
 **Note:** Custom delays bypass jitter and `backoffLimit`. This is intentional, as custom delays often come from server responses (e.g., `Retry-After` headers) and should be respected exactly as specified.
+
+Must be a non-negative number, or `undefined`; anything else throws a `TypeError` rather than collapsing to a 1ms retry.
 
 ##### code
 

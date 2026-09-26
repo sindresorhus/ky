@@ -80,7 +80,9 @@ const createTextDecoder = (contentType: string): TextDecoder => {
 };
 
 const invalidSchemaMessage = 'The `schema` argument must follow the Standard Schema specification';
-const missingResponseMessage = 'The request resolved without a response. Returning `ky.stop` from a `beforeRetry` hook is not compatible with body method shortcuts. Throw from the hook instead.';
+const missingResponseMessage = 'The request resolved without a response, so there is no body to read.'
+	+ ' Returning `ky.stop` from a `beforeRetry` hook, or a custom `fetch` that resolves with nothing, both do that.'
+	+ ' Throw from the hook instead of returning `ky.stop`.';
 
 // Both timeout options are milliseconds or `false`. A non-finite or negative value used to reach `setTimeout()`,
 // which silently clamps it to ~1ms, or to be ignored entirely when `totalTimeout` was not a number.
