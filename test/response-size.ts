@@ -569,16 +569,19 @@ test('response headers stay immutable without the wrapping options', async t => 
 	}, {instanceOf: TypeError});
 });
 
-// Decoration assigns to the response, so a frozen one throws. The caller then gets the error and never receives
-// the response, which left its body with nobody able to release it.
+// Decoration assigns to the response, so a frozen one throws. The caller then gets the error and never receives the response, which left its body with nobody able to release it.
 test('a response that cannot be decorated releases its body', async t => {
-	let cancelled = false;
+	let release: () => void;
+	// Awaiting the cancel itself, rather than a sleep, keeps this reliable on a loaded machine.
+	const cancelled = new Promise<void>(resolve => {
+		release = resolve;
+	});
 	const body = new ReadableStream<Uint8Array>({
 		start(controller) {
 			controller.enqueue(new TextEncoder().encode('{"a":1}'));
 		},
 		cancel() {
-			cancelled = true;
+			release!();
 		},
 	});
 
@@ -592,8 +595,5 @@ test('a response that cannot be decorated releases its body', async t => {
 	});
 
 	t.is(error?.name, 'TypeError');
-	await new Promise(resolve => {
-		setTimeout(resolve, 10);
-	});
-	t.true(cancelled, 'the response body must be released');
+	await cancelled;
 });

@@ -758,16 +758,19 @@ test('TimeoutError from the error data path reports the request that was sent', 
 	t.is(error.request, sentRequest);
 });
 
-// A `throwHttpErrors` predicate ran inside the `if` condition, so a throw from it escaped before the body was read
-// or released, leaving the caller with an error and no handle on the response to release it with.
+// A `throwHttpErrors` predicate ran inside the `if` condition, so a throw from it escaped before the body was read or released, leaving the caller with an error and no handle on the response to release it with.
 test('a `throwHttpErrors` predicate that throws releases the response body', async t => {
-	let cancelled = false;
+	let release: () => void;
+	// Awaiting the cancel itself, rather than a sleep, keeps this reliable on a loaded machine.
+	const cancelled = new Promise<void>(resolve => {
+		release = resolve;
+	});
 	const body = new ReadableStream<Uint8Array>({
 		start(controller) {
 			controller.enqueue(new TextEncoder().encode('server error'));
 		},
 		cancel() {
-			cancelled = true;
+			release!();
 		},
 	});
 
@@ -780,27 +783,26 @@ test('a `throwHttpErrors` predicate that throws releases the response body', asy
 	}).text(), {message: 'policy engine exploded'});
 
 	t.is(error?.message, 'policy engine exploded');
-	await new Promise(resolve => {
-		setTimeout(resolve, 10);
-	});
-	t.true(cancelled, 'the response body must be released');
+	await cancelled;
 });
 
 test('a `throwHttpErrors` predicate that throws is still seen by `beforeError`', async t => {
-	const seen: string[] = [];
+	const seen: unknown[] = [];
+	const thrown = new Error('policy engine exploded');
 
 	await t.throwsAsync(ky('https://example.com', {
 		retry: 0,
 		throwHttpErrors() {
-			throw new Error('policy engine exploded');
+			throw thrown;
 		},
 		fetch: async () => new Response('server error', {status: 500}),
 		hooks: {
 			beforeError: [({error}) => {
-				seen.push(error.message);
+				seen.push(error);
 			}],
 		},
 	}).text(), {message: 'policy engine exploded'});
 
-	t.deepEqual(seen, ['policy engine exploded']);
+	// The predicate's own error is what the hook sees, unchanged.
+	t.deepEqual(seen, [thrown]);
 });

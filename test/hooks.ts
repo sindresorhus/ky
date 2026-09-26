@@ -6902,13 +6902,11 @@ test('onUploadProgress works with a Request-like object returned from beforeRequ
 	}).text();
 
 	t.is(responseText, 'ok');
-	// Progress is best effort: the body is read by the runtime, not wrapped by Ky.
-	t.deepEqual(events, []);
+	// Progress is best effort: the body is read by the runtime, so it is not wrapped and no event is reported.
+	t.deepEqual(events, [], 'a Request-like result is sent as-is, so it reports no upload progress');
 });
 
-// `ky.stop` resolves the request with `undefined`, which is documented as incompatible with body method
-// shortcuts. The shortcut used to crash while masking the real reason with an internal TypeError that named
-// Ky's own internals instead of the returned symbol.
+// `ky.stop` resolves the request with `undefined`, which is documented as incompatible with body method shortcuts. The shortcut used to crash while masking the real reason with an internal TypeError that named Ky's own internals instead of the returned symbol.
 for (const type of ['json', 'text', 'arrayBuffer', 'blob', 'formData', 'bytes'] as const) {
 	test(`the \`${type}\` shortcut reports that \`ky.stop\` left no response`, async t => {
 		await t.throwsAsync(ky(requestFixtureUrl, {
@@ -7090,7 +7088,7 @@ test('a `beforeError` hook receives the request that failed', async t => {
 
 		// eslint-disable-next-line no-await-in-loop
 		const error = await t.throwsAsync(ky('https://example.com', {
-			retry,
+			retry: {limit: retry, delay: () => 0},
 			async fetch(request) {
 				sent = request;
 				return new Response('server error', {status: 500});
@@ -7205,6 +7203,21 @@ test('a request that never started leaves the caller-owned body alone', async t 
 				}],
 			},
 		},
+		// A hook that answers the request itself never reaches fetch either.
+		{
+			hooks: {
+				beforeRequest: [() => new Response('from the hook')],
+			},
+		},
+		// Neither does a `totalTimeout` that runs out inside a hook.
+		{
+			totalTimeout: 20,
+			hooks: {
+				beforeRequest: [async () => {
+					await delay(200);
+				}],
+			},
+		},
 	]) {
 		let cancelled = false;
 		let fetchCalled = false;
@@ -7217,34 +7230,41 @@ test('a request that never started leaves the caller-owned body alone', async t 
 			},
 		});
 
-		// eslint-disable-next-line no-await-in-loop
-		await t.throwsAsync(ky('https://example.com', {
-			method: 'POST',
-			body,
-			retry: 0,
-			...options,
-			async fetch() {
-				fetchCalled = true;
-				return new Response('ok');
-			},
-		}).text());
+		// Some of these throw and some resolve, for example a hook that answers the request itself, so the outcome is not asserted here. What matters is that fetch never ran and the caller's body survived.
+		try {
+			// eslint-disable-next-line no-await-in-loop
+			await ky('https://example.com', {
+				method: 'POST',
+				body,
+				retry: 0,
+				...options,
+				async fetch() {
+					fetchCalled = true;
+					return new Response('ok');
+				},
+			}).text();
+		} catch {}
 
 		failedFetches.push(fetchCalled);
 		cancelledBodies.push(cancelled);
 	}
 
-	t.deepEqual(failedFetches, [false, false, false]);
-	t.deepEqual(cancelledBodies, [false, false, false]);
+	t.deepEqual(failedFetches, [false, false, false, false, false]);
+	t.deepEqual(cancelledBodies, [false, false, false, false, false]);
 });
 
 test('a request that did start still releases its upload body', async t => {
-	let cancelled = false;
+	let release: () => void;
+	// Awaiting the cancel itself, rather than a sleep, keeps this reliable on a loaded machine.
+	const cancelled = new Promise<void>(resolve => {
+		release = resolve;
+	});
 	const body = new ReadableStream<Uint8Array>({
 		start(controller) {
 			controller.enqueue(new TextEncoder().encode('hi'));
 		},
 		cancel() {
-			cancelled = true;
+			release!();
 		},
 	});
 
@@ -7255,11 +7275,8 @@ test('a request that did start still releases its upload body', async t => {
 		fetch: async () => new Response('ok'),
 	}).text();
 
-	await new Promise(resolve => {
-		setTimeout(resolve, 10);
-	});
-
-	t.true(cancelled);
+	await cancelled;
+	t.pass();
 });
 
 // `newHookValue` merged with `deepMerge`, which ignores sources that are neither arrays nor objects, so a single

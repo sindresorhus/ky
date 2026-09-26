@@ -1372,8 +1372,36 @@ test('download progress still uses content-length for an uncompressed response',
 	t.is(progressEvents.at(-1)?.totalBytes, 64);
 });
 
-// `content-encoding: identity` is a registered no-op coding (RFC 9110 §8.4.2), so `content-length` is the decoded
-// length and remains a valid total, as it is for a response with no `content-encoding` at all.
+// A coding list that mentions `identity` alongside a real coding is still content-coded, so the encoded length cannot be used.
+test('download progress reports an unknown total for a multi-coding content-encoding', async t => {
+	const progressEvents: Progress[] = [];
+	const text = await ky('https://example.com', {
+		async fetch() {
+			const body = new ReadableStream<Uint8Array>({
+				start(controller) {
+					for (let index = 0; index < 8; index++) {
+						controller.enqueue(new Uint8Array(1024));
+					}
+
+					controller.close();
+				},
+			});
+			return new Response(body, {headers: {'content-length': '64', 'content-encoding': 'identity, gzip'}});
+		},
+		onDownloadProgress(progress) {
+			progressEvents.push(progress);
+		},
+	}).text();
+
+	t.is(text.length, 8192);
+	for (const event of progressEvents.slice(0, -1)) {
+		t.is(event.totalBytes, 0);
+	}
+
+	t.deepEqual(progressEvents.at(-1), {percent: 1, totalBytes: 8192, transferredBytes: 8192});
+});
+
+// `content-encoding: identity` is a registered no-op coding (RFC 9110 §8.4.2), so `content-length` is the decoded length and remains a valid total, as it is for a response with no `content-encoding` at all.
 for (const [label, headers] of [
 	['no content-encoding', {}],
 	['content-encoding: identity', {'content-encoding': 'identity'}],
@@ -1455,6 +1483,42 @@ test('upload progress still prefers the body it can measure', async t => {
 	}).text();
 
 	t.is(progressEvents.at(-1)?.totalBytes, 10);
+});
+
+// The byte accounting holds the last chunk back so the final event can report the real total, which means an intermediate event is attributed to the previous chunk. Chunks of differing sizes are what pins that down, and an estimate below the delivered size is what makes the reported total grow.
+test('progress attributes bytes to the chunk before the one arriving', async t => {
+	const chunkSizes = [10, 30, 20, 40];
+	const chunks: number[] = [];
+	const transferred: number[] = [];
+	const totals: number[] = [];
+
+	const text = await ky('https://example.com', {
+		async fetch() {
+			const body = new ReadableStream<Uint8Array>({
+				start(controller) {
+					for (const size of chunkSizes) {
+						controller.enqueue(new Uint8Array(size));
+					}
+
+					controller.close();
+				},
+			});
+			// A total below the delivered size, so the reported total has to grow.
+			return new Response(body, {headers: {'content-length': '1'}});
+		},
+		onDownloadProgress({totalBytes, transferredBytes}, chunk) {
+			chunks.push(chunk.byteLength);
+			transferred.push(transferredBytes);
+			totals.push(totalBytes);
+		},
+	}).text();
+
+	t.is(text.length, 100);
+	// Each event carries the chunk it was counted for, so the sizes run one behind the arrival order.
+	t.deepEqual(chunks, chunkSizes);
+	t.deepEqual(transferred, [10, 40, 60, 100]);
+	// Each intermediate event reports the running total, which starts below the estimate and grows past it.
+	t.deepEqual(totals, [10, 40, 60, 100]);
 });
 
 // A response with no body at all is not streamed. That covers a null body status, and a `HEAD` response in runtimes that give it no body, such as Node.js.

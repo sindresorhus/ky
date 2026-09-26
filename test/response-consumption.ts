@@ -239,7 +239,7 @@ test('beforeError failures while handling body-reader errors propagate without r
 test('each body shortcut advertises exactly one media type', async t => {
 	const accepts: Record<string, string | undefined> = {};
 
-	for (const type of ['json', 'text', 'formData', 'arrayBuffer', 'blob'] as const) {
+	for (const type of ['json', 'text', 'formData', 'arrayBuffer', 'blob', 'bytes'] as const) {
 		// eslint-disable-next-line no-await-in-loop
 		await ky('https://example.com', {
 			retry: 0,
@@ -256,5 +256,7 @@ test('each body shortcut advertises exactly one media type', async t => {
 		formData: 'multipart/form-data',
 		arrayBuffer: '*/*',
 		blob: '*/*',
+		// Only exposed when the runtime implements `Response.prototype.bytes()`.
+		bytes: typeof Response.prototype.bytes === 'function' ? '*/*' : undefined,
 	});
 });

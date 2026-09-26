@@ -83,6 +83,8 @@ test('rejects non-function callback options', t => {
 		['parseJson', 'x'],
 		['stringifyJson', 5],
 		['fetch', 'x'],
+		['onDownloadProgress', 'x'],
+		['onUploadProgress', 'x'],
 	] as Array<[string, unknown]>) {
 		const options: Record<string, unknown> = {[key]: value};
 

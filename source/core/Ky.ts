@@ -37,9 +37,8 @@ import delay from '../utils/delay.js';
 import {type ObjectEntries} from '../utils/types.js';
 import {findUnknownOptions, hasSearchParameters} from '../utils/options.js';
 import isRawNetworkError from '../utils/is-network-error.js';
-import {isError} from '../utils/is.js';
 import {
-	isHTTPError, isNetworkError, isTimeoutError, isResponseSizeError, isForceRetryError,
+	isHTTPError, isNetworkError, isTimeoutError, isResponseSizeError,
 } from '../utils/type-guards.js';
 import {
 	calculateRetryTimingDelay,
@@ -49,7 +48,7 @@ import {
 	maxSafeTimeout,
 	responseTypes,
 	stop,
-	isRetryMarker,
+	RetryMarker,
 	supportsAbortController,
 	supportsAbortSignal,
 	supportsFormData,
@@ -80,40 +79,6 @@ const createTextDecoder = (contentType: string): TextDecoder => {
 };
 
 const invalidSchemaMessage = 'The `schema` argument must follow the Standard Schema specification';
-const missingResponseMessage = 'The request resolved without a response, so there is no body to read.'
-	+ ' Returning `ky.stop` from a `beforeRetry` hook, or a custom `fetch` that resolves with nothing, both do that.'
-	+ ' Throw from the hook instead of returning `ky.stop`.';
-
-// Both timeout options are milliseconds or `false`. A non-finite or negative value used to reach `setTimeout()`,
-// which silently clamps it to ~1ms, or to be ignored entirely when `totalTimeout` was not a number.
-const validateTimeoutOption = (value: unknown, name: 'timeout' | 'totalTimeout'): void => {
-	if (value === false) {
-		return;
-	}
-
-	if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) {
-		throw new TypeError(`The \`${name}\` option must be a non-negative number or \`false\``);
-	}
-
-	if (value > maxSafeTimeout) {
-		throw new RangeError(`The \`${name}\` option cannot be greater than ${maxSafeTimeout}`);
-	}
-};
-
-// These callbacks are called directly, so a non-function value otherwise surfaces as a runtime error naming Ky's
-// own internals rather than the option the caller set.
-const validateCallbackOptions = (options: Record<string, unknown>): void => {
-	for (const key of ['parseJson', 'stringifyJson', 'fetch', 'onDownloadProgress'] as const) {
-		if (options[key] !== undefined && typeof options[key] !== 'function') {
-			throw new TypeError(`The \`${key}\` option must be a function`);
-		}
-	}
-
-	const {throwHttpErrors} = options;
-	if (typeof throwHttpErrors !== 'boolean' && typeof throwHttpErrors !== 'function') {
-		throw new TypeError('The `throwHttpErrors` option must be a boolean or a function');
-	}
-};
 
 const cloneRetryOptions = (retry: RetryOptions | number): RetryOptions | number => {
 	if (retry === null || typeof retry !== 'object' || Array.isArray(retry)) {
@@ -168,17 +133,15 @@ const cloneSearchParametersForInitHook = (searchParameters: SearchParamsOption |
 };
 
 // Shallow-clone mutable option properties so init hook mutations don't leak across requests.
-// Every one of them also copies on assignment, so a hook that replaces the value with an object of its own cannot
-// accumulate mutations on that object across requests. Non-plain values (functions, class instances) are kept by
-// reference, matching how option merging treats them as whole values.
 function cloneInitHookOptions(options: Options): InitOptions {
 	let headers = mergeHeaderContainers({}, options.headers ?? {});
 	let context = cloneDeep(options.context) ?? {};
-	let json = cloneDeep(options.json);
-	let searchParameters = cloneSearchParametersForInitHook(options.searchParams);
-	let retry = options.retry === undefined ? undefined : cloneRetryOptions(options.retry);
-
-	const clonedOptions: Options = {...options};
+	const clonedOptions: Options = {
+		...options,
+		// Deep-clone so init-hook mutations to nested values do not leak across requests, matching the nested `retry` cloning below. Non-plain values (functions, class instances) are kept by reference.
+		json: cloneDeep(options.json),
+		searchParams: cloneSearchParametersForInitHook(options.searchParams),
+	};
 
 	Object.defineProperties(clonedOptions, {
 		headers: {
@@ -198,40 +161,14 @@ function cloneInitHookOptions(options: Options): InitOptions {
 				return context;
 			},
 			set(value: Record<string, unknown> | undefined) {
-				context = cloneDeep(value) ?? {};
-			},
-		},
-		json: {
-			enumerable: true,
-			configurable: true,
-			get() {
-				return json;
-			},
-			set(value: unknown) {
-				json = cloneDeep(value);
-			},
-		},
-		searchParams: {
-			enumerable: true,
-			configurable: true,
-			get() {
-				return searchParameters;
-			},
-			set(value: SearchParamsOption | undefined) {
-				searchParameters = cloneSearchParametersForInitHook(value);
-			},
-		},
-		retry: {
-			enumerable: true,
-			configurable: true,
-			get() {
-				return retry;
-			},
-			set(value: Options['retry']) {
-				retry = value === undefined ? undefined : cloneRetryOptions(value);
+				context = value ?? {};
 			},
 		},
 	});
+
+	if (options.retry !== undefined) {
+		clonedOptions.retry = cloneRetryOptions(options.retry);
+	}
 
 	return clonedOptions as InitOptions;
 }
@@ -278,8 +215,13 @@ export class Ky {
 		const ky = new Ky(input, initHookOptions);
 
 		const function_ = async (): Promise<Response | void> => {
-			validateTimeoutOption(ky.#options.totalTimeout, 'totalTimeout');
-			validateTimeoutOption(ky.#options.timeout, 'timeout');
+			if (typeof ky.#options.timeout === 'number' && ky.#options.timeout > maxSafeTimeout) {
+				throw new RangeError(`The \`timeout\` option cannot be greater than ${maxSafeTimeout}`);
+			}
+
+			if (typeof ky.#options.totalTimeout === 'number' && ky.#options.totalTimeout > maxSafeTimeout) {
+				throw new RangeError(`The \`totalTimeout\` option cannot be greater than ${maxSafeTimeout}`);
+			}
 
 			// Delay the fetch so that body method shortcuts can set the Accept header
 			await Promise.resolve();
@@ -293,10 +235,9 @@ export class Ky {
 				|| ky.#consumeReturnedResponseFromBeforeRetryHook();
 
 			for (;;) {
-				// A nullish value means a hook stopped the flow, or a custom `fetch` resolved with nothing. The caller
-				// sees it normalized to `undefined` either way.
+				// `undefined` means a hook stopped the flow without providing a response.
 				// Non-native Responses still continue through Ky if they pass `isResponseInstance()`.
-				if (response === undefined || response === null) {
+				if (response === undefined) {
 					return response;
 				}
 
@@ -305,7 +246,7 @@ export class Ky {
 						// eslint-disable-next-line no-await-in-loop
 						response = await ky.#runAfterResponseHooks(response);
 					} catch (error) {
-						if (!isForceRetryError(error)) {
+						if (!(error instanceof ForceRetryError)) {
 							throw error;
 						}
 
@@ -324,7 +265,11 @@ export class Ky {
 				const currentResponse: Response = response;
 
 				// Opaque responses (`response.type === 'opaque'`) from `no-cors` requests always have `status: 0` and `ok: false`, but this is not a failure - the actual status is hidden by the browser.
-				if (!currentResponse.ok && currentResponse.type !== 'opaque' && ky.#shouldThrowHttpErrors(currentResponse)) {
+				if (!currentResponse.ok && currentResponse.type !== 'opaque' && (
+					typeof ky.#options.throwHttpErrors === 'function'
+						? ky.#options.throwHttpErrors(currentResponse.status)
+						: ky.#options.throwHttpErrors
+				)) {
 					// `request` must reflect the request that actually failed, but `options` stays as Ky's
 					// normalized options snapshot. Replacement `Request` instances do not preserve the
 					// original `BodyInit`, so trying to make `options` mirror arbitrary requests would be lossy.
@@ -360,6 +305,10 @@ export class Ky {
 
 			// If `onDownloadProgress` is passed, it uses the stream API internally
 			if (ky.#options.onDownloadProgress) {
+				if (typeof ky.#options.onDownloadProgress !== 'function') {
+					throw new TypeError('The `onDownloadProgress` option must be a function');
+				}
+
 				if (!supportsResponseStreams) {
 					throw new Error('Streams are not supported in your environment. `ReadableStream` is missing.');
 				}
@@ -388,10 +337,8 @@ export class Ky {
 					ky.#cancelBody(originalRequest?.body ?? undefined);
 				}
 
-				// Only cancel the current request body if it's distinct from the original (i.e. it was cloned for
-				// retries). `#originalRequest` is only set once a request is handed to fetch, so a pipeline that
-				// never started, for example one that failed validation, leaves the caller's own body alone.
-				if (originalRequest && ky.request !== originalRequest && ky.request.body !== response?.body) {
+				// Only cancel the current request body if it's distinct from the original (i.e. it was cloned for retries).
+				if (ky.request !== originalRequest && ky.request.body !== response?.body) {
 					ky.#cancelBody(ky.request.body ?? undefined);
 				}
 			}
@@ -407,20 +354,10 @@ export class Ky {
 			}
 
 			result[type] = async (schema?: StandardSchemaV1) => {
-				// `#fetch()` replaces `ky.request` with the clone it prepares for a possible retry, so a shortcut called
-				// after the request was dispatched would otherwise advertise its media type on that clone, which is only
-				// sent if a retry happens, instead of on the attempt that produced the response.
-				const acceptRequest = ky.#sentRequest;
 				// eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing
-				acceptRequest.headers.set('accept', acceptRequest.headers.get('accept') || mimeType);
+				ky.request.headers.set('accept', ky.request.headers.get('accept') || mimeType);
 
 				const response = await result;
-
-				// `ky.stop` from a `beforeRetry` hook resolves the request with no response at all. Reading a body
-				// method would otherwise crash deep inside Ky with a TypeError that names Ky internals.
-				if (response === undefined) {
-					throw new TypeError(missingResponseMessage);
-				}
 
 				if (type !== 'json') {
 					return ky.#raceBodyRead(async () => response[type](), response);
@@ -448,14 +385,14 @@ export class Ky {
 				} catch (error: unknown) {
 					// A cancellation is part of the request lifecycle, so it reaches `beforeError` like every other abort. Other failures, such as invalid JSON, stay as they are.
 					if (ky.#userProvidedAbortSignal?.aborted) {
-						await ky.#throwProcessedError(ky.#userProvidedAbortSignal.reason, request);
+						await ky.#throwProcessedError(ky.#userProvidedAbortSignal.reason);
 					}
 
 					throw error;
 				}
 
 				if (parsedResult === timedOutOperation) {
-					await ky.#throwProcessedError(new TimeoutError(request), request);
+					await ky.#throwProcessedError(new TimeoutError(request));
 				}
 
 				return parsedResult;
@@ -486,10 +423,6 @@ export class Ky {
 	#requestBodyCanBeCancelled = false;
 	readonly #userProvidedAbortSignal: AbortSignal | undefined;
 	readonly #beforeRetryHookErrors = new WeakSet<Error>();
-	// Values thrown by a user callback that runs while the request is in flight. Retrying would re-send the body and
-	// run the callback again, so they are never retriable, whatever `shouldRetry` says. A strong `Set` is safe because
-	// a `Ky` instance lives for exactly one request, and the callback can throw a non-`Error` value.
-	readonly #inFlightCallbackErrors = new Set<unknown>();
 	#cachedNormalizedOptions: NormalizedOptions | undefined;
 	readonly #startTime: number | undefined;
 	#returnedResponseFromBeforeRetryHook = false;
@@ -498,11 +431,6 @@ export class Ky {
 
 	// eslint-disable-next-line complexity
 	constructor(input: Input, options: Options = {}) {
-		// Checked before the options are built, since building them reads `input.headers`.
-		if (typeof input !== 'string' && !(input instanceof URL || input instanceof globalThis.Request)) {
-			throw new TypeError('`input` must be a string, URL, or Request');
-		}
-
 		const {maxResponseSize = Number.POSITIVE_INFINITY} = options;
 		if (Object.hasOwn(options, 'prefixUrl')) {
 			throw new Error(prefixUrlRenamedErrorMessage);
@@ -526,12 +454,14 @@ export class Ky {
 			// Deep-cloned so a hook mutating a nested plain object or array cannot write back to the instance defaults or the caller's object. Non-plain values such as class instances are kept by reference, matching how `json` and the shallow `context` merge treat them.
 			context: cloneDeep(options.context) ?? {},
 		};
-		// Checked here rather than on the way out, because the constructor already calls `stringifyJson`.
-		validateCallbackOptions(this.#options);
 		this.#retryLimit = this.#options.retry.limit;
 
 		if (maxResponseSize !== Number.POSITIVE_INFINITY && (!Number.isSafeInteger(maxResponseSize) || maxResponseSize < 0)) {
 			throw new TypeError('The `maxResponseSize` option must be a non-negative safe integer or Infinity');
+		}
+
+		if (typeof input !== 'string' && !(input instanceof URL || input instanceof globalThis.Request)) {
+			throw new TypeError('`input` must be a string, URL, or Request');
 		}
 
 		this.#requestInput = input instanceof globalThis.Request ? input : undefined;
@@ -669,17 +599,8 @@ export class Ky {
 		this.#startTime = typeof this.#options.totalTimeout === 'number' ? this.#getCurrentTime() : undefined;
 	}
 
-	#calculateDelay(retry: InternalOptions['retry'], error: unknown): number {
+	#calculateDelay(retry: InternalOptions['retry']): number {
 		const retryDelay = retry.delay(this.#retryCount + 1);
-
-		// A `retry.delay` that does not return a usable number would turn every delay into `NaN`, which
-		// `setTimeout()` clamps to 1ms, silently disabling the configured backoff. The `jitter` function form
-		// already guards its own result, so the input is checked here for every jitter form.
-		if (typeof retryDelay !== 'number' || Number.isNaN(retryDelay) || retryDelay < 0) {
-			// The failure that was being retried is chained as the cause, so `beforeError` can still inspect it
-			// instead of losing the response and data to this configuration mistake.
-			throw new TypeError('`retry.delay` must return a non-negative number or `Infinity`', {cause: error});
-		}
 
 		let jitteredDelay = retryDelay;
 		if (retry.jitter === true) {
@@ -696,10 +617,6 @@ export class Ky {
 	}
 
 	async #calculateRetryDelay(error: unknown) {
-		if (this.#inFlightCallbackErrors.has(error)) {
-			throw error;
-		}
-
 		const retry = normalizeRetryOptions(this.#options.retry);
 		if (this.#retryCount >= Math.min(retry.limit, this.#retryLimit)) {
 			throw error;
@@ -709,8 +626,8 @@ export class Ky {
 		const errorObject = error instanceof Error ? error : new NonError(error);
 
 		// Handle forced retry from afterResponse hook - skip method check and shouldRetry
-		if (isForceRetryError(errorObject)) {
-			return errorObject.customDelay ?? this.#calculateDelay(retry, error);
+		if (errorObject instanceof ForceRetryError) {
+			return errorObject.customDelay ?? this.#calculateDelay(retry);
 		}
 
 		// Check if method is retriable for non-forced retries
@@ -724,7 +641,7 @@ export class Ky {
 			const result = await this.#raceWithTotalTimeout(async () => shouldRetry({error: errorObject, retryCount: this.#retryCount + 1}), this.#userProvidedAbortSignal);
 			this.#throwIfAbortedByUser();
 			if (result === timedOutOperation) {
-				throw new TimeoutError(this.#sentRequest);
+				throw new TimeoutError(this.request);
 			}
 
 			// Only exact booleans override the default retry checks.
@@ -741,11 +658,10 @@ export class Ky {
 				throw error;
 			}
 
-			return this.#calculateDelay(retry, error);
+			return this.#calculateDelay(retry);
 		}
 
-		// The `isHTTPError()` brand only checks `name`, so a cross-realm error may not carry a `response`.
-		if (isHTTPError(error) && error.response) {
+		if (isHTTPError(error)) {
 			if (!shouldRetryOverride && !retry.statusCodes.includes(error.response.status)) {
 				throw error;
 			}
@@ -755,7 +671,7 @@ export class Ky {
 				const after = calculateRetryTimingDelay(retryTimingHeader);
 				if (after === undefined) {
 					// Malformed retry timing headers should not disable retries; they only lose their server-provided timing.
-					return this.#calculateDelay(retry, error);
+					return this.#calculateDelay(retry);
 				}
 
 				// Don't apply jitter when server provides explicit retry timing
@@ -766,7 +682,7 @@ export class Ky {
 				throw error;
 			}
 
-			return this.#calculateDelay(retry, error);
+			return this.#calculateDelay(retry);
 		}
 
 		// Only retry known retriable error types. Unknown errors (e.g., programming bugs) are not retried.
@@ -774,7 +690,7 @@ export class Ky {
 			throw error;
 		}
 
-		return this.#calculateDelay(retry, error);
+		return this.#calculateDelay(retry);
 	}
 
 	#decorateResponse(response: Response): Response {
@@ -785,31 +701,21 @@ export class Ky {
 		this.#decoratedResponses.add(response);
 		const request = this.#getResponseRequest(response);
 
-		try {
-			response.json = async () => {
-				const text = await response.text();
-				return this.#options.parseJson!(text, {request, response});
-			};
+		response.json = async () => {
+			const text = await response.text();
+			return this.#options.parseJson!(text, {request, response});
+		};
 
-			// `clone()` returns a fresh `Response` that would otherwise fall back to the native `json()`.
-			const nativeClone = response.clone.bind(response);
-			response.clone = () => this.#decorateResponse(this.#setResponseRequest(nativeClone(), request));
-		} catch (error: unknown) {
-			// A frozen response cannot be decorated, so the caller never receives it and nothing else can release its
-			// body. Report the real problem and let go of the connection.
-			this.#cancelResponseBody(response);
-			throw error;
-		}
+		// `clone()` returns a fresh `Response` that would otherwise fall back to the native `json()`.
+		const nativeClone = response.clone.bind(response);
+		response.clone = () => this.#decorateResponse(this.#setResponseRequest(nativeClone(), request));
 
 		return response;
 	}
 
-	// Defaults to the last request that was actually sent, because `this.request` is the clone `#fetch()` prepares
-	// for a possible retry and may never be sent at all.
-	async #throwProcessedError(error: unknown, request: Request = this.#sentRequest): Promise<never> {
-		// Non-Error throws (e.g., thrown strings) pass through unchanged. `isError` reads the internal brand, so an
-		// error from another realm still runs the hooks, the same way the Ky type guards accept branded errors.
-		if (!isError(error)) {
+	async #throwProcessedError(error: unknown): Promise<never> {
+		// Non-Error throws (e.g., thrown strings) pass through unchanged
+		if (!(error instanceof Error)) {
 			throw error;
 		}
 
@@ -820,17 +726,18 @@ export class Ky {
 
 		let processedError: Error = error;
 		for (const hook of this.#options.hooks.beforeError) {
-			// `options` intentionally remains the stable normalized Ky options snapshot for the same reason as `HTTPError` above.
+			// `request` is the current failing request. `options` intentionally remains the
+			// stable normalized Ky options snapshot for the same reason as `HTTPError` above.
 			// eslint-disable-next-line no-await-in-loop
 			const hookResult: unknown = await hook({
-				request,
+				request: this.request,
 				options: this.#getNormalizedOptions(),
 				error: processedError,
 				retryCount: this.#retryCount,
 			});
 
-			// Only overwrite if the hook returns a valid Error, including one from another realm.
-			if (isError(hookResult)) {
+			// Only overwrite if the hook returns a valid Error instance.
+			if (hookResult instanceof Error) {
 				processedError = hookResult;
 			}
 		}
@@ -901,7 +808,7 @@ export class Ky {
 		const remainingTotal = this.#getRemainingTotalTimeout();
 		if (remainingTotal !== undefined) {
 			if (remainingTotal <= 0) {
-				throw new TimeoutError(this.#sentRequest);
+				throw new TimeoutError(this.request);
 			}
 
 			return this.#options.timeout === false
@@ -915,12 +822,11 @@ export class Ky {
 	// Unlike error bodies (`#getResponseData`), a successful body read has no fallback value to return -
 	// the caller's `.json()`/`.text()`/etc. promise must settle, so a timeout here always rejects.
 	async #raceBodyRead(createBodyPromise: () => Promise<unknown>, response: Response): Promise<unknown> {
-		const failedRequest = this.#getResponseRequest(response);
 		let timeoutMs: number | undefined;
 		try {
 			timeoutMs = this.#getEffectiveTimeout();
 		} catch (error: unknown) {
-			await this.#throwProcessedError(error, failedRequest);
+			await this.#throwProcessedError(error);
 		}
 
 		const bodyPromise = createBodyPromise();
@@ -942,33 +848,26 @@ export class Ky {
 				: await Promise.race([bodyPromise, timeoutPromise]);
 		} catch (error: unknown) {
 			if (this.#userProvidedAbortSignal?.aborted) {
-				await this.#throwProcessedError(this.#userProvidedAbortSignal.reason, failedRequest);
+				await this.#throwProcessedError(this.#userProvidedAbortSignal.reason);
 			}
 
 			if (this.#getRemainingTotalTimeout() !== 0) {
 				// A throwing progress callback errors the response stream, which a browser may report as a raw `TypeError` that would otherwise be mistaken for a dropped connection. Surface the callback error instead.
 				const progressCallbackError = getProgressCallbackError(response.body ?? undefined);
 				if (progressCallbackError !== undefined) {
-					await this.#throwProcessedError(progressCallbackError, failedRequest);
+					await this.#throwProcessedError(progressCallbackError);
 				}
 
 				// A connection dropped while streaming the body surfaces as a raw runtime `TypeError`. Wrap it like fetch-phase network errors so it is recognizable and runs `beforeError` hooks.
 				// This only happens on the awaited path, so a body that fails after the timeout already won does not run the hooks again.
 				if (isRawNetworkError(error)) {
-					await this.#throwProcessedError(new NetworkError(failedRequest, {cause: error as Error}), failedRequest);
+					await this.#throwProcessedError(new NetworkError(this.#getResponseRequest(response), {cause: error as Error}));
 				}
 
-				await this.#throwProcessedError(error, failedRequest);
+				await this.#throwProcessedError(error);
 			}
 
 			result = timedOutResponseData;
-		}
-
-		// A cancellation is part of the request lifecycle, so it must not resolve as a successful body read just
-		// because the bytes happened to arrive first. `.json()` already gets this check for free through
-		// `#raceWithTotalTimeout()`, which is why the shortcuts used to disagree here.
-		if (this.#userProvidedAbortSignal?.aborted) {
-			await this.#throwProcessedError(this.#userProvidedAbortSignal.reason, failedRequest);
 		}
 
 		if (result === timedOutResponseData || this.#getRemainingTotalTimeout() === 0) {
@@ -976,7 +875,7 @@ export class Ky {
 			// `response.body.cancel()` would reject as "already locked". Aborting the request's
 			// signal is what actually interrupts the underlying network read.
 			this.#abortController?.abort();
-			await this.#throwProcessedError(new TimeoutError(failedRequest), failedRequest);
+			await this.#throwProcessedError(new TimeoutError(this.#getResponseRequest(response)));
 		}
 
 		return result;
@@ -993,7 +892,6 @@ export class Ky {
 
 		let timeoutId: ReturnType<typeof setTimeout> | undefined;
 		let abortListener: (() => void) | undefined;
-		let operationPromise: Promise<T> | undefined;
 		try {
 			const abortPromise = new Promise<never>((_resolve, reject) => {
 				if (!abortSignal) {
@@ -1011,7 +909,7 @@ export class Ky {
 					abortListener();
 				}
 			});
-			operationPromise = operation();
+			const operationPromise = operation();
 
 			if (remainingTotal === undefined) {
 				return await Promise.race([operationPromise, abortPromise]);
@@ -1041,17 +939,7 @@ export class Ky {
 
 			return result;
 		} catch (error: unknown) {
-			if (abortSignal?.aborted) {
-				// The abort won the race, so whatever the operation eventually returns is discarded. Release its body, the
-				// same way the timeout path below does for a value it never consumed.
-				if (operationPromise) {
-					void operationPromise.then(value => {
-						this.#cancelReturnedBody(value);
-					}).catch(() => undefined);
-				}
-
-				abortSignal.throwIfAborted();
-			}
+			abortSignal?.throwIfAborted();
 
 			const remainingAfterOperation = this.#getRemainingTotalTimeout();
 			if (remainingAfterOperation !== undefined && remainingAfterOperation <= 0) {
@@ -1209,25 +1097,7 @@ export class Ky {
 			: this.#abortController!.signal;
 	}
 
-	// A `throwHttpErrors` predicate that throws used to escape from the `if` condition, before the body was read or
-	// released, leaving the caller with an error and no handle on the response to release it with.
-	#shouldThrowHttpErrors(response: Response): boolean {
-		const {throwHttpErrors} = this.#options;
-		try {
-			return typeof throwHttpErrors === 'function' ? throwHttpErrors(response.status) : throwHttpErrors;
-		} catch (error: unknown) {
-			this.#cancelResponseBody(response);
-			throw error;
-		}
-	}
-
-	// `#fetch()` replaces `this.request` with the clone it prepares for a possible retry, so anything reporting the
-	// request that produced a response or failed has to use the one that was actually sent.
-	get #sentRequest(): Request {
-		return this.#originalRequest ?? this.request;
-	}
-
-	#throwIfTotalTimeoutExhausted(request: Request = this.#sentRequest): void {
+	#throwIfTotalTimeoutExhausted(request: Request = this.request): void {
 		const remaining = this.#getRemainingTotalTimeout();
 		if (remaining !== undefined && remaining <= 0) {
 			throw new TimeoutError(request);
@@ -1244,7 +1114,7 @@ export class Ky {
 			}), this.#userProvidedAbortSignal);
 
 			if (result === timedOutOperation) {
-				throw new TimeoutError(this.#sentRequest);
+				throw new TimeoutError(this.request);
 			}
 
 			if (isRequestInstance(result)) {
@@ -1269,9 +1139,6 @@ export class Ky {
 			try {
 				// eslint-disable-next-line no-await-in-loop
 				modifiedResponse = await this.#raceWithTotalTimeout(async () => hook({
-					// Deliberately `this.request`, which `#fetch()` has already replaced with the clone prepared for a
-					// retry, so its body is still unread. A hook that forces a retry with `ky.retry({request: new
-					// Request(request)})` depends on being able to copy an unconsumed request from here.
 					request: this.request,
 					options: this.#getNormalizedOptions(),
 					response: hookResponse,
@@ -1279,7 +1146,7 @@ export class Ky {
 				}), this.#userProvidedAbortSignal);
 
 				if (modifiedResponse === timedOutOperation) {
-					throw new TimeoutError(this.#sentRequest);
+					throw new TimeoutError(this.request);
 				}
 			} catch (error) {
 				// Cancel both responses to prevent memory leaks when hook throws
@@ -1291,7 +1158,7 @@ export class Ky {
 				throw error;
 			}
 
-			if (isRetryMarker(modifiedResponse)) {
+			if (modifiedResponse instanceof RetryMarker) {
 				// Cancel both the cloned response passed to the hook and the current response to prevent resource leaks (especially important in Deno/Bun).
 				// Do not await cancellation since hooks can clone the response, leaving extra tee branches that keep cancel promises pending per the Streams spec.
 				if (hookResponse !== response) {
@@ -1343,13 +1210,13 @@ export class Ky {
 		const remainingTimeout = this.#getRemainingTotalTimeout();
 		if (remainingTimeout !== undefined) {
 			if (remainingTimeout <= 0) {
-				throw new TimeoutError(this.#sentRequest);
+				throw new TimeoutError(this.request);
 			}
 
 			// If waiting would consume all remaining budget, time out without starting another request.
 			if (retryDelay >= remainingTimeout) {
 				await delay(remainingTimeout, delayOptions);
-				throw new TimeoutError(this.#sentRequest);
+				throw new TimeoutError(this.request);
 			}
 		}
 
@@ -1367,7 +1234,7 @@ export class Ky {
 
 		// Apply custom request from forced retry before beforeRetry hooks
 		// Ensure the custom request has the correct managed signal for timeouts and user aborts
-		if (isForceRetryError(error) && error.customRequest) {
+		if (error instanceof ForceRetryError && error.customRequest) {
 			// Replacement Requests are authoritative by design. Do not rewrite headers here,
 			// even for cross-origin retries. Callers using `ky.retry({request})` explicitly
 			// opted into the exact Request they constructed.
@@ -1385,9 +1252,8 @@ export class Ky {
 					retryCount: this.#retryCount + 1,
 				}), this.#userProvidedAbortSignal);
 			} catch (hookError) {
-				// Preserve the original request error path (`throw error`) so beforeError hooks can still run. `isError`
-				// rather than `instanceof`, so a cross-realm error is recognised the same way `#throwProcessedError` does.
-				if (isError(hookError) && hookError !== error) {
+				// Preserve the original request error path (`throw error`) so beforeError hooks can still run.
+				if (hookError instanceof Error && hookError !== error) {
 					this.#beforeRetryHookErrors.add(hookError);
 				}
 
@@ -1395,7 +1261,7 @@ export class Ky {
 			}
 
 			if (hookResult === timedOutOperation) {
-				throw new TimeoutError(this.#sentRequest);
+				throw new TimeoutError(this.request);
 			}
 
 			if (isRequestInstance(hookResult)) {
@@ -1479,8 +1345,6 @@ export class Ky {
 			// The upload progress wrapper errors the request body stream when its callback throws, which the runtime reports as a network failure. Surface the callback error instead.
 			const progressCallbackError = getProgressCallbackError(this.#originalRequest?.body ?? undefined);
 			if (progressCallbackError !== undefined) {
-				this.#inFlightCallbackErrors.add(progressCallbackError);
-
 				// eslint-disable-next-line @typescript-eslint/only-throw-error -- The callback can throw any value, and non-Error throws are propagated as-is elsewhere.
 				throw progressCallbackError;
 			}
@@ -1563,12 +1427,7 @@ export class Ky {
 	}
 
 	#setResponseRequest(response: Response, request: Request): Response {
-		// A custom `fetch` is allowed to resolve with anything, and the main loop decides what to do with a value that
-		// is not a Response. A primitive cannot key a `WeakMap`, so only a real object is recorded.
-		if (isResponseInstance(response)) {
-			this.#responseRequests.set(response, request);
-		}
-
+		this.#responseRequests.set(response, request);
 		return response;
 	}
 
