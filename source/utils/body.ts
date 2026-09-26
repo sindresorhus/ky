@@ -143,8 +143,7 @@ const copyResponseMetadata = (response: Response, originalResponse: Response, ge
 		url: {value: originalResponse.url},
 		redirected: {value: originalResponse.redirected},
 		type: {value: originalResponse.type},
-		// The constructor also rebuilds the header list under the mutable "response" guard, so a network response
-		// that arrived immutable would silently become mutable. Reuse the original's headers to keep the guard.
+		// The constructor also rebuilds the header list under the mutable "response" guard, so a network response that arrived immutable would silently become mutable. Reusing the original's headers keeps the guard; a clone shares that same object, which the spec would have copied, but copying it would drop the guard again.
 		headers: {value: originalResponse.headers},
 		// Native `clone()` creates a new `Response`, which would drop them again.
 		// Keep the shim replaceable like `Response.prototype.clone` for instrumentation and mocks.

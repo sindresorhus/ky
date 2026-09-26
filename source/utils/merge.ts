@@ -208,7 +208,7 @@ function newHookValue<K extends keyof Hooks>(original: Hooks, incoming: Hooks, p
 export const mergeHooks = (original: Hooks = {}, incoming: Hooks = {}): NormalizedHooks => {
 	// `null` selects the default, the same way option merging treats a nullish value as absent.
 	const incomingHooks = incoming ?? {};
-	if (!isObject(incomingHooks)) {
+	if (!isObject(incomingHooks) || Array.isArray(incomingHooks)) {
 		throw new TypeError('The `hooks` option must be an object');
 	}
 

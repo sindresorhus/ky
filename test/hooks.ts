@@ -7262,7 +7262,7 @@ test('a single-function hook is reported instead of silently dropped', t => {
 });
 
 test('`hooks` that is not an object reports a clear error', t => {
-	for (const hooks of ['none', 42, true] as unknown[]) {
+	for (const hooks of ['none', 42, true, []] as unknown[]) {
 		t.throws(() => {
 			void ky('https://example.com', {hooks: hooks as never});
 		}, {

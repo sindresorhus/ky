@@ -75,8 +75,10 @@ test('rejects invalid timeout values set from an `init` hook', async t => {
 });
 
 // These callbacks are called directly, so a non-function value surfaced as a runtime error naming Ky's own
-// internals (`this[#options].stringifyJson`, `initHookOptions.parseJson`) instead of the option the user set.
-test('rejects non-function callback options', async t => {
+// internals (`this[#options].stringifyJson`, `initHookOptions.parseJson`) instead of the option the user set, and
+// only once the request had already been built. The constructor calls `stringifyJson` itself, so that one has to be
+// checked before anything else happens.
+test('rejects non-function callback options', t => {
 	for (const [key, value] of [
 		['parseJson', 'x'],
 		['stringifyJson', 5],
@@ -84,23 +86,38 @@ test('rejects non-function callback options', async t => {
 	] as Array<[string, unknown]>) {
 		const options: Record<string, unknown> = {[key]: value};
 
-		// eslint-disable-next-line no-await-in-loop
-		await t.throwsAsync(ky('https://example.com', options as never).json(), {
+		t.throws(() => {
+			void ky('https://example.com', options as never);
+		}, {
 			name: 'TypeError',
 			message: `The \`${key}\` option must be a function`,
 		}, `${key}: ${JSON.stringify(value)}`);
 	}
 });
 
-test('rejects a `throwHttpErrors` value that is neither a boolean nor a function', async t => {
+test('rejects a non-function `stringifyJson` before it is called', t => {
+	t.throws(() => {
+		void ky.post('https://example.com', {
+			json: {a: 1},
+			stringifyJson: 'nope' as never,
+			fetch: okFetch,
+		});
+	}, {
+		name: 'TypeError',
+		message: 'The `stringifyJson` option must be a function',
+	});
+});
+
+test('rejects a `throwHttpErrors` value that is neither a boolean nor a function', t => {
 	for (const value of ['yes', 1, {}] as unknown[]) {
 		const options: Record<string, unknown> = {
 			throwHttpErrors: value,
 			fetch: async () => new Response('server error', {status: 500}),
 		};
 
-		// eslint-disable-next-line no-await-in-loop
-		await t.throwsAsync(ky('https://example.com', options as never).json(), {
+		t.throws(() => {
+			void ky('https://example.com', options as never);
+		}, {
 			name: 'TypeError',
 			message: 'The `throwHttpErrors` option must be a boolean or a function',
 		}, `throwHttpErrors: ${JSON.stringify(value)}`);

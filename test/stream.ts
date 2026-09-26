@@ -1528,7 +1528,12 @@ test('a non-Error throw from an upload progress callback is not retried either',
 	try {
 		await ky.post(server.url, {
 			body: 'x'.repeat(1024),
-			retry: {limit: 3, methods: ['post'], delay: () => 0, shouldRetry: () => true},
+			retry: {
+				limit: 3,
+				methods: ['post'],
+				delay: () => 0,
+				shouldRetry: () => true,
+			},
 			onUploadProgress() {
 				callbackCalls++;
 				// eslint-disable-next-line @typescript-eslint/only-throw-error
