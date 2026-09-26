@@ -7258,14 +7258,19 @@ test('a request that did start still releases its upload body', async t => {
 });
 
 // `newHookValue` merged with `deepMerge`, which ignores sources that are neither arrays nor objects, so a single
-// function, a string or `null` was dropped without a word and the hook simply never ran.
+// function, a string or a `null` was dropped without a word and the hook simply never ran. `null` is reported like any
+// other bad shape, since `undefined` is how a hook list is cleared.
 test('rejects a hook list that is not an array', t => {
 	for (const [key, value] of [
 		['init', () => undefined],
 		['beforeRequest', 'not a function'],
-		['afterResponse', null],
 		['beforeRetry', {}],
 		['beforeError', 0],
+		['afterResponse', true],
+		['beforeRequest', null],
+		// An entry that is not a function only failed once the hook ran, with an error that did not name the option.
+		['beforeRequest', [null]],
+		['afterResponse', [() => undefined, 'not a function']],
 	] as Array<[string, unknown]>) {
 		const hooks: Record<string, unknown> = {[key]: value};
 
@@ -7320,13 +7325,46 @@ test('`hooks` that is not an object reports a clear error', t => {
 	}
 });
 
-test('`hooks: null` selects the default', async t => {
-	t.is(await ky('https://example.com', {hooks: null as never, fetch: async () => new Response('ok')}).text(), 'ok');
+// `hooks: null` used to reach `Object.hasOwn(null, ...)` and report an internal error. It is reported like any other
+// bad shape instead, since `undefined` is how the option is omitted.
+test('`hooks: null` reports a clear error', t => {
+	for (const hooks of [null, undefined, 'none', 42, true, []] as unknown[]) {
+		if (hooks === undefined) {
+			// The one shape that selects the default, through the parameter default.
+			t.pass();
+			continue;
+		}
+
+		t.throws(() => {
+			void ky('https://example.com', {hooks: hooks as never});
+		}, {
+			instanceOf: TypeError,
+			message: 'The `hooks` option must be an object',
+		}, `hooks: ${JSON.stringify(hooks)}`);
+	}
 });
 
-// `instanceof Error` fails for an error from another realm, so a cross-realm failure skipped the hooks entirely and
-// a cross-realm replacement from a hook was dropped. The Ky type guards already accept branded errors from another
-// copy of Ky, so the error checks here read the internal brand too.
+test('an explicit `undefined` hook list clears the parent hooks', async t => {
+	const cleared: string[] = [];
+	const undefinedHookList = {hooks: {beforeRequest: undefined}} as Options;
+	const instance = ky.create({
+		hooks: {
+			beforeRequest: [() => {
+				cleared.push('parent');
+			}],
+		},
+		fetch: async () => new Response('ok'),
+	});
+
+	await instance('https://example.com', undefinedHookList).text();
+	t.deepEqual(cleared, []);
+
+	await instance('https://example.com').text();
+	t.deepEqual(cleared, ['parent']);
+	t.is(await instance('https://example.com', undefinedHookList).text(), 'ok');
+});
+
+// `instanceof Error` fails for an error from another realm, so a cross-realm failure skipped the hooks entirely and a cross-realm replacement from a hook was dropped. The Ky type guards already accept branded errors from another copy of Ky, so the error checks here read the internal brand too.
 test('a cross-realm error thrown by fetch still runs `beforeError` hooks', async t => {
 	const foreignError = runInNewContext('new Error("foreign fetch failure")') as Error;
 	const seen: string[] = [];

@@ -265,6 +265,8 @@ export type KyOptions = {
 
 	/**
 	Hooks allow modifications during the request lifecycle. Hook functions may be async and are run serially, unless otherwise noted.
+
+	Each hook must be an array of functions. A single function, a string, or any other value, `null` included, throws a `TypeError` rather than being silently dropped. `undefined` means absent, so it clears the hooks it would have replaced.
 	*/
 	hooks?: Hooks | undefined;
 

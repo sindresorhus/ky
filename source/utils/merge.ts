@@ -195,16 +195,16 @@ export const mergeHeaderContainers = (source1: KyHeadersInit, source2: KyHeaders
 	mergeHeaderObjects(toHeaderObject(source1), toHeaderObject(source2));
 
 function newHookValue<K extends keyof Hooks>(original: Hooks, incoming: Hooks, property: K): NormalizedHooks[K] {
+	// An absent key must keep the parent's hooks, which is why this check needs `Object.hasOwn`.
 	if (Object.hasOwn(incoming, property) && incoming[property] === undefined) {
 		return [];
 	}
 
 	// A single hook type can be wrapped in `replaceOption()` to replace only that array instead of the whole `hooks` object.
 	const {isReplace, value} = getReplaceState(incoming[property]);
-	if (value !== undefined && !Array.isArray(value)) {
-		// Merging ignores anything that is neither an array nor an object, so a single function, a string or `null`
-		// used to be dropped without a word and the hook simply never ran.
-		throw new TypeError(`\`hooks.${property}\` must be an array`);
+	// Merging ignores anything that is neither an array nor an object, so a single function or a string used to be dropped without a word and the hook simply never ran. `null` is rejected here too, rather than treated as absent: use `undefined` to clear a hook list.
+	if (value !== undefined && (!Array.isArray(value) || !value.every(hook => typeof hook === 'function'))) {
+		throw new TypeError(`\`hooks.${property}\` must be an array of functions`);
 	}
 
 	if (isReplace) {
@@ -215,18 +215,17 @@ function newHookValue<K extends keyof Hooks>(original: Hooks, incoming: Hooks, p
 }
 
 export const mergeHooks = (original: Hooks = {}, incoming: Hooks = {}): NormalizedHooks => {
-	// `null` selects the default, the same way option merging treats a nullish value as absent.
-	const incomingHooks = incoming ?? {};
-	if (!isObject(incomingHooks) || Array.isArray(incomingHooks)) {
+	// `undefined` selects the default through the parameter default. `null` is not accepted, so it reaches this check and is reported like any other bad shape.
+	if (!isObject(incoming) || Array.isArray(incoming)) {
 		throw new TypeError('The `hooks` option must be an object');
 	}
 
 	return {
-		init: newHookValue(original, incomingHooks, 'init'),
-		beforeRequest: newHookValue(original, incomingHooks, 'beforeRequest'),
-		beforeRetry: newHookValue(original, incomingHooks, 'beforeRetry'),
-		beforeError: newHookValue(original, incomingHooks, 'beforeError'),
-		afterResponse: newHookValue(original, incomingHooks, 'afterResponse'),
+		init: newHookValue(original, incoming, 'init'),
+		beforeRequest: newHookValue(original, incoming, 'beforeRequest'),
+		beforeRetry: newHookValue(original, incoming, 'beforeRetry'),
+		beforeError: newHookValue(original, incoming, 'beforeError'),
+		afterResponse: newHookValue(original, incoming, 'afterResponse'),
 	};
 };
 
