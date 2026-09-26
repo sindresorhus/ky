@@ -145,3 +145,32 @@ test('a nullish or non-string `input` reports the input error', t => {
 		}, `input: ${String(input)}`);
 	}
 });
+
+// `onDownloadProgress` was type-checked at the very end of the pipeline, so an invalid value ran the whole request
+// and only then reported the typo, leaving the response body with nobody able to release it.
+test('rejects a non-function `onDownloadProgress` before the request is sent', t => {
+	let fetchCalled = false;
+	let beforeRequestCalls = 0;
+
+	t.throws(() => {
+		void ky('https://example.com', {
+			onDownloadProgress: 'x' as never,
+			retry: 0,
+			hooks: {
+				beforeRequest: [() => {
+					beforeRequestCalls++;
+				}],
+			},
+			async fetch() {
+				fetchCalled = true;
+				return new Response('ok');
+			},
+		});
+	}, {
+		name: 'TypeError',
+		message: 'The `onDownloadProgress` option must be a function',
+	});
+
+	t.false(fetchCalled);
+	t.is(beforeRequestCalls, 0);
+});

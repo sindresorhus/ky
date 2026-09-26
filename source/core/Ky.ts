@@ -101,7 +101,7 @@ const validateTimeoutOption = (value: unknown, name: 'timeout' | 'totalTimeout')
 // These callbacks are called directly, so a non-function value otherwise surfaces as a runtime error naming Ky's
 // own internals rather than the option the caller set.
 const validateCallbackOptions = (options: Record<string, unknown>): void => {
-	for (const key of ['parseJson', 'stringifyJson', 'fetch'] as const) {
+	for (const key of ['parseJson', 'stringifyJson', 'fetch', 'onDownloadProgress'] as const) {
 		if (options[key] !== undefined && typeof options[key] !== 'function') {
 			throw new TypeError(`The \`${key}\` option must be a function`);
 		}
@@ -362,10 +362,6 @@ export class Ky {
 
 			// If `onDownloadProgress` is passed, it uses the stream API internally
 			if (ky.#options.onDownloadProgress) {
-				if (typeof ky.#options.onDownloadProgress !== 'function') {
-					throw new TypeError('The `onDownloadProgress` option must be a function');
-				}
-
 				if (!supportsResponseStreams) {
 					throw new Error('Streams are not supported in your environment. `ReadableStream` is missing.');
 				}
