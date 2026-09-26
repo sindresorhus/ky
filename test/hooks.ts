@@ -8,6 +8,7 @@ import ky, {
 	isTimeoutError,
 	isForceRetryError,
 	TimeoutError,
+	replaceOption,
 } from '../source/index.js';
 import {type Options, type NormalizedOptions} from '../source/types/options.js';
 import {createHttpTestServer} from './helpers/create-http-test-server.js';
@@ -7205,4 +7206,71 @@ test('a request that did start still releases its upload body', async t => {
 	});
 
 	t.true(cancelled);
+});
+
+// `newHookValue` merged with `deepMerge`, which ignores sources that are neither arrays nor objects, so a single
+// function, a string or `null` was dropped without a word and the hook simply never ran.
+test('rejects a hook list that is not an array', t => {
+	for (const [key, value] of [
+		['init', () => undefined],
+		['beforeRequest', 'not a function'],
+		['afterResponse', null],
+		['beforeRetry', {}],
+		['beforeError', 0],
+	] as Array<[string, unknown]>) {
+		const hooks: Record<string, unknown> = {[key]: value};
+
+		t.throws(() => {
+			void ky('https://example.com', {hooks: hooks as never});
+		}, {
+			instanceOf: TypeError,
+			message: `\`hooks.${key}\` must be an array`,
+		}, `${key}: ${JSON.stringify(value)}`);
+	}
+});
+
+test('rejects `replaceOption()` around a non-array hook list', t => {
+	for (const value of [() => undefined, 42, {}] as unknown[]) {
+		t.throws(() => {
+			void ky('https://example.com', {hooks: {beforeRetry: replaceOption(value as never)}});
+		}, {
+			instanceOf: TypeError,
+			message: '`hooks.beforeRetry` must be an array',
+		});
+	}
+});
+
+test('a single-function hook is reported instead of silently dropped', t => {
+	let ran = 0;
+	const hooks = {
+		beforeRequest: (() => {
+			ran++;
+		}) as never,
+	};
+
+	const error = t.throws(() => {
+		void ky('https://example.com', {
+			retry: 0,
+			hooks,
+			fetch: async () => new Response('ok'),
+		});
+	});
+
+	t.is(error?.message, '`hooks.beforeRequest` must be an array');
+	t.is(ran, 0);
+});
+
+test('`hooks` that is not an object reports a clear error', t => {
+	for (const hooks of ['none', 42, true] as unknown[]) {
+		t.throws(() => {
+			void ky('https://example.com', {hooks: hooks as never});
+		}, {
+			instanceOf: TypeError,
+			message: 'The `hooks` option must be an object',
+		}, `hooks: ${JSON.stringify(hooks)}`);
+	}
+});
+
+test('`hooks: null` selects the default', async t => {
+	t.is(await ky('https://example.com', {hooks: null as never, fetch: async () => new Response('ok')}).text(), 'ok');
 });

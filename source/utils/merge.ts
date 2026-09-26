@@ -192,6 +192,12 @@ function newHookValue<K extends keyof Hooks>(original: Hooks, incoming: Hooks, p
 
 	// A single hook type can be wrapped in `replaceOption()` to replace only that array instead of the whole `hooks` object.
 	const {isReplace, value} = getReplaceState(incoming[property]);
+	if (value !== undefined && !Array.isArray(value)) {
+		// Merging ignores anything that is neither an array nor an object, so a single function, a string or `null`
+		// used to be dropped without a word and the hook simply never ran.
+		throw new TypeError(`\`hooks.${property}\` must be an array`);
+	}
+
 	if (isReplace) {
 		return [...(value ?? [])] as NormalizedHooks[K];
 	}
@@ -199,15 +205,21 @@ function newHookValue<K extends keyof Hooks>(original: Hooks, incoming: Hooks, p
 	return deepMerge<NormalizedHooks[K]>(original[property] ?? [], value ?? []);
 }
 
-export const mergeHooks = (original: Hooks = {}, incoming: Hooks = {}): NormalizedHooks => (
-	{
-		init: newHookValue(original, incoming, 'init'),
-		beforeRequest: newHookValue(original, incoming, 'beforeRequest'),
-		beforeRetry: newHookValue(original, incoming, 'beforeRetry'),
-		beforeError: newHookValue(original, incoming, 'beforeError'),
-		afterResponse: newHookValue(original, incoming, 'afterResponse'),
+export const mergeHooks = (original: Hooks = {}, incoming: Hooks = {}): NormalizedHooks => {
+	// `null` selects the default, the same way option merging treats a nullish value as absent.
+	const incomingHooks = incoming ?? {};
+	if (!isObject(incomingHooks)) {
+		throw new TypeError('The `hooks` option must be an object');
 	}
-);
+
+	return {
+		init: newHookValue(original, incomingHooks, 'init'),
+		beforeRequest: newHookValue(original, incomingHooks, 'beforeRequest'),
+		beforeRetry: newHookValue(original, incomingHooks, 'beforeRetry'),
+		beforeError: newHookValue(original, incomingHooks, 'beforeError'),
+		afterResponse: newHookValue(original, incomingHooks, 'afterResponse'),
+	};
+};
 
 export const deletedParametersSymbol = Symbol('deletedParameters');
 
