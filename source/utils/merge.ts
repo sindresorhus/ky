@@ -211,6 +211,43 @@ export const mergeHooks = (original: Hooks = {}, incoming: Hooks = {}): Normaliz
 
 export const deletedParametersSymbol = Symbol('deletedParameters');
 
+// `replaceOption()` can wrap a value at any depth of a deep-merged option, but a wrapper is only unwrapped where a
+// merge actually runs, so a wrapper on a key with no parent value kept its `{value}` envelope. This resolves the
+// leftovers in one pass, copying only the branches that actually contained a wrapper so every other value keeps its
+// identity. `seen` keeps a cyclic option from recursing forever; a cyclic branch is left as-is.
+const resolveReplaceMarkers = (value: unknown, seen: Set<Record<string, unknown> | unknown[]>): unknown => {
+	if (!isMergeable(value) || seen.has(value)) {
+		return value;
+	}
+
+	seen.add(value);
+	const resolveItem = (item: unknown) => resolveReplaceMarkers(getReplaceState(item).value, seen);
+
+	if (Array.isArray(value)) {
+		let resolved: unknown[] | undefined;
+		for (const [index, item] of value.entries()) {
+			const replacement = resolveItem(item);
+			if (replacement !== item) {
+				resolved ??= [...value];
+				resolved[index] = replacement;
+			}
+		}
+
+		return resolved ?? value;
+	}
+
+	let resolved: Record<string, unknown> | undefined;
+	for (const [key, item] of Object.entries(value)) {
+		const replacement = resolveItem(item);
+		if (replacement !== item) {
+			resolved ??= {...value};
+			resolved[key] = replacement;
+		}
+	}
+
+	return resolved ?? value;
+};
+
 const appendSearchParameters = (target: any, source: any): URLSearchParams => {
 	const result = new URLSearchParams() as URLSearchParams & {[deletedParametersSymbol]?: Set<string>};
 	// Deleted keys stay marked even when a later layer re-adds the key, so the key is still removed from the input URL before the re-added value is appended.
@@ -402,7 +439,7 @@ const deepMergeInternal = <T>(isRoot: boolean, ...sources: Array<Partial<T> | un
 		}
 	}
 
-	return returnValue;
+	return isRoot ? resolveReplaceMarkers(returnValue, new Set()) : returnValue;
 };
 
 export const deepMerge = <T>(...sources: Array<Partial<T> | undefined>): T =>

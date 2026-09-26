@@ -7023,3 +7023,186 @@ test('an `init` hook that assigns `retry` hands later hooks a copy', async t => 
 	t.deepEqual(attemptCounts, [1, 1, 1, 1]);
 	t.deepEqual(ownRetry, {limit: 0, delay: ownRetry.delay});
 });
+
+// `afterResponse` hooks deliberately receive the clone `#fetch()` prepared for a possible retry, whose body is
+// still unread, so a hook that forces a retry can copy an unconsumed request from it.
+test('an `afterResponse` hook can copy the unconsumed request it is given', async t => {
+	const bodies: string[] = [];
+	let attempts = 0;
+
+	const text = await ky.post('https://example.com', {
+		body: 'payload',
+		retry: {limit: 1, methods: ['post'], delay: () => 0},
+		async fetch(request) {
+			attempts++;
+			bodies.push(await request.text());
+			return attempts === 1 ? new Response('server error', {status: 500}) : new Response('ok');
+		},
+		hooks: {
+			afterResponse: [({request, response}) => {
+				if (response.status === 500) {
+					return ky.retry({request: new Request(request)});
+				}
+			}],
+		},
+	}).text();
+
+	t.is(text, 'ok');
+	t.deepEqual(bodies, ['payload', 'payload']);
+});
+
+test('an `afterResponse` hook receives the replacement request from `beforeRequest`', async t => {
+	let sent: Request | undefined;
+	const hookUrls: string[] = [];
+	const replacement = new Request('https://example.com/replacement');
+
+	await ky('https://example.com', {
+		retry: 1,
+		async fetch(request) {
+			sent = request;
+			return new Response('ok');
+		},
+		hooks: {
+			beforeRequest: [() => replacement],
+			afterResponse: [({request}) => {
+				hookUrls.push(request.url);
+			}],
+		},
+	}).text();
+
+	t.is(sent?.url, 'https://example.com/replacement');
+	t.deepEqual(hookUrls, ['https://example.com/replacement']);
+});
+
+// `beforeError` hooks received `this.request`, which `#fetch()` replaces with a clone prepared for a possible retry, so the hook got a request object that was never sent and did not match the request on the error.
+test('a `beforeError` hook receives the request that failed', async t => {
+	for (const retry of [0, 2]) {
+		let sent: Request | undefined;
+		let hookRequest: Request | undefined;
+		let errorRequest: unknown;
+
+		// eslint-disable-next-line no-await-in-loop
+		const error = await t.throwsAsync(ky('https://example.com', {
+			retry,
+			async fetch(request) {
+				sent = request;
+				return new Response('server error', {status: 500});
+			},
+			hooks: {
+				beforeError: [({request, error: hookError}) => {
+					hookRequest = request;
+					errorRequest = (hookError as {request?: unknown}).request;
+				}],
+			},
+		}).text());
+
+		t.is(hookRequest, sent, `retry: ${retry}`);
+		t.is(errorRequest, sent, `retry: ${retry}`);
+		t.is((error as {request?: unknown}).request, sent, `retry: ${retry}`);
+	}
+});
+
+test('a `beforeError` hook receives the request that failed during a body read', async t => {
+	let sent: Request | undefined;
+	const hookRequests: Array<Request | undefined> = [];
+
+	await t.throwsAsync(ky('https://example.com', {
+		retry: 1,
+		async fetch(request) {
+			sent = request;
+			return new Response(new ReadableStream({
+				start(controller) {
+					controller.error(new TypeError('terminated'));
+				},
+			}));
+		},
+		hooks: {
+			beforeError: [({request}) => {
+				hookRequests.push(request);
+			}],
+		},
+	}).text());
+
+	t.is(hookRequests.length, 1);
+	t.is(hookRequests[0], sent);
+});
+
+// The cleanup in the request pipeline cancelled the current request body even when fetch was never called, so a
+// caller-owned upload stream was destroyed by a configuration error or a hook that threw before the request started.
+test('a request that never started leaves the caller-owned body alone', async t => {
+	const failedFetches: boolean[] = [];
+	const cancelledBodies: boolean[] = [];
+
+	for (const options of [
+		{
+			hooks: {
+				beforeRequest: [() => {
+					throw new Error('boom');
+				}],
+			},
+		},
+		// Invalid options are rejected by the constructor, before the pipeline and its cleanup exist, so these two guard against validation moving back into the pipeline.
+		{timeout: 3_000_000_000},
+		{
+			hooks: {
+				init: [options => {
+					options.timeout = 3_000_000_000;
+				}],
+			},
+		},
+	]) {
+		let cancelled = false;
+		let fetchCalled = false;
+		const body = new ReadableStream<Uint8Array>({
+			start(controller) {
+				controller.enqueue(new TextEncoder().encode('hi'));
+			},
+			cancel() {
+				cancelled = true;
+			},
+		});
+
+		// eslint-disable-next-line no-await-in-loop
+		await t.throwsAsync(ky('https://example.com', {
+			method: 'POST',
+			body,
+			retry: 0,
+			...options,
+			async fetch() {
+				fetchCalled = true;
+				return new Response('ok');
+			},
+		}).text());
+
+		failedFetches.push(fetchCalled);
+		cancelledBodies.push(cancelled);
+	}
+
+	t.deepEqual(failedFetches, [false, false, false]);
+	t.deepEqual(cancelledBodies, [false, false, false]);
+});
+
+test('a request that did start still releases its upload body', async t => {
+	let cancelled = false;
+	const body = new ReadableStream<Uint8Array>({
+		start(controller) {
+			controller.enqueue(new TextEncoder().encode('hi'));
+		},
+		cancel() {
+			cancelled = true;
+		},
+	});
+
+	await ky('https://example.com', {
+		method: 'POST',
+		body,
+		retry: 0,
+		fetch: async () => new Response('ok'),
+	}).text();
+
+	await new Promise(resolve => {
+		setTimeout(resolve, 10);
+	});
+
+	t.true(cancelled);
+});

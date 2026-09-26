@@ -79,6 +79,7 @@ const createTextDecoder = (contentType: string): TextDecoder => {
 };
 
 const invalidSchemaMessage = 'The `schema` argument must follow the Standard Schema specification';
+const missingResponseMessage = 'The request resolved without a response. Returning `ky.stop` from a `beforeRetry` hook is not compatible with body method shortcuts. Throw from the hook instead.';
 
 // Both timeout options are milliseconds or `false`. A non-finite or negative value used to reach `setTimeout()`,
 // which silently clamps it to ~1ms, or to be ignored entirely when `totalTimeout` was not a number.
@@ -376,8 +377,10 @@ export class Ky {
 					ky.#cancelBody(originalRequest?.body ?? undefined);
 				}
 
-				// Only cancel the current request body if it's distinct from the original (i.e. it was cloned for retries).
-				if (ky.request !== originalRequest && ky.request.body !== response?.body) {
+				// Only cancel the current request body if it's distinct from the original (i.e. it was cloned for
+				// retries). `#originalRequest` is only set once a request is handed to fetch, so a pipeline that
+				// never started, for example one that failed validation, leaves the caller's own body alone.
+				if (originalRequest && ky.request !== originalRequest && ky.request.body !== response?.body) {
 					ky.#cancelBody(ky.request.body ?? undefined);
 				}
 			}
@@ -401,7 +404,7 @@ export class Ky {
 				// `ky.stop` from a `beforeRetry` hook resolves the request with no response at all. Reading a body
 				// method would otherwise crash deep inside Ky with a TypeError that names Ky internals.
 				if (response === undefined) {
-					throw new TypeError('The request resolved without a response. Returning `ky.stop` from a `beforeRetry` hook is not compatible with body method shortcuts. Throw from the hook instead.');
+					throw new TypeError(missingResponseMessage);
 				}
 
 				if (type !== 'json') {
@@ -430,14 +433,14 @@ export class Ky {
 				} catch (error: unknown) {
 					// A cancellation is part of the request lifecycle, so it reaches `beforeError` like every other abort. Other failures, such as invalid JSON, stay as they are.
 					if (ky.#userProvidedAbortSignal?.aborted) {
-						await ky.#throwProcessedError(ky.#userProvidedAbortSignal.reason);
+						await ky.#throwProcessedError(ky.#userProvidedAbortSignal.reason, request);
 					}
 
 					throw error;
 				}
 
 				if (parsedResult === timedOutOperation) {
-					await ky.#throwProcessedError(new TimeoutError(request));
+					await ky.#throwProcessedError(new TimeoutError(request), request);
 				}
 
 				return parsedResult;
@@ -766,7 +769,9 @@ export class Ky {
 		return response;
 	}
 
-	async #throwProcessedError(error: unknown): Promise<never> {
+	// Defaults to the last request that was actually sent, because `this.request` is the clone `#fetch()` prepares
+	// for a possible retry and may never be sent at all.
+	async #throwProcessedError(error: unknown, request: Request = this.#originalRequest ?? this.request): Promise<never> {
 		// Non-Error throws (e.g., thrown strings) pass through unchanged
 		if (!(error instanceof Error)) {
 			throw error;
@@ -779,11 +784,10 @@ export class Ky {
 
 		let processedError: Error = error;
 		for (const hook of this.#options.hooks.beforeError) {
-			// `request` is the current failing request. `options` intentionally remains the
-			// stable normalized Ky options snapshot for the same reason as `HTTPError` above.
+			// `options` intentionally remains the stable normalized Ky options snapshot for the same reason as `HTTPError` above.
 			// eslint-disable-next-line no-await-in-loop
 			const hookResult: unknown = await hook({
-				request: this.request,
+				request,
 				options: this.#getNormalizedOptions(),
 				error: processedError,
 				retryCount: this.#retryCount,
@@ -875,11 +879,12 @@ export class Ky {
 	// Unlike error bodies (`#getResponseData`), a successful body read has no fallback value to return -
 	// the caller's `.json()`/`.text()`/etc. promise must settle, so a timeout here always rejects.
 	async #raceBodyRead(createBodyPromise: () => Promise<unknown>, response: Response): Promise<unknown> {
+		const failedRequest = this.#getResponseRequest(response);
 		let timeoutMs: number | undefined;
 		try {
 			timeoutMs = this.#getEffectiveTimeout();
 		} catch (error: unknown) {
-			await this.#throwProcessedError(error);
+			await this.#throwProcessedError(error, failedRequest);
 		}
 
 		const bodyPromise = createBodyPromise();
@@ -901,23 +906,23 @@ export class Ky {
 				: await Promise.race([bodyPromise, timeoutPromise]);
 		} catch (error: unknown) {
 			if (this.#userProvidedAbortSignal?.aborted) {
-				await this.#throwProcessedError(this.#userProvidedAbortSignal.reason);
+				await this.#throwProcessedError(this.#userProvidedAbortSignal.reason, failedRequest);
 			}
 
 			if (this.#getRemainingTotalTimeout() !== 0) {
 				// A throwing progress callback errors the response stream, which a browser may report as a raw `TypeError` that would otherwise be mistaken for a dropped connection. Surface the callback error instead.
 				const progressCallbackError = getProgressCallbackError(response.body ?? undefined);
 				if (progressCallbackError !== undefined) {
-					await this.#throwProcessedError(progressCallbackError);
+					await this.#throwProcessedError(progressCallbackError, failedRequest);
 				}
 
 				// A connection dropped while streaming the body surfaces as a raw runtime `TypeError`. Wrap it like fetch-phase network errors so it is recognizable and runs `beforeError` hooks.
 				// This only happens on the awaited path, so a body that fails after the timeout already won does not run the hooks again.
 				if (isRawNetworkError(error)) {
-					await this.#throwProcessedError(new NetworkError(this.#getResponseRequest(response), {cause: error as Error}));
+					await this.#throwProcessedError(new NetworkError(failedRequest, {cause: error as Error}), failedRequest);
 				}
 
-				await this.#throwProcessedError(error);
+				await this.#throwProcessedError(error, failedRequest);
 			}
 
 			result = timedOutResponseData;
@@ -928,7 +933,7 @@ export class Ky {
 			// `response.body.cancel()` would reject as "already locked". Aborting the request's
 			// signal is what actually interrupts the underlying network read.
 			this.#abortController?.abort();
-			await this.#throwProcessedError(new TimeoutError(this.#getResponseRequest(response)));
+			await this.#throwProcessedError(new TimeoutError(failedRequest), failedRequest);
 		}
 
 		return result;
@@ -1192,6 +1197,9 @@ export class Ky {
 			try {
 				// eslint-disable-next-line no-await-in-loop
 				modifiedResponse = await this.#raceWithTotalTimeout(async () => hook({
+					// Deliberately `this.request`, which `#fetch()` has already replaced with the clone prepared for a
+					// retry, so its body is still unread. A hook that forces a retry with `ky.retry({request: new
+					// Request(request)})` depends on being able to copy an unconsumed request from here.
 					request: this.request,
 					options: this.#getNormalizedOptions(),
 					response: hookResponse,

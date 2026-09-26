@@ -11,6 +11,7 @@ import ky, {
 	type RetryOptions,
 } from '../source/index.js';
 import {NonError} from '../source/errors/NonError.js';
+import {validateAndMerge} from '../source/utils/merge.js';
 import {createHttpTestServer} from './helpers/create-http-test-server.js';
 import {parseRawBody} from './helpers/parse-body.js';
 import {withPerformance} from './helpers/with-performance.js';
@@ -4956,4 +4957,33 @@ test.serial('a past `RateLimit-Reset` epoch retries immediately', async t => {
 	}
 
 	t.is(requestCount, 3);
+});
+
+// `replaceOption()` is documented to work with any deep-merged option, but a wrapper was only unwrapped where a
+// merge actually ran, so a nested wrapper with no parent value leaked its `{value}` envelope into the result.
+test('`replaceOption` resolves nested wrappers with and without a parent value', t => {
+	t.deepEqual(validateAndMerge({json: {filters: replaceOption({tags: ['a']})}}).json, {filters: {tags: ['a']}});
+	t.deepEqual(validateAndMerge({json: {filters: {tags: ['old']}}}, {json: {filters: replaceOption({tags: ['a']})}}).json, {filters: {tags: ['a']}});
+	t.deepEqual(validateAndMerge({json: {a: {b: 1}}}, {json: {a: {c: replaceOption({d: 1})}}}).json, {a: {b: 1, c: {d: 1}}});
+	t.deepEqual(validateAndMerge({list: [replaceOption({a: 1})]}).list, [{a: 1}]);
+	t.deepEqual(validateAndMerge({list: [1, replaceOption(2), 3]}).list, [1, 2, 3]);
+	t.deepEqual(validateAndMerge({custom: {inner: replaceOption({a: 1})}}).custom, {inner: {a: 1}});
+});
+
+test('`replaceOption` leaves untouched values identical', t => {
+	const json = {nested: {list: [1, 2]}};
+	const fetchFunction = () => new Response('ok');
+	const merged = validateAndMerge({json, fetch: fetchFunction}) as {json: unknown; fetch: unknown};
+
+	t.is(merged.json, json);
+	t.is(merged.fetch, fetchFunction);
+});
+
+test('`replaceOption` resolution handles a cyclic option', t => {
+	const custom: {self?: unknown} = {};
+	custom.self = custom;
+
+	const merged = validateAndMerge({custom, json: {filters: replaceOption({tags: ['a']})}});
+	t.is(merged.custom, custom);
+	t.deepEqual(merged.json, {filters: {tags: ['a']}});
 });
