@@ -131,10 +131,11 @@ export type KyInstance = {
 	```
 	import ky from 'ky';
 
-	const options = {
+	// Note that response will be `undefined` in case `ky.stop` is returned.
+	const response = await ky.post('https://example.com', {
 		hooks: {
 			beforeRetry: [
-				async ({request, options, error, retryCount}) => {
+				async ({error}) => {
 					const shouldStopRetry = await ky('https://example.com/api');
 					if (shouldStopRetry) {
 						return ky.stop;
@@ -142,13 +143,10 @@ export type KyInstance = {
 				}
 			]
 		}
-	};
-
-	// Note that response will be `undefined` in case `ky.stop` is returned.
-	const response = await ky.post('https://example.com', options);
+	});
 
 	// Using `.text()` or other body methods is not supported.
-	const text = await ky('https://example.com', options).text();
+	// const text = await ky('https://example.com', options).text();
 	```
 	*/
 	readonly stop: typeof stop;

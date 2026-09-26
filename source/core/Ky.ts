@@ -291,9 +291,10 @@ export class Ky {
 				|| ky.#consumeReturnedResponseFromBeforeRetryHook();
 
 			for (;;) {
-				// `undefined` means a hook stopped the flow without providing a response.
+				// A nullish value means a hook stopped the flow, or a custom `fetch` resolved with nothing. The caller
+				// sees it normalized to `undefined` either way.
 				// Non-native Responses still continue through Ky if they pass `isResponseInstance()`.
-				if (response === undefined) {
+				if (response === undefined || response === null) {
 					return response;
 				}
 
@@ -1535,7 +1536,12 @@ export class Ky {
 	}
 
 	#setResponseRequest(response: Response, request: Request): Response {
-		this.#responseRequests.set(response, request);
+		// A custom `fetch` is allowed to resolve with anything, and the main loop decides what to do with a value that
+		// is not a Response. A primitive cannot key a `WeakMap`, so only a real object is recorded.
+		if (isResponseInstance(response)) {
+			this.#responseRequests.set(response, request);
+		}
+
 		return response;
 	}
 

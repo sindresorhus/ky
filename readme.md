@@ -1001,14 +1001,14 @@ const extended = original.extend({
 	}
 });
 
-const response = await extended(url).json();
+const response = await extended(url);
 //=> after 1
 //=> after 2
 
-console.log('rainbow' in response);
+console.log(response.headers.has('rainbow'));
 //=> false
 
-console.log('unicorn' in response);
+console.log(response.headers.has('unicorn'));
 //=> true
 ```
 
@@ -1083,7 +1083,8 @@ A valid use-case for `ky.stop` is to prevent retries when making requests for si
 ```js
 import ky from 'ky';
 
-const options = {
+// Note that `response` will be `undefined` in case `ky.stop` is returned.
+const response = await ky.post('https://example.com', {
 	hooks: {
 		beforeRetry: [
 			async ({request, options, error, retryCount}) => {
@@ -1094,10 +1095,7 @@ const options = {
 			}
 		]
 	}
-};
-
-// Note that `response` will be `undefined` in case `ky.stop` is returned.
-const response = await ky.post('https://example.com', options);
+});
 
 // Using `.text()` or other body methods is not supported.
 const text = await ky('https://example.com', options).text();
@@ -1406,7 +1404,7 @@ const publicApi = api.extend({
 
 ### Sending form data
 
-Sending form data in Ky is identical to `fetch`. Just pass a [`FormData`](https://developer.mozilla.org/en-US/docs/Web/API/FormData) instance to the `body` option. The `Content-Type` header will be automatically set to `multipart/form-data`, overriding any existing `Content-Type` header.
+Sending form data in Ky is identical to `fetch`. Just pass a [`FormData`](https://developer.mozilla.org/en-US/docs/Web/API/FormData) instance to the `body` option. The `Content-Type` header will be automatically set to `multipart/form-data`, unless you set a `Content-Type` in the `headers` option, which always takes precedence.
 
 ```js
 import ky from 'ky';
@@ -1419,7 +1417,7 @@ formData.append('drink', 'icetea');
 const response = await ky.post(url, {body: formData});
 ```
 
-If you want to send the data in `application/x-www-form-urlencoded` format, you will need to encode the data with [`URLSearchParams`](https://developer.mozilla.org/en-US/docs/Web/API/URLSearchParams). Like `FormData`, this will override any existing `Content-Type` headers.
+If you want to send the data in `application/x-www-form-urlencoded` format, you will need to encode the data with [`URLSearchParams`](https://developer.mozilla.org/en-US/docs/Web/API/URLSearchParams). Like `FormData`, the `Content-Type` is set for you unless you set one in the `headers` option.
 
 ```js
 import ky from 'ky';
@@ -1660,12 +1658,16 @@ interface CustomError extends HTTPError {
 	customProperty: unknown;
 }
 
+// Use with type assertion
+let data: unknown;
+
 const api = ky.extend({
 	hooks: {
 		beforeError: [
 			async ({error}) => {
 				if (isHTTPError(error)) {
 					(error as CustomError).customProperty = 'value';
+					data = (error as CustomError).customProperty;
 				}
 
 				return error;
@@ -1673,9 +1675,6 @@ const api = ky.extend({
 		]
 	}
 });
-
-// Use with type assertion
-const data = (error as CustomError).customProperty;
 ```
 
 This approach keeps your types scoped to where they're needed without polluting the global namespace.

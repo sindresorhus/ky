@@ -449,6 +449,24 @@ export interface Options extends KyOptions, RequestOptions { // eslint-disable-l
 	/**
 	HTTP method used to make the request.
 
+	Ky forwards every option it does not recognize straight to `fetch()`, so fetch-only extensions are supported even
+	when the ambient `RequestInit` type does not declare them. The two documented below are declared here for that
+	reason; any other extension is accepted at runtime and needs a type assertion.
+	*/
+
+	/**
+	An undici `Agent` or `Dispatcher`, forwarded to `fetch()` as-is.
+	*/
+	dispatcher?: unknown;
+
+	/**
+	A framework-specific fetch extension, such as Next.js's `next`, forwarded to `fetch()` as-is.
+	*/
+	next?: unknown;
+
+	/**
+	HTTP method used to make the request.
+
 	Internally, the standard methods (`GET`, `POST`, `PUT`, `PATCH`, `HEAD`, `DELETE`, and `QUERY`) are uppercased in order to avoid server errors due to case sensitivity.
 	*/
 	method?: LiteralUnion<HttpMethod, string> | undefined;
@@ -479,12 +497,12 @@ export interface Options extends KyOptions, RequestOptions { // eslint-disable-l
 		}
 	});
 
-	const response = await extended(url).json();
+	const response = await extended(url);
 
-	console.log('rainbow' in response);
+	console.log(response.headers.has('rainbow'));
 	//=> false
 
-	console.log('unicorn' in response);
+	console.log(response.headers.has('unicorn'));
 	//=> true
 	```
 	*/
