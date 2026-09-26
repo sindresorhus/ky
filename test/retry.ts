@@ -4,6 +4,7 @@ import test, {type ExecutionContext} from 'ava';
 import LeakDetector from 'jest-leak-detector';
 import ky, {
 	replaceOption,
+	ForceRetryError,
 	NetworkError,
 	TimeoutError,
 	isKyError,
@@ -5022,3 +5023,47 @@ for (const type of ['text', 'arrayBuffer', 'blob', 'bytes'] as const) {
 		t.is(hookErrors.length, 1);
 	});
 }
+
+// A custom delay flows straight into `setTimeout`, so a negative or `NaN` value was clamped to 1ms and the process printed a Node warning, silently collapsing the backoff. `retry.delay` results are validated the same way.
+test('rejects a `ky.retry({delay})` value that cannot be a delay', async t => {
+	for (const delay of [-1, Number.NaN, '1000', {}] as unknown[]) {
+		// eslint-disable-next-line no-await-in-loop
+		await t.throwsAsync(ky('https://example.com', {
+			retry: {limit: 1, delay: () => 0},
+			fetch: async () => new Response('server error', {status: 500}),
+			hooks: {afterResponse: [() => ky.retry({delay: delay as never})]},
+		}).text(), {
+			instanceOf: TypeError,
+			message: 'The `delay` option must be a non-negative number or `Infinity`',
+		}, `delay: ${JSON.stringify(delay)}`);
+	}
+});
+
+test('a rejected `ky.retry({delay})` never reaches the retry delay', async t => {
+	let attempts = 0;
+	const error = await t.throwsAsync(ky('https://example.com', {
+		retry: {limit: 1, delay: () => 0},
+		async fetch() {
+			attempts++;
+			return new Response('server error', {status: 500});
+		},
+		hooks: {afterResponse: [() => ky.retry({delay: -1})]},
+	}).text());
+
+	t.is(attempts, 1);
+	t.is(error?.name, 'TypeError');
+});
+
+// The message used a truthiness check while `code` was assigned without one, so a falsy code was silently dropped from the message the `code` documentation promises.
+test('a falsy `ky.retry({code})` still appears in the ForceRetryError message', t => {
+	for (const code of ['', 0, false] as unknown[]) {
+		const error = new ForceRetryError({code: code as never});
+
+		t.is(error.code, code);
+		t.is(error.message, `Forced retry: ${String(code)}`);
+	}
+
+	t.is(new ForceRetryError().message, 'Forced retry');
+	t.is(new ForceRetryError({}).message, 'Forced retry');
+	t.is(new ForceRetryError({code: 'RATE_LIMIT'}).message, 'Forced retry: RATE_LIMIT');
+});

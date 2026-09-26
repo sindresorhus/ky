@@ -14,6 +14,12 @@ export class ForceRetryError extends KyError {
 	customRequest: Request | undefined;
 
 	constructor(options?: ForceRetryOptions) {
+		// The custom delay flows straight into `setTimeout`, so a negative or `NaN` value would be clamped to 1ms and silently collapse the backoff, the same failure mode validated away for `retry.delay`.
+		const {delay} = options ?? {};
+		if (delay !== undefined && (typeof delay !== 'number' || Number.isNaN(delay) || delay < 0)) {
+			throw new TypeError('The `delay` option must be a non-negative number or `Infinity`');
+		}
+
 		// Runtime protection: wrap non-Error causes in NonError
 		// TypeScript type is Error for guidance, but JS users can pass anything
 		const cause = options?.cause === undefined
@@ -21,7 +27,8 @@ export class ForceRetryError extends KyError {
 			: (options.cause instanceof Error ? options.cause : new NonError(options.cause));
 
 		super(
-			options?.code ? `Forced retry: ${options.code}` : 'Forced retry',
+			// `code` is documented as always reaching the message, so only an absent code falls back.
+			options?.code === undefined ? 'Forced retry' : `Forced retry: ${options.code}`,
 			cause ? {cause} : undefined,
 		);
 

@@ -37,6 +37,7 @@ import delay from '../utils/delay.js';
 import {type ObjectEntries} from '../utils/types.js';
 import {findUnknownOptions, hasSearchParameters} from '../utils/options.js';
 import isRawNetworkError from '../utils/is-network-error.js';
+import {isError} from '../utils/is.js';
 import {
 	isHTTPError, isNetworkError, isTimeoutError, isResponseSizeError, isForceRetryError,
 } from '../utils/type-guards.js';
@@ -772,8 +773,9 @@ export class Ky {
 	// Defaults to the last request that was actually sent, because `this.request` is the clone `#fetch()` prepares
 	// for a possible retry and may never be sent at all.
 	async #throwProcessedError(error: unknown, request: Request = this.#originalRequest ?? this.request): Promise<never> {
-		// Non-Error throws (e.g., thrown strings) pass through unchanged
-		if (!(error instanceof Error)) {
+		// Non-Error throws (e.g., thrown strings) pass through unchanged. `isError` reads the internal brand, so an
+		// error from another realm still runs the hooks, the same way the Ky type guards accept branded errors.
+		if (!isError(error)) {
 			throw error;
 		}
 
@@ -793,8 +795,8 @@ export class Ky {
 				retryCount: this.#retryCount,
 			});
 
-			// Only overwrite if the hook returns a valid Error instance.
-			if (hookResult instanceof Error) {
+			// Only overwrite if the hook returns a valid Error, including one from another realm.
+			if (isError(hookResult)) {
 				processedError = hookResult;
 			}
 		}

@@ -1,5 +1,6 @@
 import {setTimeout as delay} from 'node:timers/promises';
-import test from 'ava';
+import {runInNewContext} from 'node:vm';
+import test, {type ExecutionContext} from 'ava';
 import ky, {
 	HTTPError,
 	KyError,
@@ -7273,4 +7274,72 @@ test('`hooks` that is not an object reports a clear error', t => {
 
 test('`hooks: null` selects the default', async t => {
 	t.is(await ky('https://example.com', {hooks: null as never, fetch: async () => new Response('ok')}).text(), 'ok');
+});
+
+// `instanceof Error` fails for an error from another realm, so a cross-realm failure skipped the hooks entirely and
+// a cross-realm replacement from a hook was dropped. The Ky type guards already accept branded errors from another
+// copy of Ky, so the error checks here read the internal brand too.
+test('a cross-realm error thrown by fetch still runs `beforeError` hooks', async t => {
+	const foreignError = runInNewContext('new Error("foreign fetch failure")') as Error;
+	const seen: string[] = [];
+
+	await t.throwsAsync(ky('https://example.com', {
+		retry: 0,
+		async fetch() {
+			throw foreignError;
+		},
+		hooks: {
+			beforeError: [({error}) => {
+				seen.push(String(error));
+			}],
+		},
+	}).text(), {message: 'foreign fetch failure'});
+
+	t.deepEqual(seen, ['Error: foreign fetch failure']);
+});
+
+test('a `beforeError` hook can replace the error with one from another realm', async t => {
+	const foreignError = runInNewContext('new Error("replacement from another realm")') as Error;
+
+	const error = await t.throwsAsync(ky('https://example.com', {
+		retry: 0,
+		async fetch() {
+			return new Response('server error', {status: 500});
+		},
+		hooks: {
+			beforeError: [() => foreignError],
+		},
+	}).text());
+
+	t.is(error, foreignError);
+});
+
+test('a non-Error value from a `beforeError` hook is still ignored', async t => {
+	const error = await t.throwsAsync(ky('https://example.com', {
+		retry: 0,
+		fetch: async () => new Response('server error', {status: 500}),
+		hooks: {
+			beforeError: [() => 'not an error' as never],
+		},
+	}).text());
+
+	t.is(error?.name, 'HTTPError');
+});
+
+test('a non-Error value thrown by a hook still passes through unchanged', async t => {
+	try {
+		await ky('https://example.com', {
+			retry: 0,
+			fetch: async () => new Response('ok'),
+			hooks: {
+				beforeRequest: [() => {
+					// eslint-disable-next-line @typescript-eslint/only-throw-error
+					throw 'thrown string';
+				}],
+			},
+		}).text();
+		t.fail('should have thrown');
+	} catch (error) {
+		t.is(error, 'thrown string');
+	}
 });

@@ -77,6 +77,8 @@ export type ForceRetryOptions = {
 	If not provided, uses the default retry delay calculation based on `retry.delay` configuration.
 
 	**Note:** Custom delays bypass jitter and `backoffLimit`. This is intentional, as custom delays often come from server responses (e.g., `Retry-After` headers) and should be respected exactly as specified.
+
+	Must be a non-negative number, or `undefined`; anything else throws a `TypeError` rather than collapsing to a 1ms retry.
 	*/
 	delay?: number | undefined;
 

@@ -1,8 +1,5 @@
 // Inlined from https://github.com/sindresorhus/is-network-error v1.3.2
-
-const objectToString = Object.prototype.toString;
-
-const isError = (value: unknown): value is Error => objectToString.call(value) === '[object Error]';
+import {isError} from './is.js';
 
 const errorMessages = new Set([
 	'network error', // Chrome
