@@ -1371,3 +1371,39 @@ test('download progress still uses content-length for an uncompressed response',
 	t.is(text.length, 64);
 	t.is(progressEvents.at(-1)?.totalBytes, 64);
 });
+
+// `content-encoding: identity` is a registered no-op coding (RFC 9110 §8.4.2), so `content-length` is the decoded
+// length and remains a valid total, as it is for a response with no `content-encoding` at all.
+for (const [label, headers] of [
+	['no content-encoding', {}],
+	['content-encoding: identity', {'content-encoding': 'identity'}],
+	['content-encoding: Identity', {'content-encoding': 'Identity'}],
+	['an empty content-encoding', {'content-encoding': ''}],
+] as Array<[string, Record<string, string>]>) {
+	test(`download progress uses content-length with ${label}`, async t => {
+		const progressEvents: Progress[] = [];
+		const text = await ky('https://example.com', {
+			async fetch() {
+				const body = new ReadableStream<Uint8Array>({
+					start(controller) {
+						for (let index = 0; index < 8; index++) {
+							controller.enqueue(new Uint8Array(1024));
+						}
+
+						controller.close();
+					},
+				});
+				return new Response(body, {headers: {'content-length': '8192', ...headers}});
+			},
+			onDownloadProgress(progress) {
+				progressEvents.push(progress);
+			},
+		}).text();
+
+		t.is(text.length, 8192);
+		t.is(progressEvents.at(-1)?.totalBytes, 8192);
+		t.is(progressEvents[0]?.totalBytes, 8192);
+		// 1024 of 8192 bytes on the first event, so the percentage has to climb from there.
+		t.is(progressEvents[0]?.percent, 0.125);
+	});
+}

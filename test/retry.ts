@@ -4987,3 +4987,38 @@ test('`replaceOption` resolution handles a cyclic option', t => {
 	t.is(merged.custom, custom);
 	t.deepEqual(merged.json, {filters: {tags: ['a']}});
 });
+
+// `.json()` routed the parse through `#raceWithTotalTimeout()`, whose first statement is `throwIfAborted()`, so it
+// rejected a cancelled request while the other five shortcuts resolved with the bytes that had already arrived.
+for (const type of ['text', 'arrayBuffer', 'blob', 'bytes'] as const) {
+	test.serial(`a user abort during a \`${type}\` body read throws the abort reason`, async t => {
+		const controller = new AbortController();
+		const hookErrors: string[] = [];
+
+		const promise = ky('https://example.com', {
+			signal: controller.signal,
+			async fetch() {
+				const body = new ReadableStream({
+					async start(streamController) {
+						streamController.enqueue(new TextEncoder().encode('{"a":1}'));
+						await delay(50);
+						streamController.close();
+					},
+				});
+				return new Response(body, {headers: {'content-type': 'application/json'}});
+			},
+			hooks: {
+				beforeError: [({error}) => {
+					hookErrors.push(String(error));
+				}],
+			},
+		})[type]();
+
+		setTimeout(() => {
+			controller.abort();
+		}, 10);
+
+		await t.throwsAsync(promise, {name: 'AbortError'});
+		t.is(hookErrors.length, 1);
+	});
+}

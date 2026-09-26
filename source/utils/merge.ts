@@ -439,7 +439,7 @@ const deepMergeInternal = <T>(isRoot: boolean, ...sources: Array<Partial<T> | un
 		}
 	}
 
-	return isRoot ? resolveReplaceMarkers(returnValue, new Set()) : returnValue;
+	return isRoot ? resolveReplaceMarkers(returnValue, new Set()) as T : returnValue;
 };
 
 export const deepMerge = <T>(...sources: Array<Partial<T> | undefined>): T =>

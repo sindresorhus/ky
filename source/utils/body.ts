@@ -143,6 +143,9 @@ const copyResponseMetadata = (response: Response, originalResponse: Response, ge
 		url: {value: originalResponse.url},
 		redirected: {value: originalResponse.redirected},
 		type: {value: originalResponse.type},
+		// The constructor also rebuilds the header list under the mutable "response" guard, so a network response
+		// that arrived immutable would silently become mutable. Reuse the original's headers to keep the guard.
+		headers: {value: originalResponse.headers},
 		// Native `clone()` creates a new `Response`, which would drop them again.
 		// Keep the shim replaceable like `Response.prototype.clone` for instrumentation and mocks.
 		clone: {
@@ -168,9 +171,9 @@ const copyResponseMetadata = (response: Response, originalResponse: Response, ge
 };
 
 export const limitResponseSize = (response: Response, request: Request, maxResponseSize: number): Response => {
-	// A body a hook already read cannot be piped through, and would otherwise fail with "The ReadableStream is
-	// locked" instead of the native "Body is unusable" error that names the actual mistake.
-	if (!response.body || response.bodyUsed || nullBodyStatuses.has(response.status) || maxResponseSize === Number.POSITIVE_INFINITY) {
+	// A body a hook already read, or locked with a reader, cannot be piped through, and would otherwise fail with
+	// "The ReadableStream is locked" instead of the native "Body is unusable" error that names the actual mistake.
+	if (!response.body || response.bodyUsed || response.body.locked || nullBodyStatuses.has(response.status) || maxResponseSize === Number.POSITIVE_INFINITY) {
 		return response;
 	}
 
@@ -194,14 +197,13 @@ export const limitResponseSize = (response: Response, request: Request, maxRespo
 
 export const streamResponse = (response: Response, onDownloadProgress: Options['onDownloadProgress']) => {
 	// See `limitResponseSize`: there is nothing left to stream and nothing to report once a hook consumed the body.
-	if (!response.body || response.bodyUsed || nullBodyStatuses.has(response.status)) {
+	if (!response.body || response.bodyUsed || response.body.locked || nullBodyStatuses.has(response.status)) {
 		return response;
 	}
 
-	// `content-length` counts encoded bytes on the wire, while the progress stream counts the bytes after
-	// decompression. Using it for a content-coded response would report a total below what actually arrives, so
-	// every event would sit at ~100%. The total is then unknown, which `Progress` already models with `0`.
-	const isContentCoded = response.headers.get('content-encoding') !== null;
+	// `content-length` counts encoded bytes on the wire, while the progress stream counts the bytes after decompression. Using it for a content-coded response would report a total below what actually arrives, so every event would sit at ~100%. The total is then unknown, which `Progress` already models with `0`. `identity` is a registered no-op coding (RFC 9110 §8.4.2), so it leaves the length valid.
+	const contentEncoding = response.headers.get('content-encoding')?.toLowerCase();
+	const isContentCoded = Boolean(contentEncoding) && contentEncoding !== 'identity';
 	const totalBytes = isContentCoded ? 0 : Math.max(0, Number(response.headers.get('content-length')) || 0);
 	const body = withProgress(response.body, totalBytes, onDownloadProgress);
 

@@ -483,7 +483,13 @@ for (const status of [101, 103, 204, 205, 304]) {
 for (const [label, options] of [
 	['without the limit', {}],
 	['with `maxResponseSize`', {maxResponseSize: 1000}],
-	['with `onDownloadProgress`', {onDownloadProgress: () => undefined}],
+	[
+		'with `onDownloadProgress`',
+		{
+			// Only the option's presence matters here.
+			onDownloadProgress: () => undefined,
+		},
+	],
 ] as Array<[string, Record<string, unknown>]>) {
 	test(`an afterResponse hook that returns a consumed response reports the native error ${label}`, async t => {
 		const response = await ky(url, {
@@ -503,3 +509,62 @@ for (const [label, options] of [
 		});
 	});
 }
+
+// A reader taken with `getReader()` but never read leaves `bodyUsed` false, so the guard missed it and `pipeThrough()` failed with an error that names neither the mistake nor the option.
+for (const [label, options] of [
+	['with `maxResponseSize`', {maxResponseSize: 1000}],
+	[
+		'with `onDownloadProgress`',
+		{
+			// Only the option's presence matters here.
+			onDownloadProgress: () => undefined,
+		},
+	],
+] as Array<[string, Record<string, unknown>]>) {
+	test(`a body that is only locked reports the native error ${label}`, async t => {
+		const response = await ky(url, {
+			...options,
+			async fetch() {
+				const result = new Response('x'.repeat(50));
+				result.body!.getReader();
+				return result;
+			},
+		});
+
+		await t.throwsAsync(response.text(), {
+			name: 'TypeError',
+			message: 'Body is unusable: Body has already been read',
+		});
+	});
+}
+
+// `new Response(body, response)` rebuilds the header list under the mutable "response" guard, so a network response that arrived immutable became mutable as soon as one of these options was set.
+for (const [label, options] of [
+	['with `maxResponseSize`', {maxResponseSize: 1000}],
+	['with `onDownloadProgress`', {onDownloadProgress: () => undefined}],
+] as Array<[string, Record<string, unknown>]>) {
+	test(`response headers stay immutable ${label}`, async t => {
+		const server = await createHttpTestServer(t);
+		server.get('/', (_request, response) => {
+			response.set('content-type', 'text/plain').end('payload');
+		});
+
+		const response = await ky(server.url, options);
+		t.true(response.headers.get('content-type')!.startsWith('text/plain'));
+		t.throws(() => {
+			response.headers.set('x-injected', '1');
+		}, {instanceOf: TypeError});
+	});
+}
+
+test('response headers stay immutable without the wrapping options', async t => {
+	const server = await createHttpTestServer(t);
+	server.get('/', (_request, response) => {
+		response.end('payload');
+	});
+
+	const response = await ky(server.url);
+	t.throws(() => {
+		response.headers.set('x-injected', '1');
+	}, {instanceOf: TypeError});
+});

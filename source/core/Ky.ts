@@ -928,6 +928,13 @@ export class Ky {
 			result = timedOutResponseData;
 		}
 
+		// A cancellation is part of the request lifecycle, so it must not resolve as a successful body read just
+		// because the bytes happened to arrive first. `.json()` already gets this check for free through
+		// `#raceWithTotalTimeout()`, which is why the shortcuts used to disagree here.
+		if (this.#userProvidedAbortSignal?.aborted) {
+			await this.#throwProcessedError(this.#userProvidedAbortSignal.reason, failedRequest);
+		}
+
 		if (result === timedOutResponseData || this.#getRemainingTotalTimeout() === 0) {
 			// The stream is locked by the native body method's own reader by this point, so
 			// `response.body.cancel()` would reject as "already locked". Aborting the request's
