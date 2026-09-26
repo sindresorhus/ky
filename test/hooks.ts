@@ -7343,3 +7343,49 @@ test('a non-Error value thrown by a hook still passes through unchanged', async 
 		t.is(error, 'thrown string');
 	}
 });
+
+// `stop` was a plain `Symbol`, so it was per module and a hook written against a second copy of Ky, which happens with a duplicated dependency, never stopped the retries.
+test('`ky.stop` is recognised across Ky copies', async t => {
+	let attempts = 0;
+
+	const result = await ky('https://example.com', {
+		retry: {limit: 3, delay: () => 0},
+		async fetch() {
+			attempts++;
+			return new Response('server error', {status: 500});
+		},
+		hooks: {
+			beforeRetry: [() => Symbol.for('ky.stop')],
+		},
+	});
+
+	t.is(result, undefined);
+	t.is(attempts, 1);
+	t.is(ky.stop, Symbol.for('ky.stop'));
+});
+
+// The retry marker was matched with `instanceof`, so a `ky.retry()` returned by a hook written against a second copy of Ky, which happens with a duplicated dependency, was treated as no replacement at all: no retry and no error.
+test('a `ky.retry()` marker is recognised across Ky copies', async t => {
+	let attempts = 0;
+	const seenCodes: Array<string | undefined> = [];
+
+	const text = await ky('https://example.com', {
+		retry: {limit: 3, delay: () => 0},
+		async fetch() {
+			attempts++;
+			return new Response(attempts < 3 ? 'retry me' : 'ok');
+		},
+		hooks: {
+			afterResponse: [async ({response}) => (await response.text()) === 'retry me'
+				? {isRetryMarker: true, options: {code: 'FOREIGN_COPY'}}
+				: undefined],
+			beforeRetry: [({error}) => {
+				seenCodes.push(isForceRetryError(error) ? error.code : undefined);
+			}],
+		},
+	}).text();
+
+	t.is(text, 'ok');
+	t.is(attempts, 3);
+	t.deepEqual(seenCodes, ['FOREIGN_COPY', 'FOREIGN_COPY']);
+});

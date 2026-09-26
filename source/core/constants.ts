@@ -64,8 +64,10 @@ export const usualFormBoundarySize = 40;
 
 /**
 Symbol that can be returned by a `beforeRetry` hook to stop retrying without throwing an error.
+
+Registered globally so that a hook written against a second copy of Ky, which happens with a duplicated dependency, still stops the retries. A plain `Symbol` is per module, so the copies would not recognise each other's symbol.
 */
-export const stop = Symbol('stop');
+export const stop = Symbol.for('ky.stop');
 
 /**
 Options for forcing a retry via `ky.retry()`.
@@ -155,12 +157,20 @@ export type ForceRetryOptions = {
 Marker returned by `ky.retry()` to signal a forced retry from `afterResponse` hooks.
 */
 export class RetryMarker {
+	// Branded so a marker created by a second copy of Ky, which happens with a duplicated dependency, is still recognised. A plain `instanceof` check fails across module instances, and the hook's intent would then vanish silently: no retry and no error.
+	get isRetryMarker(): true {
+		return true;
+	}
+
 	options: ForceRetryOptions | undefined;
 
 	constructor(options?: ForceRetryOptions) {
 		this.options = options;
 	}
 }
+
+export const isRetryMarker = (value: unknown): value is RetryMarker =>
+	value instanceof RetryMarker || (value as {isRetryMarker?: unknown} | undefined)?.isRetryMarker === true;
 
 /**
 Force a retry from an `afterResponse` hook.

@@ -49,7 +49,7 @@ import {
 	maxSafeTimeout,
 	responseTypes,
 	stop,
-	RetryMarker,
+	isRetryMarker,
 	supportsAbortController,
 	supportsAbortSignal,
 	supportsFormData,
@@ -1235,7 +1235,7 @@ export class Ky {
 				throw error;
 			}
 
-			if (modifiedResponse instanceof RetryMarker) {
+			if (isRetryMarker(modifiedResponse)) {
 				// Cancel both the cloned response passed to the hook and the current response to prevent resource leaks (especially important in Deno/Bun).
 				// Do not await cancellation since hooks can clone the response, leaving extra tee branches that keep cancel promises pending per the Streams spec.
 				if (hookResponse !== response) {
