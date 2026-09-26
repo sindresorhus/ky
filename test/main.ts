@@ -4262,3 +4262,29 @@ test('mutating a caller-owned `context` object after creating an instance does n
 	t.is(contexts[0], '{"nested":{"value":1}}');
 	t.deepEqual(context, {nested: {value: 2}});
 });
+
+// `#fetch()` replaces `ky.request` with the clone prepared for a possible retry, so a shortcut called after the
+// request was dispatched advertised its media type on that clone, which is only sent if a retry happens, instead of
+// on the attempt that produced the response the caller reads.
+test('a body shortcut called after dispatch does not advertise its media type on the retry', async t => {
+	const accepts: string[] = [];
+	let attempts = 0;
+
+	const promise = ky('https://example.com', {
+		retry: {limit: 1, delay: () => 20},
+		async fetch(request) {
+			attempts++;
+			accepts.push(request.headers.get('accept') ?? 'none');
+			return attempts === 1 ? new Response('{"ok":true}', {status: 500}) : new Response('{"ok":true}');
+		},
+	});
+
+	// Dispatch the first attempt, then ask for JSON while the retry delay is still running.
+	await new Promise(resolve => {
+		setTimeout(resolve, 5);
+	});
+	t.is(JSON.stringify(await promise.json()), '{"ok":true}');
+
+	t.is(attempts, 2);
+	t.deepEqual(accepts, ['none', 'none']);
+});

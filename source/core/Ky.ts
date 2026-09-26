@@ -398,8 +398,12 @@ export class Ky {
 			}
 
 			result[type] = async (schema?: StandardSchemaV1) => {
+				// `#fetch()` replaces `ky.request` with the clone it prepares for a possible retry, so a shortcut called
+				// after the request was dispatched would otherwise advertise its media type on that clone, which is only
+				// sent if a retry happens, instead of on the attempt that produced the response.
+				const acceptRequest = ky.#originalRequest ?? ky.request;
 				// eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing
-				ky.request.headers.set('accept', ky.request.headers.get('accept') || mimeType);
+				acceptRequest.headers.set('accept', acceptRequest.headers.get('accept') || mimeType);
 
 				const response = await result;
 
