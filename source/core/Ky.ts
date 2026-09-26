@@ -401,7 +401,7 @@ export class Ky {
 				// `#fetch()` replaces `ky.request` with the clone it prepares for a possible retry, so a shortcut called
 				// after the request was dispatched would otherwise advertise its media type on that clone, which is only
 				// sent if a retry happens, instead of on the attempt that produced the response.
-				const acceptRequest = ky.#originalRequest ?? ky.request;
+				const acceptRequest = ky.#sentRequest;
 				// eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing
 				acceptRequest.headers.set('accept', acceptRequest.headers.get('accept') || mimeType);
 
@@ -727,7 +727,7 @@ export class Ky {
 			const result = await this.#raceWithTotalTimeout(async () => shouldRetry({error: errorObject, retryCount: this.#retryCount + 1}), this.#userProvidedAbortSignal);
 			this.#throwIfAbortedByUser();
 			if (result === timedOutOperation) {
-				throw new TimeoutError(this.request);
+				throw new TimeoutError(this.#sentRequest);
 			}
 
 			// Only exact booleans override the default retry checks.
@@ -802,7 +802,7 @@ export class Ky {
 
 	// Defaults to the last request that was actually sent, because `this.request` is the clone `#fetch()` prepares
 	// for a possible retry and may never be sent at all.
-	async #throwProcessedError(error: unknown, request: Request = this.#originalRequest ?? this.request): Promise<never> {
+	async #throwProcessedError(error: unknown, request: Request = this.#sentRequest): Promise<never> {
 		// Non-Error throws (e.g., thrown strings) pass through unchanged. `isError` reads the internal brand, so an
 		// error from another realm still runs the hooks, the same way the Ky type guards accept branded errors.
 		if (!isError(error)) {
@@ -897,7 +897,7 @@ export class Ky {
 		const remainingTotal = this.#getRemainingTotalTimeout();
 		if (remainingTotal !== undefined) {
 			if (remainingTotal <= 0) {
-				throw new TimeoutError(this.request);
+				throw new TimeoutError(this.#sentRequest);
 			}
 
 			return this.#options.timeout === false
@@ -1194,7 +1194,13 @@ export class Ky {
 			: this.#abortController!.signal;
 	}
 
-	#throwIfTotalTimeoutExhausted(request: Request = this.request): void {
+	// `#fetch()` replaces `this.request` with the clone it prepares for a possible retry, so anything reporting the
+	// request that produced a response or failed has to use the one that was actually sent.
+	get #sentRequest(): Request {
+		return this.#originalRequest ?? this.request;
+	}
+
+	#throwIfTotalTimeoutExhausted(request: Request = this.#sentRequest): void {
 		const remaining = this.#getRemainingTotalTimeout();
 		if (remaining !== undefined && remaining <= 0) {
 			throw new TimeoutError(request);
@@ -1211,7 +1217,7 @@ export class Ky {
 			}), this.#userProvidedAbortSignal);
 
 			if (result === timedOutOperation) {
-				throw new TimeoutError(this.request);
+				throw new TimeoutError(this.#sentRequest);
 			}
 
 			if (isRequestInstance(result)) {
@@ -1246,7 +1252,7 @@ export class Ky {
 				}), this.#userProvidedAbortSignal);
 
 				if (modifiedResponse === timedOutOperation) {
-					throw new TimeoutError(this.request);
+					throw new TimeoutError(this.#sentRequest);
 				}
 			} catch (error) {
 				// Cancel both responses to prevent memory leaks when hook throws
@@ -1310,13 +1316,13 @@ export class Ky {
 		const remainingTimeout = this.#getRemainingTotalTimeout();
 		if (remainingTimeout !== undefined) {
 			if (remainingTimeout <= 0) {
-				throw new TimeoutError(this.request);
+				throw new TimeoutError(this.#sentRequest);
 			}
 
 			// If waiting would consume all remaining budget, time out without starting another request.
 			if (retryDelay >= remainingTimeout) {
 				await delay(remainingTimeout, delayOptions);
-				throw new TimeoutError(this.request);
+				throw new TimeoutError(this.#sentRequest);
 			}
 		}
 
@@ -1361,7 +1367,7 @@ export class Ky {
 			}
 
 			if (hookResult === timedOutOperation) {
-				throw new TimeoutError(this.request);
+				throw new TimeoutError(this.#sentRequest);
 			}
 
 			if (isRequestInstance(hookResult)) {

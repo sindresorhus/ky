@@ -5097,3 +5097,42 @@ test('`replaceOption` on a context keeps it a plain object', t => {
 	t.is(Object.getPrototypeOf(context), Object.prototype);
 	t.deepEqual(context, {b: 2});
 });
+
+// `#fetch()` replaces `ky.request` with the clone it prepares for a possible retry, so a `TimeoutError` built after the request went out reported a request that was never sent, disagreeing with the `request` the `beforeError` hook is given. `#getResponseRequest()` already had the same contract for `HTTPError`.
+test('a TimeoutError names the request that was actually sent', async t => {
+	let sentRequest: Request | undefined;
+	let attempts = 0;
+
+	const error = await t.throwsAsync(ky.post('https://example.com', {
+		body: 'payload',
+		retry: {limit: 2, delay: () => 5000, methods: ['post']},
+		totalTimeout: 30,
+		async fetch(request) {
+			attempts++;
+			sentRequest = request;
+			return new Response('server error', {status: 500});
+		},
+	}).text(), {name: 'TimeoutError'});
+
+	t.is(attempts, 1, 'the retry delay should have been cut short by the total timeout');
+	t.truthy(sentRequest);
+	t.is((error as {request: Request}).request, sentRequest);
+});
+
+test('a TimeoutError raised while retrying names the request that was actually sent', async t => {
+	const sentRequests: Request[] = [];
+	let attempts = 0;
+
+	const error = await t.throwsAsync(ky.get('https://example.com', {
+		retry: {limit: 10, delay: () => 30},
+		totalTimeout: 250,
+		async fetch(request) {
+			attempts++;
+			sentRequests.push(request);
+			return new Response('server error', {status: 500});
+		},
+	}).text(), {name: 'TimeoutError'});
+
+	t.true(attempts > 1, `the request should have been retried before the budget ran out, got ${attempts}`);
+	t.is((error as {request: Request}).request, sentRequests.at(-1));
+});
