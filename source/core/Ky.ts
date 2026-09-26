@@ -667,14 +667,16 @@ export class Ky {
 		this.#startTime = typeof this.#options.totalTimeout === 'number' ? this.#getCurrentTime() : undefined;
 	}
 
-	#calculateDelay(retry: InternalOptions['retry']): number {
+	#calculateDelay(retry: InternalOptions['retry'], error: unknown): number {
 		const retryDelay = retry.delay(this.#retryCount + 1);
 
 		// A `retry.delay` that does not return a usable number would turn every delay into `NaN`, which
 		// `setTimeout()` clamps to 1ms, silently disabling the configured backoff. The `jitter` function form
 		// already guards its own result, so the input is checked here for every jitter form.
 		if (typeof retryDelay !== 'number' || Number.isNaN(retryDelay) || retryDelay < 0) {
-			throw new TypeError('`retry.delay` must return a non-negative number or `Infinity`');
+			// The failure that was being retried is chained as the cause, so `beforeError` can still inspect it
+			// instead of losing the response and data to this configuration mistake.
+			throw new TypeError('`retry.delay` must return a non-negative number or `Infinity`', {cause: error});
 		}
 
 		let jitteredDelay = retryDelay;
@@ -706,7 +708,7 @@ export class Ky {
 
 		// Handle forced retry from afterResponse hook - skip method check and shouldRetry
 		if (isForceRetryError(errorObject)) {
-			return errorObject.customDelay ?? this.#calculateDelay(retry);
+			return errorObject.customDelay ?? this.#calculateDelay(retry, error);
 		}
 
 		// Check if method is retriable for non-forced retries
@@ -737,7 +739,7 @@ export class Ky {
 				throw error;
 			}
 
-			return this.#calculateDelay(retry);
+			return this.#calculateDelay(retry, error);
 		}
 
 		// The `isHTTPError()` brand only checks `name`, so a cross-realm error may not carry a `response`.
@@ -751,7 +753,7 @@ export class Ky {
 				const after = calculateRetryTimingDelay(retryTimingHeader);
 				if (after === undefined) {
 					// Malformed retry timing headers should not disable retries; they only lose their server-provided timing.
-					return this.#calculateDelay(retry);
+					return this.#calculateDelay(retry, error);
 				}
 
 				// Don't apply jitter when server provides explicit retry timing
@@ -762,7 +764,7 @@ export class Ky {
 				throw error;
 			}
 
-			return this.#calculateDelay(retry);
+			return this.#calculateDelay(retry, error);
 		}
 
 		// Only retry known retriable error types. Unknown errors (e.g., programming bugs) are not retried.
@@ -770,7 +772,7 @@ export class Ky {
 			throw error;
 		}
 
-		return this.#calculateDelay(retry);
+		return this.#calculateDelay(retry, error);
 	}
 
 	#decorateResponse(response: Response): Response {
@@ -1381,8 +1383,9 @@ export class Ky {
 					retryCount: this.#retryCount + 1,
 				}), this.#userProvidedAbortSignal);
 			} catch (hookError) {
-				// Preserve the original request error path (`throw error`) so beforeError hooks can still run.
-				if (hookError instanceof Error && hookError !== error) {
+				// Preserve the original request error path (`throw error`) so beforeError hooks can still run. `isError`
+				// rather than `instanceof`, so a cross-realm error is recognised the same way `#throwProcessedError` does.
+				if (isError(hookError) && hookError !== error) {
 					this.#beforeRetryHookErrors.add(hookError);
 				}
 

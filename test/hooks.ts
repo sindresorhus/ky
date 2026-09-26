@@ -7437,3 +7437,32 @@ test('a `ky.retry()` marker is recognised across Ky copies', async t => {
 	t.is(attempts, 3);
 	t.deepEqual(seenCodes, ['FOREIGN_COPY', 'FOREIGN_COPY']);
 });
+
+// `#beforeRetryHookErrors` decided with `instanceof Error` while `#throwProcessedError` decided with the realm-safe `isError`, so a cross-realm error thrown by a `beforeRetry` hook reached the `beforeError` hooks while an identical same-realm error did not, contradicting "Ky will not handle it in any way".
+test('a cross-realm error from a `beforeRetry` hook skips the `beforeError` hooks', async t => {
+	const foreignError = runInNewContext('new Error("from a beforeRetry hook")') as Error;
+
+	for (const [label, thrown] of [
+		['same realm', new Error('from a beforeRetry hook')],
+		['another realm', foreignError],
+	] as Array<[string, Error]>) {
+		const seen: string[] = [];
+
+		// eslint-disable-next-line no-await-in-loop
+		const error = await t.throwsAsync(ky('https://example.com', {
+			retry: {limit: 1, delay: () => 0},
+			fetch: async () => new Response('server error', {status: 500}),
+			hooks: {
+				beforeRetry: [() => {
+					throw thrown;
+				}],
+				beforeError: [({error: hookError}) => {
+					seen.push(hookError.message);
+				}],
+			},
+		}).text());
+
+		t.is(error, thrown, label);
+		t.deepEqual(seen, [], `${label}: the hook error must propagate unchanged`);
+	}
+});

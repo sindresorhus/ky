@@ -4269,21 +4269,37 @@ test('mutating a caller-owned `context` object after creating an instance does n
 test('a body shortcut called after dispatch does not advertise its media type on the retry', async t => {
 	const accepts: string[] = [];
 	let attempts = 0;
+	let markBeforeRetry: () => void;
+	let releaseBeforeRetry: () => void;
+
+	// The `beforeRetry` hook gates the retry, so the shortcut is guaranteed to be called while `ky.request` is the clone prepared for that retry rather than racing a timer against it.
+	const beforeRetryStarted = new Promise<void>(resolve => {
+		markBeforeRetry = resolve;
+	});
+	const beforeRetryGate = new Promise<void>(resolve => {
+		releaseBeforeRetry = resolve;
+	});
 
 	const promise = ky('https://example.com', {
-		retry: {limit: 1, delay: () => 20},
+		retry: {limit: 1, delay: () => 0},
 		async fetch(request) {
 			attempts++;
 			accepts.push(request.headers.get('accept') ?? 'none');
 			return attempts === 1 ? new Response('{"ok":true}', {status: 500}) : new Response('{"ok":true}');
 		},
+		hooks: {
+			beforeRetry: [async () => {
+				markBeforeRetry!();
+				await beforeRetryGate;
+			}],
+		},
 	});
 
-	// Dispatch the first attempt, then ask for JSON while the retry delay is still running.
-	await new Promise(resolve => {
-		setTimeout(resolve, 5);
-	});
-	t.is(JSON.stringify(await promise.json()), '{"ok":true}');
+	await beforeRetryStarted;
+	// `.json()` sets the Accept header synchronously, before it awaits the request.
+	const jsonPromise = promise.json();
+	releaseBeforeRetry!();
+	t.is(JSON.stringify(await jsonPromise), '{"ok":true}');
 
 	t.is(attempts, 2);
 	t.deepEqual(accepts, ['none', 'none']);

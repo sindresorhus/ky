@@ -5144,7 +5144,7 @@ test('a TimeoutError names the request that was actually sent', async t => {
 	const error = await t.throwsAsync(ky.post('https://example.com', {
 		body: 'payload',
 		retry: {limit: 2, delay: () => 5000, methods: ['post']},
-		totalTimeout: 300,
+		totalTimeout: 2000,
 		async fetch(request) {
 			attempts++;
 			sentRequest = request;
@@ -5162,8 +5162,9 @@ test('a TimeoutError raised while retrying names the request that was actually s
 	let attempts = 0;
 
 	const error = await t.throwsAsync(ky.get('https://example.com', {
-		retry: {limit: 20, delay: () => 30},
-		totalTimeout: 300,
+		// A budget that comfortably fits several attempts, so the check is about which request is named rather than about how many retries fit in the window.
+		retry: {limit: 100, delay: () => 20},
+		totalTimeout: 800,
 		async fetch(request) {
 			attempts++;
 			sentRequests.push(request);
@@ -5173,4 +5174,53 @@ test('a TimeoutError raised while retrying names the request that was actually s
 
 	t.true(attempts > 1, `the request should have been retried before the budget ran out, got ${attempts}`);
 	t.is((error as {request: Request}).request, sentRequests.at(-1));
+});
+
+// A `retry.delay` that does not return a usable number is a configuration mistake, but it happens on the retry-decision path, so the `HTTPError` that was being retried would otherwise be lost. It is chained as the cause so `beforeError` can still reach it.
+test('a bad `retry.delay` result keeps the original error as the cause', async t => {
+	const seen: Array<{name: string; causeName: string; causeStatus: number}> = [];
+
+	const error = await t.throwsAsync(ky('https://example.com', {
+		fetch: async () => new Response('server error', {status: 500}),
+		retry: {limit: 1, delay: () => Number.NaN},
+		hooks: {
+			beforeError: [({error}) => {
+				const {cause} = error as {cause?: {name?: string; response?: {status?: number}}};
+				seen.push({
+					name: error.name,
+					causeName: String(cause?.name),
+					causeStatus: cause?.response?.status ?? 0,
+				});
+			}],
+		},
+	}).text(), {
+		name: 'TypeError',
+		message: '`retry.delay` must return a non-negative number or `Infinity`',
+	});
+
+	t.deepEqual(seen, [{name: 'TypeError', causeName: 'HTTPError', causeStatus: 500}]);
+	t.is((error as {cause?: {name?: string}}).cause?.name, 'HTTPError');
+});
+
+// A `jitter` function that returns a bad value falls back to the unjittered delay, which is the safe reading: the caller still gets a backoff rather than a 1ms retry.
+test.serial('a `retry.jitter` function that returns a bad value falls back to the computed delay', async t => {
+	for (const value of [Number.NaN, -1, Number.NEGATIVE_INFINITY]) {
+		let requestCount = 0;
+
+		// eslint-disable-next-line no-await-in-loop
+		await withCapturedTimeouts(async scheduledDelays => {
+			await t.throwsAsync(ky('https://example.com', {
+				retry: {limit: 1, delay: () => 10, jitter: () => value as number},
+				async fetch() {
+					requestCount++;
+					return new Response(null, {status: 500});
+				},
+			}).text());
+
+			t.true(scheduledDelays.includes(10), `jitter returning ${value} should keep the 10ms delay`);
+			t.false(scheduledDelays.includes(Number.NaN), `jitter returning ${value} must not schedule a 1ms delay`);
+		});
+
+		t.is(requestCount, 2);
+	}
 });
