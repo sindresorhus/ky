@@ -196,20 +196,10 @@ export const limitResponseSize = (response: Response, request: Request, maxRespo
 };
 
 export const streamResponse = (response: Response, onDownloadProgress: Options['onDownloadProgress']) => {
-	if (nullBodyStatuses.has(response.status)) {
-		return response;
-	}
-
-	// A HEAD response has no body even on an ordinary status, so there is nothing to stream, but the download is
-	// still complete. Report that from the declared length alone so a progress bar finishes instead of hanging.
-	if (!response.body) {
-		const totalBytes = Math.max(0, Number(response.headers.get('content-length')) || 0);
-		onDownloadProgress?.({percent: 1, totalBytes, transferredBytes: totalBytes}, new Uint8Array());
-		return response;
-	}
-
+	// A response with no body at all is not streamed. That covers a null body status and a `HEAD` request, which has
+	// no body even on an ordinary status, so neither reports progress.
 	// See `limitResponseSize`: there is nothing left to stream and nothing to report once a hook consumed the body.
-	if (response.bodyUsed || response.body.locked) {
+	if (!response.body || response.bodyUsed || response.body.locked || nullBodyStatuses.has(response.status)) {
 		return response;
 	}
 

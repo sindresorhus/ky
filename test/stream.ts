@@ -1457,45 +1457,36 @@ test('upload progress still prefers the body it can measure', async t => {
 	t.is(progressEvents.at(-1)?.totalBytes, 10);
 });
 
-// A HEAD response has no body even on a normal status, so the `!response.body` guard returned early and the
-// callback never fired. The readme only carves out null body *statuses*.
-for (const [label, headers] of [
-	['a declared length', {'content-length': '1000'}],
-	['no declared length', {}],
-] as Array<[string, Record<string, string>]>) {
-	test(`download progress completes for a HEAD response with ${label}`, async t => {
-		const progressEvents: Progress[] = [];
-
-		const response = await ky('https://example.com', {
-			method: 'HEAD',
-			async fetch() {
-				return new Response(null, {status: 200, headers});
-			},
-			onDownloadProgress(progress, chunk) {
-				progressEvents.push(progress);
-				t.is(chunk.byteLength, 0);
-			},
-		});
-
-		t.is(response.status, 200);
-		t.is(progressEvents.length, 1);
-		const expectedTotal = Number(headers['content-length'] ?? 0);
-		t.deepEqual(progressEvents[0], {percent: 1, totalBytes: expectedTotal, transferredBytes: expectedTotal});
-	});
-}
-
+// A response with no body at all is not streamed. That covers a null body status, and a `HEAD` response in runtimes that give it no body, such as Node.js.
 test('download progress stays silent for a null body status', async t => {
 	let calls = 0;
-	const response = await ky('https://example.com', {
-		async fetch() {
-			return new Response(null, {status: 204});
-		},
+	const result = await ky('https://example.com', {
+		fetch: async () => new Response(null, {status: 204}),
 		onDownloadProgress() {
 			calls++;
 		},
 	});
 
-	t.is(response.status, 204);
+	t.is(result.status, 204);
+	t.is(calls, 0);
+});
+
+test('download progress stays silent for a HEAD response', async t => {
+	const server = await createHttpTestServer(t);
+	server.head('/', (_request, response) => {
+		response.setHeader('content-length', '1000');
+		response.end();
+	});
+
+	let calls = 0;
+	const result = await ky.head(server.url, {
+		onDownloadProgress() {
+			calls++;
+		},
+	});
+
+	t.is(result.status, 200);
+	t.is(result.headers.get('content-length'), '1000');
 	t.is(calls, 0);
 });
 

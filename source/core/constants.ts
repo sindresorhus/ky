@@ -42,13 +42,11 @@ validate<[
 	Expect<Equal<typeof requestMethods[number], RequestHttpMethod>>,
 ]>();
 
-// Each media type is one Ky can actually parse, so a server that only serves one of them does not answer 406 to a
-// request the matching shortcut would have handled.
+// The media type each shortcut advertises. Deliberately narrow: `.text()` asks for text and `.formData()` for multipart, so a server can serve a different representation of the same resource when the caller wants one.
 export const responseTypes = {
 	json: 'application/json',
-	// `.text()` returns JSON as-is, and `.formData()` parses URL-encoded bodies as well as multipart ones.
-	text: 'text/*, application/json',
-	formData: 'multipart/form-data, application/x-www-form-urlencoded',
+	text: 'text/*',
+	formData: 'multipart/form-data',
 	arrayBuffer: '*/*',
 	blob: '*/*',
 	// Supported in modern Fetch implementations (for example, browsers and recent Node.js/undici).

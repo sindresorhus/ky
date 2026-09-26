@@ -73,3 +73,58 @@ test('rejects invalid timeout values set from an `init` hook', async t => {
 		},
 	);
 });
+
+// These callbacks are called directly, so a non-function value surfaced as a runtime error naming Ky's own
+// internals (`this[#options].stringifyJson`, `initHookOptions.parseJson`) instead of the option the user set.
+test('rejects non-function callback options', async t => {
+	for (const [key, value] of [
+		['parseJson', 'x'],
+		['stringifyJson', 5],
+		['fetch', 'x'],
+	] as Array<[string, unknown]>) {
+		const options: Record<string, unknown> = {[key]: value};
+
+		// eslint-disable-next-line no-await-in-loop
+		await t.throwsAsync(ky('https://example.com', options as never).json(), {
+			name: 'TypeError',
+			message: `The \`${key}\` option must be a function`,
+		}, `${key}: ${JSON.stringify(value)}`);
+	}
+});
+
+test('rejects a `throwHttpErrors` value that is neither a boolean nor a function', async t => {
+	for (const value of ['yes', 1, {}] as unknown[]) {
+		const options: Record<string, unknown> = {
+			throwHttpErrors: value,
+			fetch: async () => new Response('server error', {status: 500}),
+		};
+
+		// eslint-disable-next-line no-await-in-loop
+		await t.throwsAsync(ky('https://example.com', options as never).json(), {
+			name: 'TypeError',
+			message: 'The `throwHttpErrors` option must be a boolean or a function',
+		}, `throwHttpErrors: ${JSON.stringify(value)}`);
+	}
+});
+
+test('accepts a valid `throwHttpErrors` function', async t => {
+	const options: Record<string, unknown> = {
+		throwHttpErrors: (status: number) => status === 404,
+		fetch: async () => new Response('server error', {status: 500}),
+	};
+
+	t.is(await ky('https://example.com', options as never).text(), 'server error');
+});
+
+// The `input` type check ran after the options were built, so a nullish input dereferenced `.headers` first and
+// reported an internal TypeError instead of the option the caller got wrong.
+test('a nullish or non-string `input` reports the input error', t => {
+	for (const input of [null, undefined, 5, {}, true] as unknown[]) {
+		t.throws(() => {
+			void ky(input as never, {fetch: okFetch});
+		}, {
+			name: 'TypeError',
+			message: '`input` must be a string, URL, or Request',
+		}, `input: ${String(input)}`);
+	}
+});

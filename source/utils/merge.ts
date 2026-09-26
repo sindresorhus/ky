@@ -223,31 +223,20 @@ export const mergeHooks = (original: Hooks = {}, incoming: Hooks = {}): Normaliz
 
 export const deletedParametersSymbol = Symbol('deletedParameters');
 
-// `replaceOption()` can wrap a value at any depth of a deep-merged option, but a wrapper is only unwrapped where a
-// merge actually runs, so a wrapper on a key with no parent value kept its `{value}` envelope. This resolves the
-// leftovers in one pass, copying only the branches that actually contained a wrapper so every other value keeps its
-// identity. `seen` keeps a cyclic option from recursing forever; a cyclic branch is left as-is.
-const resolveReplaceMarkers = (value: unknown, seen: Set<Record<string, unknown> | unknown[]>): unknown => {
-	if (!isMergeable(value) || seen.has(value)) {
-		return value;
-	}
-
-	seen.add(value);
-	const resolveItem = (item: unknown) => resolveReplaceMarkers(getReplaceState(item).value, seen);
-
-	if (Array.isArray(value)) {
-		let resolved: unknown[] | undefined;
-		for (const [index, item] of value.entries()) {
-			const replacement = resolveItem(item);
-			if (replacement !== item) {
-				resolved ??= [...value];
-				resolved[index] = replacement;
-			}
+const resolveArrayMarkers = (value: unknown[], resolveItem: (item: unknown) => unknown): unknown[] | undefined => {
+	let resolved: unknown[] | undefined;
+	for (const [index, item] of value.entries()) {
+		const replacement = resolveItem(item);
+		if (replacement !== item) {
+			resolved ??= [...value];
+			resolved[index] = replacement;
 		}
-
-		return resolved ?? value;
 	}
 
+	return resolved;
+};
+
+const resolveObjectMarkers = (value: Record<string, unknown>, resolveItem: (item: unknown) => unknown): Record<string, unknown> | undefined => {
 	let resolved: Record<string, unknown> | undefined;
 	for (const [key, item] of Object.entries(value)) {
 		const replacement = resolveItem(item);
@@ -256,6 +245,24 @@ const resolveReplaceMarkers = (value: unknown, seen: Set<Record<string, unknown>
 			resolved[key] = replacement;
 		}
 	}
+
+	return resolved;
+};
+
+// `replaceOption()` can wrap a value at any depth of a deep-merged option, but a wrapper is only unwrapped where a
+// merge actually runs, so a wrapper on a key with no parent value kept its `{value}` envelope. This resolves the
+// leftovers in one pass, copying only the branches that actually contained a wrapper so every other value keeps its
+// identity. `seen` only holds the values on the current path, so a cyclic option cannot recurse forever while a
+// value shared by two branches is still resolved in both.
+const resolveReplaceMarkers = (value: unknown, seen: Set<Record<string, unknown> | unknown[]>): unknown => {
+	if (!isMergeable(value) || seen.has(value)) {
+		return value;
+	}
+
+	seen.add(value);
+	const resolveItem = (item: unknown) => resolveReplaceMarkers(getReplaceState(item).value, seen);
+	const resolved = Array.isArray(value) ? resolveArrayMarkers(value, resolveItem) : resolveObjectMarkers(value, resolveItem);
+	seen.delete(value);
 
 	return resolved ?? value;
 };
@@ -363,7 +370,7 @@ const deepMergeInternal = <T>(isRoot: boolean, ...sources: Array<Partial<T> | un
 						context: (value === undefined || value === null)
 							? {}
 							: (isReplace
-								? cloneDeep(value)
+								? {...cloneDeep(value as Record<string, unknown>)}
 								: {...returnValue.context, ...cloneDeep(value as Record<string, unknown>)}),
 					};
 					continue;

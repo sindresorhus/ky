@@ -235,9 +235,8 @@ test('beforeError failures while handling body-reader errors propagate without r
 	t.is(hookCalls, 1);
 });
 
-// Each body shortcut advertises exactly what it can parse, so a server that only serves one of those media types
-// must not answer 406 to a request Ky could have parsed.
-test('the `accept` header of each body shortcut covers what Ky can parse', async t => {
+// The media type each shortcut advertises is deliberately narrow, so a caller that wants another representation asks for it through `headers` instead.
+test('each body shortcut advertises exactly one media type', async t => {
 	const accepts: Record<string, string | undefined> = {};
 
 	for (const type of ['json', 'text', 'formData', 'arrayBuffer', 'blob'] as const) {
@@ -251,33 +250,11 @@ test('the `accept` header of each body shortcut covers what Ky can parse', async
 		})[type]().catch(() => undefined);
 	}
 
-	t.is(accepts.json, 'application/json');
-	t.true(accepts.text!.includes('text/*'));
-	t.true(accepts.text!.includes('application/json'));
-	t.true(accepts.formData!.includes('multipart/form-data'));
-	t.true(accepts.formData!.includes('application/x-www-form-urlencoded'));
-	t.is(accepts.arrayBuffer, '*/*');
-	t.is(accepts.blob, '*/*');
-});
-
-test('a server that only serves a parseable media type does not reject the shortcut', async t => {
-	for (const [contentType, body, read] of [
-		['application/json', '{"a":1}', 'text'],
-		['application/x-www-form-urlencoded', 'a=1&b=2', 'formData'],
-	] as Array<[string, string, 'text' | 'formData']>) {
-		// eslint-disable-next-line no-await-in-loop
-		const server = await createHttpTestServer(t);
-		server.get('/', (request, response) => {
-			const accept = (request.headers.accept ?? '').split(',').map(mediaType => mediaType.trim());
-			if (!accept.includes(contentType)) {
-				response.sendStatus(406);
-				return;
-			}
-
-			response.set('content-type', contentType).end(body);
-		});
-
-		// eslint-disable-next-line no-await-in-loop
-		t.truthy(await ky(server.url, {retry: 0})[read]());
-	}
+	t.deepEqual(accepts, {
+		json: 'application/json',
+		text: 'text/*',
+		formData: 'multipart/form-data',
+		arrayBuffer: '*/*',
+		blob: '*/*',
+	});
 });

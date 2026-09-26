@@ -5067,3 +5067,33 @@ test('a falsy `ky.retry({code})` still appears in the ForceRetryError message', 
 	t.is(new ForceRetryError({}).message, 'Forced retry');
 	t.is(new ForceRetryError({code: 'RATE_LIMIT'}).message, 'Forced retry: RATE_LIMIT');
 });
+
+// The replace-marker pass only held the values on the current path, so a value shared by two branches was resolved
+// in the first and skipped in the second, which kept its `{value}` envelope. A genuine cycle is still left alone.
+test('`replaceOption` resolves a shared value in every branch that uses it', t => {
+	const shared = {tags: replaceOption(['a'])};
+	const merged = validateAndMerge({json: {first: shared, second: shared, list: [shared]}});
+
+	t.deepEqual(merged.json, {first: {tags: ['a']}, second: {tags: ['a']}, list: [{tags: ['a']}]});
+});
+
+test('`replaceOption` leaves a cyclic option intact', t => {
+	const cyclic: Record<string, unknown> = {a: 1};
+	cyclic.self = cyclic;
+
+	const merged = validateAndMerge({custom: cyclic, json: {filters: replaceOption({tags: ['a']})}});
+
+	t.is(merged.custom, cyclic);
+	t.deepEqual(merged.json, {filters: {tags: ['a']}});
+});
+
+test('`replaceOption` on a context keeps it a plain object', t => {
+	class Holder {
+		b = 2;
+	}
+
+	const {context} = validateAndMerge({context: {a: 1}}, {context: replaceOption(new Holder() as never)});
+
+	t.is(Object.getPrototypeOf(context), Object.prototype);
+	t.deepEqual(context, {b: 2});
+});

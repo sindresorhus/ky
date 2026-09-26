@@ -263,6 +263,7 @@ export class Ky {
 		const function_ = async (): Promise<Response | void> => {
 			validateTimeoutOption(ky.#options.totalTimeout, 'totalTimeout');
 			validateTimeoutOption(ky.#options.timeout, 'timeout');
+			ky.#validateCallbackOptions();
 
 			// Delay the fetch so that body method shortcuts can set the Accept header
 			await Promise.resolve();
@@ -483,6 +484,11 @@ export class Ky {
 
 	// eslint-disable-next-line complexity
 	constructor(input: Input, options: Options = {}) {
+		// Checked before the options are built, since building them reads `input.headers`.
+		if (typeof input !== 'string' && !(input instanceof URL || input instanceof globalThis.Request)) {
+			throw new TypeError('`input` must be a string, URL, or Request');
+		}
+
 		const {maxResponseSize = Number.POSITIVE_INFINITY} = options;
 		if (Object.hasOwn(options, 'prefixUrl')) {
 			throw new Error(prefixUrlRenamedErrorMessage);
@@ -510,10 +516,6 @@ export class Ky {
 
 		if (maxResponseSize !== Number.POSITIVE_INFINITY && (!Number.isSafeInteger(maxResponseSize) || maxResponseSize < 0)) {
 			throw new TypeError('The `maxResponseSize` option must be a non-negative safe integer or Infinity');
-		}
-
-		if (typeof input !== 'string' && !(input instanceof URL || input instanceof globalThis.Request)) {
-			throw new TypeError('`input` must be a string, URL, or Request');
 		}
 
 		this.#requestInput = input instanceof globalThis.Request ? input : undefined;
@@ -649,6 +651,23 @@ export class Ky {
 		// `totalTimeout` starts when the request pipeline is created, so it also includes
 		// Ky's internal scheduling and user hook time before the first fetch attempt.
 		this.#startTime = typeof this.#options.totalTimeout === 'number' ? this.#getCurrentTime() : undefined;
+	}
+
+	// These callbacks are called directly, so a non-function value otherwise surfaces as a runtime error naming Ky's
+	// own internals rather than the option the caller set.
+	#validateCallbackOptions(): void {
+		for (const key of ['parseJson', 'stringifyJson', 'fetch'] as const) {
+			if (this.#options[key] !== undefined && typeof this.#options[key] !== 'function') {
+				throw new TypeError(`The \`${key}\` option must be a function`);
+			}
+		}
+
+		if (
+			typeof this.#options.throwHttpErrors !== 'boolean'
+			&& typeof this.#options.throwHttpErrors !== 'function'
+		) {
+			throw new TypeError('The `throwHttpErrors` option must be a boolean or a function');
+		}
 	}
 
 	#calculateDelay(retry: InternalOptions['retry']): number {
