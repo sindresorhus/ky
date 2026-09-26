@@ -168,7 +168,9 @@ const copyResponseMetadata = (response: Response, originalResponse: Response, ge
 };
 
 export const limitResponseSize = (response: Response, request: Request, maxResponseSize: number): Response => {
-	if (!response.body || nullBodyStatuses.has(response.status) || maxResponseSize === Number.POSITIVE_INFINITY) {
+	// A body a hook already read cannot be piped through, and would otherwise fail with "The ReadableStream is
+	// locked" instead of the native "Body is unusable" error that names the actual mistake.
+	if (!response.body || response.bodyUsed || nullBodyStatuses.has(response.status) || maxResponseSize === Number.POSITIVE_INFINITY) {
 		return response;
 	}
 
@@ -191,7 +193,8 @@ export const limitResponseSize = (response: Response, request: Request, maxRespo
 };
 
 export const streamResponse = (response: Response, onDownloadProgress: Options['onDownloadProgress']) => {
-	if (!response.body || nullBodyStatuses.has(response.status)) {
+	// See `limitResponseSize`: there is nothing left to stream and nothing to report once a hook consumed the body.
+	if (!response.body || response.bodyUsed || nullBodyStatuses.has(response.status)) {
 		return response;
 	}
 

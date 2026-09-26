@@ -478,3 +478,28 @@ for (const status of [101, 103, 204, 205, 304]) {
 		t.is(progressCallCount, 0);
 	});
 }
+
+// Wrapping a body that a hook already read fails with \"The ReadableStream is locked\", which names neither the real mistake nor the option that caused it. The native \"Body is unusable\" error is far clearer, so the wrappers skip an already consumed body instead of crashing inside `pipeThrough()`.
+for (const [label, options] of [
+	['without the limit', {}],
+	['with `maxResponseSize`', {maxResponseSize: 1000}],
+	['with `onDownloadProgress`', {onDownloadProgress: () => undefined}],
+] as Array<[string, Record<string, unknown>]>) {
+	test(`an afterResponse hook that returns a consumed response reports the native error ${label}`, async t => {
+		const response = await ky(url, {
+			...options,
+			fetch: async () => new Response('x'.repeat(50)),
+			hooks: {
+				afterResponse: [async ({response}) => {
+					await response.text();
+					return response;
+				}],
+			},
+		});
+
+		await t.throwsAsync(response.text(), {
+			name: 'TypeError',
+			message: 'Body is unusable: Body has already been read',
+		});
+	});
+}

@@ -1,5 +1,5 @@
-// Older epoch-second values are indistinguishable from ordinary delay seconds, so timestamp compatibility only applies to current-era reset headers.
-const timestampThreshold = Date.parse('2024-01-01');
+// A reset value is only read as an epoch from this second onwards (2001-09-09). Older values are ambiguous with an ordinary delay, but a delay of 32 years or more is not a real one, so anything below stays delay seconds. This is a fixed constant rather than a date so it cannot go stale and start misreading a recent-but-past reset.
+const timestampThresholdSeconds = 1_000_000_000;
 const delayPattern = /^\d+$/;
 const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
@@ -155,7 +155,7 @@ export const calculateRetryTimingDelay = ({value, allowTimestamp}: RetryTimingHe
 		// Standard Retry-After numbers are delay seconds. Timestamp compatibility only applies to reset headers.
 		if (
 			allowTimestamp
-			&& delay >= timestampThreshold
+			&& Number(value) >= timestampThresholdSeconds
 		) {
 			delay -= Date.now();
 		}

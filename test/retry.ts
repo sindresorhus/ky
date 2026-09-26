@@ -4926,3 +4926,34 @@ test('a rejected retry list entry is reported before the request is sent', t => 
 	});
 	t.is(requestCount, 0);
 });
+
+// A `RateLimit-Reset` in the past used to be read as delay seconds when it fell before the hardcoded 2024 cutoff, so a November 2023 reset became a 54-year wait instead of an immediate retry.
+test.serial('a past `RateLimit-Reset` epoch retries immediately', async t => {
+	const now = Date.UTC(2026, 0, 1);
+	let requestCount = 0;
+
+	const server = await createHttpTestServer(t);
+	server.get('/', (_request, response) => {
+		requestCount++;
+		if (requestCount === defaultRetryCount + 1) {
+			response.end(fixture);
+		} else {
+			// 2023-11-14T22:13:20Z, well before the old 2024-01-01 cutoff.
+			response.writeHead(429, {'RateLimit-Reset': '1700000000'});
+			response.end('');
+		}
+	});
+
+	const dateNow = Date.now;
+	try {
+		Date.now = () => now;
+		await withCapturedTimeouts(async scheduledDelays => {
+			t.is(await ky(server.url).text(), fixture);
+			t.false(scheduledDelays.includes(retryAfterTimestampScheduledDelay));
+		});
+	} finally {
+		Date.now = dateNow;
+	}
+
+	t.is(requestCount, 3);
+});

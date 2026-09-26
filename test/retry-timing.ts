@@ -71,3 +71,20 @@ test('multiple Retry-After values do not become a valid delay or date', t => {
 	t.deepEqual(header, {value: '1, 2', allowTimestamp: false});
 	t.is(calculateRetryTimingDelay(header!), undefined);
 });
+
+// The "current era" cutoff used to be a hardcoded 2024-01-01, so a reset value from just before it fell below the cutoff and was read as delay seconds. A `RateLimit-Reset` of 1700000000 (November 2023) became a 54-year delay.
+for (const [description, value, expected] of [
+	['a November 2023 epoch as a reset in the past', '1700000000', 0],
+	['a January 2023 epoch as a reset in the past', '1672531200', 0],
+	['a 2001 epoch as a reset in the past', '1000000000', 0],
+	['a value just below the threshold as a delay', '999999999', 999_999_999_000],
+	['a small reset as a delay', '30', 30_000],
+] as Array<[string, string, number]>) {
+	test(`RateLimit-Reset reads ${description}`, t => {
+		t.is(calculateRetryTimingDelay({value, allowTimestamp: true}), expected);
+	});
+}
+
+test('Retry-After numbers are never treated as timestamps', t => {
+	t.is(calculateRetryTimingDelay({value: '1700000000', allowTimestamp: false}), 1_700_000_000_000);
+});
