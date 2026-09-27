@@ -98,10 +98,9 @@ const validateTimeoutOption = (value: unknown, name: 'timeout' | 'totalTimeout')
 	}
 };
 
-// These callbacks are called directly, so a non-function value otherwise surfaces as a runtime error naming Ky's
-// own internals rather than the option the caller set.
+// These callbacks are called directly, so a non-function value otherwise surfaces as a runtime error naming Ky's own internals rather than the option the caller set.
 const validateCallbackOptions = (options: Record<string, unknown>): void => {
-	for (const key of ['parseJson', 'stringifyJson', 'fetch', 'onDownloadProgress'] as const) {
+	for (const key of ['parseJson', 'stringifyJson', 'fetch', 'onDownloadProgress', 'onUploadProgress'] as const) {
 		if (options[key] !== undefined && typeof options[key] !== 'function') {
 			throw new TypeError(`The \`${key}\` option must be a function`);
 		}
@@ -611,10 +610,6 @@ export class Ky {
 			}
 		}
 
-		if (this.#options.onUploadProgress && typeof this.#options.onUploadProgress !== 'function') {
-			throw new TypeError('The `onUploadProgress` option must be a function');
-		}
-
 		// `totalTimeout` starts when the request pipeline is created, so it also includes
 		// Ky's internal scheduling and user hook time before the first fetch attempt.
 		this.#startTime = typeof this.#options.totalTimeout === 'number' ? this.#getCurrentTime() : undefined;
@@ -972,9 +967,7 @@ export class Ky {
 				this.#abortController?.abort();
 
 				if (result === timedOutOperation) {
-					void operationPromise.then(value => {
-						this.#cancelReturnedBody(value);
-					}).catch(() => undefined);
+					this.#releaseWhenSettled(operationPromise);
 				} else {
 					this.#cancelReturnedBody(result);
 				}
@@ -985,12 +978,9 @@ export class Ky {
 			return result;
 		} catch (error: unknown) {
 			if (abortSignal?.aborted) {
-				// The abort won the race, so whatever the operation eventually returns is discarded. Release its body, the
-				// same way the timeout path below does for a value it never consumed.
+				// The abort won the race, so whatever the operation eventually returns is discarded. Release its body, the same way the timeout path below does for a value it never consumed.
 				if (operationPromise) {
-					void operationPromise.then(value => {
-						this.#cancelReturnedBody(value);
-					}).catch(() => undefined);
+					this.#releaseWhenSettled(operationPromise);
 				}
 
 				abortSignal.throwIfAborted();
@@ -1144,6 +1134,13 @@ export class Ky {
 		} else if (isRequestInstance(value)) {
 			this.#cancelBody(value.body ?? undefined);
 		}
+	}
+
+	// Releases the body of a value whose owner already gave up on it, once the operation settles with something. The promise is abandoned on purpose, so its rejection is swallowed rather than surfacing as an unhandled rejection.
+	#releaseWhenSettled(operationPromise: Promise<unknown>): void {
+		void operationPromise.then(value => {
+			this.#cancelReturnedBody(value);
+		}).catch(() => undefined);
 	}
 
 	#createManagedSignal(): AbortSignal {
@@ -1324,8 +1321,10 @@ export class Ky {
 					retryCount: this.#retryCount + 1,
 				}), this.#userProvidedAbortSignal);
 			} catch (hookError) {
-				// Preserve the original request error path (`throw error`) so beforeError hooks can still run. `isError`
-				// rather than `instanceof`, so a cross-realm error is recognised the same way `#throwProcessedError` does.
+				// A cancellation is part of the request lifecycle, so it reaches `beforeError` like every other abort rather than being hidden as a hook error below.
+				this.#throwIfAbortedByUser();
+
+				// Preserve the original request error path (`throw error`) so beforeError hooks can still run. `isError` rather than `instanceof`, so a cross-realm error is recognised the same way `#throwProcessedError` does.
 				if (isError(hookError) && hookError !== error) {
 					this.#beforeRetryHookErrors.add(hookError);
 				}

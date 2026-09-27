@@ -46,7 +46,7 @@ const createInstance = (defaults?: Partial<Options>): KyInstance => {
 	ky.create = (newDefaults?: Partial<Options>) => createInstance(validateAndMerge(newDefaults));
 	ky.extend = (newDefaults?: Partial<Options> | ((parentDefaults: Partial<Options>) => Partial<Options>)) => {
 		if (typeof newDefaults === 'function') {
-			// Pass a deep copy so mutations inside the callback cannot leak into this instance's defaults. Deep, because options like `context` are merged shallowly, so a nested value would still point at the parent's object.
+			// Pass a copy so mutations inside the callback cannot leak into this instance's defaults. Deep, because options like `context` are merged shallowly, so a nested value would still point at the parent's object. Non-plain values such as a `FormData` body are shared, the same way the `hooks.init` copies share them.
 			newDefaults = newDefaults(validateAndMerge(cloneDeep(defaults)));
 		}
 

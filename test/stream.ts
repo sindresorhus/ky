@@ -1612,3 +1612,24 @@ test('a non-Error throw from an upload progress callback is not retried either',
 	t.is(getRequestCount(), 0);
 	t.is(callbackCalls, 1);
 });
+
+// The response wrappers already skip a body a hook read, so the native error names the mistake. The upload wrapper did not, and failed with "The ReadableStream is locked" instead.
+test('upload progress leaves a request body that a hook already read to the native error', async t => {
+	const run = async (onUploadProgress?: () => void) => t.throwsAsync(ky.post('https://example.com', {
+		body: 'x',
+		retry: 0,
+		onUploadProgress,
+		fetch: async input => new Response(await (input as Request).text()),
+		hooks: {
+			beforeRequest: [async ({request}) => {
+				await request.text();
+			}],
+		},
+	}).text());
+
+	const withoutProgress = await run();
+	const withProgress = await run(() => undefined);
+
+	t.truthy(withoutProgress?.message);
+	t.is(withProgress?.message, withoutProgress?.message);
+});

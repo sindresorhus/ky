@@ -183,17 +183,26 @@ const copyResponseMetadata = (response: Response, originalResponse: Response, ge
 	return response;
 };
 
+// The body of a response the two wrappers below can pipe through, or `undefined` when they must leave it alone. A body an `afterResponse` hook already read, or locked with a reader, would otherwise fail with "The ReadableStream is locked" instead of the native "Body is unusable" error that names the actual mistake. A null body status cannot be given a replacement body at all, and there is nothing left to report once the body is gone.
+const wrappableBody = (response: Response): ReadableStream<Uint8Array> | undefined => {
+	const {body} = response;
+	if (!body || response.bodyUsed || body.locked || nullBodyStatuses.has(response.status)) {
+		return undefined;
+	}
+
+	return body;
+};
+
 export const limitResponseSize = (response: Response, request: Request, maxResponseSize: number): Response => {
-	// A body a hook already read, or locked with a reader, cannot be piped through, and would otherwise fail with
-	// "The ReadableStream is locked" instead of the native "Body is unusable" error that names the actual mistake.
-	if (!response.body || response.bodyUsed || response.body.locked || nullBodyStatuses.has(response.status) || maxResponseSize === Number.POSITIVE_INFINITY) {
+	const originalBody = wrappableBody(response);
+	if (!originalBody || maxResponseSize === Number.POSITIVE_INFINITY) {
 		return response;
 	}
 
 	let transferredBytes = 0;
 	let sizeError: ResponseSizeError | undefined;
-	const getOriginalSizeError = responseSizeErrors.get(response.body);
-	const body = response.body.pipeThrough(new TransformStream<Uint8Array, Uint8Array>({
+	const getOriginalSizeError = responseSizeErrors.get(originalBody);
+	const body = originalBody.pipeThrough(new TransformStream<Uint8Array, Uint8Array>({
 		transform(chunk, controller) {
 			transferredBytes += chunk.byteLength;
 			if (transferredBytes > maxResponseSize) {
@@ -209,10 +218,9 @@ export const limitResponseSize = (response: Response, request: Request, maxRespo
 };
 
 export const streamResponse = (response: Response, onDownloadProgress: Options['onDownloadProgress']) => {
-	// A response with no body at all is not streamed. That covers a null body status and a `HEAD` request, which has
-	// no body even on an ordinary status, so neither reports progress.
-	// See `limitResponseSize`: there is nothing left to stream and nothing to report once a hook consumed the body.
-	if (!response.body || response.bodyUsed || response.body.locked || nullBodyStatuses.has(response.status)) {
+	// A response with no wrappable body is not streamed, so it reports no progress. That covers a null body status, and a `HEAD` response in runtimes that give it no body.
+	const originalBody = wrappableBody(response);
+	if (!originalBody) {
 		return response;
 	}
 
@@ -220,15 +228,22 @@ export const streamResponse = (response: Response, onDownloadProgress: Options['
 	const contentEncoding = response.headers.get('content-encoding')?.toLowerCase();
 	const isContentCoded = Boolean(contentEncoding) && contentEncoding !== 'identity';
 	const totalBytes = isContentCoded ? 0 : Math.max(0, Number(response.headers.get('content-length')) || 0);
-	const body = withProgress(response.body, totalBytes, onDownloadProgress);
+	const body = withProgress(originalBody, totalBytes, onDownloadProgress);
 
 	return copyResponseMetadata(new Response(body, response), response);
 };
 
 // eslint-disable-next-line @typescript-eslint/no-restricted-types
 export const streamRequest = (request: Request, onUploadProgress: Options['onUploadProgress'], originalBody?: BodyInit | null) => {
-	// A Request-like object from a hook is used as-is, because the `Request` constructor cannot copy it. It would stringify the object as a URL here, so progress reporting is skipped for it.
-	if (!request.body || request.keepalive || request.mode === 'no-cors' || !(request instanceof globalThis.Request)) {
+	// A Request-like object from a hook is used as-is, because the `Request` constructor cannot copy it. It would stringify the object as a URL here, so progress reporting is skipped for it. A body a hook already read, or locked with a reader, is left alone for the same reason as a response body: the runtime's own error names the actual mistake, where piping it would fail with "The ReadableStream is locked".
+	if (
+		!request.body
+		|| request.bodyUsed
+		|| request.body.locked
+		|| request.keepalive
+		|| request.mode === 'no-cors'
+		|| !(request instanceof globalThis.Request)
+	) {
 		return request;
 	}
 

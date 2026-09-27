@@ -77,6 +77,8 @@ export type RetryOptions = {
 	/**
 	A function to calculate the delay in milliseconds between retries given `attemptCount` (starts from 1).
 
+	Must return a non-negative number or `Infinity`; anything else throws a `TypeError` rather than collapsing to a 1ms retry, and the error that was being retried is kept as its `cause` so `beforeError` can still reach it.
+
 	@default attemptCount => 0.3 * (2 ** (attemptCount - 1)) * 1000
 	*/
 	delay?: ((attemptCount: number) => number) | undefined;

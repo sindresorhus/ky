@@ -185,6 +185,8 @@ export type KyOptions = {
 
 	Network errors (e.g., DNS failures, connection refused, offline) are automatically retried for retriable methods. Only errors recognized as network errors are retried; other errors (e.g., programming bugs) are thrown immediately. Use `shouldRetry` to customize this behavior.
 
+	A hook can change `retry.limit` through `options`. Ky reads the limit again when each attempt starts. A `beforeRequest` or `beforeRetry` hook runs before the attempt starts, so it can lower or raise the limit. An `afterResponse` hook runs after the attempt started, so it can lower the limit, for example to stop retrying once a response says so. A higher limit set there only applies from the next attempt.
+
 	`413 Payload Too Large` is only retried when the response includes a retry timing header, unless `shouldRetry` returns `true`.
 
 	When the response status is contained in `afterStatusCodes` and the retry is allowed by `statusCodes` or `shouldRetry`, Ky uses retry timing headers to choose the retry delay. [`Retry-After`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Retry-After) may provide a delay in seconds or an HTTP-date. If `Retry-After` is missing, Ky falls back to rate-limit timing headers (`RateLimit-Reset`, `X-RateLimit-Retry-After`, `X-RateLimit-Reset`, and `X-Rate-Limit-Reset`). Numeric `Retry-After` and `X-RateLimit-Retry-After` values are interpreted as delay seconds. Numeric `RateLimit-Reset`, `X-RateLimit-Reset`, and `X-Rate-Limit-Reset` values may also be interpreted as Unix timestamps, from 2001-09-09 onwards. A value below that is read as delay seconds, and a timestamp already in the past means the retry happens immediately. If the status code is not in `afterStatusCodes`, retry timing headers will be ignored.

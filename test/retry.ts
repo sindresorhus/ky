@@ -1146,6 +1146,34 @@ test('uses the retry limit set by a beforeRequest hook that returns a response',
 	t.is(requestCount, 1);
 });
 
+// The limit is read again when each attempt starts, and `beforeRetry` runs before that, so it can raise the limit.
+test('allows beforeRetry hooks to raise the retry limit', async t => {
+	let requestCount = 0;
+
+	await t.throwsAsync(
+		ky('https://example.com', {
+			async fetch() {
+				requestCount++;
+				return new Response(null, {status: 500});
+			},
+			retry: {
+				limit: 1,
+				delay: () => 0,
+			},
+			hooks: {
+				beforeRetry: [({options}) => {
+					options.retry.limit = 3;
+				}],
+			},
+		}).text(),
+		{
+			message: /status code 500/,
+		},
+	);
+
+	t.is(requestCount, 4);
+});
+
 test('uses the normalized retry limit when cloning request bodies', async t => {
 	let requestCount = 0;
 
@@ -4415,6 +4443,42 @@ for (const approval of [false, undefined]) {
 	test(`a late shouldRetry ${approval} decision preserves cancellation`, lateRetryDecision, approval, new Error('custom failure'));
 }
 
+// A cancellation is part of the request lifecycle and reaches `beforeError` from every other stage. The `beforeRetry` hook races the user signal, so the abort arrived through the hook-error path, which exists to hide hook failures.
+test('a user abort during a beforeRetry hook reaches beforeError hooks as the abort reason', async t => {
+	const controller = new AbortController();
+	const reason = new Error('cancelled-during-beforeRetry');
+	const hookStarted = Promise.withResolvers<void>();
+	const neverReleased = Promise.withResolvers<void>();
+	const errors: Error[] = [];
+	let attempts = 0;
+
+	const pending = ky('https://example.com', {
+		signal: controller.signal,
+		retry: {limit: 1, delay: () => 0},
+		async fetch() {
+			attempts++;
+			return new Response('boom', {status: 500});
+		},
+		hooks: {
+			beforeRetry: [async () => {
+				hookStarted.resolve();
+				await neverReleased.promise;
+			}],
+			beforeError: [({error}) => {
+				errors.push(error);
+				return error;
+			}],
+		},
+	}).text();
+
+	await hookStarted.promise;
+	controller.abort(reason);
+
+	await t.throwsAsync(pending, {is: reason});
+	t.is(attempts, 1);
+	t.deepEqual(errors, [reason]);
+});
+
 test('cancellation interrupts a pending shouldRetry decision', async t => {
 	const controller = new AbortController();
 	const reason = new Error('cancelled');
@@ -4933,6 +4997,27 @@ test('`replaceOption` resolves nested wrappers with and without a parent value',
 	t.deepEqual(validateAndMerge({list: [replaceOption({a: 1})]}).list, [{a: 1}]);
 	t.deepEqual(validateAndMerge({list: [1, replaceOption(2), 3]}).list, [1, 2, 3]);
 	t.deepEqual(validateAndMerge({custom: {inner: replaceOption({a: 1})}}).custom, {inner: {a: 1}});
+});
+
+// Search parameters merge per key and stringify every value on the way, so a wrapper that reached that step landed in the URL as `[object Object]`, while the very same value resolved correctly when it was the only layer.
+test('`replaceOption` resolves inside a search parameter record', async t => {
+	const fetchFunction = async (request: Request) => new Response(request.url);
+
+	t.is(await ky('https://example.com', {
+		searchParams: {page: replaceOption('1') as never},
+		fetch: fetchFunction,
+	}).text(), 'https://example.com/?page=1');
+
+	const extended = ky.create({fetch: fetchFunction, searchParams: {sort: 'name'}})
+		.extend({searchParams: {page: replaceOption('1') as never}});
+
+	t.is(await extended('https://example.com').text(), 'https://example.com/?sort=name&page=1');
+
+	// A wrapped value replaces the values its key inherited, while the other keys still merge.
+	const replaced = ky.create({fetch: fetchFunction, searchParams: {sort: 'name', page: '5'}})
+		.extend({searchParams: {page: replaceOption('1') as never}});
+
+	t.is(await replaced('https://example.com').text(), 'https://example.com/?sort=name&page=1');
 });
 
 test('`replaceOption` leaves untouched values identical', t => {
