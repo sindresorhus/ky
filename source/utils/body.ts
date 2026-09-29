@@ -1,12 +1,9 @@
-import type {Options, Progress} from '../types/options.js';
+import type {Options} from '../types/options.js';
 import {responseTypes, usualFormBoundarySize} from '../core/constants.js';
 import {ResponseSizeError} from '../errors/ResponseSizeError.js';
 
 const encoder = new TextEncoder();
 const responseSizeErrors = new WeakMap<ReadableStream, () => ResponseSizeError | undefined>();
-// Errors thrown by a progress callback, keyed by the stream the callback reports on.
-// A throwing progress callback is a user error, but the runtime reports the resulting stream failure as a network error, so Ky needs the original error to surface it as-is.
-const progressCallbackErrors = new WeakMap<ReadableStream, () => unknown>();
 // The `Response` constructor rejects a body for these statuses, but some browsers (for example, Chromium and WebKit) still expose a body stream on such responses, so they must not be wrapped. A runtime that exposes a non-empty body for one of them, such as WebKit for 205, is therefore left unlimited and without progress events.
 const nullBodyStatuses = new Set([101, 103, 204, 205, 304]);
 
@@ -67,19 +64,8 @@ export const getBodySize = (body?: BodyInit | null): number => {
 const withProgress = (stream: ReadableStream<Uint8Array>, totalBytes: number, onProgress: Options['onDownloadProgress'] | Options['onUploadProgress']): ReadableStream<Uint8Array> => {
 	let previousChunk: Uint8Array | undefined;
 	let transferredBytes = 0;
-	let progressCallbackError: unknown;
-	const report = (progress: Progress, chunk: Uint8Array) => {
-		try {
-			onProgress?.(progress, chunk);
-		} catch (error) {
-			// Remember the error so Ky can surface it instead of the network error the runtime reports for the failed stream.
-			progressCallbackError = error;
-			throw error;
-		}
-	};
 
-	// The transformer only runs after construction, so its error accessor can be registered immediately afterwards.
-	const progressStream: ReadableStream<Uint8Array> = stream.pipeThrough(new TransformStream<Uint8Array, Uint8Array>({
+	return stream.pipeThrough(new TransformStream<Uint8Array, Uint8Array>({
 		transform(currentChunk, controller) {
 			controller.enqueue(currentChunk);
 
@@ -96,7 +82,7 @@ const withProgress = (stream: ReadableStream<Uint8Array>, totalBytes: number, on
 
 				// An unknown total stays `0`, matching the `percent` computed from the same estimate and the documented progress shape.
 				const reportedTotalBytes = totalBytes === 0 ? 0 : Math.max(totalBytes, transferredBytes);
-				report({percent, totalBytes: reportedTotalBytes, transferredBytes}, previousChunk);
+				onProgress?.({percent, totalBytes: reportedTotalBytes, transferredBytes}, previousChunk);
 			}
 
 			previousChunk = currentChunk;
@@ -104,29 +90,13 @@ const withProgress = (stream: ReadableStream<Uint8Array>, totalBytes: number, on
 		flush() {
 			const finalChunk = previousChunk ?? new Uint8Array();
 			transferredBytes += finalChunk.byteLength;
-			report({percent: 1, totalBytes: transferredBytes, transferredBytes}, finalChunk);
+			onProgress?.({percent: 1, totalBytes: transferredBytes, transferredBytes}, finalChunk);
 		},
 	}));
-	progressCallbackErrors.set(progressStream, () => progressCallbackError);
-
-	return progressStream;
 };
-
-/**
-The error thrown by a progress callback while reporting on the given stream, if the callback threw.
-*/
-export const getProgressCallbackError = (stream: ReadableStream | undefined): unknown =>
-	stream ? progressCallbackErrors.get(stream)?.() : undefined;
 
 const copyResponseMetadata = (response: Response, originalResponse: Response, getError = originalResponse.body ? responseSizeErrors.get(originalResponse.body) : undefined): Response => {
 	const nativeClone = response.clone.bind(response);
-	const getProgressError = response.body
-		? progressCallbackErrors.get(response.body) ?? (originalResponse.body ? progressCallbackErrors.get(originalResponse.body) : undefined)
-		: undefined;
-	if (response.body && getProgressError) {
-		progressCallbackErrors.set(response.body, getProgressError);
-	}
-
 	if (response.body && getError) {
 		responseSizeErrors.set(response.body, getError);
 
@@ -164,13 +134,9 @@ const copyResponseMetadata = (response: Response, originalResponse: Response, ge
 		clone: {
 			value() {
 				const clone = nativeClone();
-				// Cloning replaces the original body too, so retain the error accessors on both branches.
+				// Cloning replaces the original body too, so retain the error accessor on both branches.
 				if (response.body && getError) {
 					responseSizeErrors.set(response.body, getError);
-				}
-
-				if (response.body && getProgressError) {
-					progressCallbackErrors.set(response.body, getProgressError);
 				}
 
 				return copyResponseMetadata(clone, response);

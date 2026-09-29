@@ -484,7 +484,7 @@ Default: `[]`
 
 This hook enables you to modify the options before they are used to construct the request. The hook function receives the mutable options object and can modify it in place. You could, for example, modify `searchParams`, `headers`, or `json` here. The `headers` option starts as a plain object with lowercase names, where a header removed with `undefined` keeps an `undefined` value.
 
-Ky gives the hook its own copies of `headers`, `context`, `json`, `searchParams` and `retry`, so changing them in place only affects the current request. The `context` copy is deep, so when an instance has an `init` hook, nested `context` values are not shared across requests. The `body` option is not copied, so mutating a `FormData` or `URLSearchParams` body in place changes your own object and repeats on every request from the same instance. Assign a new instance instead, as shown in [Modifying FormData in hooks](#modifying-formdata-in-hooks). A value that a hook assigns is used as is, so assign a new object rather than one that you change later.
+Ky gives the hook its own copies of `headers`, `context`, `json`, `searchParams` and `retry`, so changing them in place only affects the current request. The `context` copy is shallow, the same as in every other hook, so nested `context` values, such as a cache, stay shared across requests. The `body` option is not copied, so mutating a `FormData` or `URLSearchParams` body in place changes your own object and repeats on every request from the same instance. Assign a new instance instead, as shown in [Modifying FormData in hooks](#modifying-formdata-in-hooks). A value that a hook assigns is used as is, so assign a new object rather than one that you change later.
 
 Unlike other hooks, `init` hooks are synchronous. An error thrown by one rejects the returned promise and is not passed to `beforeError` hooks.
 
@@ -784,7 +784,7 @@ The function receives these arguments:
 
 Responses with no body at all are not streamed, so no progress events are emitted for them. That covers a [null body status](https://fetch.spec.whatwg.org/#null-body-status) such as `204`, and a `HEAD` response in runtimes that give it no body, such as browsers, Node.js and Deno. Bun gives a `HEAD` response an empty body, so it reports one final event with `transferredBytes: 0`. A response whose body an `afterResponse` hook already read, or locked with a reader, is passed through unchanged, so it reports no progress either.
 
-When the callback throws, the error is reported by Ky's body method shortcuts. A response read directly with `response.text()` or `response.json()` may instead report the runtime's own stream error, such as Chromium's generic `TypeError`.
+Do not throw from the callback. A throw fails the response stream, which the runtime reports in its own way: Node.js rejects the body read with your error, while Chromium reports a network failure, so Ky's body methods throw a `NetworkError` there. Pass a `signal` from an `AbortController` to cancel instead.
 
 ```js
 import ky from 'ky';
@@ -814,7 +814,9 @@ The function receives these arguments:
   - `totalBytes` is the total number of bytes to be transferred. This is an estimate and may be 0 for an empty transfer or when the total size cannot be determined.
 - `chunk` is an instance of `Uint8Array` containing the data that was sent. When an empty request body stream completes, the callback receives an empty chunk.
 
-A `ReadableStream` body cannot be measured, so `totalBytes` falls back to a `content-length` header you set. Browsers do not allow that header on a request, so there the total stays `0`.
+A `ReadableStream` body cannot be measured, so `totalBytes` falls back to a `content-length` header you set. Browsers do not allow that header on a request, so there the total stays `0`. When a hook replaces the request, `totalBytes` is still estimated from the `body` option until the final event, which reports the real total.
+
+Do not throw from the callback. A throw fails the upload stream, which the runtime reports as a network failure, so Ky throws a `NetworkError` (in Node.js, with your error in its `cause` chain) and retries it like any other network error, running the callback again. Pass a `signal` from an `AbortController` to cancel instead.
 
 ```js
 import ky from 'ky';

@@ -268,7 +268,8 @@ for (const withInitHook of [false, true]) {
 	});
 }
 
-test('init hook mutations to symbol-keyed context stay isolated between requests', async t => {
+// The `init` hook copy is shallow, so it must still copy symbol keys, and replacing one only affects the current request.
+test('init hook symbol-keyed context assignments stay isolated between requests', async t => {
 	const metadataKey = Symbol('metadata');
 	const metadata = {attempt: 0};
 	const context = {[metadataKey]: metadata};
@@ -279,10 +280,8 @@ test('init hook mutations to symbol-keyed context stay isolated between requests
 		hooks: {
 			init: [options => {
 				initCalls++;
-				const clonedMetadata = Reflect.get(options.context, metadataKey) as typeof metadata;
-				t.not(clonedMetadata, metadata);
-				t.deepEqual(clonedMetadata, {attempt: 0});
-				clonedMetadata.attempt++;
+				t.is(Reflect.get(options.context, metadataKey), metadata);
+				Reflect.set(options.context, metadataKey, {attempt: 1});
 			}],
 			beforeRequest: [({options}) => {
 				beforeRequestCalls++;
@@ -299,12 +298,13 @@ test('init hook mutations to symbol-keyed context stay isolated between requests
 	t.is(beforeRequestCalls, 2);
 });
 
-// Context is merged shallowly, so a nested object is shared by every request from the instance, which lets hooks keep state such as a cache in it. An `init` hook gets a deep copy, so this does not hold for an instance with one.
+// Context is merged shallowly, so a nested object is shared by every request from the instance, which lets hooks keep state such as a cache in it. An `init` hook gets a shallow copy too, so having one does not change this.
 test('a nested context object is shared across requests', async t => {
 	const context = {cache: {count: 0}};
 	const api = ky.create({
 		context,
 		hooks: {
+			init: [() => undefined],
 			beforeRequest: [({options}) => {
 				(options.context.cache as typeof context.cache).count++;
 			}],
@@ -345,23 +345,23 @@ test('hooks in one request still share a single context object', async t => {
 	t.deepEqual(seen[1], {shared: 'set-in-beforeRequest'});
 });
 
-// `init` hooks get a deep copy of the context, which must keep a null prototype.
-test('a nested null-prototype context value keeps its prototype in an `init` hook', async t => {
+// `init` hooks get a deep copy of `json`, which must keep a null prototype.
+test('a nested null-prototype json value keeps its prototype in an `init` hook', async t => {
 	const bag = Object.create(null) as Record<string, unknown>;
 	bag.count = 1;
 
 	let seen: Record<string, unknown> | undefined;
 	const api = ky.create({
-		context: {bag},
+		json: {bag},
 		hooks: {
 			init: [options => {
-				seen = options.context!.bag as Record<string, unknown>;
+				seen = (options.json as {bag: Record<string, unknown>}).bag;
 			}],
 		},
 		fetch: async () => new Response('ok'),
 	});
 
-	await api('https://example.com').text();
+	await api.post('https://example.com').text();
 
 	t.is(Object.getPrototypeOf(seen!), null);
 	// A null-prototype object has no inherited members.

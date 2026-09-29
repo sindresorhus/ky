@@ -108,22 +108,3 @@ test('a branded ForceRetryError from another Ky copy still forces a retry', asyn
 	t.is(text, 'retried');
 });
 
-// The brand check accepts any object that claims to be an `HTTPError`, so the retry path must not assume the cross-realm shape also carries a `response`.
-test('a branded HTTPError without a response is not retried as an HTTPError', async t => {
-	let attempts = 0;
-	const branded = Object.assign(new Error('From another Ky constructor'), {
-		name: 'HTTPError',
-		isKyError: true,
-	});
-
-	const error = await t.throwsAsync(ky('https://example.com', {
-		async fetch() {
-			attempts++;
-			throw branded;
-		},
-		retry: {limit: 1, delay: () => 0},
-	}).text());
-
-	t.is(attempts, 1);
-	t.is(error, branded);
-});

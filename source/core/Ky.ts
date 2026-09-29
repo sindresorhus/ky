@@ -15,12 +15,7 @@ import type {
 } from '../types/options.js';
 import {type ResponsePromise} from '../types/ResponsePromise.js';
 import type {StandardSchemaV1} from '../types/standard-schema.js';
-import {
-	getProgressCallbackError,
-	limitResponseSize,
-	streamRequest,
-	streamResponse,
-} from '../utils/body.js';
+import {limitResponseSize, streamRequest, streamResponse} from '../utils/body.js';
 import {
 	cloneShallow,
 	cloneDeep,
@@ -170,8 +165,8 @@ function cloneInitHookOptions(options: Options): InitOptions {
 		...options,
 		// `headers` starts as a plain object with lowercase names in `init` hooks, so hooks can add headers in place even when none were provided.
 		headers: mergeHeaderContainers({}, options.headers ?? {}),
-		// `context` starts as an object in `init` hooks, the same as in every other hook.
-		context: cloneDeep(options.context) ?? {},
+		// `context` starts as an object in `init` hooks, the same as in every other hook. The copy is shallow like the per-request copy, so nested values stay shared, for example a cache kept in `context`.
+		context: {...options.context},
 		// Deep-clone so init-hook mutations to nested values do not leak across requests, matching the nested `retry` cloning below.
 		json: cloneDeep(options.json),
 		searchParams: cloneSearchParametersForInitHook(options.searchParams),
@@ -419,8 +414,6 @@ export class Ky {
 	#requestBodyCanBeCancelled = false;
 	readonly #userProvidedAbortSignal: AbortSignal | undefined;
 	readonly #beforeRetryHookErrors = new WeakSet<Error>();
-	// Values thrown by a user callback that runs while the request is in flight. Retrying would re-send the body and run the callback again, so they are never retriable, whatever `shouldRetry` says. A strong `Set` is safe because a `Ky` instance lives for exactly one request, and the callback can throw a non-`Error` value.
-	readonly #inFlightCallbackErrors = new Set<unknown>();
 	#cachedNormalizedOptions: NormalizedOptions | undefined;
 	readonly #startTime: number | undefined;
 	#returnedResponseFromBeforeRetryHook = false;
@@ -639,10 +632,6 @@ export class Ky {
 	}
 
 	async #calculateRetryDelay(error: unknown) {
-		if (this.#inFlightCallbackErrors.has(error)) {
-			throw error;
-		}
-
 		const retry = normalizeRetryOptions(this.#options.retry);
 		if (this.#retryCount >= Math.min(retry.limit, this.#retryLimit)) {
 			throw error;
@@ -687,8 +676,7 @@ export class Ky {
 			return this.#calculateDelay(retry, error);
 		}
 
-		// The `isHTTPError()` brand only checks `name`, so a cross-realm error may not carry a `response`.
-		if (isHTTPError(error) && error.response) {
+		if (isHTTPError(error)) {
 			if (!shouldRetryOverride && !retry.statusCodes.includes(error.response.status)) {
 				throw error;
 			}
@@ -728,20 +716,14 @@ export class Ky {
 		this.#decoratedResponses.add(response);
 		const request = this.#getResponseRequest(response);
 
-		try {
-			response.json = async () => {
-				const text = await response.text();
-				return this.#options.parseJson!(text, {request, response});
-			};
+		response.json = async () => {
+			const text = await response.text();
+			return this.#options.parseJson!(text, {request, response});
+		};
 
-			// `clone()` returns a fresh `Response` that would otherwise fall back to the native `json()`.
-			const nativeClone = response.clone.bind(response);
-			response.clone = () => this.#decorateResponse(this.#setResponseRequest(nativeClone(), request));
-		} catch (error: unknown) {
-			// A frozen response cannot be decorated, so the caller never receives it and nothing else can release its body. Report the real problem and let go of the connection.
-			this.#cancelResponseBody(response);
-			throw error;
-		}
+		// `clone()` returns a fresh `Response` that would otherwise fall back to the native `json()`.
+		const nativeClone = response.clone.bind(response);
+		response.clone = () => this.#decorateResponse(this.#setResponseRequest(nativeClone(), request));
 
 		return response;
 	}
@@ -886,12 +868,6 @@ export class Ky {
 			}
 
 			if (this.#getRemainingTotalTimeout() !== 0) {
-				// A throwing progress callback errors the response stream, which a browser may report as a raw `TypeError` that would otherwise be mistaken for a dropped connection. Surface the callback error instead.
-				const progressCallbackError = getProgressCallbackError(response.body ?? undefined);
-				if (progressCallbackError !== undefined) {
-					await this.#throwProcessedError(progressCallbackError, failedRequest);
-				}
-
 				// A connection dropped while streaming the body surfaces as a raw runtime `TypeError`. Wrap it like fetch-phase network errors so it is recognizable and runs `beforeError` hooks.
 				// This only happens on the awaited path, so a body that fails after the timeout already won does not run the hooks again.
 				if (isRawNetworkError(error)) {
@@ -1417,15 +1393,6 @@ export class Ky {
 			if (this.#getRemainingTotalTimeout() === 0) {
 				this.#abortController?.abort();
 				throw new TimeoutError(request);
-			}
-
-			// The upload progress wrapper errors the request body stream when its callback throws, which the runtime reports as a network failure. Surface the callback error instead.
-			const progressCallbackError = getProgressCallbackError(this.#originalRequest?.body ?? undefined);
-			if (progressCallbackError !== undefined) {
-				this.#inFlightCallbackErrors.add(progressCallbackError);
-
-				// eslint-disable-next-line @typescript-eslint/only-throw-error -- The callback can throw any value, and non-Error throws are propagated as-is elsewhere.
-				throw progressCallbackError;
 			}
 
 			if (isRawNetworkError(error)) {

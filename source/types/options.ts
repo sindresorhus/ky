@@ -299,7 +299,7 @@ export type KyOptions = {
 
 	Responses with no body at all are not streamed, so no progress events are emitted for them. That covers a [null body status](https://fetch.spec.whatwg.org/#null-body-status) such as `204`, and a `HEAD` response in runtimes that give it no body, such as browsers, Node.js and Deno. Bun gives a `HEAD` response an empty body, so it reports one final event with `transferredBytes: 0`. A response whose body an `afterResponse` hook already read, or locked with a reader, is passed through unchanged, so it reports no progress either.
 
-	When the callback throws, the error is reported by Ky's body method shortcuts. A response read directly with `response.text()` or `response.json()` may instead report the runtime's own stream error, such as Chromium's generic `TypeError`.
+	Do not throw from the callback. A throw fails the response stream, which the runtime reports in its own way: Node.js rejects the body read with your error, while Chromium reports a network failure, so Ky's body methods throw a `NetworkError` there. Pass a `signal` from an `AbortController` to cancel instead.
 
 	@example
 	```
@@ -324,7 +324,9 @@ export type KyOptions = {
 	@param progress - Object containing upload progress information.
 	@param chunk - Data that was sent. When an empty request body stream completes, the callback receives an empty chunk.
 
-	A `ReadableStream` body cannot be measured, so `totalBytes` falls back to a `content-length` header you set. Browsers do not allow that header on a request, so there the total stays `0`.
+	A `ReadableStream` body cannot be measured, so `totalBytes` falls back to a `content-length` header you set. Browsers do not allow that header on a request, so there the total stays `0`. When a hook replaces the request, `totalBytes` is still estimated from the `body` option until the final event, which reports the real total.
+
+	Do not throw from the callback. A throw fails the upload stream, which the runtime reports as a network failure, so Ky throws a `NetworkError` (in Node.js, with your error in its `cause` chain) and retries it like any other network error, running the callback again. Pass a `signal` from an `AbortController` to cancel instead.
 
 	@example
 	```

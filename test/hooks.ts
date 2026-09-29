@@ -6175,7 +6175,8 @@ test('init hook in-place context mutations do not leak across requests', async t
 	t.deepEqual(seenRequestIdentifiers, [1, 2]);
 });
 
-test('init hook nested context mutations do not leak across requests', async t => {
+// `init` hooks get a shallow `context` copy like every other hook, so a nested value such as a cache stays shared, and adding an `init` hook does not change that.
+test('init hook nested context values are shared across requests', async t => {
 	const seenCounts: number[] = [];
 
 	const api = ky.extend({
@@ -6195,10 +6196,10 @@ test('init hook nested context mutations do not leak across requests', async t =
 	await api.get('https://example.com');
 	await api.get('https://example.com');
 
-	t.deepEqual(seenCounts, [0, 0]);
+	t.deepEqual(seenCounts, [0, 1]);
 });
 
-test('init hook keeps a class-instance context value by reference across the deep clone', async t => {
+test('init hook keeps a class-instance context value by reference', async t => {
 	const store = new Map<string, number>();
 	let sawSameStore = false;
 
