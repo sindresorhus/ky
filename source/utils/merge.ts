@@ -260,18 +260,22 @@ const resolveObjectMarkers = (value: Record<string, unknown>, resolveItem: (item
 // `json` and `context` are user data, which can be large, so they are not walked on every request.
 const userDataOptions = new Set(['json', 'context']);
 
-// `replaceOption()` can wrap a value at any depth of a deep-merged option, but a wrapper is only unwrapped where a merge actually runs, so a wrapper on a key with no parent value kept its `{value}` envelope. This resolves the leftovers in one pass, copying only the branches that actually contained a wrapper so every other value keeps its identity. `seen` only holds the values on the current path, so a cyclic option cannot recurse forever while a value shared by two branches is still resolved in both.
-const resolveReplaceMarkers = (value: unknown, seen: Set<Record<string, unknown> | unknown[]>): unknown => {
-	if (!isMergeable(value) || seen.has(value)) {
+// `replaceOption()` can wrap a value at any depth of a deep-merged option, but a wrapper is only unwrapped where a merge actually runs, so a wrapper on a key with no parent value kept its `{value}` envelope. This resolves the leftovers in one pass, copying only the branches that actually contained a wrapper so every other value keeps its identity. `resolved` maps each visited value to its result, so a value shared by two branches is walked once and stays shared, and a cyclic option cannot recurse forever: a value still being resolved maps to itself.
+const resolveReplaceMarkers = (value: unknown, resolved: Map<unknown, unknown>): unknown => {
+	if (!isMergeable(value)) {
 		return value;
 	}
 
-	seen.add(value);
-	const resolveItem = (item: unknown) => resolveReplaceMarkers(getReplaceState(item).value, seen);
-	const resolved = Array.isArray(value) ? resolveArrayMarkers(value, resolveItem) : resolveObjectMarkers(value, resolveItem);
-	seen.delete(value);
+	if (resolved.has(value)) {
+		return resolved.get(value);
+	}
 
-	return resolved ?? value;
+	resolved.set(value, value);
+	const resolveItem = (item: unknown) => resolveReplaceMarkers(getReplaceState(item).value, resolved);
+	const result = (Array.isArray(value) ? resolveArrayMarkers(value, resolveItem) : resolveObjectMarkers(value, resolveItem)) ?? value;
+	resolved.set(value, result);
+
+	return result;
 };
 
 const appendSearchParameters = (target: any, source: any): URLSearchParams => {
@@ -303,7 +307,14 @@ const appendSearchParameters = (target: any, source: any): URLSearchParams => {
 					throw new TypeError('Array search parameters must be provided in [[key, value], ...] format');
 				}
 
-				result.append(String(pair[0]), String(pair[1]));
+				// Unwrapped for the same reason as in the object branch below.
+				const key = String(pair[0]);
+				const {isReplace, value} = getReplaceState(pair[1]);
+				if (isReplace) {
+					result.delete(key);
+				}
+
+				result.append(key, String(value));
 			}
 		} else if (isObject(input)) {
 			for (const [key, value] of Object.entries(input)) {
@@ -489,7 +500,7 @@ const deepMergeInternal = <T>(isRoot: boolean, ...sources: Array<Partial<T> | un
 	if (isRoot) {
 		for (const [key, value] of Object.entries(returnValue)) {
 			if (!userDataOptions.has(key)) {
-				returnValue[key] = resolveReplaceMarkers(value, new Set());
+				returnValue[key] = resolveReplaceMarkers(value, new Map());
 			}
 		}
 	}

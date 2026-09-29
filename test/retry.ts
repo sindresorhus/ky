@@ -5020,6 +5020,15 @@ test('`replaceOption` resolves inside a search parameter record', async t => {
 	t.is(await replaced('https://example.com').text(), 'https://example.com/?sort=name&page=1');
 });
 
+test('`replaceOption` resolves inside a search parameter tuple', async t => {
+	const fetchFunction = async (request: Request) => new Response(request.url);
+
+	const extended = ky.create({fetch: fetchFunction, searchParams: {sort: 'name', page: '5'}})
+		.extend({searchParams: [['page', replaceOption('1') as never]]});
+
+	t.is(await extended('https://example.com').text(), 'https://example.com/?sort=name&page=1');
+});
+
 test('`replaceOption` leaves untouched values identical', t => {
 	const json = {nested: {list: [1, 2]}};
 	const fetchFunction = () => new Response('ok');
@@ -5123,7 +5132,7 @@ test('rejects a `ky.retry({delay})` value that cannot be a delay', async t => {
 			hooks: {afterResponse: [() => ky.retry({delay: delay as never})]},
 		}).text(), {
 			instanceOf: TypeError,
-			message: 'The `delay` option must be a non-negative number or `Infinity`',
+			message: 'The `ky.retry()` `delay` option must be a non-negative number or `Infinity`',
 		}, `delay: ${JSON.stringify(delay)}`);
 	}
 });
@@ -5144,17 +5153,31 @@ test('a rejected `ky.retry({delay})` never reaches the retry delay', async t => 
 });
 
 // The message used a truthiness check while `code` was assigned without one, so a falsy code was silently dropped from the message the `code` documentation promises.
-test('a falsy `ky.retry({code})` still appears in the ForceRetryError message', t => {
-	for (const code of ['', 0, false] as unknown[]) {
-		const error = new ForceRetryError({code: code as never});
-
-		t.is(error.code, code);
-		t.is(error.message, `Forced retry: ${String(code)}`);
-	}
+test('an empty `ky.retry({code})` still appears in the ForceRetryError message', t => {
+	const error = new ForceRetryError({code: ''});
+	t.is(error.code, '');
+	t.is(error.message, 'Forced retry: ');
 
 	t.is(new ForceRetryError().message, 'Forced retry');
 	t.is(new ForceRetryError({}).message, 'Forced retry');
 	t.is(new ForceRetryError({code: 'RATE_LIMIT'}).message, 'Forced retry: RATE_LIMIT');
+});
+
+test('`ky.retry(null)` throws', t => {
+	t.throws(() => new ForceRetryError(null as never), {
+		instanceOf: TypeError,
+		message: 'The `ky.retry()` options must be an object',
+	});
+});
+
+// `code` is a string. Anything else, `null` included, used to reach the message as text such as "Forced retry: null".
+test('a `ky.retry({code})` that is not a string throws', t => {
+	for (const code of [null, 0, false]) {
+		t.throws(() => new ForceRetryError({code: code as never}), {
+			instanceOf: TypeError,
+			message: 'The `ky.retry()` `code` option must be a string',
+		});
+	}
 });
 
 // The replace-marker pass only held the values on the current path, so a value shared by two branches was resolved in the first and skipped in the second, which kept its `{value}` envelope. A genuine cycle is still left alone.
@@ -5163,6 +5186,19 @@ test('`replaceOption` resolves a shared value in every branch that uses it', t =
 	const merged = validateAndMerge({custom: {first: shared, second: shared, list: [shared]}});
 
 	t.deepEqual(merged.custom, {first: {tags: ['a']}, second: {tags: ['a']}, list: [{tags: ['a']}]});
+});
+
+// Walking every path through a value that several branches share made the pass exponential in the nesting depth, and gave each branch its own copy.
+test('`replaceOption` resolves a deeply shared value once and keeps it shared', t => {
+	let node: Record<string, unknown> = {tags: replaceOption(['a'])};
+	// Deep enough that a walk per path would visibly slow down, shallow enough that it would still fail on the identity check rather than hang the suite.
+	for (let depth = 0; depth < 14; depth++) {
+		node = {left: node, right: node};
+	}
+
+	const merged = validateAndMerge({custom: node}) as {custom: {left: unknown; right: unknown}};
+
+	t.is(merged.custom.left, merged.custom.right);
 });
 
 test('`replaceOption` leaves a cyclic option intact', t => {

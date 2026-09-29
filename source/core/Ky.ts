@@ -439,8 +439,8 @@ export class Ky {
 			throw new Error(prefixUrlRenamedErrorMessage);
 		}
 
-		// An `init` hook assigns straight onto the options object, so these are checked here, after every merge and hook. The defaults below would otherwise quietly turn a `null` into `GET` or no prefix.
-		for (const key of ['headers', 'method', 'prefix', 'baseUrl'] as const) {
+		// An `init` hook assigns straight onto the options object, so these are checked here, after every merge and hook. The defaults below would otherwise quietly turn a `null` into `GET`, no prefix, or the referrer of a `Request` input.
+		for (const key of ['headers', 'method', 'prefix', 'baseUrl', 'referrer', 'referrerPolicy'] as const) {
 			if (options[key] === null) {
 				throw new TypeError(`The \`${key}\` option must not be \`null\`. Use \`undefined\` to clear it.`);
 			}
@@ -637,8 +637,8 @@ export class Ky {
 			throw error;
 		}
 
-		// Wrap non-Error throws to ensure consistent error handling
-		const errorObject = error instanceof Error ? error : new NonError(error);
+		// Wrap non-Error throws to ensure consistent error handling. `isError` rather than `instanceof`, so a cross-realm error reaches `shouldRetry` as itself, the same way it reaches `beforeError`.
+		const errorObject = isError(error) ? error : new NonError(error);
 
 		// Handle forced retry from afterResponse hook - skip method check and shouldRetry
 		if (isForceRetryError(errorObject)) {
@@ -1293,7 +1293,7 @@ export class Ky {
 				hookResult = await this.#raceWithTotalTimeout(async () => hook({
 					request: this.request,
 					options: this.#getNormalizedOptions(),
-					error: error instanceof Error ? error : new NonError(error),
+					error: isError(error) ? error : new NonError(error),
 					retryCount: this.#retryCount + 1,
 				}), this.#userProvidedAbortSignal);
 			} catch (hookError) {
@@ -1468,8 +1468,9 @@ export class Ky {
 		});
 	}
 
+	// A response Ky did not fetch, such as one returned from a `beforeRetry` hook, is reported with the last request that was sent, like every error is.
 	#getResponseRequest(response: Response): Request {
-		return this.#responseRequests.get(response) ?? this.request;
+		return this.#responseRequests.get(response) ?? this.#sentRequest;
 	}
 
 	#setResponseRequest(response: Response, request: Request): Response {

@@ -18,7 +18,7 @@ export const getBodySize = (body?: BodyInit | null): number => {
 	}
 
 	if (body instanceof FormData) {
-		// This is an approximation, as FormData size calculation is not straightforward. The boundary length is a stand-in for the runtime's own, and every other byte is counted so the estimate errs high (except slightly in Bun, see `usualFormBoundarySize`): an estimate below the real size makes `percent` reach its ceiling part way through the upload.
+		// This is an approximation, as FormData size calculation is not straightforward. The boundary length is a stand-in for the runtime's own, and every other byte is counted so the estimate errs high (except in Bun, see `usualFormBoundarySize`): an estimate below the real size makes `percent` reach its ceiling part way through the upload.
 		let size = 0;
 
 		for (const [key, value] of body) {

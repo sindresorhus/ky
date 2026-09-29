@@ -57,7 +57,7 @@ export const responseTypes = {
 // The maximum value of a 32bit int (see issue #117)
 export const maxSafeTimeout = 2_147_483_647;
 
-// Size in bytes of a typical form boundary (e.g., '------WebKitFormBoundaryaxpyiPgbbPti10Rw'), used to help estimate upload size. Bun's boundary is 54 bytes, so there the estimate runs 14 bytes per part low, which is negligible next to any real upload, and the final event always reports the real total.
+// Size in bytes of a typical form boundary (e.g., '------WebKitFormBoundaryaxpyiPgbbPti10Rw'), used to help estimate upload size. Bun's boundary is 54 bytes, so there the estimate runs 14 bytes low for each part and once more for the closing boundary. That is negligible next to a file, but for a body of many small fields `percent` can reach its ceiling before the upload ends. The final event always reports the real total.
 export const usualFormBoundarySize = 40;
 
 /**
@@ -78,14 +78,14 @@ export type ForceRetryOptions = {
 
 	**Note:** Custom delays bypass jitter and `backoffLimit`. This is intentional, as custom delays often come from server responses (e.g., `Retry-After` headers) and should be respected exactly as specified.
 
-	Must be a non-negative number, or `undefined`; anything else throws a `TypeError` rather than collapsing to a 1ms retry.
+	Must be a non-negative number, `Infinity` included, or `undefined`; anything else makes the request throw a `TypeError` rather than collapsing to a 1ms retry.
 	*/
 	delay?: number | undefined;
 
 	/**
 	Error code for the retry.
 
-	This machine-readable identifier will be included in the error message passed to `beforeRetry` hooks, allowing you to distinguish between different types of forced retries.
+	This machine-readable identifier will be included in the error message passed to `beforeRetry` hooks, allowing you to distinguish between different types of forced retries. Anything other than a string makes the request throw a `TypeError`.
 
 	@example
 	```

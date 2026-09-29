@@ -295,7 +295,7 @@ export type KyOptions = {
 	@param progress - Object containing download progress information.
 	@param chunk - Data that was received. When an empty response body stream completes, the callback receives an empty chunk.
 
-	`content-length` is only used as the total for a response that is not content-coded, since it counts encoded bytes while the progress stream counts the bytes after decompression. A compressed response therefore reports `totalBytes: 0` until it completes, which means the percentage cannot be calculated while downloading.
+	`content-length` is only used as the total for a response that is not content-coded, since it counts encoded bytes while the progress stream counts the bytes after decompression. A compressed response therefore reports `totalBytes: 0` until it completes, which means the percentage cannot be calculated while downloading. For a cross-origin response in a browser, `content-encoding` is only visible when the server lists it in `Access-Control-Expose-Headers`. Otherwise Ky cannot tell that the response is compressed, so it uses `content-length` and the percentage stays close to 100% for most of the download.
 
 	Responses with no body at all are not streamed, so no progress events are emitted for them. That covers a [null body status](https://fetch.spec.whatwg.org/#null-body-status) such as `204`, and a `HEAD` response in runtimes that give it no body, such as browsers, Node.js and Deno. Bun gives a `HEAD` response an empty body, so it reports one final event with `transferredBytes: 0`. A response whose body an `afterResponse` hook already read, or locked with a reader, is passed through unchanged, so it reports no progress either.
 
@@ -462,7 +462,7 @@ export interface Options extends KyOptions, RequestOptions { // eslint-disable-l
 	/**
 	HTTP headers used to make the request.
 
-	You can pass a `Headers` instance or a plain object. Headers are normalized to a plain object with lowercase names when options are merged, so `init` hooks always see a plain object with lowercase keys. A header removed with `undefined` stays in that object with an `undefined` value.
+	You can pass a `Headers` instance or a plain object. Headers are normalized to a plain object with lowercase names when options are merged, so `init` hooks start with a plain object with lowercase keys. A header removed with `undefined` stays in that object with an `undefined` value.
 
 	You can remove a header with `.extend()` by passing the header with an `undefined` value. Passing `undefined` as a string removes the header only if it comes from a `Headers` instance.
 

@@ -7381,3 +7381,98 @@ test('a cross-realm error from a `beforeRetry` hook skips the `beforeError` hook
 		t.deepEqual(seen, [], `${label}: the hook error must propagate unchanged`);
 	}
 });
+
+// `shouldRetry` and `beforeRetry` used `instanceof Error`, so a cross-realm error reached them as a `NonError`, while `beforeError` got the error itself.
+test('a cross-realm error reaches `shouldRetry` and `beforeRetry` as itself', async t => {
+	const foreignError = runInNewContext('new Error("foreign fetch failure")') as Error;
+	const seen: unknown[] = [];
+
+	await t.throwsAsync(ky('https://example.com', {
+		retry: {
+			limit: 1,
+			delay: () => 0,
+			shouldRetry({error}) {
+				seen.push(error);
+				return true;
+			},
+		},
+		async fetch() {
+			throw foreignError;
+		},
+		hooks: {
+			beforeRetry: [({error}) => {
+				seen.push(error);
+			}],
+		},
+	}).text(), {message: 'foreign fetch failure'});
+
+	t.is(seen.length, 2);
+	t.true(seen.every(error => error === foreignError));
+});
+
+test('a cross-realm `ky.retry({cause})` is kept as the cause', async t => {
+	const foreignError = runInNewContext('new Error("foreign cause")') as Error;
+	let cause: unknown;
+
+	await ky('https://example.com', {
+		retry: {limit: 1, delay: () => 0},
+		fetch: async () => new Response('ok'),
+		hooks: {
+			afterResponse: [({retryCount}) => retryCount === 0 ? ky.retry({cause: foreignError}) : undefined],
+			beforeRetry: [({error}) => {
+				cause = error.cause;
+			}],
+		},
+	}).text();
+
+	t.is(cause, foreignError);
+});
+
+// A `Response` from a `beforeRetry` hook was not fetched by Ky, so it was reported with the retry clone that was never sent, while `beforeError` got the request that was sent.
+test('a `Response` from `beforeRetry` is reported with the request that was sent', async t => {
+	const sent: Request[] = [];
+	let beforeErrorRequest: Request | undefined;
+
+	const error = await t.throwsAsync<HTTPError>(ky('https://example.com', {
+		retry: {limit: 1, delay: () => 0},
+		async fetch(input) {
+			sent.push(input as Request);
+			return new Response('first', {status: 500});
+		},
+		hooks: {
+			beforeRetry: [() => new Response('from hook', {status: 503})],
+			beforeError: [({request, error}) => {
+				beforeErrorRequest = request;
+				return error;
+			}],
+		},
+	}).text());
+
+	t.is(sent.length, 1);
+	t.is(error?.request, sent[0]);
+	t.is(beforeErrorRequest, sent[0]);
+});
+
+test('`parseJson` gets the request that was sent for a `Response` from `beforeRetry`', async t => {
+	const sent: Request[] = [];
+	let parseJsonRequest: Request | undefined;
+
+	const data = await ky('https://example.com', {
+		retry: {limit: 1, delay: () => 0},
+		async fetch(input) {
+			sent.push(input as Request);
+			return new Response('', {status: 500});
+		},
+		parseJson(text, {request}) {
+			parseJsonRequest = request;
+			return JSON.parse(text);
+		},
+		hooks: {
+			beforeRetry: [() => new Response('{"a":1}')],
+		},
+	}).json();
+
+	t.deepEqual(data, {a: 1});
+	t.is(sent.length, 1);
+	t.is(parseJsonRequest, sent[0]);
+});

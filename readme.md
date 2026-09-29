@@ -780,7 +780,7 @@ The function receives these arguments:
   - `totalBytes` is the total number of bytes to be transferred. This is an estimate and may be 0 for an empty transfer or when the total size cannot be determined.
 - `chunk` is an instance of `Uint8Array` containing the data that was received. When an empty response body stream completes, the callback receives an empty chunk.
 
-`content-length` is only used as the total for a response that is not content-coded, since it counts encoded bytes while the progress stream counts the bytes after decompression. A compressed response therefore reports `totalBytes: 0` until it completes, so the percentage cannot be calculated while downloading.
+`content-length` is only used as the total for a response that is not content-coded, since it counts encoded bytes while the progress stream counts the bytes after decompression. A compressed response therefore reports `totalBytes: 0` until it completes, so the percentage cannot be calculated while downloading. For a cross-origin response in a browser, `content-encoding` is only visible when the server lists it in `Access-Control-Expose-Headers`. Otherwise Ky cannot tell that the response is compressed, so it uses `content-length` and the percentage stays close to 100% for most of the download.
 
 Responses with no body at all are not streamed, so no progress events are emitted for them. That covers a [null body status](https://fetch.spec.whatwg.org/#null-body-status) such as `204`, and a `HEAD` response in runtimes that give it no body, such as browsers, Node.js and Deno. Bun gives a `HEAD` response an empty body, so it reports one final event with `transferredBytes: 0`. A response whose body an `afterResponse` hook already read, or locked with a reader, is passed through unchanged, so it reports no progress either.
 
@@ -986,7 +986,7 @@ Create a new `ky` instance with some defaults overridden with your own.
 
 In contrast to `ky.create()`, `ky.extend()` inherits defaults from its parent.
 
-You can pass headers as a `Headers` instance or a plain object. Headers are normalized to a plain object with lowercase names when options are merged, so `init` hooks always see a plain object with lowercase keys. A header removed with `undefined` stays in that object with an `undefined` value.
+You can pass headers as a `Headers` instance or a plain object. Headers are normalized to a plain object with lowercase names when options are merged, so `init` hooks start with a plain object with lowercase keys. A header removed with `undefined` stays in that object with an `undefined` value.
 
 You can remove a header with `.extend()` by passing the header with an `undefined` value.
 Passing `undefined` as a string removes the header only if it comes from a `Headers` instance.
@@ -1138,7 +1138,7 @@ Custom delay in milliseconds before retrying. If not provided, uses the default 
 
 **Note:** Custom delays bypass jitter and `backoffLimit`. This is intentional, as custom delays often come from server responses (e.g., `Retry-After` headers) and should be respected exactly as specified.
 
-Must be a non-negative number, or `undefined`; anything else throws a `TypeError` rather than collapsing to a 1ms retry.
+Must be a non-negative number, `Infinity` included, or `undefined`; anything else makes the request throw a `TypeError` rather than collapsing to a 1ms retry.
 
 ##### code
 
@@ -1146,7 +1146,7 @@ Type: `string`
 
 Error code for the retry.
 
-This machine-readable identifier will be included in the error message passed to `beforeRetry` hooks, allowing you to distinguish between different types of forced retries.
+This machine-readable identifier will be included in the error message passed to `beforeRetry` hooks, allowing you to distinguish between different types of forced retries. Anything other than a string makes the request throw a `TypeError`.
 
 ```js
 return ky.retry({code: 'RATE_LIMIT'});

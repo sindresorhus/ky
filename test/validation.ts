@@ -213,6 +213,16 @@ test('rejects a bad `hooks` or `retry` while merging, before a later layer can h
 	});
 });
 
+test('rejects `null` for `referrer` and `referrerPolicy`', async t => {
+	for (const key of ['referrer', 'referrerPolicy']) {
+		// eslint-disable-next-line no-await-in-loop
+		await t.throwsAsync(ky('https://example.com', {[key]: null, fetch: okFetch} as never), {
+			name: 'TypeError',
+			message: `The \`${key}\` option must not be \`null\`. Use \`undefined\` to clear it.`,
+		});
+	}
+});
+
 test('rejects a `retry.retryOnTimeout` that is not a boolean', async t => {
 	for (const retryOnTimeout of [null, 'false', 0] as unknown[]) {
 		// eslint-disable-next-line no-await-in-loop
