@@ -221,6 +221,25 @@ test('post with json does not hang when custom fetch consumes request body', asy
 	t.deepEqual(json, {ok: true, parsedBody: fixture});
 });
 
+// Ky cancels the request body once the request settles, and canceling a stream that a reader still holds rejects, so that rejection must not reach the caller.
+test('a custom fetch that locks a stream request body without reading it still resolves', async t => {
+	const text = await ky.post(fixture, {
+		body: new ReadableStream<Uint8Array>({
+			start(controller) {
+				controller.enqueue(new TextEncoder().encode('payload'));
+				controller.close();
+			},
+		}),
+		retry: 0,
+		async fetch(request) {
+			(request as Request).body!.getReader();
+			return new Response('ok');
+		},
+	}).text();
+
+	t.is(text, 'ok');
+});
+
 test('unknown options are passed to fetch', async t => {
 	t.plan(1);
 

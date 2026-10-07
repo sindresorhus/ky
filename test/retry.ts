@@ -4838,11 +4838,6 @@ test('totalTimeout does not bound a beforeError hook', async t => {
 test('rejects non-numeric or negative `maxRetryAfter` and `backoffLimit`', async t => {
 	for (const key of ['maxRetryAfter', 'backoffLimit'] as const) {
 		for (const value of ['1000', Number.NaN, -1, {}, null] as unknown[]) {
-			// `null` is nullish, so it selects the default instead of being rejected.
-			if (value === null) {
-				continue;
-			}
-
 			const retry: Record<string, unknown> = {[key]: value};
 
 			// eslint-disable-next-line no-await-in-loop
@@ -5180,6 +5175,33 @@ test('a `ky.retry({code})` that is not a string throws', t => {
 	}
 });
 
+// `request` was only read with a truthiness check, so `null` was silently ignored and the retry quietly reused the original request, and a non-`Request` value such as a URL string was sent as-is.
+test('a `ky.retry({request})` that is not a Request throws', async t => {
+	for (const request of [null, 'https://example.com/other', {}]) {
+		t.throws(() => new ForceRetryError({request: request as never}), {
+			instanceOf: TypeError,
+			message: 'The `ky.retry()` `request` option must be a `Request`',
+		}, `request: ${JSON.stringify(request)}`);
+	}
+
+	let attempts = 0;
+	await t.throwsAsync(ky('https://example.com', {
+		retry: {limit: 1, delay: () => 0},
+		async fetch() {
+			attempts++;
+			return new Response('ok');
+		},
+		hooks: {afterResponse: [({retryCount}) => retryCount === 0 ? ky.retry({request: null as never}) : undefined]},
+	}).text(), {
+		instanceOf: TypeError,
+		message: 'The `ky.retry()` `request` option must be a `Request`',
+	});
+	t.is(attempts, 1);
+
+	t.notThrows(() => new ForceRetryError({request: undefined}));
+	t.notThrows(() => new ForceRetryError({request: new Request('https://example.com')}));
+});
+
 // The replace-marker pass only held the values on the current path, so a value shared by two branches was resolved in the first and skipped in the second, which kept its `{value}` envelope. A genuine cycle is still left alone.
 test('`replaceOption` resolves a shared value in every branch that uses it', t => {
 	const shared = {tags: replaceOption(['a'])};
@@ -5308,5 +5330,85 @@ test.serial('a `retry.jitter` function that returns a bad value falls back to th
 		});
 
 		t.is(requestCount, 2);
+	}
+});
+
+test('a numeric string from `retry.delay` is rejected', async t => {
+	let requestCount = 0;
+
+	await t.throwsAsync(ky('https://example.com', {
+		async fetch() {
+			requestCount++;
+			return new Response(undefined, {status: 500});
+		},
+		retry: {limit: 1, delay: () => '100' as never},
+	}).text(), {
+		instanceOf: TypeError,
+		message: '`retry.delay` must return a non-negative number or `Infinity`',
+	});
+
+	t.is(requestCount, 1);
+});
+
+test('a user abort while Ky waits out the rest of the totalTimeout budget throws the abort reason', async t => {
+	const controller = new AbortController();
+	const reason = new Error('Cancelled while waiting out the budget');
+	let attempts = 0;
+
+	const error = await t.throwsAsync(ky('https://example.com', {
+		signal: controller.signal,
+		timeout: false,
+		totalTimeout: 5000,
+		retry: {
+			limit: 3,
+			// Longer than the budget, so Ky waits out the budget instead of the retry delay.
+			delay() {
+				// `retry.delay` runs just before the wait starts, so this fires once Ky is waiting.
+				setTimeout(() => {
+					controller.abort(reason);
+				}, 0);
+				return 10_000;
+			},
+		},
+		async fetch() {
+			attempts++;
+			throw new TypeError('fetch failed');
+		},
+	}).text());
+
+	t.is(error, reason);
+	t.is(attempts, 1);
+});
+
+// The clock is frozen, so the remaining budget stays at exactly `totalTimeout` and the comparison with the retry delay is deterministic.
+test.serial('a retry delay at or above the remaining totalTimeout budget waits out the budget and then times out', async t => {
+	const originalPerformanceNow = globalThis.performance.now;
+	globalThis.performance.now = () => 0;
+	t.teardown(() => {
+		globalThis.performance.now = originalPerformanceNow;
+	});
+
+	const totalTimeout = 1_500_000;
+
+	for (const retryDelay of [totalTimeout, 2_000_000, Number.POSITIVE_INFINITY]) {
+		let attempts = 0;
+
+		// eslint-disable-next-line no-await-in-loop
+		await withCapturedTimeouts(async scheduledDelays => {
+			await t.throwsAsync(ky('https://example.com', {
+				timeout: false,
+				totalTimeout,
+				retry: {limit: 1, delay: () => retryDelay},
+				async fetch() {
+					attempts++;
+					throw new TypeError('fetch failed');
+				},
+			}).text(), {instanceOf: TimeoutError}, `delay: ${retryDelay}`);
+
+			// The first timer bounds the fetch by the budget, and the second is the wait for the rest of the budget.
+			t.deepEqual(scheduledDelays, [totalTimeout, totalTimeout], `delay: ${retryDelay}`);
+		});
+
+		t.is(attempts, 1, `delay: ${retryDelay}`);
 	}
 });

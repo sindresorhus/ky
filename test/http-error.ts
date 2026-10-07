@@ -1,4 +1,5 @@
-import test from 'ava';
+import {setImmediate} from 'node:timers/promises';
+import test, {type ExecutionContext} from 'ava';
 import {expectTypeOf} from 'expect-type';
 import ky, {HTTPError, isHTTPError, TimeoutError} from '../source/index.js';
 import {type Mutable} from '../source/utils/types.js';
@@ -805,4 +806,146 @@ test('a `throwHttpErrors` predicate that throws is still seen by `beforeError`',
 
 	// The predicate's own error is what the hook sees, unchanged.
 	t.deepEqual(seen, [thrown]);
+});
+
+test('an error JSON parse that times out still lets the retry go ahead', async t => {
+	let requestCount = 0;
+	const {promise: neverSettles} = Promise.withResolvers<never>();
+
+	const text = await ky('https://example.com', {
+		timeout: 200,
+		retry: {limit: 1, delay: () => 0},
+		parseJson: async () => neverSettles,
+		async fetch() {
+			requestCount++;
+			return requestCount === 1
+				? new Response('{"error":"slow parse"}', {status: 500, headers: {'content-type': 'application/json'}})
+				: new Response('ok');
+		},
+	}).text();
+
+	t.is(text, 'ok');
+	t.is(requestCount, 2);
+});
+
+/*
+Tracks the timers created until the test ends. A timer stops being active once it fires or is cleared.
+
+The tests that use this are serial, and AVA runs serial tests before concurrent ones, so every tracked timer comes from the request under test or the test itself.
+*/
+const trackActiveTimers = (t: ExecutionContext) => {
+	const originalSetTimeout = globalThis.setTimeout;
+	const originalClearTimeout = globalThis.clearTimeout;
+	const state = {
+		createdCount: 0,
+		active: new Set<unknown>(),
+	};
+
+	globalThis.setTimeout = ((handler: (...arguments_: unknown[]) => void, milliseconds?: number, ...arguments_: unknown[]) => {
+		state.createdCount++;
+		const timeoutId = originalSetTimeout((...handlerArguments: unknown[]) => {
+			state.active.delete(timeoutId);
+			handler(...handlerArguments);
+		}, milliseconds, ...arguments_);
+		state.active.add(timeoutId);
+		return timeoutId;
+	}) as typeof globalThis.setTimeout;
+
+	globalThis.clearTimeout = ((timeoutId?: Parameters<typeof globalThis.clearTimeout>[0]) => {
+		state.active.delete(timeoutId);
+		originalClearTimeout(timeoutId);
+	}) as typeof globalThis.clearTimeout;
+
+	t.teardown(() => {
+		globalThis.setTimeout = originalSetTimeout;
+		globalThis.clearTimeout = originalClearTimeout;
+	});
+
+	return state;
+};
+
+const assertNoActiveTimers = async (t: ExecutionContext, timers: ReturnType<typeof trackActiveTimers>) => {
+	// Some timers are cleared in a `finally` callback that runs a few microtasks after the request settles.
+	await setImmediate();
+	t.true(timers.createdCount > 0, 'the request should have created timers');
+	t.is(timers.active.size, 0, `${timers.active.size} of ${timers.createdCount} timers are still active`);
+};
+
+const jsonErrorResponse = () => new Response('{"error":"failure"}', {status: 500, headers: {'content-type': 'application/json'}});
+
+test.serial('no timer is left behind after an HTTPError with JSON data', async t => {
+	const timers = trackActiveTimers(t);
+
+	const error = await t.throwsAsync(ky('https://example.com', {
+		retry: 0,
+		fetch: async () => jsonErrorResponse(),
+	}), {instanceOf: HTTPError});
+
+	t.deepEqual(error?.data, {error: 'failure'});
+	await assertNoActiveTimers(t, timers);
+});
+
+test.serial('no timer is left behind after hooks and a body read are raced against totalTimeout', async t => {
+	const timers = trackActiveTimers(t);
+
+	const text = await ky('https://example.com', {
+		totalTimeout: 60_000,
+		fetch: async () => new Response('ok'),
+		hooks: {
+			beforeRequest: [() => undefined],
+			afterResponse: [() => undefined],
+		},
+	}).text();
+
+	t.is(text, 'ok');
+	await assertNoActiveTimers(t, timers);
+});
+
+test.serial('no timer is left behind after shouldRetry and beforeRetry are raced against totalTimeout', async t => {
+	const timers = trackActiveTimers(t);
+	let requestCount = 0;
+
+	const text = await ky('https://example.com', {
+		totalTimeout: 60_000,
+		retry: {
+			limit: 1,
+			delay: () => 0,
+			shouldRetry: () => true,
+		},
+		async fetch() {
+			requestCount++;
+			return requestCount === 1 ? jsonErrorResponse() : new Response('ok');
+		},
+		hooks: {
+			beforeRetry: [() => undefined],
+		},
+	}).text();
+
+	t.is(text, 'ok');
+	t.is(requestCount, 2);
+	await assertNoActiveTimers(t, timers);
+});
+
+test.serial('no timer is left behind after a user abort during the retry delay', async t => {
+	const timers = trackActiveTimers(t);
+	const controller = new AbortController();
+	const reason = new Error('Cancelled during the delay');
+
+	const error = await t.throwsAsync(ky('https://example.com', {
+		signal: controller.signal,
+		retry: {
+			limit: 1,
+			delay() {
+				// `retry.delay` runs just before the wait starts, so this fires once Ky is waiting.
+				setTimeout(() => {
+					controller.abort(reason);
+				}, 0);
+				return 60_000;
+			},
+		},
+		fetch: async () => jsonErrorResponse(),
+	}));
+
+	t.is(error, reason);
+	await assertNoActiveTimers(t, timers);
 });

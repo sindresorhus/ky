@@ -168,6 +168,6 @@ export const calculateRetryTimingDelay = ({value, allowTimestamp}: RetryTimingHe
 		return undefined;
 	}
 
-	const delay = timestamp - Date.now();
-	return Number.isFinite(delay) ? Math.max(0, delay) : undefined;
+	// `createTimestamp()` only returns valid dates, so the delay is always finite.
+	return Math.max(0, timestamp - Date.now());
 };

@@ -1015,18 +1015,20 @@ const extended = original.extend({
 	},
 	hooks: {
 		beforeRequest: undefined,
-		afterResponse: [ () => console.log('after 2') ],
+		afterResponse: [
+			({request}) => {
+				console.log('after 2');
+				console.log(request.headers.has('rainbow'));
+				console.log(request.headers.has('unicorn'));
+			}
+		],
 	}
 });
 
-const response = await extended(url);
+await extended(url);
 //=> after 1
 //=> after 2
-
-console.log(response.headers.has('rainbow'));
 //=> false
-
-console.log(response.headers.has('unicorn'));
 //=> true
 ```
 
@@ -1177,7 +1179,7 @@ Type: `Request`
 
 Custom request to use for the retry.
 
-This allows you to modify or completely replace the request during a forced retry. The custom request becomes the starting point for the retry - `beforeRetry` hooks can still further modify it if needed.
+This allows you to modify or completely replace the request during a forced retry. The custom request becomes the starting point for the retry - `beforeRetry` hooks can still further modify it if needed. Anything other than a `Request` or `undefined` makes the request throw a `TypeError`.
 
 **Note:** The custom request's `signal` will be replaced with Ky's managed signal to handle timeouts and user-provided abort signals correctly. If the original request body has been consumed, you must provide a new body or clone the request before consuming.
 

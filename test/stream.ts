@@ -1230,6 +1230,18 @@ test('a throwing download progress callback propagates its own error', async t =
 	t.false(isNetworkError(error));
 });
 
+test('a response from a beforeRequest hook still reports download progress', async t => {
+	const progressEvents: Progress[] = [];
+	const text = await ky('https://example.com', {
+		hooks: {beforeRequest: [() => new Response('abc')]},
+		onDownloadProgress: progress => progressEvents.push(progress),
+		fetch: async () => new Response('from fetch'),
+	}).text();
+
+	t.is(text, 'abc');
+	t.deepEqual(progressEvents.at(-1), {percent: 1, transferredBytes: 3, totalBytes: 3});
+});
+
 // `Progress.totalBytes` is documented to be `0` when the total size cannot be determined, and it must agree with the `percent` it is reported with, which is computed from the same estimate.
 test('download progress reports an unknown total as 0', async t => {
 	const progressEvents: Progress[] = [];

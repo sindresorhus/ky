@@ -995,6 +995,25 @@ test('timeout:false option', async t => {
 	t.is(requestCount, 1);
 });
 
+// A timer created with an infinite delay fires after 1ms, so without any timeout Ky must not create one for the fetch or the body read.
+test('`timeout: false` without totalTimeout does not time out a slow fetch or a slow body read', async t => {
+	const text = await ky('https://example.com', {
+		timeout: false,
+		async fetch() {
+			await delay(50);
+			return new Response(new ReadableStream({
+				async pull(controller) {
+					await delay(50);
+					controller.enqueue(new TextEncoder().encode('slow'));
+					controller.close();
+				},
+			}, {highWaterMark: 0}));
+		},
+	}).text();
+
+	t.is(text, 'slow');
+});
+
 test('invalid timeout option', async t => {
 	// #117
 	let requestCount = 0;

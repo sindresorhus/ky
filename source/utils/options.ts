@@ -1,18 +1,14 @@
 import {kyOptionKeys, requestOptionsRegistry} from '../core/constants.js';
 import type {SearchParamsOption} from '../types/options.js';
-import {deletedParametersSymbol} from './merge.js';
+import {deletedParametersSymbol, type MarkedSearchParameters} from './merge.js';
 
 export const findUnknownOptions = (
 	options: Record<string, unknown>,
 ): Record<string, unknown> => {
 	const unknownOptions: Record<string, unknown> = {};
 
-	for (const key in options) {
-		// Skip inherited properties
-		if (!Object.hasOwn(options, key)) {
-			continue;
-		}
-
+	// `Object.keys()` skips inherited properties.
+	for (const key of Object.keys(options)) {
 		// Forward every non-standard, non-Ky option to fetch().
 		// We intentionally do not check whether the key also exists on `Request`, because some runtimes
 		// patch `Request.prototype` with fetch-only extensions. For example, Next.js adds `next`, and the
@@ -49,7 +45,7 @@ export const hasSearchParameters = (search: SearchParamsOption): boolean => {
 	}
 
 	if (search instanceof URLSearchParams) {
-		return search.size > 0 || Boolean((search as any)[deletedParametersSymbol]?.size);
+		return search.size > 0 || Boolean((search as MarkedSearchParameters)[deletedParametersSymbol]?.size);
 	}
 
 	// Record

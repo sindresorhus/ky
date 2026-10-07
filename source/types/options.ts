@@ -482,16 +482,21 @@ export interface Options extends KyOptions, RequestOptions { // eslint-disable-l
 	const extended = original.extend({
 		headers: {
 			rainbow: undefined
+		},
+		hooks: {
+			beforeRequest: [
+				({request}) => {
+					console.log(request.headers.has('rainbow'));
+					//=> false
+
+					console.log(request.headers.has('unicorn'));
+					//=> true
+				}
+			]
 		}
 	});
 
-	const response = await extended(url);
-
-	console.log(response.headers.has('rainbow'));
-	//=> false
-
-	console.log(response.headers.has('unicorn'));
-	//=> true
+	await extended(url);
 	```
 	*/
 	headers?: KyHeadersInit | undefined;

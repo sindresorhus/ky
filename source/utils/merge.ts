@@ -1,7 +1,7 @@
 import type {KyHeadersInit, Options} from '../types/options.js';
 import type {Hooks, NormalizedHooks} from '../types/hooks.js';
 import {supportsAbortSignal} from '../core/constants.js';
-import {isObject} from './is.js';
+import {isNonArrayObject, isObject} from './is.js';
 
 // Registered globally so that a wrapper created by a second copy of Ky, which happens with a duplicated dependency, is still recognised.
 const replaceSymbol: unique symbol = Symbol.for('ky.replaceOption');
@@ -62,7 +62,7 @@ export const replaceOption = <T>(value: T): T => {
 
 export const validateAndMerge = (...sources: Array<Partial<Options> | undefined>): Partial<Options> => {
 	for (const source of sources) {
-		if ((!isObject(source) || Array.isArray(source)) && source !== undefined) {
+		if (source !== undefined && !isNonArrayObject(source)) {
 			throw new TypeError('The `options` argument must be an object');
 		}
 	}
@@ -86,7 +86,7 @@ export const mergeHeaders = (source1: KyHeadersInit = {}, source2: KyHeadersInit
 };
 
 const isPlainObject = (value: unknown): value is Record<string, unknown> => {
-	if (!isObject(value) || Array.isArray(value)) {
+	if (!isNonArrayObject(value)) {
 		return false;
 	}
 
@@ -99,8 +99,8 @@ const isMergeable = (value: unknown): value is Record<string, unknown> | unknown
 
 export const cloneShallow = <T>(value: T): T => {
 	if (value instanceof URLSearchParams) {
-		const copy = new URLSearchParams(value) as URLSearchParams & {[deletedParametersSymbol]?: Set<string>};
-		const deleted = (value as URLSearchParams & {[deletedParametersSymbol]?: Set<string>})[deletedParametersSymbol];
+		const copy: MarkedSearchParameters = new URLSearchParams(value);
+		const deleted = (value as MarkedSearchParameters)[deletedParametersSymbol];
 		if (deleted) {
 			// Preserve internal deletion markers so init-hook cloning does not resurrect params removed during option merging.
 			copy[deletedParametersSymbol] = new Set(deleted);
@@ -120,6 +120,10 @@ export const cloneShallow = <T>(value: T): T => {
 
 	return value;
 };
+
+// A tuple array is copied pair by pair, so changing a pair of the copy does not change the caller's `searchParams`.
+export const cloneSearchParameters = <T>(value: T): T =>
+	Array.isArray(value) ? value.map(parameter => cloneShallow(parameter)) as T : cloneShallow(value);
 
 // Recursively clone plain objects and arrays so that `init`-hook mutations to nested `json` or `context` values do not leak into the next request. Non-plain values (functions, class instances, `Date`, `URLSearchParams`, …) are kept by reference, matching how option merging treats them as whole values. The `seen` map keeps shared and cyclic references intact.
 export const cloneDeep = <T>(value: T, seen: WeakMap<Record<string, unknown> | unknown[], unknown> = new WeakMap()): T => {
@@ -162,18 +166,6 @@ export const cloneDeep = <T>(value: T, seen: WeakMap<Record<string, unknown> | u
 	return copy as T;
 };
 
-// Header names are case-insensitive, so they are normalized to lowercase (like `Headers` does) so that overrides and `undefined` deletions match regardless of how the name was spelled and `init` hooks can rely on lowercase keys.
-// An `undefined` value is kept as a deletion marker so it can still remove a header inherited from a `Request` input when the request is created.
-const mergeHeaderObjects = (source1: Record<string, unknown>, source2: Record<string, unknown>): Record<string, string | undefined> => {
-	const result = new Map<string, string | undefined>();
-
-	for (const [key, value] of [...Object.entries(source1), ...Object.entries(source2)]) {
-		result.set(key.toLowerCase(), value as string | undefined);
-	}
-
-	return Object.fromEntries(result);
-};
-
 // Every header source is merged as a plain object so deletion markers survive no matter how the headers were provided. A `Headers` instance cannot hold `undefined`, so its string `'undefined'` counts as a deletion. A plain object is returned as-is, so callers must not mutate the result.
 const toHeaderObject = (source: KyHeadersInit): Record<string, string | undefined> => {
 	if (isPlainObject(source)) {
@@ -191,8 +183,17 @@ const toHeaderObject = (source: KyHeadersInit): Record<string, string | undefine
 	return result;
 };
 
-export const mergeHeaderContainers = (source1: KyHeadersInit, source2: KyHeadersInit): Record<string, string | undefined> =>
-	mergeHeaderObjects(toHeaderObject(source1), toHeaderObject(source2));
+// Header names are case-insensitive, so they are normalized to lowercase (like `Headers` does) so that overrides and `undefined` deletions match regardless of how the name was spelled and `init` hooks can rely on lowercase keys.
+// An `undefined` value is kept as a deletion marker so it can still remove a header inherited from a `Request` input when the request is created.
+export const mergeHeaderContainers = (source1: KyHeadersInit, source2: KyHeadersInit): Record<string, string | undefined> => {
+	const result = new Map<string, string | undefined>();
+
+	for (const [key, value] of [...Object.entries(toHeaderObject(source1)), ...Object.entries(toHeaderObject(source2))]) {
+		result.set(key.toLowerCase(), value);
+	}
+
+	return Object.fromEntries(result);
+};
 
 function newHookValue<K extends keyof Hooks>(original: Hooks, incoming: Hooks, property: K): NormalizedHooks[K] {
 	// An absent key must keep the parent's hooks, which is why this check needs `Object.hasOwn`.
@@ -216,7 +217,7 @@ function newHookValue<K extends keyof Hooks>(original: Hooks, incoming: Hooks, p
 
 export const mergeHooks = (original: Hooks = {}, incoming: Hooks = {}): NormalizedHooks => {
 	// `undefined` selects the default through the parameter default. `null` is not accepted, so it reaches this check and is reported like any other bad shape.
-	if (!isObject(incoming) || Array.isArray(incoming)) {
+	if (!isNonArrayObject(incoming)) {
 		throw new TypeError('The `hooks` option must be an object');
 	}
 
@@ -231,30 +232,21 @@ export const mergeHooks = (original: Hooks = {}, incoming: Hooks = {}): Normaliz
 
 export const deletedParametersSymbol = Symbol('deletedParameters');
 
-const resolveArrayMarkers = (value: unknown[], resolveItem: (item: unknown) => unknown): unknown[] | undefined => {
-	let resolved: unknown[] | undefined;
-	for (const [index, item] of value.entries()) {
-		const replacement = resolveItem(item);
-		if (replacement !== item) {
-			resolved ??= [...value];
-			resolved[index] = replacement;
-		}
-	}
+export type MarkedSearchParameters = URLSearchParams & {[deletedParametersSymbol]?: Set<string>};
 
-	return resolved;
-};
-
-const resolveObjectMarkers = (value: Record<string, unknown>, resolveItem: (item: unknown) => unknown): Record<string, unknown> | undefined => {
-	let resolved: Record<string, unknown> | undefined;
+// Copies the array or object only when an item actually changes, so an untouched value keeps its identity. A hole in a sparse array is skipped, which is fine since it holds no wrapper.
+const resolveItemMarkers = (value: Record<string, unknown> | unknown[], resolveItem: (item: unknown) => unknown): Record<string, unknown> | unknown[] => {
+	let resolved: Record<string, unknown> | unknown[] | undefined;
 	for (const [key, item] of Object.entries(value)) {
 		const replacement = resolveItem(item);
 		if (replacement !== item) {
-			resolved ??= {...value};
-			resolved[key] = replacement;
+			resolved ??= Array.isArray(value) ? [...value] : {...value};
+			// An array index is written through its string key, the same way `Object.entries()` gave it.
+			(resolved as Record<string, unknown>)[key] = replacement;
 		}
 	}
 
-	return resolved;
+	return resolved ?? value;
 };
 
 // `json` and `context` are user data, which can be large, so they are not walked on every request.
@@ -272,25 +264,22 @@ const resolveReplaceMarkers = (value: unknown, resolved: Map<unknown, unknown>):
 
 	resolved.set(value, value);
 	const resolveItem = (item: unknown) => resolveReplaceMarkers(getReplaceState(item).value, resolved);
-	const result = (Array.isArray(value) ? resolveArrayMarkers(value, resolveItem) : resolveObjectMarkers(value, resolveItem)) ?? value;
+	const result = resolveItemMarkers(value, resolveItem);
 	resolved.set(value, result);
 
 	return result;
 };
 
 const appendSearchParameters = (target: any, source: any): URLSearchParams => {
-	const result = new URLSearchParams() as URLSearchParams & {[deletedParametersSymbol]?: Set<string>};
+	const result: MarkedSearchParameters = new URLSearchParams();
 	// Deleted keys stay marked even when a later layer re-adds the key, so the key is still removed from the input URL before the re-added value is appended.
 	const deleted = new Set<string>();
 
+	// Both are defined, since an `undefined` layer clears the search parameters instead of being merged.
 	for (const input of [target, source]) {
-		if (input === undefined) {
-			continue;
-		}
-
 		if (input instanceof URLSearchParams) {
 			// A merged `URLSearchParams` already applied its own deletions before any re-added entries, so its deletions only apply to what was merged before it.
-			const inputDeleted = (input as any)[deletedParametersSymbol] as Set<string> | undefined;
+			const inputDeleted = (input as MarkedSearchParameters)[deletedParametersSymbol];
 			if (inputDeleted) {
 				for (const key of inputDeleted) {
 					result.delete(key);
@@ -389,7 +378,7 @@ const deepMergeInternal = <T>(isRoot: boolean, ...sources: Array<Partial<T> | un
 				// happens to contain a `context` key (e.g. a `json` request body).
 				if (isRoot && key === 'context') {
 					// `null` is not accepted, so it is reported here rather than treated as absent.
-					if (value !== undefined && (!isObject(value) || Array.isArray(value))) {
+					if (value !== undefined && !isNonArrayObject(value)) {
 						throw new TypeError('The `context` option must be an object');
 					}
 
@@ -418,13 +407,18 @@ const deepMergeInternal = <T>(isRoot: boolean, ...sources: Array<Partial<T> | un
 						searchParameters = undefined;
 					} else if (isReplace || searchParameters === undefined) {
 						// First or replacement source: shallow-clone to preserve type (string/object/URLSearchParams/tuples) without sharing the caller's object
-						searchParameters = Array.isArray(value) ? value.map(parameter => cloneShallow(parameter)) : cloneShallow(value);
+						searchParameters = cloneSearchParameters(value);
 					} else {
 						// Subsequent sources: merge and convert to URLSearchParams
 						searchParameters = appendSearchParameters(searchParameters, value);
 					}
 
 					continue;
+				}
+
+				// Checked here as well as when the request is built, because a later layer would otherwise replace an invalid value, `null` included, before anything reports it.
+				if (isRoot && key === 'retry' && value !== undefined && typeof value !== 'number' && !isNonArrayObject(value)) {
+					throw new TypeError('`retry` must be a number or an object');
 				}
 
 				// `retry` accepts a number as shorthand for `{limit: number}`. Expand it before
@@ -434,11 +428,6 @@ const deepMergeInternal = <T>(isRoot: boolean, ...sources: Array<Partial<T> | un
 				// (e.g. `ky.create({retry: {methods: ['post']}}).extend({retry: 3})`).
 				// Scoped to the root options level so it never rewrites nested user data that
 				// happens to contain a `retry` key (e.g. a `json` request body).
-				// Checked here as well as when the request is built, because a later layer would otherwise replace an invalid value, `null` included, before anything reports it.
-				if (isRoot && key === 'retry' && value !== undefined && typeof value !== 'number' && (!isObject(value) || Array.isArray(value))) {
-					throw new TypeError('`retry` must be a number or an object');
-				}
-
 				if (isRoot && key === 'retry' && !isReplace) {
 					if (isObject(value) && typeof returnValue[key] === 'number') {
 						returnValue = {...returnValue, [key]: {limit: returnValue[key]}};

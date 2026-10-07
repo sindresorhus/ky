@@ -54,6 +54,11 @@ export const responseTypes = {
 	bytes: '*/*',
 } as const;
 
+// Only expose `.bytes()` when the environment implements it. Checked on each call, so a polyfill added after Ky is imported still counts.
+export const getSupportedResponseTypes = (): Array<keyof typeof responseTypes> =>
+	(Object.keys(responseTypes) as Array<keyof typeof responseTypes>).filter(type =>
+		type !== 'bytes' || typeof (globalThis.Response?.prototype as unknown as {bytes?: unknown})?.bytes === 'function');
+
 // The maximum value of a 32bit int (see issue #117)
 export const maxSafeTimeout = 2_147_483_647;
 
@@ -118,7 +123,7 @@ export type ForceRetryOptions = {
 	/**
 	Custom request to use for the retry.
 
-	This allows you to modify or completely replace the request during a forced retry. The custom request becomes the starting point for the retry - `beforeRetry` hooks can still further modify it if needed.
+	This allows you to modify or completely replace the request during a forced retry. The custom request becomes the starting point for the retry - `beforeRetry` hooks can still further modify it if needed. Anything other than a `Request` or `undefined` makes the request throw a `TypeError`.
 
 	**Note:** The custom request's `signal` will be replaced with Ky's managed signal to handle timeouts and user-provided abort signals correctly. If the original request body has been consumed, you must provide a new body or clone the request before consuming.
 

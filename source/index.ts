@@ -3,7 +3,7 @@
 import {Ky} from './core/Ky.js';
 import {
 	requestMethods,
-	responseTypes,
+	getSupportedResponseTypes,
 	stop,
 	retry,
 } from './core/constants.js';
@@ -20,12 +20,8 @@ const createRequest = (input: Input, getOptions: () => Options): ResponsePromise
 	} catch (error: unknown) {
 		// eslint-disable-next-line @typescript-eslint/prefer-promise-reject-errors -- A hook can throw any value, and it must be preserved exactly.
 		const result = Promise.reject(error) as ResponsePromise;
-		for (const type of Object.keys(responseTypes) as Array<keyof typeof responseTypes>) {
-			// Matches `Ky.create()`, which only exposes `.bytes()` when the environment implements it.
-			if (type === 'bytes' && typeof (globalThis.Response?.prototype as unknown as {bytes?: unknown})?.bytes !== 'function') {
-				continue;
-			}
-
+		// Matches `Ky.create()`, which only exposes `.bytes()` when the environment implements it.
+		for (const type of getSupportedResponseTypes()) {
 			// Returning the same promise marks it as handled, so a body method call does not also report an unhandled rejection.
 			result[type] = async () => result as never;
 		}

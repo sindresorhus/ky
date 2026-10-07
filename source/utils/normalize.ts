@@ -1,6 +1,7 @@
 import {requestMethods} from '../core/constants.js';
 import type {RetryOptions} from '../types/retry.js';
 import type {HttpMethod, InternalOptions, RequestHttpMethod} from '../types/options.js';
+import {isNonArrayObject, isNonNegativeNumber} from './is.js';
 
 export const normalizeRequestMethod = (input: string): string =>
 	requestMethods.includes(input.toLowerCase() as RequestHttpMethod) ? input.toUpperCase() : input;
@@ -18,7 +19,6 @@ const retryMethods: HttpMethod[] = ['get', 'put', 'head', 'delete', 'options', '
 const retryStatusCodes = [408, 413, 429, 500, 502, 503, 504];
 
 const retryAfterStatusCodes = [413, 429, 503];
-const invalidRetryLimitErrorMessage = '`retry.limit` must be a finite, non-negative integer';
 
 type InternalRetryOptions = InternalOptions['retry'];
 
@@ -34,27 +34,12 @@ const defaultRetryOptions: InternalRetryOptions = {
 	retryOnTimeout: false,
 };
 
-/**
-Normalizes an omitted retry limit or validates a supplied one.
-*/
-const normalizeRetryLimit = (retryLimit: unknown): number => {
-	if (retryLimit === undefined) {
-		return defaultRetryOptions.limit;
-	}
-
-	if (typeof retryLimit !== 'number' || !Number.isInteger(retryLimit) || retryLimit < 0) {
-		throw new TypeError(invalidRetryLimitErrorMessage);
-	}
-
-	return retryLimit;
-};
-
 export const normalizeRetryOptions = (retry: number | RetryOptions = {}): InternalRetryOptions => {
 	if (typeof retry === 'number') {
 		retry = {limit: retry};
 	}
 
-	if (retry === null || typeof retry !== 'object' || Array.isArray(retry)) {
+	if (!isNonArrayObject(retry)) {
 		throw new TypeError('`retry` must be a number or an object');
 	}
 
@@ -62,7 +47,10 @@ export const normalizeRetryOptions = (retry: number | RetryOptions = {}): Intern
 		...defaultRetryOptions,
 		...Object.fromEntries(Object.entries(retry).filter(([, value]) => value !== undefined)),
 	};
-	normalizedRetry.limit = normalizeRetryLimit(normalizedRetry.limit);
+	// Validates the retry limit. An omitted one already got the default above, since `undefined` values are filtered out.
+	if (!Number.isInteger(normalizedRetry.limit) || normalizedRetry.limit < 0) {
+		throw new TypeError('`retry.limit` must be a finite, non-negative integer');
+	}
 
 	for (const key of ['methods', 'statusCodes', 'afterStatusCodes'] as const) {
 		if (!Array.isArray(normalizedRetry[key])) {
@@ -84,8 +72,7 @@ export const normalizeRetryOptions = (retry: number | RetryOptions = {}): Intern
 
 	// Both limits are passed to `Math.min()`, so a non-number silently turns every delay into `NaN`, which `setTimeout()` clamps to 1ms. That defeats the whole point of the limits.
 	for (const key of ['maxRetryAfter', 'backoffLimit'] as const) {
-		const value = normalizedRetry[key];
-		if (typeof value !== 'number' || Number.isNaN(value) || value < 0) {
+		if (!isNonNegativeNumber(normalizedRetry[key])) {
 			throw new TypeError(`\`retry.${key}\` must be a non-negative number or \`Infinity\``);
 		}
 	}

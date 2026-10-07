@@ -34,7 +34,8 @@ try {
 ```
 */
 export function isKyError(error: unknown): error is KyError {
-	return (error as any)?.isKyError === true || isHTTPError(error) || isNetworkError(error) || isTimeoutError(error) || isForceRetryError(error) || isResponseSizeError(error);
+	// Every Ky error inherits this brand from `KyError`, including one from another realm.
+	return (error as any)?.isKyError === true;
 }
 
 /**

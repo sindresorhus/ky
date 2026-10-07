@@ -1,5 +1,6 @@
 import {TimeoutError} from '../errors/TimeoutError.js';
 import type {InternalOptions} from '../types/options.js';
+import {cancelBody} from './body.js';
 
 export type TimeoutOptions = {
 	timeout: number;
@@ -21,9 +22,7 @@ export default async function timeout(
 			timeoutId = setTimeout(() => {
 				timedOut = true;
 
-				if (abortController) {
-					abortController.abort();
-				}
+				abortController?.abort();
 
 				reject(new TimeoutError(request));
 			}, options.timeout);
@@ -34,7 +33,7 @@ export default async function timeout(
 			fetch(request, init).then(response => {
 				// A response arriving after the timeout already won is discarded, so its unused body is cancelled. Fire-and-forget: cancellation failures are ignored and never delay the rejection.
 				if (timedOut) {
-					void response.body?.cancel().catch(() => undefined);
+					cancelBody(response);
 					return;
 				}
 

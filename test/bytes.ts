@@ -43,3 +43,40 @@ test('.bytes() throws on HTTP errors when supported', async t => {
 
 	await t.throwsAsync(ky(server.url).bytes(), {message: /Bad Request/});
 });
+
+// Support is checked on each call rather than when Ky is imported, so a polyfill added later is picked up, also by the promise that reports a setup error.
+test.serial('.bytes() is offered only while Response.prototype.bytes exists', async t => {
+	const descriptor = Object.getOwnPropertyDescriptor(Response.prototype, 'bytes');
+	t.teardown(() => {
+		Reflect.deleteProperty(Response.prototype, 'bytes');
+		if (descriptor) {
+			Object.defineProperty(Response.prototype, 'bytes', descriptor);
+		}
+	});
+
+	const fetch = async () => new Response('ok');
+
+	Reflect.deleteProperty(Response.prototype, 'bytes');
+
+	const unsupportedPromise = ky('https://example.com', {fetch});
+	const unsupportedSetupErrorPromise = ky('https://example.com', {timeout: -1});
+	t.false('bytes' in unsupportedPromise);
+	t.false('bytes' in unsupportedSetupErrorPromise);
+	await t.throwsAsync(unsupportedSetupErrorPromise);
+	await unsupportedPromise;
+
+	Object.defineProperty(Response.prototype, 'bytes', {
+		configurable: true,
+		writable: true,
+		async value(this: Response) {
+			return new Uint8Array(await this.arrayBuffer());
+		},
+	});
+
+	const supportedPromise = ky('https://example.com', {fetch});
+	const supportedSetupErrorPromise = ky('https://example.com', {timeout: -1});
+	t.true('bytes' in supportedPromise);
+	t.true('bytes' in supportedSetupErrorPromise);
+	await t.throwsAsync(supportedSetupErrorPromise);
+	t.deepEqual([...await supportedPromise.bytes()], [111, 107]);
+});

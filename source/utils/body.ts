@@ -7,6 +7,20 @@ const responseSizeErrors = new WeakMap<ReadableStream, () => ResponseSizeError |
 // The `Response` constructor rejects a body for these statuses, but some browsers (for example, Chromium and WebKit) still expose a body stream on such responses, so they must not be wrapped. A runtime that exposes a non-empty body for one of them, such as WebKit for 205, is therefore left unlimited and without progress events.
 const nullBodyStatuses = new Set([101, 103, 204, 205, 304]);
 
+/**
+Cancels the body of a request or response that is no longer used, unless `keep` still reads the same stream.
+
+Fire-and-forget: cancellation failures from already-locked or already-consumed streams are ignored, and the cancellation is not awaited since a clone leaves extra tee branches that keep the cancel promise pending per the Streams spec.
+*/
+export const cancelBody = (value: Request | Response | undefined, keep?: Request | Response): void => {
+	const body = value?.body;
+	if (body && body !== keep?.body) {
+		void body.cancel().catch(() => undefined);
+	}
+};
+
+const getContentLength = (headers: Headers): number => Math.max(0, Number(headers.get('content-length')) || 0);
+
 // A multipart body sends every line break in a field name or string value as CRLF, and escapes line breaks and quotes in a field name or filename.
 const normalizeLineBreaks = (value: string): string => value.replaceAll(/\r\n|\r|\n/g, '\r\n');
 const escapeFormDataName = (name: string): string => name.replaceAll('\n', '%0A').replaceAll('\r', '%0D').replaceAll('"', '%22');
@@ -193,7 +207,7 @@ export const streamResponse = (response: Response, onDownloadProgress: Options['
 	// `content-length` counts encoded bytes on the wire, while the progress stream counts the bytes after decompression. Using it for a content-coded response would report a total below what actually arrives, so every event would sit at ~100%. The total is then unknown, which `Progress` already models with `0`. `identity` is a registered no-op coding (RFC 9110 §8.4.2), so it leaves the length valid.
 	const contentEncoding = response.headers.get('content-encoding')?.toLowerCase();
 	const isContentCoded = Boolean(contentEncoding) && contentEncoding !== 'identity';
-	const totalBytes = isContentCoded ? 0 : Math.max(0, Number(response.headers.get('content-length')) || 0);
+	const totalBytes = isContentCoded ? 0 : getContentLength(response.headers);
 	const body = withProgress(originalBody, totalBytes, onDownloadProgress);
 
 	return copyResponseMetadata(new Response(body, response), response);
@@ -214,8 +228,7 @@ export const streamRequest = (request: Request, onUploadProgress: Options['onUpl
 	}
 
 	// Use original body for size calculation since request.body is already a stream. A `ReadableStream` measures 0, so fall back to a `content-length` the caller declared. Browsers drop that header from a request, so this only helps outside browsers.
-	const totalBytes = getBodySize(originalBody ?? request.body)
-		|| Math.max(0, Number(request.headers.get('content-length')) || 0);
+	const totalBytes = getBodySize(originalBody ?? request.body) || getContentLength(request.headers);
 
 	return new Request(request, {
 		// @ts-expect-error - Types are outdated.

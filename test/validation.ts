@@ -191,6 +191,18 @@ test('setup errors reject the returned promise and every body method', async t =
 	}
 });
 
+test('setup errors also reject `.bytes()` with the same error', async t => {
+	if (typeof (Response.prototype as unknown as {bytes?: unknown}).bytes !== 'function') {
+		t.pass();
+		return;
+	}
+
+	const responsePromise = ky('https://example.com', {timeout: -1, fetch: okFetch});
+	const error = await t.throwsAsync(responsePromise);
+
+	t.is(await t.throwsAsync(responsePromise.bytes()), error);
+});
+
 // Option merging only checked `hooks` when it was an object, and replaced an invalid `retry`, so a later layer hid a `null` or another bad shape instead of reporting it.
 test('rejects a bad `hooks` or `retry` while merging, before a later layer can hide it', async t => {
 	for (const hooks of [null, 'nope', []] as unknown[]) {
