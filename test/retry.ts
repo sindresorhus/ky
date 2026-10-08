@@ -4817,12 +4817,12 @@ test('a user abort during the retry delay throws the abort reason', async t => {
 // `beforeError` hooks run after an error is produced, so they are not bounded by `totalTimeout`.
 test('totalTimeout does not bound a beforeError hook', async t => {
 	const error = await t.throwsAsync(ky('https://example.com', {
-		totalTimeout: 50,
+		totalTimeout: 500,
 		timeout: false,
 		retry: 0,
 		hooks: {
 			beforeError: [async ({error}) => {
-				await delay(200);
+				await delay(600);
 				return new Error(`rewritten: ${error.name}`);
 			}],
 		},

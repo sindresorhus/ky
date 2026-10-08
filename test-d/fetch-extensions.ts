@@ -18,4 +18,4 @@ const withNext: Options = {next: {revalidate: 0}};
 
 expectTypeOf<Options['next']>().toEqualTypeOf<NextFetchRequestConfig | undefined>();
 
-void withNext;
+expectTypeOf(withNext).toEqualTypeOf<Options>();

@@ -322,11 +322,10 @@ test('a content-type from the headers option is kept for a FormData body on a Re
 	t.is(requests[0]!.headers.get('content-type'), 'multipart/form-data; boundary=custom');
 });
 
-// The `Request` constructor only normalizes the methods the Fetch standard lists, so a lowercase `query` on a `Request` input is still lowercase when Ky reads it.
+// The `Request` constructor only normalizes the methods the Fetch standard lists. Runtimes from before `QUERY` was added keep a lowercase `query` on a `Request` input, so Ky must uppercase it.
 test('a standard method from a Request input is uppercased', async t => {
 	const {fetch, requests} = createRecordingFetch();
 	const input = new Request('https://example.com/', {method: 'query'});
-	t.is(input.method, 'query');
 
 	await ky(input, {fetch, retry: 0});
 

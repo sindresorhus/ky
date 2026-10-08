@@ -481,8 +481,12 @@ test('aborting during a hung retry aborts that attempt and does not retry again'
 	const controller = new AbortController();
 
 	const result = observe(client(transport)(url, {signal: controller.signal}));
-	await delay(80);
-	t.is(transport.attempts, 2);
+	// Wait for the retry to start, since a busy machine can stretch the retry delay.
+	while (transport.attempts < 2) {
+		// eslint-disable-next-line no-await-in-loop
+		await delay(5);
+	}
+
 	controller.abort();
 	await delay(50);
 
