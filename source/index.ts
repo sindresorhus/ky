@@ -78,6 +78,7 @@ export type {
 	BeforeRequestState,
 	BeforeRetryHook,
 	BeforeRetryState,
+	BeforeRetryUpdate,
 	BeforeErrorHook,
 	BeforeErrorState,
 	AfterResponseHook,

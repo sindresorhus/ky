@@ -319,7 +319,7 @@ export type KyOptions = {
 	/**
 	Upload progress event handler.
 
-	Note: Requires [request stream support](https://caniuse.com/wf-fetch-request-streams) and, in Chromium-based browsers, an HTTP/2 or HTTP/3 connection (streaming uploads over HTTP/1.1 fail with a network error, even over plain HTTP). This handler is silently ignored in unsupported environments and for requests with `keepalive: true` or `mode: 'no-cors'`, since they cannot use streaming request bodies.
+	Note: Requires [request stream support](https://caniuse.com/wf-fetch-request-streams) and, in Chromium-based browsers, an HTTP/2 or HTTP/3 connection (streaming uploads over HTTP/1.1 fail with a network error, even over plain HTTP). This handler is silently ignored in unsupported environments and for requests with `keepalive: true` or `mode: 'no-cors'`, since they cannot use streaming request bodies. If an upload fails over HTTP/1.1 in Chromium, you can retry it without upload progress by returning `{options: {onUploadProgress: undefined}}` from a [`beforeRetry`](#hooksbeforeretry) hook.
 
 	@param progress - Object containing upload progress information.
 	@param chunk - Data that was sent. When an empty request body stream completes, the callback receives an empty chunk.

@@ -574,6 +574,31 @@ If the request received a response, the error will be of type `HTTPError`. The `
 
 You can prevent Ky from retrying the request by throwing an error. Ky will not handle it in any way and the error will be propagated to the request initiator. The rest of the `beforeRetry` hooks will not be called in this case. Alternatively, you can return the [`ky.stop`](#kystop) symbol to do the same thing but without propagating an error (this has some limitations, see `ky.stop` docs for details).
 
+**Changing options:**
+
+Return `{options: {...}}` to change `onUploadProgress`, `onDownloadProgress`, `timeout`, `fetch`, or `throwHttpErrors` for this retry and the ones after it. Omitted options keep their value, and `undefined` restores Ky's default, not the value from `ky.create()` or `ky.extend()`. Any other option, or an invalid value, throws an error. The remaining `beforeRetry` hooks still run and see the new progress callbacks in `options`. The `options` a hook receives never include `timeout`, `fetch`, or `throwHttpErrors`.
+
+For example, turn off upload progress after a network error. Upload progress needs a streamed request body, which Chromium only sends over HTTP/2 or HTTP/3, so the upload fails on an HTTP/1.1 connection. Only retry an upload when it is safe to send it again, since a network error does not tell whether the server got the request.
+
+```js
+import ky, {isNetworkError} from 'ky';
+
+await ky.put(uploadUrl, {
+	body: file,
+	onUploadProgress: updateProgress,
+	retry: {limit: 1},
+	hooks: {
+		beforeRetry: [
+			({error}) => {
+				if (isNetworkError(error)) {
+					return {options: {onUploadProgress: undefined}};
+				}
+			}
+		]
+	}
+});
+```
+
 **Modifying headers:**
 
 ```js
@@ -805,7 +830,7 @@ Type: `Function`
 Upload progress event handler.
 
 > [!NOTE]
-> Requires [request stream support](https://caniuse.com/wf-fetch-request-streams) and, in Chromium-based browsers, an HTTP/2 or HTTP/3 connection (streaming uploads over HTTP/1.1 fail with a network error, even over plain HTTP). This handler is silently ignored in unsupported environments and for requests with `keepalive: true` or `mode: 'no-cors'`, since they cannot use streaming request bodies.
+> Requires [request stream support](https://caniuse.com/wf-fetch-request-streams) and, in Chromium-based browsers, an HTTP/2 or HTTP/3 connection (streaming uploads over HTTP/1.1 fail with a network error, even over plain HTTP). This handler is silently ignored in unsupported environments and for requests with `keepalive: true` or `mode: 'no-cors'`, since they cannot use streaming request bodies. If an upload fails over HTTP/1.1 in Chromium, you can retry it without upload progress by returning `{options: {onUploadProgress: undefined}}` from a [`beforeRetry`](#hooksbeforeretry) hook.
 
 The function receives these arguments:
 - `progress` is an object with these properties:

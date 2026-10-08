@@ -50,6 +50,7 @@ import {
 	responseTypes,
 	getSupportedResponseTypes,
 	stop,
+	beforeRetryOptionKeys,
 	isRetryMarker,
 	supportsAbortController,
 	supportsAbortSignal,
@@ -212,6 +213,9 @@ const validateTimeoutOption = (value: unknown, name: 'timeout' | 'totalTimeout')
 		throw new RangeError(`The \`${name}\` option cannot be greater than ${maxSafeTimeout}`);
 	}
 };
+
+// Defaults only replace `undefined`, so a `null` reaches the validation and is reported instead of silently becoming the default.
+const withAttemptDefaults = ({throwHttpErrors = true, timeout = 10_000, fetch = globalThis.fetch.bind(globalThis)}: Options) => ({throwHttpErrors, timeout, fetch});
 
 // These callbacks are called directly, so a non-function value otherwise surfaces as a runtime error naming Ky's own internals rather than the option the caller set.
 const validateCallbackOptions = (options: Record<string, unknown>): void => {
@@ -460,10 +464,7 @@ export class Ky {
 		// Defaults only replace `undefined`, so a `null` reaches the validation below and is reported instead of silently becoming the default.
 		const {
 			maxResponseSize = Number.POSITIVE_INFINITY,
-			throwHttpErrors = true,
-			timeout = 10_000,
 			totalTimeout = false,
-			fetch = globalThis.fetch.bind(globalThis),
 		} = options;
 		if (Object.hasOwn(options, 'prefixUrl')) {
 			throw new Error(prefixUrlRenamedErrorMessage);
@@ -490,16 +491,14 @@ export class Ky {
 			// eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing
 			prefix: String(options.prefix || ''),
 			retry: normalizeRetryOptions(options.retry),
-			throwHttpErrors,
-			timeout,
+			...withAttemptDefaults(options),
 			totalTimeout,
 			maxResponseSize,
-			fetch,
 			context: options.context ?? {},
 		};
 		// Checked here rather than on the way out, because the constructor already calls `stringifyJson`.
 		validateCallbackOptions(this.#options);
-		validateTimeoutOption(timeout, 'timeout');
+		validateTimeoutOption(this.#options.timeout, 'timeout');
 		validateTimeoutOption(totalTimeout, 'totalTimeout');
 		this.#retryLimit = this.#options.retry.limit;
 
@@ -1204,6 +1203,10 @@ export class Ky {
 			if (hookResult === stop) {
 				return;
 			}
+
+			if (isNonArrayObject(hookResult)) {
+				this.#applyBeforeRetryOptions(hookResult.options);
+			}
 		}
 
 		this.#throwIfTotalTimeoutExhausted();
@@ -1278,6 +1281,27 @@ export class Ky {
 	// `0` once the `totalTimeout` budget is spent, and `Infinity` without a `totalTimeout`.
 	#getRemainingTotalTimeout(): number {
 		return Math.max(0, this.#deadline - getCurrentTime());
+	}
+
+	// Omitted options keep their value, and `undefined` restores Ky's default. The changes apply to the next attempt and every later one.
+	#applyBeforeRetryOptions(options: unknown): void {
+		if (!isNonArrayObject(options)) {
+			throw new TypeError('The `options` returned from a `beforeRetry` hook must be an object');
+		}
+
+		for (const key of Object.keys(options)) {
+			if (!(beforeRetryOptionKeys as readonly string[]).includes(key)) {
+				throw new TypeError(`The \`${key}\` option cannot be changed from a \`beforeRetry\` hook`);
+			}
+		}
+
+		const mergedOptions = {...this.#options, ...options};
+		const updatedOptions = {...mergedOptions, ...withAttemptDefaults(mergedOptions)};
+		validateCallbackOptions(updatedOptions);
+		validateTimeoutOption(updatedOptions.timeout, 'timeout');
+
+		Object.assign(this.#options, updatedOptions);
+		this.#cachedNormalizedOptions = undefined;
 	}
 
 	#getNormalizedOptions(): NormalizedOptions {

@@ -830,3 +830,76 @@ defaultBrowsersTest('an unbound window.fetch works as the fetch option', async (
 	t.deepEqual(results, ['rainbow', 'rainbow', 'rainbow', 'rainbow', 'recovered']);
 	t.is(requestCount, 2);
 });
+
+browserTest('beforeRetry upload progress override allows HTTP/1.1 fallback', [chromium], async (t, page) => {
+	const uploadServer = await createEsmTestServer({bodyParser: false});
+	t.teardown(uploadServer.close);
+	uploadServer.get('/', (_request, response) => {
+		response.end();
+	});
+	let receivedRequests = 0;
+	uploadServer.put('/upload', async (request, response) => {
+		receivedRequests++;
+		const body = await parseRawBody(request);
+		response.json({body, contentType: request.headers['content-type']});
+	});
+	await page.goto(uploadServer.url);
+	await addKyScriptToPage(page);
+
+	const results = await page.evaluate(async (url: string) => {
+		const formData = new FormData();
+		formData.append('field', 'payload');
+		const bodies = ['payload', new Blob(['payload']), formData, new URLSearchParams({field: 'payload'})];
+		const results = [];
+		for (const body of bodies) {
+			let retryCount = 0;
+			let errorName = '';
+			let retryContentType: string | undefined;
+			// eslint-disable-next-line no-await-in-loop
+			const response = await globalThis.ky.put(`${url}/upload`, {
+				body,
+				onUploadProgress() {
+					// Only enables the streamed upload, which fails over HTTP/1.1 in Chromium.
+				},
+				retry: {
+					limit: 1,
+					// A method, because tsx wraps an arrow function assigned to a property with a `__name` helper that does not exist in the page.
+					delay() {
+						return 0;
+					},
+				},
+				hooks: {
+					beforeRetry: [state => {
+						retryCount = state.retryCount;
+						errorName = state.error.name;
+						retryContentType = state.request.headers.get('content-type') ?? undefined;
+						return {options: {onUploadProgress: undefined}};
+					}],
+				},
+			}).json<{body: string; contentType?: string}>();
+			results.push({
+				...response,
+				retryCount,
+				errorName,
+				retryContentType,
+			});
+		}
+
+		return results;
+	}, uploadServer.url);
+
+	t.is(receivedRequests, 4);
+	for (const result of results) {
+		t.is(result.retryCount, 1);
+		t.is(result.errorName, 'NetworkError');
+		t.is(result.contentType, result.retryContentType);
+	}
+
+	t.is(results[0]!.body, 'payload');
+	t.is(results[1]!.body, 'payload');
+	// The multipart boundary in the retried body must match its content type.
+	const boundary = results[2]!.contentType!.split('boundary=')[1]!;
+	t.true(results[2]!.body.startsWith(`--${boundary}\r\n`));
+	t.true(results[2]!.body.includes('name="field"\r\n\r\npayload\r\n'));
+	t.is(results[3]!.body, 'field=payload');
+});
