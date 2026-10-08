@@ -19,6 +19,18 @@ jobs:
         with:
           node-version: ${{ matrix.node-version }}
       - run: npm install
+      - run: npx ava 'test/**' '!test/browser.ts'
+  # The browser tests, linting, build, and type checks do not depend on the Node.js version, so they run only once.
+  browser:
+    name: Browsers and static checks
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: latest
+      - run: npm install
       - name: Install Playwright Browsers
         run: npx playwright install --with-deps
-      - run: npm test
+      # The file argument goes to `ava`, so it must stay the last command in the `test` script.
+      - run: npm test -- test/browser.ts
